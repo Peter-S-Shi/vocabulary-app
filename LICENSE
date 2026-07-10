@@ -1,0 +1,9 @@
+License decision pending.
+
+This project is currently a personal local-first vocabulary learning app.
+Before public distribution, choose an appropriate open-source license such as
+MIT, Apache-2.0, or GPL-3.0.
+
+No third-party dictionary databases, pronunciation audio files, voice models,
+or copyrighted word lists are included in this repository.
+

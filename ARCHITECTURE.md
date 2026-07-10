@@ -1,0 +1,94 @@
+# Architecture
+
+Vocabulary App is a local-first Python application with a reusable core, a SQLite persistence layer, and a temporary Streamlit UI.
+
+## Layers
+
+| Layer | Allowed Responsibilities | Forbidden Responsibilities |
+|---|---|---|
+| Core modules | SQL, validation, business rules, scheduling, reusable query helpers, import/export and backup operations | Streamlit widgets, `session_state`, page rendering |
+| Streamlit UI | Widgets, layout, page flow, user input collection, transient navigation and focus state | Direct SQL when avoidable, schema creation, durable business rules |
+| App shell | Page configuration, initialization, sidebar navigation, page routing | Learning algorithms, SQL, collection ordering, parsing |
+
+## Local-First Design
+
+SQLite is the durable source of application state. The default development database is `data/vocab.db`, with optional path resolution provided by `src/app_config.py`.
+
+The app does not silently move or replace a database. User-created entries, templates, review history, quiz logs, and learning-pool membership remain local and user-controlled.
+
+## User-Owned Content
+
+The software organizes and practices content supplied by users. It does not ship dictionary databases, pronunciation libraries, copyrighted word lists, or AI-generated learning datasets. See `CONTENT_POLICY.md`.
+
+## Streamlit Boundary Rule
+
+Streamlit imports are allowed only in:
+
+- `app.py`
+- `src/ui_streamlit/*.py`
+
+Reusable modules under `src/` must not import Streamlit. They expose plain Python functions and return plain data structures so a future desktop UI can reuse them.
+
+Streamlit `session_state` is UI state. Durable state and duplicate-action protection belong in core modules and SQLite.
+
+## Core Module Responsibilities
+
+- `src/app_config.py`: application identity and local path resolution
+- `src/db.py`: connections, schema initialization, and additive compatibility updates
+- `src/migrations.py`: schema/app metadata, feature flags, and additive migration registry
+- `src/entries.py`: entry CRUD, search, filters, and batch operations
+- `src/entry_templates.py`: templates, fields, and template values
+- `src/collections.py`: collection membership, cards, positions, and system pools
+- `src/review.py`: card review state, scheduling, and logs
+- `src/quiz.py`: quiz sessions, item generation, answers, and logs
+- `src/template_quiz.py`: template-aware quiz rules
+- `src/statistics.py`: read-only statistics and calendar queries
+- `src/learning_workflow.py`: read-only Today workflow queries and recommendations
+- `src/import_export.py`: transfer formats, validation, preview, and confirmed import
+- `src/backup.py`: database/workbook backup and restore preview
+- `src/text_parser.py`: structured Quick Add parsing
+
+## UI Module Responsibilities
+
+`src/ui_streamlit/` owns:
+
+- page rendering and widget layout
+- transient forms and selection state
+- sidebar/page focus hints
+- upload and download controls
+- user-facing messages
+
+UI modules call core functions rather than duplicating durable rules.
+
+## Database Ownership
+
+- Schema initialization and compatibility changes belong in `src/db.py`.
+- Schema/app metadata and migration registry logic belong in `src/migrations.py`.
+- Feature modules may execute SQL for their owned data responsibilities.
+- UI modules should not contain raw SQL.
+- Migrations should be additive, backup-aware, and preserve user data.
+- `data/vocab.db` must not be committed to Git.
+
+## Future Desktop Migration
+
+A desktop migration should preserve the SQLite schema and core modules, then replace `app.py` and `src/ui_streamlit/` with a package such as `src/ui_desktop/`.
+
+The desktop layer should call the same core functions and introduce UI adapters only where Streamlit currently handles uploads, downloads, navigation, or transient widget state.
+
+## Contributor Guardrails
+
+Do not:
+
+- import Streamlit from core modules
+- place SQL or learning algorithms in `app.py`
+- create parallel quiz, review, import, or persistence systems
+- silently switch or migrate user databases
+- introduce mandatory external language-content services
+
+Run:
+
+```powershell
+python scripts/audit_architecture.py
+```
+
+before architecture-sensitive changes.

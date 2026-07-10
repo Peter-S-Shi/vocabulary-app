@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# Local database and personal data
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+data/*.db-*
+data/*.sqlite-*
+data/*.sqlite3-*
+*.db
+*.sqlite
+*.sqlite3
+*.db-*
+*.sqlite-*
+*.sqlite3-*
+
+# Keep data folder structure
+!data/.gitkeep
+
+# User-generated output
+user_data/
+backups/
+backup/
+exports/
+imports/
+private_imports/
+*.bak
+
+# Environment and secrets
+.env
+.env.*
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Build and packaging
+build/
+dist/
+*.spec
+
+# Logs and temporary files
+*.log
+.tmp/
+temp/
