@@ -29,7 +29,8 @@ Users clone or download the repository, create a virtual environment, install re
 - Dependency setup is unfamiliar to non-technical users
 - Does not feel like a conventional installed application
 
-**Suitability:** recommended for the current public MVP.
+**Suitability:** the current credible distribution path after Milestone 11
+Product Hardening and Milestone 12 release-candidate acceptance.
 
 ### Option B: Local Script Launcher
 
@@ -48,7 +49,8 @@ A future `.bat`, `.ps1`, or shell script could check the environment and launch 
 - The UI remains a browser-based local Streamlit session
 - Error handling and environment setup require care
 
-**Suitability:** reasonable optional convenience after product QA.
+**Suitability:** reasonable optional convenience after the current release
+passes Product Hardening and release-candidate acceptance.
 
 ### Option C: PyInstaller or Executable Wrapper Around Streamlit
 
@@ -91,16 +93,17 @@ Replace the Streamlit UI with PySide6 or PyQt while retaining core modules and S
 
 **Suitability:** strongest medium-term product path after workflow and schema stability.
 
-## 3. Recommended Short-Term Path
+## 3. Recommended Current-Release Path
 
-For Milestone 10:
+For the current Streamlit source release:
 
 1. Keep Streamlit as the MVP/local interface.
-2. Publish a clean, documented, reproducible GitHub project.
-3. Complete manual acceptance of Milestones 6-9.
-4. Establish schema versioning and update safety.
-5. Consider launch scripts as an optional convenience.
-6. Do not spend substantial effort forcing Streamlit into a polished executable.
+2. Complete Feature Complete Review and explicitly pass Feature Freeze.
+3. Complete Milestone 11 Product Hardening and full-product acceptance.
+4. Complete Milestone 12 clean-environment and release-candidate verification.
+5. Publish a clean, documented, reproducible source release.
+6. Consider launch scripts only as an optional later convenience.
+7. Do not spend substantial effort forcing Streamlit into a polished executable.
 
 ## 4. Recommended Medium-Term Path
 
@@ -141,5 +144,9 @@ Only fictional, self-created, permission-cleared sample files may be distributed
 
 ## Decision
 
-The current application is ready for public source distribution after QA. It is not yet justified to treat a Streamlit executable wrapper as the final product form.
-
+Developer/power-user source setup is the current credible distribution model,
+subject to Feature Freeze, Product Hardening, full regression/manual
+acceptance, and release-candidate verification. No native installer or
+standalone desktop executable currently exists. A Streamlit executable wrapper
+remains a feasibility experiment, while PySide6/PyQt is the stronger
+medium-term path after the current release lifecycle is complete.

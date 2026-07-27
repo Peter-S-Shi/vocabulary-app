@@ -12,6 +12,7 @@ env/
 
 # Streamlit secrets
 .streamlit/secrets.toml
+.streamlit/
 
 # Local database and personal data
 data/*.db
@@ -38,6 +39,11 @@ exports/
 imports/
 private_imports/
 *.bak
+
+# Local spreadsheet and tabular data
+*.csv
+*.xlsx
+*.xls
 
 # Environment and secrets
 .env

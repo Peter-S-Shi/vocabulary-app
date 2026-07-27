@@ -67,6 +67,11 @@
 
 Milestone 10.7 is a QA and documentation closure milestone. It does not add dictionary lookup, pronunciation playback, bundled audio, AI-generated learning content, cloud sync, login, desktop GUI rewrite, or destructive restore behavior.
 
+Milestone 10 implementation checks passed where recorded below. Unchecked
+manual items remain inputs to Feature Complete Review and Milestone 11 Product
+Hardening. Milestone 10 closure is not full-product release acceptance and does
+not establish Release Ready status.
+
 ## Checks Run During Implementation
 
 - [x] Python compile check passed for changed app/config/database/migration/settings files.

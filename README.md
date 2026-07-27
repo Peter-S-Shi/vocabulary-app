@@ -17,6 +17,22 @@ Vocabulary App helps users maintain their own vocabulary database and turn it in
 
 The `Today` page acts as the daily learning home. It summarizes due work, suggests review and quiz actions, and reports activity derived from existing local logs.
 
+## Lifecycle Status
+
+Milestones 1-10 feature development and productization are complete. The
+project is now in **Feature Complete Review / Feature Freeze Preparation** for
+the current Streamlit-based source release.
+
+The application is not yet Release Ready: full-product system audit, Feature
+Freeze approval, Product Hardening, complete regression/manual acceptance, and
+release-candidate verification remain outstanding.
+
+- [ROADMAP.md](ROADMAP.md) is the authoritative lifecycle and milestone plan.
+- [PROJECT_STATUS.md](PROJECT_STATUS.md) is the authoritative current-state
+  snapshot.
+- [PRE_GIT_HISTORY.md](PRE_GIT_HISTORY.md) documents development before the
+  initial public Git baseline.
+
 ## Product Philosophy
 
 - **Local-first:** learning data is stored in a local SQLite database.
@@ -248,7 +264,8 @@ Future packaged versions may use an operating-system app-data directory rather t
 
 ## Development Milestones
 
-Completed product capabilities:
+Milestones 1-10 completed the current feature set and productization
+foundations:
 
 - Local entry and collection management
 - Collection Card review scheduling
@@ -261,7 +278,10 @@ Completed product capabilities:
 - Schema/app metadata and software-update compatibility foundation
 - Productization QA and public-repository documentation polish
 
-The project is now in a productization phase focused on public-repository safety, configuration, architecture boundaries, packaging feasibility, and update compatibility.
+Milestone 10 productization closure is not equivalent to full-product release
+acceptance. The next lifecycle gates are Feature Complete Review, explicit
+Feature Freeze, Milestone 11 Product Hardening, and Milestone 12 Release
+Candidate delivery.
 
 Detailed manual QA documents are available for recent milestones:
 
@@ -272,23 +292,20 @@ Detailed manual QA documents are available for recent milestones:
 
 ## Roadmap
 
-### Current productization phase
+The current release lifecycle is:
 
-- Public GitHub readiness
-- Product identity and user-owned content policy
-- Local data and configuration safety
-- Core/UI migration readiness
-- Packaging feasibility
-- Software-update and schema-version foundations
-- Productization QA and Milestone 10 closure
+```text
+Feature Complete Review
+-> Feature Freeze Gate
+-> Milestone 11 Product Hardening
+-> Milestone 12 Release Candidate
+-> Current Version Complete
+-> Maintenance / Next Version
+```
 
-### Future optional directions
-
-- Language-learning enhancements that remain optional and copyright-safe
-- Input-efficiency improvements compatible with the update architecture
-- A future decision between packaging the local Streamlit app and migrating the UI to PySide6/PyQt
-
-Dictionary databases, bundled pronunciation, and mandatory AI services are not current roadmap items.
+Desktop migration, native packaging, optional language-content integrations,
+cloud/accounts, and new learning modes are deferred to a later version. See
+[ROADMAP.md](ROADMAP.md) for scope and exit criteria.
 
 ## Common Errors
 

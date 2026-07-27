@@ -21,7 +21,7 @@ Normal users do not need to configure a path. Developers and advanced users may 
 PowerShell:
 
 ```powershell
-$env:VOCAB_APP_DB_PATH="E:\VocabularyAppData\vocab.db"
+$env:VOCAB_APP_DB_PATH="$env:USERPROFILE\VocabularyAppData\vocab.db"
 python -m streamlit run app.py
 ```
 
@@ -52,4 +52,3 @@ No automatic path migration is implemented. A future packaged desktop version ma
 - Linux: `~/.local/share/vocabulary-app/`
 
 Moving existing data would require an explicit, backup-aware migration workflow.
-

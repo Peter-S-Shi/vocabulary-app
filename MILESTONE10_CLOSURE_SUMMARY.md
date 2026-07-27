@@ -28,12 +28,13 @@ These are outside the current product boundary.
 
 ## Future Optional Directions
 
-Future work should remain compatible with local-first ownership and safe software updates.
+This historical closure did not establish full-product release acceptance.
+The subsequent lifecycle decision defines:
 
-Possible next stages:
+- Feature Complete Review / Feature Freeze Preparation as the current phase;
+- Milestone 11 as Product Hardening; and
+- Milestone 12 as Release Candidate and Current-Version Delivery.
 
-- Milestone 11 Option 1: Desktop GUI Prototype Planning
-- Milestone 11 Option 2: Streamlit UX Stabilization and Release Candidate
-- Milestone 11 Option 3: Optional Input Efficiency Upgrade, only after product-form rules are stable
-
-No Milestone 11 direction is selected automatically by this closure document.
+Desktop migration and new optional capabilities are deferred to a later
+version. See `ROADMAP.md` and `PROJECT_STATUS.md` for the authoritative current
+plan and status.

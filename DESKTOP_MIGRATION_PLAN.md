@@ -96,12 +96,18 @@ Durable quiz sessions, answer logs, review schedules, and content remain in SQLi
 
 ## 7. Migration Phases
 
-### Phase 1: Stabilize Streamlit and architecture
+### Prerequisite: Complete the current Streamlit release lifecycle
 
-- Complete Milestone 10.
-- Finish baseline manual acceptance of Milestones 6-9.
+- Complete Feature Complete Review.
+- Explicitly pass the Feature Freeze Gate.
+- Complete Milestone 11 Product Hardening.
+- Complete Milestone 12 release-candidate acceptance.
+- Finish full-product manual acceptance and regression.
 - Keep the architecture audit clean.
-- Establish schema/app version metadata and migration rules.
+- Preserve the schema/app metadata and migration rules established in
+  Milestone 10.6.
+
+Do not begin a full desktop migration before these gates pass.
 
 ### Phase 2: Minimal desktop shell prototype
 
@@ -147,12 +153,17 @@ Define explicit controller state and verify database parity after each workflow.
 - [x] Today workflow queries are reusable
 - [x] Architecture and content policies are documented
 - [x] Public sample-data policy excludes personal and copyrighted data
-- [ ] Milestones 6-9 have completed baseline manual acceptance
-- [ ] Schema version metadata and migration rules exist
+- [x] Schema version metadata and migration rules exist
+- [ ] Feature Complete Review is complete
+- [ ] Feature Freeze is explicitly approved
+- [ ] Full-product manual acceptance and Product Hardening are complete
+- [ ] Current Streamlit release-candidate acceptance is complete
 - [ ] A minimal desktop shell prototype proves core reuse
 - [ ] Packaged user-data migration and rollback are designed
 
 ## Recommended Next Decision
 
-Finish productization and manual workflow validation before starting a full rewrite. Then build a deliberately small PySide6/PyQt prototype and evaluate it against the existing Streamlit workflow before choosing the final desktop framework.
-
+Complete the current Streamlit Feature Freeze, Product Hardening, and
+release-candidate lifecycle before starting a full rewrite. Then build a
+deliberately small PySide6/PyQt prototype and evaluate it against the verified
+Streamlit workflow before choosing the final desktop framework.

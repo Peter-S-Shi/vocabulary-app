@@ -46,14 +46,17 @@ The automated script `scripts/audit_architecture.py` checks these boundaries wit
 
 ## Recommended Desktop Migration Strategy
 
-1. Freeze and manually verify the current learning workflows.
-2. Keep the SQLite schema and existing core modules.
-3. Add a new UI package such as `src/ui_desktop/`.
-4. Build desktop navigation and view models around current core functions.
-5. Replace Streamlit upload/download widgets with native file dialogs.
-6. Map transient quiz and focus state to explicit desktop controller state.
-7. Preserve database compatibility or provide additive migration scripts.
-8. Retire Streamlit pages only after workflow parity is verified.
+1. Complete Feature Complete Review and explicitly pass the Feature Freeze Gate.
+2. Complete Milestone 11 Product Hardening and Milestone 12 release-candidate
+   acceptance for the current Streamlit release.
+3. Freeze and manually verify the current learning workflows.
+4. Keep the SQLite schema and existing core modules.
+5. Add a new UI package such as `src/ui_desktop/`.
+6. Build desktop navigation and view models around current core functions.
+7. Replace Streamlit upload/download widgets with native file dialogs.
+8. Map transient quiz and focus state to explicit desktop controller state.
+9. Preserve database compatibility or provide additive migration scripts.
+10. Retire Streamlit pages only after workflow parity is verified.
 
 ## Risks and Watchlist
 
@@ -87,4 +90,12 @@ Future schema changes should use the version metadata and additive migration reg
 
 ## Readiness Assessment
 
-The project is suitable for packaging feasibility work and a future incremental desktop UI prototype. It is not yet appropriate for an immediate full UI rewrite before Milestones 6-9 receive baseline manual acceptance and update/schema rules are established.
+The core is migration-friendly, and Milestone 10.6 established schema/app
+metadata plus migration rules. This supports a future deliberately small
+prototype; it does not establish readiness for a full rewrite.
+
+The current Streamlit workflows must first pass Feature Complete Review,
+explicit Feature Freeze, Product Hardening, full regression/manual acceptance,
+and release-candidate verification. Active quiz recovery, dense tables, file
+workflows, focus state, dates/local time, writable data paths, and software
+updates remain migration risks.

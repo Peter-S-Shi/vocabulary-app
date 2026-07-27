@@ -41,3 +41,16 @@ Before submitting a change:
 4. Confirm that existing databases remain compatible.
 5. Update relevant documentation and manual QA notes.
 
+## Lifecycle Documentation Closure
+
+After a milestone, repair batch, audit batch, or significant scope decision,
+assess and update:
+
+- `PROJECT_STATUS.md`;
+- `ROADMAP.md` when lifecycle or scope changes;
+- affected QA documentation; and
+- README or release notes when user-visible claims change.
+
+This reconciliation is part of completing the work. Do not mark manual QA,
+Feature Freeze, Product Hardening, or release acceptance complete without
+recorded evidence.
