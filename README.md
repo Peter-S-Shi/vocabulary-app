@@ -2,7 +2,7 @@
 
 Vocabulary App is a local-first personal vocabulary learning system for people who want to create, edit, organize, review, quiz, analyze, import, export, and back up their own English and French learning entries.
 
-The project is currently a Python, Streamlit, and SQLite application. Streamlit is the temporary UI layer; reusable learning and data logic is kept in separate core modules to support a future desktop UI or other product form.
+The project is currently a Python, Streamlit, and SQLite application. Streamlit is the temporary compatibility UI; reusable learning and data logic is kept in separate core modules for the planned native desktop product.
 
 ## Overview
 
@@ -19,13 +19,14 @@ The `Today` page acts as the daily learning home. It summarizes due work, sugges
 
 ## Lifecycle Status
 
-Milestones 1-10 feature development and productization are complete. The
-project is now in **Feature Complete Review / Feature Freeze Preparation** for
-the current Streamlit-based source release.
+Milestones 1-10 feature development and productization are complete historical
+work. The project is now in **Scope Reopened / Pre-Desktop Stabilization** at
+**Milestone 11**.
 
-The application is not yet Release Ready: full-product system audit, Feature
-Freeze approval, Product Hardening, complete regression/manual acceptance, and
-release-candidate verification remain outstanding.
+Streamlit remains the currently runnable compatibility/reference UI, but it is
+no longer the intended Release Candidate target. The active lifecycle now
+stabilizes data semantics, builds reusable foundations, migrates the product to
+a native desktop UI, and hardens/packages the desktop product.
 
 - [ROADMAP.md](ROADMAP.md) is the authoritative lifecycle and milestone plan.
 - [PROJECT_STATUS.md](PROJECT_STATUS.md) is the authoritative current-state
@@ -121,17 +122,19 @@ This project does not include:
 
 - built-in dictionary databases
 - copyrighted word lists
-- bundled pronunciation audio
-- bundled TTS voice models
+- bundled pronunciation recordings
+- bundled or downloaded TTS voice models in the current implementation
 - AI-generated vocabulary explanations, examples, or bulk learning content
 - automatic correction of user-created entries
 - cloud sync
 - account login or authentication
 - mobile app packaging
-- a desktop GUI rewrite
+- an implemented desktop GUI in the current repository state
 - full destructive database restore
 
-These exclusions reflect the current product scope.
+These statements describe the current implementation. The active roadmap now
+includes local Card Audio Export and native desktop migration, subject to
+feasibility, licensing, compatibility, and later milestone verification.
 
 ## Tech Stack
 
@@ -278,10 +281,10 @@ foundations:
 - Schema/app metadata and software-update compatibility foundation
 - Productization QA and public-repository documentation polish
 
-Milestone 10 productization closure is not equivalent to full-product release
-acceptance. The next lifecycle gates are Feature Complete Review, explicit
-Feature Freeze, Milestone 11 Product Hardening, and Milestone 12 Release
-Candidate delivery.
+Milestone 10 productization closure is not equivalent to current-version
+completion. The active lifecycle begins with Milestone 11 Pre-Desktop
+Stabilization and ends with desktop Product Hardening, packaging, and Release
+Candidate acceptance in Milestones 19-20.
 
 Detailed manual QA documents are available for recent milestones:
 
@@ -292,20 +295,24 @@ Detailed manual QA documents are available for recent milestones:
 
 ## Roadmap
 
-The current release lifecycle is:
+The active product lifecycle is:
 
 ```text
-Feature Complete Review
--> Feature Freeze Gate
--> Milestone 11 Product Hardening
--> Milestone 12 Release Candidate
--> Current Version Complete
--> Maintenance / Next Version
+M11 Pre-Desktop Stabilization
+-> M12 Repository Restructure
+-> M13 Import and Template Evolution Core
+-> M14 Learning Analytics and Insight Core
+-> M15 Audio Foundation
+-> M16 Desktop Architecture and UI Design
+-> M17 Desktop Core Workflow Migration
+-> M18 Desktop Management and Major Feature Completion
+-> M19 Desktop Product Hardening
+-> M20 Packaging and Release Candidate
 ```
 
-Desktop migration, native packaging, optional language-content integrations,
-cloud/accounts, and new learning modes are deferred to a later version. See
-[ROADMAP.md](ROADMAP.md) for scope and exit criteria.
+Streamlit is not the final release target. See [ROADMAP.md](ROADMAP.md) for
+scope and exit criteria and [DESKTOP_MIGRATION_PLAN.md](DESKTOP_MIGRATION_PLAN.md)
+for the migration strategy.
 
 ## Common Errors
 
