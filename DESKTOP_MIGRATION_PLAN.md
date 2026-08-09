@@ -4,9 +4,14 @@
 
 > Replace the UI layer, preserve the learning engine.
 
+Vocabulary App is transitioning from its current Streamlit interface toward a
+native desktop application.
+
+The migration is not intended to rewrite the product from scratch.
+
 Preserve as much as possible:
 
-- SQLite schema and user databases
+- SQLite schema and existing user databases
 - `src/app_config.py`
 - `src/db.py`
 - `src/entries.py`
@@ -20,42 +25,154 @@ Preserve as much as possible:
 - `src/import_export.py`
 - `src/backup.py`
 - `src/text_parser.py`
+- new reusable analytics, linked-source, and audio services created before or
+  during migration
 
-Replace or retire after parity:
+Replace or retire after desktop parity:
 
 - `app.py`
 - `src/ui_streamlit/`
+- Streamlit-specific navigation
+- `st.session_state`-driven presentation/controller behavior
 
-## 2. Candidate Desktop Frameworks
+The desktop application should call the existing core rather than reproduce
+database queries, scheduling rules, quiz logic, import rules, or analytics
+semantics inside the UI layer.
+
+## 2. Lifecycle Position
+
+The previous migration plan assumed:
+
+```text
+Complete Streamlit Feature Freeze
+-> Complete Streamlit Product Hardening
+-> Complete Streamlit Release Candidate
+-> Begin desktop migration
+```
+
+That sequence is superseded.
+
+The active product direction is now:
+
+```text
+Stabilize correctness and data semantics
+-> reorganize the repository
+-> implement reusable foundations for approved new capabilities
+-> design and prove the desktop architecture
+-> migrate the primary workflows
+-> complete desktop-native features
+-> harden the desktop product
+-> package and release the desktop product
+```
+
+The current Streamlit application remains useful as:
+
+- the presently runnable interface;
+- a behavioral reference;
+- a temporary compatibility surface;
+- a manual regression aid where appropriate; and
+- a thin verification surface for reusable core work where useful.
+
+It is no longer the intended final Release Candidate target.
+
+Do not spend substantial engineering effort polishing Streamlit-only UX that
+will be discarded during migration unless the issue affects:
+
+- persisted data;
+- correctness;
+- privacy or security;
+- database compatibility;
+- historical truthfulness;
+- reusable core behavior; or
+- a serious workflow blocker needed to establish the migration baseline.
+
+## 3. Candidate Desktop Frameworks
 
 | Framework | Fit | Main Trade-off |
 |---|---|---|
-| PySide6 | Strong | Official Qt for Python; capable desktop UI and packaging, but adds Qt complexity and a large dependency |
-| PyQt | Strong | Mature Qt ecosystem; licensing choice must be reviewed before distribution |
-| Tkinter | Limited | Built into Python and simple, but less suitable for dense modern tables and complex workflows |
-| Toga / Briefcase | Exploratory | Cross-platform product ambitions, but smaller ecosystem and migration uncertainty |
-| Electron / webview wrapper | Conditional | Reuses web concepts but introduces a second runtime and is less natural for the current Python core |
+| PySide6 | Strong | Official Qt for Python; strong tables, dialogs, desktop workflows, and packaging potential, but adds Qt complexity and a large dependency |
+| PyQt | Strong | Mature Qt ecosystem and similar capability, but distribution/licensing choices require deliberate review |
+| Tkinter | Limited | Built into Python and simple, but less suitable for dense tables, modern workflow design, and larger product growth |
+| Toga / Briefcase | Exploratory | Native-oriented and cross-platform, but smaller ecosystem and higher migration uncertainty |
+| Electron / webview wrapper | Conditional | Powerful UI ecosystem but introduces an additional runtime and moves farther from the existing Python desktop architecture |
 
-PySide6 or PyQt is the most natural future path for a Python + SQLite local application. No irreversible framework choice is required yet.
+PySide6 remains a strong default candidate because the product requires:
 
-## 3. Future Desktop Screen Mapping
+- dense data tables;
+- complex forms;
+- dialogs;
+- file pickers;
+- progress/cancel workflows;
+- multiple application states;
+- desktop-native scheduling and management interactions; and
+- future packaging.
 
-| Current Streamlit Page | Future Desktop Screen |
+No framework should be selected solely because it resembles the current
+Streamlit interface.
+
+A small technical prototype should prove database/core compatibility before the
+framework decision becomes difficult to reverse.
+
+## 4. Desktop Product Design Principle
+
+The desktop application must not be designed as a literal page-by-page clone
+of Streamlit.
+
+Streamlit's navigation and interaction constraints should not determine the
+desktop information architecture.
+
+Desktop design should use the most appropriate interaction surface for each
+task:
+
+- full main page;
+- secondary page;
+- modal dialog;
+- non-modal detail window;
+- side panel;
+- context menu;
+- progress dialog;
+- confirmation dialog;
+- file picker; or
+- dedicated workflow window.
+
+The desktop redesign should preserve product semantics, not historical UI
+limitations.
+
+## 5. Future Desktop Screen Mapping
+
+The mapping below is conceptual rather than a strict one-to-one port.
+
+| Current / Planned Capability | Future Desktop Surface |
 |---|---|
 | Today | Home / Today Dashboard |
 | Entries | Entry Manager |
+| Entry Add/Edit | Entry Editor dialog or dedicated editor pane |
 | Collections | Collection Manager |
+| Card organization | Collection/Card detail workspace |
 | Review | Review Session |
 | Quiz | Quiz Session |
-| Statistics | Statistics Dashboard |
+| Review History / Schedule | Review Calendar / Card History |
+| Statistics | Learning Analytics |
+| Entry Health | Analytics drill-down / Entry analysis |
+| Templates | Template Manager |
+| Template Definition Import/Export | Template Manager / Data Tools |
 | Import / Export | Data Tools |
-| Review History / Schedule | Review Calendar and Schedule |
-| Dashboard | Secondary Overview |
-| Settings / Data | Settings and Storage |
+| Linked Collection Source | Collection settings / source dialog |
+| Backup / Restore Preview | Data Safety / Backup Tools |
+| Card Audio Export | Audio Export workflow |
+| Settings / Storage | Settings |
+| Legacy Dashboard | Secondary overview or retired if redundant |
 
-## 4. Core Service Layer Needs
+Some existing Streamlit tabs may disappear entirely if their information is
+better integrated into desktop workflows.
 
-Current UI pages often call focused core functions directly. That is acceptable for the MVP. A desktop UI may benefit from thin orchestration services:
+## 6. Core Service Layer Needs
+
+Current Streamlit pages often call focused core functions directly.
+
+That remains acceptable where the workflow is simple.
+
+Desktop workflows may benefit from thin orchestration services such as:
 
 ```text
 src/services/
@@ -65,105 +182,731 @@ src/services/
   quiz_service.py
   workflow_service.py
   import_export_service.py
+  linked_source_service.py
+  analytics_service.py
+  audio_export_service.py
 ```
 
-Services should coordinate existing modules, not duplicate SQL or algorithms. Add them only when a desktop workflow demonstrates a concrete need.
+These are conceptual boundaries, not mandatory filenames.
 
-## 5. Session State Migration
+Services should:
+
+- orchestrate existing reusable modules;
+- coordinate multi-step workflows;
+- expose UI-independent inputs/results;
+- centralize transactions where appropriate; and
+- make desktop controllers easier to test.
+
+Services must not:
+
+- duplicate SQL already owned by core modules;
+- duplicate quiz/review algorithms;
+- hide business rules only inside desktop code;
+- become an oversized universal application layer; or
+- be created merely for architectural symmetry.
+
+Add a service only when a real desktop or reusable workflow demonstrates the
+need.
+
+## 7. Controller and UI State Migration
 
 `st.session_state` is transient UI state and must not move into core modules.
 
-Future desktop controllers or view models should own:
+Future desktop controllers or view models should own state such as:
 
-- selected page and active tab
-- selected entry IDs
-- focused collection and review card
-- current quiz item and revealed-answer state
-- quiz UI recovery state
-- import preview and confirmation state
-- temporary filters and table selection
+- active page or workspace;
+- selected entry IDs;
+- selected collection;
+- selected Card;
+- current review Card;
+- current Quiz item;
+- revealed-answer state;
+- Quiz window/controller recovery state;
+- temporary filters;
+- sort order;
+- table selection;
+- import preview;
+- Template import preview;
+- linked-source refresh preview;
+- audio-export selection;
+- audio batch progress;
+- temporary dialog state; and
+- current focus/navigation handoff.
 
-Durable quiz sessions, answer logs, review schedules, and content remain in SQLite.
+Durable learning state remains in SQLite.
 
-## 6. Database Compatibility
+Examples of durable state include:
 
-- Existing SQLite databases should open in the desktop app.
-- Schema changes must be additive and versioned.
-- Backups should be recommended or created before major migration.
-- Canonical entries, templates, collections, review logs, and quiz logs must be preserved.
-- Database movement to an OS app-data directory must be explicit and reversible.
-- Destructive restore and overwrite remain confirmation-protected.
+- entries;
+- templates;
+- collections;
+- collection membership and order;
+- Quiz sessions;
+- Quiz item logs;
+- review history;
+- review schedules;
+- learning pools;
+- linked-source metadata;
+- durable application configuration where appropriate; and
+- migration metadata.
 
-## 7. Migration Phases
+Do not serialize arbitrary desktop UI state into the database merely to replace
+Streamlit session state.
 
-### Prerequisite: Complete the current Streamlit release lifecycle
+## 8. Database Compatibility
 
-- Complete Feature Complete Review.
-- Explicitly pass the Feature Freeze Gate.
-- Complete Milestone 11 Product Hardening.
-- Complete Milestone 12 release-candidate acceptance.
-- Finish full-product manual acceptance and regression.
-- Keep the architecture audit clean.
-- Preserve the schema/app metadata and migration rules established in
-  Milestone 10.6.
+Existing user SQLite databases are protected assets.
 
-Do not begin a full desktop migration before these gates pass.
+The desktop application must open existing compatible databases through a
+documented migration path.
 
-### Phase 2: Minimal desktop shell prototype
+Rules:
 
-- Launch a native window.
-- Resolve and open an existing database.
-- Show a read-only Today overview.
-- List and inspect entries.
-- Prove that core modules work without Streamlit.
+- schema changes remain additive where practical;
+- migrations remain versioned and idempotent;
+- migrations should be safe to run repeatedly;
+- backup should be recommended or created before significant migration;
+- existing Entries, Templates, Collections, Quiz history, Review history, and
+  learning pools must be preserved;
+- Card history changes require explicit migration reasoning because current Card
+  identity semantics are under review;
+- linked-source metadata must not make source files authoritative over existing
+  Entry data;
+- analytics schema additions must not rewrite historical performance facts;
+- audio cache metadata must remain disposable/rebuildable where practical;
+- application-data relocation must be explicit and reversible; and
+- destructive restore or database replacement remains confirmation-protected.
 
-### Phase 3: Port high-frequency workflows
+Database migration and UI migration are related but separate concerns.
 
-- Today
-- Review
-- Quiz
-- Entries
+A UI rewrite must not be used as justification for unnecessary schema redesign.
 
-Define explicit controller state and verify database parity after each workflow.
+## 9. Pre-Migration Preconditions
 
-### Phase 4: Port management tools
+Full Streamlit Release Candidate delivery is not a prerequisite.
 
-- Collections
-- Statistics and Review Calendar
-- Import / Export
-- Backup and restore preview
-- Settings and storage information
+Before serious desktop migration begins, the project instead requires a
+**trustworthy pre-desktop baseline**.
 
-### Phase 5: Package the desktop app
+This baseline must include:
 
-- Build scripts and clean-machine testing
-- OS user-data directory
-- explicit existing-data migration
-- backup before update
-- installer/uninstaller behavior
-- rollback and release documentation
+- correction of confirmed Entry editing integrity risks;
+- clear separation between Review Completed and Schedule Changed;
+- an approved Card history/identity strategy sufficient to preserve truthful
+  history;
+- re-acceptance of Entry Health semantics;
+- resolution of high-risk database/data integrity issues found through manual
+  QA;
+- architecture checks confirming reusable core code remains independent of
+  Streamlit;
+- preservation of representative existing databases;
+- current backup capability; and
+- a recorded verified repository baseline.
 
-## 8. Migration Readiness Checklist
+Streamlit-specific visual polish is not part of this prerequisite unless it
+blocks correctness verification.
 
-- [x] Core modules import no Streamlit
+## 10. Pre-Migration Feature Foundations
+
+Before the full desktop migration, reusable portions of the approved new product
+scope should be developed where doing so avoids duplicate implementation.
+
+### Template Definition Portability
+
+Establish reusable:
+
+- Template Definition export;
+- Template Definition CSV import;
+- validation;
+- preview data;
+- atomic creation; and
+- round-trip compatibility.
+
+Where required by audio generation, Template fields may also carry deterministic
+speech-language semantics.
+
+### Linked Collection Append Sources
+
+Establish reusable:
+
+- source-link persistence;
+- CSV/XLSX source parsing;
+- refresh analysis;
+- duplicate detection;
+- new/invalid/duplicate classification; and
+- confirmed append-only execution.
+
+Desktop file pickers and source-management UI are not required at this stage.
+
+### Learning Analytics Core
+
+Establish reusable:
+
+- metric semantics;
+- analytical comparisons;
+- personal baseline logic;
+- coverage analysis;
+- evidence sufficiency;
+- trend/recovery interpretation; and
+- structured insights.
+
+Do not invest in a full Streamlit analytics redesign.
+
+### Audio Foundation
+
+Establish reusable:
+
+- speech provider abstraction;
+- supported language routing;
+- required-field speech sequencing;
+- Entry/Field-level cache identity;
+- Card-level audio assembly;
+- repetition modes; and
+- representative local TTS feasibility.
+
+Full batch-export UX is deferred to desktop.
+
+## 11. Migration Phases
+
+### Phase 1: Desktop Architecture and Design
+
+Define:
+
+- framework;
+- application shell;
+- navigation;
+- controller/view-model approach;
+- design system;
+- dialog strategy;
+- error/warning presentation;
+- file interaction;
+- progress/cancellation patterns; and
+- packaging constraints that may affect architecture.
+
+Do not begin by mechanically porting all existing pages.
+
+### Phase 2: Minimal Desktop Shell
+
+Prove:
+
+- native application launch;
+- existing database resolution;
+- database open/migration;
+- basic Today data display;
+- Entry listing;
+- reusable core imports;
+- basic navigation; and
+- clean shutdown/restart behavior.
+
+The purpose is architecture proof, not product parity.
+
+### Phase 3: High-Frequency Workflow Migration
+
+Recommended order:
+
+1. Today
+2. Review
+3. Quiz
+4. Entries
+5. minimum Collection navigation required by these workflows
+
+This order prioritizes the daily learning loop.
+
+Each workflow should be migrated and verified independently.
+
+### Phase 4: Management Workflow Migration
+
+Port:
+
+- Collections;
+- Card organization;
+- Templates;
+- Review Calendar;
+- Data Tools;
+- Import / Export;
+- Backup / Restore Preview;
+- Settings; and
+- remaining supported management workflows.
+
+### Phase 5: Desktop-Native Major Features
+
+Complete the desktop-facing parts of:
+
+#### Linked Sources
+
+- file picker;
+- source status;
+- Refresh action;
+- refresh preview;
+- detail inspection;
+- confirmation; and
+- unavailable-file handling.
+
+#### Learning Analytics
+
+- insight-first summary;
+- supporting metrics;
+- relevant charts;
+- drill-down;
+- Entry Health integration; and
+- actionable recommendation presentation.
+
+#### Card Audio Export
+
+- Card/Collection selection;
+- batch selection;
+- voice settings;
+- repetition settings;
+- output folder;
+- progress;
+- cancellation;
+- error recovery;
+- overwrite handling; and
+- one audio file per Card.
+
+### Phase 6: Streamlit Retirement
+
+Once required desktop parity is proven:
+
+- stop adding Streamlit features;
+- mark Streamlit as legacy;
+- remove it from primary documentation and launch guidance;
+- retain only what is needed for historical traceability or temporary
+  compatibility;
+- decide whether `app.py` and `src/ui_streamlit/` remain archived, removable,
+  or available through a legacy path; and
+- verify that no desktop workflow still accidentally depends on Streamlit.
+
+Do not delete the legacy UI prematurely if it remains useful for regression
+comparison during migration.
+
+### Phase 7: Desktop Hardening
+
+After intended desktop feature scope is implemented:
+
+- pass formal Feature Freeze;
+- perform full system audit;
+- run full manual acceptance;
+- verify fresh and upgraded databases;
+- exercise large datasets;
+- exercise malformed/interrupted workflows;
+- audit analytics correctness;
+- audit linked-source safety;
+- audit audio-generation failures;
+- verify privacy and local-path handling; and
+- resolve release-blocking defects.
+
+The desktop application is the hardening target.
+
+### Phase 8: Packaging and Release
+
+Only after desktop hardening:
+
+- finalize application-data location;
+- build distributable artifacts;
+- test clean-machine installation;
+- test update/migration behavior;
+- test uninstallation;
+- confirm user-data preservation;
+- document rollback/recovery;
+- finalize license and third-party notices;
+- perform release privacy scans;
+- prepare Release Candidate; and
+- tag/release only after explicit approval.
+
+## 12. Workflow-Specific Migration Notes
+
+### Today
+
+Today should become the primary landing surface.
+
+It should answer:
+
+- what is due;
+- what is overdue;
+- what needs attention;
+- what the user was recently doing; and
+- where the user should continue.
+
+Navigation from Today into Review and Quiz should be explicit desktop
+controller behavior rather than Streamlit focus-routing tricks.
+
+### Review
+
+Review must preserve:
+
+- Card-level exposure history;
+- last-reviewed information;
+- future review date;
+- manual scheduling;
+- Review Completed semantics; and
+- Schedule Changed semantics.
+
+The desktop redesign should avoid reintroducing legacy SRS rating behavior as
+the main scheduling model.
+
+### Quiz
+
+Quiz must preserve:
+
+- objective and self-graded modes;
+- durable session state;
+- duplicate-submission protection;
+- restart/recovery behavior;
+- Mistake Book;
+- Proficient Pool;
+- Card/Collection context; and
+- history useful for deciding the next Review date.
+
+Desktop Quiz may use a dedicated workflow window if that provides a cleaner
+learning experience than embedding everything into the main management shell.
+
+### Entries
+
+Desktop Entry management should improve:
+
+- dense-table readability;
+- search/filter behavior;
+- add/edit safety;
+- Template-aware field editing;
+- custom-field ordering; and
+- multi-selection where useful.
+
+Entry edit state must remain isolated between different Entries.
+
+### Collections and Cards
+
+Desktop Collection management should explicitly represent:
+
+- Collection order;
+- Entry order;
+- Card grouping;
+- Card size;
+- current Card composition; and
+- history-sensitive operations.
+
+Reorder behavior should reflect the approved Card history strategy.
+
+### Templates
+
+Template management should make field structure easier to understand and edit
+than the current manual Streamlit workflow.
+
+Template Definition import/export should reduce the need to recreate field
+structures manually.
+
+### Learning Analytics
+
+The desktop Analytics experience should not simply port current Statistics
+tables.
+
+Preferred information order:
+
+```text
+What matters now
+-> why it was flagged
+-> supporting evidence
+-> deeper details
+-> useful next action
+```
+
+Charts should support a specific interpretation rather than function as a
+generic metric gallery.
+
+### Linked Local Files
+
+Linked local files should appear as a property of a Collection rather than as a
+global synchronization system.
+
+The UI should make clear that:
+
+> Refresh finds appendable new content.
+
+It does not mean:
+
+> Make the Collection identical to the source file.
+
+### Audio Export
+
+Audio generation should appear as an export workflow rather than as an Entry
+editor feature.
+
+Users should be able to choose:
+
+- one Card;
+- several Cards; or
+- a Collection.
+
+The result remains:
+
+```text
+one Card
+-> one audio file
+```
+
+Batch Collection export therefore creates multiple independent audio files.
+
+## 13. Background and Long-Running Work
+
+Desktop migration introduces operations that may take long enough to block the
+UI, including:
+
+- large imports;
+- large linked-file refresh analysis;
+- backup generation;
+- audio synthesis;
+- audio batch composition; and
+- potentially larger analytics queries.
+
+The desktop architecture should support:
+
+- progress reporting;
+- cancellation where safe;
+- disabled duplicate actions;
+- controlled failure recovery; and
+- clear distinction between completed, canceled, and failed work.
+
+Business operations must remain transactionally safe even if presentation work
+runs asynchronously inside the desktop application.
+
+Do not allow background UI execution to weaken database transaction boundaries.
+
+## 14. File-System and Local Data Design
+
+The current source application may use project-local paths that are unsuitable
+for packaged desktop software.
+
+The desktop version must define appropriate locations for:
+
+- application data;
+- SQLite database;
+- backups;
+- import staging where needed;
+- TTS models;
+- disposable audio cache;
+- user-exported audio;
+- logs, if any; and
+- application configuration.
+
+Important distinctions:
+
+### Durable user data
+
+Examples:
+
+- SQLite database;
+- user-selected backups;
+- user-selected exported files.
+
+### Rebuildable local assets
+
+Examples:
+
+- audio cache;
+- downloaded TTS model cache where licensing permits;
+- temporary preview files.
+
+### Developer-only files
+
+Examples:
+
+- test artifacts;
+- local prompt drafts;
+- development databases;
+- temporary exports.
+
+Packaged builds must never rely on repository-relative development paths for
+durable user data.
+
+## 15. Audio Packaging Considerations
+
+Audio support introduces additional desktop considerations:
+
+- TTS runtime size;
+- voice/model size;
+- first-run model availability;
+- offline availability;
+- supported languages;
+- CPU/memory requirements;
+- cache location;
+- cache cleanup;
+- model/runtime licensing;
+- third-party notices; and
+- packaged-resource versus downloadable-model strategy.
+
+The audio architecture should remain provider-based so the product can replace
+a TTS implementation without rewriting Card/audio workflow logic.
+
+Generated audio files are user output and must not be committed to the
+repository.
+
+## 16. Analytics Migration Considerations
+
+Learning Analytics depends on trustworthy historical data.
+
+Do not treat analytics UI completion as proof that analytical conclusions are
+valid.
+
+Verification must independently test:
+
+- metric definitions;
+- grouping grain;
+- date ranges;
+- sparse-data handling;
+- personal baselines;
+- relative comparisons;
+- Entry Health categories;
+- Review versus Quiz interpretation; and
+- representative expected insights.
+
+The desktop UI should consume structured analytical results rather than invent
+thresholds or classifications in presentation code.
+
+## 17. Linked Source Migration Considerations
+
+Linked local sources introduce path-specific desktop behavior.
+
+The design must account for:
+
+- moved files;
+- renamed files;
+- deleted files;
+- unreadable files;
+- malformed files;
+- unsupported extensions;
+- source changes between preview and confirmation; and
+- duplicate refresh actions.
+
+An unavailable linked file must not damage the Collection or existing Entries.
+
+The user should be able to replace/relink the source path without rebuilding the
+Collection.
+
+## 18. Migration Readiness Checklist
+
+### Core and Data
+
+- [x] Core modules substantially separated from Streamlit
+- [x] SQLite remains the durable source of truth
 - [x] Database path resolution is centralized
-- [x] Import/export validation and execution are UI-independent
-- [x] Backup generation and preview are UI-independent
+- [x] Import/export validation and execution are largely UI-independent
+- [x] Backup generation and preview are largely UI-independent
 - [x] Quiz durable session and duplicate protection live in core/SQLite
 - [x] Today workflow queries are reusable
-- [x] Architecture and content policies are documented
-- [x] Public sample-data policy excludes personal and copyrighted data
-- [x] Schema version metadata and migration rules exist
-- [ ] Feature Complete Review is complete
-- [ ] Feature Freeze is explicitly approved
-- [ ] Full-product manual acceptance and Product Hardening are complete
-- [ ] Current Streamlit release-candidate acceptance is complete
-- [ ] A minimal desktop shell prototype proves core reuse
-- [ ] Packaged user-data migration and rollback are designed
+- [x] Schema/app metadata and migration foundations exist
+- [ ] Entry-editing integrity issue resolved
+- [ ] Review Completed and Schedule Changed semantics verified
+- [ ] Card history/identity strategy approved
+- [ ] Entry Health re-accepted
+- [ ] pre-desktop baseline verified
 
-## Recommended Next Decision
+### New Core Foundations
 
-Complete the current Streamlit Feature Freeze, Product Hardening, and
-release-candidate lifecycle before starting a full rewrite. Then build a
-deliberately small PySide6/PyQt prototype and evaluate it against the verified
-Streamlit workflow before choosing the final desktop framework.
+- [ ] Template Definition import/export core complete
+- [ ] linked Collection append-source core complete
+- [ ] Learning Analytics core complete
+- [ ] local TTS feasibility verified
+- [ ] Card audio composition core verified
+
+### Desktop Architecture
+
+- [ ] desktop framework approved
+- [ ] information architecture approved
+- [ ] UI design system established
+- [ ] controller/view-model boundaries established
+- [ ] minimal desktop shell opens existing database
+- [ ] basic Today/Entries prototype works
+
+### Workflow Migration
+
+- [ ] Today migrated
+- [ ] Review migrated
+- [ ] Quiz migrated
+- [ ] Entries migrated
+- [ ] Collections migrated
+- [ ] Templates migrated
+- [ ] Review Calendar migrated
+- [ ] Import / Export migrated
+- [ ] Backup / Restore Preview migrated
+- [ ] Settings migrated
+
+### Major Desktop Features
+
+- [ ] linked-source desktop workflow complete
+- [ ] Learning Analytics desktop experience complete
+- [ ] Card Audio Export desktop workflow complete
+
+### Release Readiness
+
+- [ ] Streamlit retirement decision executed
+- [ ] desktop Feature Freeze approved
+- [ ] full desktop Product Hardening complete
+- [ ] full manual acceptance complete
+- [ ] clean-machine packaging proven
+- [ ] existing-data migration proven
+- [ ] rollback/recovery documented
+- [ ] license and third-party notices complete
+- [ ] final privacy/release audit passes
+- [ ] Release Candidate accepted
+
+## 19. Recommended Development Sequence
+
+```text
+Milestone 11
+Pre-Desktop Stabilization
+        ↓
+Milestone 12
+Repository Restructure
+        ↓
+Milestone 13
+Import and Template Evolution Core
+        ↓
+Milestone 14
+Learning Analytics and Insight Core
+        ↓
+Milestone 15
+Audio Foundation
+        ↓
+Milestone 16
+Desktop Architecture and UI Design
+        ↓
+Milestone 17
+Desktop Core Workflow Migration
+        ↓
+Milestone 18
+Desktop Management and Major Feature Completion
+        ↓
+Milestone 19
+Desktop Product Hardening
+        ↓
+Milestone 20
+Packaging and Release Candidate
+```
+
+## 20. Recommended Next Decision
+
+Do not start by building the desktop UI immediately.
+
+First complete the Milestone 11 trustworthy baseline.
+
+Then reorganize the repository and implement the reusable pre-migration
+foundations.
+
+After those foundations are stable, begin the desktop architecture milestone
+with a deliberately small native shell that opens the existing SQLite database
+and proves reuse of the current learning engine.
+
+The migration should remain incremental:
+
+```text
+protect data
+-> stabilize semantics
+-> preserve the core
+-> stop expanding disposable Streamlit UI
+-> prove the desktop shell
+-> migrate the daily learning loop
+-> migrate management workflows
+-> complete desktop-native features
+-> harden the actual release target
+-> package only after verification
+```

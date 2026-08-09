@@ -47,9 +47,14 @@ user explicitly refers to it.
 
 When `.prompt-drafts/` exists:
 
-- add `.prompt-drafts/` to `.gitignore`;
+- add `.prompt-drafts/` to the repository-local `.git/info/exclude`, not the
+  shared `.gitignore`;
 - treat all contents as local-only;
 - never stage, commit, push, publish, or include its contents in patches, pull
   requests, releases, or documentation; and
-- if any file is already tracked, stop and remove it from Git tracking before
-  continuing.
+- verify with `git check-ignore -v -- .prompt-drafts/` that the local exclude
+  rule applies;
+- verify with `git ls-files -- .prompt-drafts` that no prompt draft is tracked;
+  and
+- if any file is already tracked, stop and ask for explicit approval before
+  removing it from Git tracking.

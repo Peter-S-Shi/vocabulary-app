@@ -29,8 +29,9 @@ Users clone or download the repository, create a virtual environment, install re
 - Dependency setup is unfamiliar to non-technical users
 - Does not feel like a conventional installed application
 
-**Suitability:** the current credible distribution path after Milestone 11
-Product Hardening and Milestone 12 release-candidate acceptance.
+**Suitability:** the current development and compatibility distribution path
+while the desktop product is being built; not the intended final Release
+Candidate form.
 
 ### Option B: Local Script Launcher
 
@@ -49,8 +50,8 @@ A future `.bat`, `.ps1`, or shell script could check the environment and launch 
 - The UI remains a browser-based local Streamlit session
 - Error handling and environment setup require care
 
-**Suitability:** reasonable optional convenience after the current release
-passes Product Hardening and release-candidate acceptance.
+**Suitability:** optional temporary convenience for the compatibility UI; not a
+substitute for the planned desktop product.
 
 ### Option C: PyInstaller or Executable Wrapper Around Streamlit
 
@@ -91,23 +92,27 @@ Replace the Streamlit UI with PySide6 or PyQt while retaining core modules and S
 - Quiz state, dense tables, and confirmation flows require explicit controllers
 - Full parity must be tested before Streamlit can be retired
 
-**Suitability:** strongest medium-term product path after workflow and schema stability.
+**Suitability:** active product direction after the pre-desktop baseline and
+reusable foundations are established.
 
-## 3. Recommended Current-Release Path
+## 3. Recommended Transitional Path
 
-For the current Streamlit source release:
+During the Streamlit-to-desktop transition:
 
-1. Keep Streamlit as the MVP/local interface.
-2. Complete Feature Complete Review and explicitly pass Feature Freeze.
-3. Complete Milestone 11 Product Hardening and full-product acceptance.
-4. Complete Milestone 12 clean-environment and release-candidate verification.
-5. Publish a clean, documented, reproducible source release.
-6. Consider launch scripts only as an optional later convenience.
+1. Keep Streamlit runnable as a compatibility/reference interface.
+2. Complete Milestone 11 Pre-Desktop Stabilization.
+3. Restructure the repository without changing product behavior.
+4. Build reusable import/template, analytics, and audio foundations before
+   expensive desktop-specific UI where appropriate.
+5. Begin the desktop architecture with a deliberately small native shell.
+6. Migrate workflows incrementally and verify existing-database compatibility.
 7. Do not spend substantial effort forcing Streamlit into a polished executable.
 
-## 4. Recommended Medium-Term Path
+## 4. Recommended Desktop Path
 
-After workflows and migrations are stable, build a small PySide6/PyQt desktop shell that opens an existing database, shows Today, and lists entries.
+After the pre-desktop baseline and reusable foundations are stable, build a
+small desktop shell that opens an existing database, shows Today, and lists
+entries.
 
 Use that prototype to validate architecture and interaction quality before committing to a full UI migration.
 
@@ -137,16 +142,16 @@ Public builds and release archives must not include:
 - `.env` files, API keys, or secrets
 - copyrighted word lists or dictionary datasets
 - pronunciation audio libraries
-- voice/TTS models
+- unreviewed or redistribution-incompatible voice/TTS models
 - AI model weights or generated bulk datasets
 
 Only fictional, self-created, permission-cleared sample files may be distributed.
 
 ## Decision
 
-Developer/power-user source setup is the current credible distribution model,
-subject to Feature Freeze, Product Hardening, full regression/manual
-acceptance, and release-candidate verification. No native installer or
-standalone desktop executable currently exists. A Streamlit executable wrapper
-remains a feasibility experiment, while PySide6/PyQt is the stronger
-medium-term path after the current release lifecycle is complete.
+Developer/power-user source setup remains the current credible compatibility
+distribution model. It is not the intended final Release Candidate. No native
+installer or standalone desktop executable currently exists. A Streamlit
+executable wrapper remains a feasibility experiment, while a native desktop
+application is now the active product direction. Final packaging follows
+desktop Feature Freeze and Product Hardening in Milestones 19-20.
