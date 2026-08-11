@@ -6,7 +6,7 @@ from pathlib import Path
 
 APP_NAME = "Vocabulary App"
 APP_SLUG = "vocabulary_app"
-APP_VERSION = "0.10.7"
+APP_VERSION = "0.11.3"
 DATABASE_PATH_ENV = "VOCAB_APP_DB_PATH"
 
 

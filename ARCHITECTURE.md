@@ -39,6 +39,7 @@ Streamlit `session_state` is UI state. Durable state and duplicate-action protec
 - `src/entries.py`: entry CRUD, search, filters, and batch operations
 - `src/entry_templates.py`: templates, fields, and template values
 - `src/collections.py`: collection membership, cards, positions, and system pools
+- `src/card_history.py`: stable Card identity, revision reconciliation, cross-Card movement detection, and historical queries
 - `src/review.py`: isolated legacy Review/SRS compatibility state and logs
 - `src/quiz.py`: quiz sessions, item generation, answers, logs, and idempotent completion
 - `src/template_quiz.py`: template-aware quiz rules
@@ -76,10 +77,24 @@ Card learning event. `quiz_sessions.completed_at` is the source timestamp; the
 system does not create a parallel Review-completion event. Non-Card Quiz
 sessions remain Entry-performance evidence only.
 
+`quiz_item_logs.entry_id` is a durable historical integer reference rather
+than a cascading foreign key to the current `entries` table. Hard-deleting an
+Entry therefore preserves its Quiz item evidence, including the stored prompt,
+expected answer, user answer, correctness, and original Entry ID. Historical
+views use a generic `Deleted Entry #<id>` label when no current term exists;
+they do not reconstruct or invent deleted Entry content.
+
+`entry_collections.position` plus `collections.card_size` remains the sole
+source for current Card grouping. `cards`, `card_revisions`, and
+`card_revision_entries` add durable identity and immutable historical
+membership snapshots without becoming a second current-membership source.
+Only a material ordered-membership change creates a revision. New Card-scoped
+Quiz sessions bind to the current `card_id` and `card_revision_id`; legacy
+sessions remain unknown when their historical composition cannot be proved.
+
 Review is a browse, study, and Quiz-launch surface. Legacy Review scheduling
-tables and APIs remain compatibility-only during M11.2 and must not drive
-active Today, Statistics, or Learning History completion claims. Stable Card
-identity and truthful membership history remain explicitly assigned to M11.3.
+tables and APIs remain compatibility-only and must not drive active Today,
+Statistics, or Learning History completion claims.
 
 ## Future Desktop Migration
 

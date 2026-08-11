@@ -1,6 +1,8 @@
 import streamlit as st
 
 from src.collections import (
+    CROSS_CARD_CONFIRMATION_MESSAGE,
+    CrossCardMoveConfirmationRequired,
     add_entries_to_collection,
     add_entries_to_system_collection,
     add_entry_to_collections,
@@ -352,6 +354,28 @@ def _render_entries_table(entries: list[dict], collections: list[dict]) -> None:
     elif entries:
         _sync_visible_selection(entries)
         selected_count = len(st.session_state.selected_entry_ids)
+        pending_delete_key = "pending_cross_card_entry_delete"
+        pending_delete = st.session_state.get(pending_delete_key)
+        if pending_delete:
+            st.warning(CROSS_CARD_CONFIRMATION_MESSAGE)
+            confirm_col, cancel_col = st.columns(2)
+            with confirm_col:
+                if st.button(
+                    "Confirm deletion and Card reorganization",
+                    key=f"confirm_{pending_delete_key}",
+                ):
+                    deleted_count = delete_entries(
+                        pending_delete,
+                        confirm_cross_card=True,
+                    )
+                    del st.session_state[pending_delete_key]
+                    st.success(f"{deleted_count} entries deleted.")
+                    _clear_selection()
+                    st.rerun()
+            with cancel_col:
+                if st.button("Cancel", key=f"cancel_{pending_delete_key}"):
+                    del st.session_state[pending_delete_key]
+                    st.rerun()
         action_col1, action_col2, action_col3, action_col4, action_col5, action_col6 = st.columns(
             [1.2, 2.0, 1.5, 1.9, 2.4, 1.2]
         )
@@ -410,12 +434,19 @@ def _render_entries_table(entries: list[dict], collections: list[dict]) -> None:
                 if not confirm_selection_delete:
                     st.warning("Confirm deletion before deleting selected entries.")
                 else:
-                    deleted_count = delete_entries(
-                        sorted(st.session_state.selected_entry_ids)
-                    )
-                    st.success(f"{deleted_count} entries deleted.")
-                    _clear_selection()
-                    st.rerun()
+                    try:
+                        deleted_count = delete_entries(
+                            sorted(st.session_state.selected_entry_ids)
+                        )
+                    except CrossCardMoveConfirmationRequired:
+                        st.session_state[pending_delete_key] = sorted(
+                            st.session_state.selected_entry_ids
+                        )
+                        st.warning(CROSS_CARD_CONFIRMATION_MESSAGE)
+                    else:
+                        st.success(f"{deleted_count} entries deleted.")
+                        _clear_selection()
+                        st.rerun()
 
         with action_col6:
             if st.button("Cancel Selection"):
@@ -519,6 +550,28 @@ def _render_edit_entry(all_entries: list[dict]) -> None:
     ]
 
     entry_id = int(edit_entry["id"])
+    pending_key = f"pending_entry_collection_change_{entry_id}"
+    pending_change = st.session_state.get(pending_key)
+    if pending_change:
+        st.warning(CROSS_CARD_CONFIRMATION_MESSAGE)
+        confirm_col, cancel_col = st.columns(2)
+        with confirm_col:
+            if st.button(
+                "Confirm Collection and Card reorganization",
+                key=f"confirm_{pending_key}",
+            ):
+                update_entry_collections(
+                    **pending_change,
+                    confirm_cross_card=True,
+                )
+                del st.session_state[pending_key]
+                st.success("Entry collections updated.")
+                st.rerun()
+        with cancel_col:
+            if st.button("Cancel", key=f"cancel_{pending_key}"):
+                del st.session_state[pending_key]
+                st.rerun()
+
     with st.form(f"edit_entry_form_{entry_id}"):
         meta_col1, meta_col2, meta_col3, meta_col4 = st.columns(4)
         with meta_col1:
@@ -616,6 +669,17 @@ def _render_edit_entry(all_entries: list[dict]) -> None:
                         collection["id"] for collection in editable_collections
                     ],
                 )
+        except CrossCardMoveConfirmationRequired:
+            st.session_state[pending_key] = {
+                "entry_id": edit_entry["id"],
+                "desired_collection_ids": [
+                    collection["id"] for collection in selected_edit_collections
+                ],
+                "managed_collection_ids": [
+                    collection["id"] for collection in editable_collections
+                ],
+            }
+            st.warning(CROSS_CARD_CONFIRMATION_MESSAGE)
         except ValueError as error:
             _show_errors(error)
         else:

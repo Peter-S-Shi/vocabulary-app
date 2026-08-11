@@ -11,6 +11,7 @@ from typing import Iterator
 from openpyxl import Workbook, load_workbook
 from openpyxl.utils import get_column_letter
 
+from src.card_history import reconcile_collection_card_history
 from src.db import get_connection
 
 
@@ -1047,6 +1048,12 @@ def import_general_entry_rows(
                 result["failed_count"] += 1
                 result["errors"].append({"row_number": row_number, "message": str(error)})
 
+        if owns_connection and target_collection_id is not None and result["collection_added_count"]:
+            reconcile_collection_card_history(
+                conn,
+                int(target_collection_id),
+                change_reason="general_entry_import_append",
+            )
         if owns_connection:
             conn.commit()
         return result
@@ -1264,6 +1271,12 @@ def import_template_entry_rows(
                 result["failed_count"] += 1
                 result["errors"].append({"row_number": row_number, "message": str(error)})
 
+        if owns_connection and target_collection_id is not None and result["added_to_collection_count"]:
+            reconcile_collection_card_history(
+                conn,
+                int(target_collection_id),
+                change_reason="template_entry_import_append",
+            )
         if owns_connection:
             conn.commit()
         return result
@@ -1402,6 +1415,11 @@ def import_collection_rows(
             if result["added_to_collection_count"]:
                 result["start_position"] = start_max + 1
                 result["end_position"] = start_max + result["added_to_collection_count"]
+                reconcile_collection_card_history(
+                    conn,
+                    collection_id,
+                    change_reason="collection_import_append",
+                )
         conn.execute("RELEASE SAVEPOINT collection_import_batch")
         if owns_connection:
             conn.commit()

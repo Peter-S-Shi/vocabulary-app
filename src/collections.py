@@ -1,5 +1,10 @@
 from datetime import datetime, timezone
 
+from src.card_history import (
+    get_current_card_identity,
+    preview_collection_transition,
+    reconcile_collection_card_history,
+)
 from src.db import get_connection
 
 
@@ -8,6 +13,19 @@ SYSTEM_COLLECTION_TYPES = {
     "starred": "Starred",
     "proficient_pool": "Proficient Pool",
 }
+
+
+CROSS_CARD_CONFIRMATION_MESSAGE = (
+    "This change moves entries between Cards. The change will be recorded. "
+    "Existing learning and Quiz history will remain associated with the Card "
+    "composition used at that time. Future study will use the new Card composition."
+)
+
+
+class CrossCardMoveConfirmationRequired(ValueError):
+    def __init__(self, preview: dict):
+        super().__init__(CROSS_CARD_CONFIRMATION_MESSAGE)
+        self.preview = preview
 
 COLLECTION_COLUMNS = """
     c.id,
@@ -89,6 +107,7 @@ def update_collection(
     name: str,
     description: str,
     card_size: int,
+    confirm_cross_card: bool = False,
 ) -> None:
     clean_name = name.strip()
     clean_description = description.strip()
@@ -101,6 +120,13 @@ def update_collection(
 
     try:
         with get_connection() as connection:
+            preview = preview_collection_transition(
+                connection,
+                collection_id,
+                proposed_card_size=card_size,
+            )
+            if preview["requires_confirmation"] and not confirm_cross_card:
+                raise CrossCardMoveConfirmationRequired(preview)
             connection.execute(
                 """
                 UPDATE collections
@@ -112,6 +138,11 @@ def update_collection(
                 WHERE id = ?
                 """,
                 (clean_name, clean_description, card_size, now, collection_id),
+            )
+            reconcile_collection_card_history(
+                connection,
+                collection_id,
+                change_reason="collection_settings_update",
             )
     except Exception as error:
         if "UNIQUE" in str(error).upper():
@@ -357,7 +388,11 @@ def get_or_create_system_collection(
     return int(cursor.lastrowid)
 
 
-def add_entries_to_collection(entry_ids: list[int], collection_id: int) -> int:
+def _add_entries_to_collection(
+    connection,
+    entry_ids: list[int],
+    collection_id: int,
+) -> int:
     unique_entry_ids = list(dict.fromkeys(entry_ids))
 
     if not unique_entry_ids:
@@ -365,8 +400,7 @@ def add_entries_to_collection(entry_ids: list[int], collection_id: int) -> int:
 
     now = _now_iso()
 
-    with get_connection() as connection:
-        existing_rows = connection.execute(
+    existing_rows = connection.execute(
             f"""
             SELECT entry_id
             FROM entry_collections
@@ -375,15 +409,15 @@ def add_entries_to_collection(entry_ids: list[int], collection_id: int) -> int:
             """,
             (collection_id, *unique_entry_ids),
         ).fetchall()
-        existing_entry_ids = {row["entry_id"] for row in existing_rows}
-        new_entry_ids = [
-            entry_id for entry_id in unique_entry_ids if entry_id not in existing_entry_ids
-        ]
+    existing_entry_ids = {row["entry_id"] for row in existing_rows}
+    new_entry_ids = [
+        entry_id for entry_id in unique_entry_ids if entry_id not in existing_entry_ids
+    ]
 
-        if not new_entry_ids:
-            return 0
+    if not new_entry_ids:
+        return 0
 
-        max_position = connection.execute(
+    max_position = connection.execute(
             """
             SELECT COALESCE(MAX(position), 0)
             FROM entry_collections
@@ -392,11 +426,11 @@ def add_entries_to_collection(entry_ids: list[int], collection_id: int) -> int:
             (collection_id,),
         ).fetchone()[0]
 
-        rows_to_insert = [
-            (entry_id, collection_id, max_position + index, now)
-            for index, entry_id in enumerate(new_entry_ids, start=1)
-        ]
-        cursor = connection.executemany(
+    rows_to_insert = [
+        (entry_id, collection_id, max_position + index, now)
+        for index, entry_id in enumerate(new_entry_ids, start=1)
+    ]
+    cursor = connection.executemany(
             """
             INSERT INTO entry_collections (
                 entry_id,
@@ -406,10 +440,19 @@ def add_entries_to_collection(entry_ids: list[int], collection_id: int) -> int:
             )
             VALUES (?, ?, ?, ?)
             """,
-            rows_to_insert,
-        )
-
+        rows_to_insert,
+    )
+    reconcile_collection_card_history(
+        connection,
+        collection_id,
+        change_reason="entries_appended",
+    )
     return cursor.rowcount
+
+
+def add_entries_to_collection(entry_ids: list[int], collection_id: int) -> int:
+    with get_connection() as connection:
+        return _add_entries_to_collection(connection, entry_ids, collection_id)
 
 
 def add_entries_to_system_collection(entry_ids: list[int], system_type: str) -> int:
@@ -423,13 +466,22 @@ def add_entries_to_system_collection(entry_ids: list[int], system_type: str) -> 
     return add_entries_to_collection(entry_ids, collection_id)
 
 
-def remove_entries_from_system_collection(entry_ids: list[int], system_type: str) -> int:
+def remove_entries_from_system_collection(
+    entry_ids: list[int],
+    system_type: str,
+    *,
+    confirm_cross_card: bool = False,
+) -> int:
     system_collection = get_system_collection_by_type_or_name(system_type)
 
     if system_collection is None:
         return 0
 
-    return remove_entries_from_collection(entry_ids, system_collection["id"])
+    return remove_entries_from_collection(
+        entry_ids,
+        system_collection["id"],
+        confirm_cross_card=confirm_cross_card,
+    )
 
 
 def is_entry_in_system_collection(entry_id: int, system_type: str) -> bool:
@@ -504,25 +556,55 @@ def update_entry_collections(
     entry_id: int,
     desired_collection_ids: list[int],
     managed_collection_ids: list[int] | None = None,
+    confirm_cross_card: bool = False,
 ) -> dict:
     desired_ids = set(int(collection_id) for collection_id in desired_collection_ids)
-    current_ids = set(get_collection_ids_for_entry(entry_id))
-    managed_ids = (
-        set(int(collection_id) for collection_id in managed_collection_ids)
-        if managed_collection_ids is not None
-        else current_ids | desired_ids
-    )
+    with get_connection() as connection:
+        current_rows = connection.execute(
+            "SELECT collection_id FROM entry_collections WHERE entry_id = ?",
+            (int(entry_id),),
+        ).fetchall()
+        current_ids = {int(row["collection_id"]) for row in current_rows}
+        managed_ids = (
+            set(int(collection_id) for collection_id in managed_collection_ids)
+            if managed_collection_ids is not None
+            else current_ids | desired_ids
+        )
+        add_ids = sorted(desired_ids - current_ids)
+        remove_ids = sorted((current_ids - desired_ids) & managed_ids)
 
-    add_ids = sorted(desired_ids - current_ids)
-    remove_ids = sorted((current_ids - desired_ids) & managed_ids)
+        previews = []
+        for collection_id in remove_ids:
+            before_ids = [
+                int(row["entry_id"])
+                for row in connection.execute(
+                    "SELECT entry_id FROM entry_collections WHERE collection_id = ? ORDER BY position, id",
+                    (collection_id,),
+                ).fetchall()
+            ]
+            preview = preview_collection_transition(
+                connection,
+                collection_id,
+                proposed_entry_ids=[value for value in before_ids if value != int(entry_id)],
+            )
+            if preview["requires_confirmation"]:
+                previews.append(preview)
+        if previews and not confirm_cross_card:
+            raise CrossCardMoveConfirmationRequired({"collections": previews})
 
-    added_count = 0
-    for collection_id in add_ids:
-        added_count += add_entries_to_collection([int(entry_id)], collection_id)
-
-    removed_count = 0
-    for collection_id in remove_ids:
-        removed_count += remove_entries_from_collection([int(entry_id)], collection_id)
+        added_count = sum(
+            _add_entries_to_collection(connection, [int(entry_id)], collection_id)
+            for collection_id in add_ids
+        )
+        removed_count = sum(
+            _remove_entries_from_collection(
+                connection,
+                [int(entry_id)],
+                collection_id,
+                confirm_cross_card=True,
+            )
+            for collection_id in remove_ids
+        )
 
     return {
         "entry_id": int(entry_id),
@@ -617,6 +699,9 @@ def get_card_groups_for_collection(collection_id: int) -> list[dict]:
     return [
         {
             "card_number": card_number,
+            "card_id": card_metadata.get(card_number, {}).get("card_id"),
+            "card_revision_id": card_metadata.get(card_number, {}).get("card_revision_id"),
+            "revision_number": card_metadata.get(card_number, {}).get("revision_number"),
             "card_name": card_metadata.get(card_number, {}).get("name", ""),
             "card_created_at": card_metadata.get(card_number, {}).get("created_at", ""),
             "card_updated_at": card_metadata.get(card_number, {}).get("updated_at", ""),
@@ -638,25 +723,38 @@ def get_card_metadata_for_collection(collection_id: int) -> dict[int, dict]:
         rows = connection.execute(
             """
             SELECT
-                card_number,
-                COALESCE(name, '') AS name,
-                created_at,
-                updated_at
-            FROM collection_card_metadata
-            WHERE collection_id = ?
-            ORDER BY card_number ASC
+                cards.id AS card_id,
+                cards.card_number,
+                COALESCE(cards.name, '') AS name,
+                cards.created_at,
+                cards.updated_at,
+                revisions.id AS card_revision_id,
+                revisions.revision_number
+            FROM cards
+            JOIN card_revisions AS revisions
+              ON revisions.card_id = cards.id
+             AND revisions.revision_number = (
+                 SELECT MAX(latest.revision_number)
+                 FROM card_revisions AS latest
+                 WHERE latest.card_id = cards.id
+             )
+            WHERE cards.collection_id = ?
+              AND cards.is_active = 1
+            ORDER BY cards.card_number ASC
             """,
             (int(collection_id),),
         ).fetchall()
 
     return {
         int(row["card_number"]): {
+            "card_id": int(row["card_id"]),
+            "card_revision_id": int(row["card_revision_id"]),
+            "revision_number": int(row["revision_number"]),
             "name": str(row["name"] or ""),
             "created_at": row["created_at"] or "",
             "updated_at": row["updated_at"] or "",
         }
         for row in rows
-        if str(row["name"] or "").strip()
     }
 
 
@@ -667,32 +765,13 @@ def set_card_name(collection_id: int, card_number: int, name: str) -> None:
     clean_name = str(name or "").strip()
     now = _now_iso()
     with get_connection() as connection:
-        if clean_name:
-            connection.execute(
-                """
-                INSERT INTO collection_card_metadata (
-                    collection_id,
-                    card_number,
-                    name,
-                    created_at,
-                    updated_at
-                )
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(collection_id, card_number) DO UPDATE SET
-                    name = excluded.name,
-                    updated_at = excluded.updated_at
-                """,
-                (int(collection_id), int(card_number), clean_name, now, now),
-            )
-        else:
-            connection.execute(
-                """
-                DELETE FROM collection_card_metadata
-                WHERE collection_id = ?
-                  AND card_number = ?
-                """,
-                (int(collection_id), int(card_number)),
-            )
+        identity = get_current_card_identity(connection, collection_id, card_number)
+        if identity is None:
+            raise ValueError("Card not found.")
+        connection.execute(
+            "UPDATE cards SET name = ?, updated_at = ? WHERE id = ?",
+            (clean_name, now, int(identity["card_id"])),
+        )
 
 
 def search_cards_by_name(search_text: str) -> list[dict]:
@@ -705,20 +784,22 @@ def search_cards_by_name(search_text: str) -> list[dict]:
         rows = connection.execute(
             """
             SELECT
-                metadata.collection_id,
+                cards.collection_id,
                 collections.name AS collection_name,
-                metadata.card_number,
-                metadata.name AS card_name,
+                cards.card_number,
+                cards.name AS card_name,
+                cards.id AS card_id,
                 collections.card_size,
                 COUNT(entry_collections.entry_id) AS entry_count
-            FROM collection_card_metadata AS metadata
-            JOIN collections ON collections.id = metadata.collection_id
+            FROM cards
+            JOIN collections ON collections.id = cards.collection_id
             LEFT JOIN entry_collections
-              ON entry_collections.collection_id = metadata.collection_id
-             AND CAST((entry_collections.position - 1) / collections.card_size AS INTEGER) + 1 = metadata.card_number
-            WHERE LOWER(COALESCE(metadata.name, '')) LIKE ?
-            GROUP BY metadata.collection_id, metadata.card_number
-            ORDER BY collections.name COLLATE NOCASE, metadata.card_number
+              ON entry_collections.collection_id = cards.collection_id
+             AND CAST((entry_collections.position - 1) / collections.card_size AS INTEGER) + 1 = cards.card_number
+            WHERE cards.is_active = 1
+              AND LOWER(COALESCE(cards.name, '')) LIKE ?
+            GROUP BY cards.id
+            ORDER BY collections.name COLLATE NOCASE, cards.card_number
             """,
             (pattern,),
         ).fetchall()
@@ -726,47 +807,100 @@ def search_cards_by_name(search_text: str) -> list[dict]:
     return [dict(row) for row in rows]
 
 
-def remove_entries_from_collection(entry_ids: list[int], collection_id: int) -> int:
+def _remove_entries_from_collection(
+    connection,
+    entry_ids: list[int],
+    collection_id: int,
+    *,
+    confirm_cross_card: bool,
+) -> int:
     unique_entry_ids = list(dict.fromkeys(entry_ids))
 
     if not unique_entry_ids:
         return 0
 
-    with get_connection() as connection:
-        cursor = connection.execute(
+    before_ids = [
+        int(row["entry_id"])
+        for row in connection.execute(
+            "SELECT entry_id FROM entry_collections WHERE collection_id = ? ORDER BY position, id",
+            (int(collection_id),),
+        ).fetchall()
+    ]
+    remove_ids = set(int(value) for value in unique_entry_ids)
+    preview = preview_collection_transition(
+        connection,
+        collection_id,
+        proposed_entry_ids=[value for value in before_ids if value not in remove_ids],
+    )
+    if preview["requires_confirmation"] and not confirm_cross_card:
+        raise CrossCardMoveConfirmationRequired(preview)
+    cursor = connection.execute(
             f"""
             DELETE FROM entry_collections
             WHERE collection_id = ?
               AND entry_id IN ({','.join('?' for _ in unique_entry_ids)})
             """,
-            (collection_id, *unique_entry_ids),
-        )
-        deleted_count = cursor.rowcount
-
-    normalize_collection_positions(collection_id)
+        (collection_id, *unique_entry_ids),
+    )
+    deleted_count = cursor.rowcount
+    _normalize_collection_positions(connection, collection_id)
+    reconcile_collection_card_history(
+        connection,
+        collection_id,
+        change_reason="entries_removed",
+    )
     return deleted_count
+
+
+def remove_entries_from_collection(
+    entry_ids: list[int],
+    collection_id: int,
+    *,
+    confirm_cross_card: bool = False,
+) -> int:
+    with get_connection() as connection:
+        return _remove_entries_from_collection(
+            connection,
+            entry_ids,
+            collection_id,
+            confirm_cross_card=confirm_cross_card,
+        )
 
 
 def move_entry_in_collection(
     collection_id: int,
     entry_id: int,
     new_position: int,
+    confirm_cross_card: bool = False,
 ) -> None:
-    entries = get_entries_in_collection(collection_id)
-    entry_ids = [entry["id"] for entry in entries]
-
-    if entry_id not in entry_ids:
-        raise ValueError("Entry is not in the selected collection")
-
-    if new_position < 1 or new_position > len(entry_ids):
-        raise ValueError(
-            f"new_position must be between 1 and {len(entry_ids)} for this collection"
-        )
-
-    entry_ids.remove(entry_id)
-    entry_ids.insert(new_position - 1, entry_id)
-
     with get_connection() as connection:
+        entry_ids = [
+            int(row["entry_id"])
+            for row in connection.execute(
+                "SELECT entry_id FROM entry_collections WHERE collection_id = ? ORDER BY position, id",
+                (int(collection_id),),
+            ).fetchall()
+        ]
+
+        if entry_id not in entry_ids:
+            raise ValueError("Entry is not in the selected collection")
+
+        if new_position < 1 or new_position > len(entry_ids):
+            raise ValueError(
+                f"new_position must be between 1 and {len(entry_ids)} for this collection"
+            )
+
+        proposed_ids = list(entry_ids)
+        proposed_ids.remove(entry_id)
+        proposed_ids.insert(new_position - 1, entry_id)
+        preview = preview_collection_transition(
+            connection,
+            collection_id,
+            proposed_entry_ids=proposed_ids,
+        )
+        if preview["requires_confirmation"] and not confirm_cross_card:
+            raise CrossCardMoveConfirmationRequired(preview)
+
         connection.executemany(
             """
             UPDATE entry_collections
@@ -776,24 +910,40 @@ def move_entry_in_collection(
             """,
             [
                 (position, collection_id, current_entry_id)
-                for position, current_entry_id in enumerate(entry_ids, start=1)
+                for position, current_entry_id in enumerate(proposed_ids, start=1)
             ],
+        )
+        reconcile_collection_card_history(
+            connection,
+            collection_id,
+            change_reason="entry_reordered",
         )
 
 
 def normalize_collection_positions(collection_id: int) -> None:
-    entries = get_entries_in_collection(collection_id)
-
     with get_connection() as connection:
-        connection.executemany(
-            """
-            UPDATE entry_collections
-            SET position = ?
-            WHERE collection_id = ?
-              AND entry_id = ?
-            """,
-            [
-                (position, collection_id, entry["id"])
-                for position, entry in enumerate(entries, start=1)
-            ],
+        _normalize_collection_positions(connection, collection_id)
+        reconcile_collection_card_history(
+            connection,
+            collection_id,
+            change_reason="positions_normalized",
         )
+
+
+def _normalize_collection_positions(connection, collection_id: int) -> None:
+    rows = connection.execute(
+        "SELECT entry_id FROM entry_collections WHERE collection_id = ? ORDER BY position, id",
+        (int(collection_id),),
+    ).fetchall()
+    connection.executemany(
+        """
+        UPDATE entry_collections
+        SET position = ?
+        WHERE collection_id = ?
+          AND entry_id = ?
+        """,
+        [
+            (position, collection_id, int(row["entry_id"]))
+            for position, row in enumerate(rows, start=1)
+        ],
+    )

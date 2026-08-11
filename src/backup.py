@@ -24,6 +24,10 @@ BACKUP_TABLES = (
     "entry_field_values",
     "collections",
     "entry_collections",
+    "cards",
+    "card_revisions",
+    "card_revision_entries",
+    "entry_change_events",
     "card_review_states",
     "card_review_logs",
     "quiz_sessions",
@@ -99,7 +103,14 @@ def get_backup_table_rows(table_name: str, connection: Connection | None = None)
     with _connection(connection) as conn:
         if not _table_exists(conn, table_name):
             return []
-        return [dict(row) for row in conn.execute(f"SELECT * FROM {table_name} ORDER BY id").fetchall()]
+        columns = get_backup_table_columns(table_name, conn)
+        order_column = "id" if "id" in columns else "rowid"
+        return [
+            dict(row)
+            for row in conn.execute(
+                f"SELECT * FROM {table_name} ORDER BY {order_column}"
+            ).fetchall()
+        ]
 
 
 def get_backup_summary(connection: Connection | None = None) -> dict:

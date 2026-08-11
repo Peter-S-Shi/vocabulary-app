@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from src import db, quiz
+from src.card_history import reconcile_collection_card_history
 from src.learning_workflow import (
     get_card_learning_history,
     get_study_cards,
@@ -49,6 +50,11 @@ class M112CoreIntegrityTests(unittest.TestCase):
                 VALUES (?, ?, 1, ?)
                 """,
                 (self.entry_id, self.collection_id, now),
+            )
+            reconcile_collection_card_history(
+                conn,
+                self.collection_id,
+                change_reason="synthetic_test_fixture",
             )
 
     def tearDown(self) -> None:
