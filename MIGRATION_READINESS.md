@@ -14,7 +14,8 @@
 - Database initialization and connections: `src/db.py`
 - Entries and templates: `src/entries.py`, `src/entry_templates.py`
 - Collections, card grouping, ordering, and pools: `src/collections.py`
-- Review scheduling and logs: `src/review.py`
+- Legacy Card review compatibility state and logs pending M11.2 migration:
+  `src/review.py`
 - Quiz generation, sessions, answers, and logs: `src/quiz.py`
 - Template quiz rules: `src/template_quiz.py`
 - Statistics and Review Calendar: `src/statistics.py`
@@ -82,7 +83,10 @@ Today currently routes to Review, Quiz, and Statistics through UI focus state. D
 
 ### Dates and local time
 
-Review due dates and daily summaries must remain consistent across local time zones and packaged environments.
+Card-scoped Quiz completion timestamps, factual Last Quiz views, and daily
+summaries must remain consistent across local time zones and packaged
+environments. Legacy due-date fields may remain for compatibility but must not
+remain authoritative product truth.
 
 ### Data paths and packaging
 
@@ -99,8 +103,9 @@ metadata plus migration rules. This supports an incremental desktop migration,
 not an unverified full rewrite.
 
 The immediate prerequisite is a trustworthy pre-desktop baseline: Entry edit
-integrity, Review Completed versus Schedule Changed semantics, Card-history
-truthfulness, Entry Health re-acceptance, database compatibility, and core/UI
-boundaries must be resolved or verified. Active Quiz recovery, dense tables,
-file workflows, focus state, dates/local time, writable data paths, and software
-updates remain migration risks.
+integrity, authoritative Card-scoped Quiz completion, retirement of independent
+manual scheduling, stable Card identity and membership history, Entry Health
+re-acceptance, database compatibility, and core/UI boundaries must be resolved
+or verified. Active Quiz recovery, dense tables, file workflows, focus state,
+dates/local time, writable data paths, and software updates remain migration
+risks.

@@ -19,7 +19,7 @@ The active product scope includes:
 
 - entry and template management;
 - collections and cards;
-- card-level review scheduling;
+- Card browse/study preparation and Card-scoped Quiz completion;
 - quiz sessions and learning pools;
 - learning analytics and entry health;
 - Today and the daily learning workflow;
@@ -41,8 +41,8 @@ Permanent product constraints:
 - imports require validation, preview, confirmation, and controlled writes;
 - linked local files are append sources, not authoritative bidirectional
   mirrors;
-- review history represents exposure and scheduling history, while quiz
-  history represents demonstrated performance;
+- completed Card-scoped Quiz is the authoritative Card learning/review event,
+  while Quiz item logs remain the Entry-level performance evidence;
 - analytics must remain explainable and evidence-based rather than relying on
   opaque scores;
 - restore remains preview-first and does not silently overwrite the active
@@ -122,122 +122,99 @@ be carried into the desktop application.
 
 This milestone is not a general Streamlit-polish phase.
 
-### 11.1 Manual QA Reconciliation
+### 11.1 Semantic Alignment and QA Scope Lock
 
-Review the established full-product manual QA findings and classify them as:
+Lock the approved product semantics and reconcile every established
+full-product QA item against current repository evidence.
 
-- correctness or data-integrity defect;
-- data/state semantic inconsistency;
-- architecture or migration risk;
-- serious workflow defect;
-- Streamlit-specific UX issue;
-- stale QA expectation;
-- documentation inconsistency;
-- product-design decision;
-- deferred capability; or
-- unable to verify.
+The authoritative learning model is:
 
-Prioritize defects that affect persisted data, historical truthfulness,
-cross-workflow behavior, database compatibility, or reusable core logic.
+```text
+Browse / study a Card
+-> complete a Card-scoped Quiz
+-> one completed Card learning/review event
+```
 
-Avoid substantial work on Streamlit-specific layout or interaction polish that
-will be discarded during desktop migration.
+Direct Card Quiz completion is valid without entering Review first. A
+non-Card-scoped Quiz remains valid Entry-level performance evidence but must
+not fabricate completion for a specific Card.
 
-### 11.2 Entry Editing Integrity
+M11.1 is documentation and evidence work only. It classifies findings for
+M11.2, M11.3, M11.4, or later milestones and creates an independently
+verifiable manifest. It does not change Python behavior or the database.
 
-Resolve any state-leak or widget-state behavior capable of carrying values from
-one entry edit into another and silently overwriting fields.
+### 11.2 Unified Learning Flow and Core Integrity
 
-Affected workflows must receive regression coverage or a documented repeatable
-verification procedure.
+- Resolve all Entry edit-state leakage, including metadata, Collections,
+  dynamic Template fields, and manual canonical fallback fields.
+- Make completed Card-scoped Quiz the single authoritative Card learning
+  completion event; do not maintain a second independent Review completion.
+- Preserve direct Card Quiz completion as valid Card learning activity.
+- Provide both Review routes: Quick Quiz and Choose Quiz Type, preserving the
+  selected Collection/Card context.
+- Retire independent manual next-review scheduling, legacy due/interval/ease
+  state, and Again/Hard/Good/Easy from active product behavior without
+  falsifying legacy data.
+- Migrate Today, Statistics, Review History, and related queries away from the
+  superseded completion model.
+- Replace confirmed raw exception leakage with safe user-facing errors while
+  preserving useful developer diagnostics.
 
-### 11.3 Review Event Semantics
+M11.2 must use the smallest safe migration path and must not invent a new SRS
+algorithm.
 
-Establish and enforce the distinction between:
+### 11.3 Stable Card Identity and Entry-Level History
 
-**Review Completed**
+Introduce an additive, durable `card_id`. `card_number` may remain a display
+and ordering concept, but it must no longer be the only identity used by
+historical learning records.
 
-- represents a real review exposure event;
-- increments review count;
-- updates last reviewed time;
-- creates the appropriate review history record; and
-- may affect Today and Statistics as completed review activity.
+Card content remains mutable by user choice. Record compact Card membership
+revisions so new Card-scoped Quiz history can identify the Card composition
+used at that time through permanent `entry_id` values.
 
-**Schedule Changed**
+The migration must address:
 
-- changes only the future review date;
-- does not increment review count;
-- does not change last reviewed time; and
-- must not appear as completed review activity.
+- collection reorder and position normalization;
+- add/remove Entry operations and cross-Card movement;
+- `card_size` changes;
+- Card names and metadata;
+- existing Review and Quiz records;
+- Entry deletion/history behavior;
+- unknown legacy composition without false backfill; and
+- fresh, existing, and repeatedly migrated databases.
 
-The user remains responsible for choosing future review dates.
+Cross-Card changes must warn and confirm that historical composition remains
+historical while future learning uses the new composition.
 
-Do not restore fixed interval buttons or Again/Hard/Good/Easy SRS behavior as
-the primary scheduling model.
+### 11.4 Semantic Re-acceptance and Baseline Closure
 
-### 11.4 Card Identity and Historical Truthfulness
+Re-accept the resulting learning engine after M11.2 and M11.3.
 
-Resolve the architectural conflict between:
+- Entry Health remains based primarily on Quiz item evidence and special-pool
+  state. Browsing alone must not make an Entry Strong; zero attempts may remain
+  Never Quizzed.
+- Today, Statistics, Review History, Quiz summaries, and direct/Review-routed
+  Card quizzes must agree on the new completion semantics.
+- A whole-pool/random Quiz must not create an unrelated Card completion.
+- Restart/recovery must not duplicate learning completion.
+- Card membership history, legacy uncertainty, migration idempotence, privacy,
+  architecture boundaries, and representative existing databases must pass
+  regression verification.
 
-- cards dynamically derived from current collection position and card size;
-  and
-- persisted historical records associated with collection and card number.
-
-Evaluate minimal-risk approaches before implementing a migration.
-
-The chosen model must address:
-
-- collection reordering;
-- card-size changes;
-- historical review and quiz truthfulness;
-- backward compatibility;
-- database migration risk; and
-- future desktop behavior.
-
-A stable-card identity migration must not be introduced solely for conceptual
-purity if a lower-risk solution preserves truthful history.
-
-### 11.5 Entry Health Re-acceptance
-
-Entry Health remains an active Statistics capability.
-
-Its interpretation must continue to distinguish review exposure from quiz
-performance.
-
-Review frequency alone must not classify an entry as strong.
-
-Useful interpretable states may include:
-
-- Weak;
-- Neglected;
-- Strong;
-- At Risk; and
-- Never Quizzed.
-
-Entry Health should remain explainable and should not become an opaque
-0-100 score.
-
-### 11.6 Pre-Desktop Baseline Verification
-
-Before leaving Milestone 11:
-
-- automated checks pass;
-- affected manual QA items are re-tested;
-- critical data-integrity and semantic issues are resolved;
-- representative existing databases remain usable;
-- a backup is created or explicitly recommended before subsequent schema
-  evolution;
-- architecture checks confirm reusable core logic remains independent of
-  Streamlit; and
-- the verified repository commit is recorded.
+M11.4 closes the pre-desktop baseline; it is not the later full desktop Product
+Hardening milestone.
 
 ### Milestone 11 Exit Criteria
 
-- No known unresolved defect can silently corrupt persisted entry data.
-- Review completion and schedule changes have distinct, verified semantics.
-- A product-owner-approved Card history strategy is documented and
-  implemented where required.
-- Entry Health behavior is reconciled with current product semantics.
+- No known unresolved defect can silently corrupt persisted Entry data.
+- Completed Card-scoped Quiz is the verified authoritative Card learning event;
+  browsing alone and date changes do not create completion.
+- Independent manual scheduling and legacy SRS ratings are not active product
+  truth.
+- Stable `card_id` and historically traceable Card membership are implemented
+  through additive, idempotent migration without false legacy backfill.
+- Entry Health remains explainable and Quiz-evidence based.
 - No known high-risk compatibility issue blocks further schema development.
 - Remaining Streamlit-specific UX issues are explicitly classified rather than
   silently treated as desktop blockers.
@@ -722,13 +699,14 @@ Port daily workload, due-review visibility, and workflow handoffs.
 
 ### 17.2 Review
 
-Port Card review, review history visibility, manual future-date scheduling, and
-the distinction between review completion and schedule change.
+Port Card browse/study/preparation, historical learning context, and the Quick
+Quiz / Choose Quiz Type routes. Browsing alone must not create completion.
 
 ### 17.3 Quiz
 
-Port session creation, answer submission, duplicate protection, recovery, Card
-history context, Mistake Book, Proficient Pool, and other current core behavior.
+Port session creation, answer submission, duplicate protection, recovery,
+authoritative Card-scoped completion, Card/revision history context, Mistake
+Book, Proficient Pool, and other current core behavior.
 
 ### 17.4 Entries
 

@@ -291,9 +291,12 @@ Before serious desktop migration begins, the project instead requires a
 This baseline must include:
 
 - correction of confirmed Entry editing integrity risks;
-- clear separation between Review Completed and Schedule Changed;
-- an approved Card history/identity strategy sufficient to preserve truthful
-  history;
+- Card-scoped Quiz completion established as the single authoritative Card
+  learning/review event;
+- independent manual next-review scheduling and legacy SRS behavior retired
+  from active product truth;
+- stable `card_id` and historically traceable Card membership sufficient to
+  preserve truthful history;
 - re-acceptance of Entry Health semantics;
 - resolution of high-risk database/data integrity issues found through manual
   QA;
@@ -520,10 +523,10 @@ Only after desktop hardening:
 
 Today should become the primary landing surface.
 
-It should answer:
+It should use factual Quiz and Card history to answer:
 
-- what is due;
-- what is overdue;
+- what has never been quizzed;
+- what was last quizzed and how it performed;
 - what needs attention;
 - what the user was recently doing; and
 - where the user should continue.
@@ -535,15 +538,15 @@ controller behavior rather than Streamlit focus-routing tricks.
 
 Review must preserve:
 
-- Card-level exposure history;
-- last-reviewed information;
-- future review date;
-- manual scheduling;
-- Review Completed semantics; and
-- Schedule Changed semantics.
+- Card browse/study/preparation;
+- current and historical Card composition context where available;
+- factual prior Card Quiz history;
+- a Quick Quiz route; and
+- a Choose Quiz Type route.
 
-The desktop redesign should avoid reintroducing legacy SRS rating behavior as
-the main scheduling model.
+Browsing alone must not create a completed learning event. The desktop redesign
+must not reintroduce independent manual scheduling or legacy SRS rating behavior
+as the active learning model.
 
 ### Quiz
 
@@ -556,7 +559,8 @@ Quiz must preserve:
 - Mistake Book;
 - Proficient Pool;
 - Card/Collection context; and
-- history useful for deciding the next Review date.
+- Card-scoped completion linked to stable Card identity and the membership
+  revision used at that time.
 
 Desktop Quiz may use a dedicated workflow window if that provides a cleaner
 learning experience than embedding everything into the main management shell.
@@ -795,8 +799,9 @@ Collection.
 - [x] Today workflow queries are reusable
 - [x] Schema/app metadata and migration foundations exist
 - [ ] Entry-editing integrity issue resolved
-- [ ] Review Completed and Schedule Changed semantics verified
-- [ ] Card history/identity strategy approved
+- [ ] Card-scoped Quiz is the authoritative Card learning completion
+- [ ] independent manual scheduling and legacy SRS retired from active behavior
+- [ ] stable Card identity and membership revisions implemented
 - [ ] Entry Health re-accepted
 - [ ] pre-desktop baseline verified
 
