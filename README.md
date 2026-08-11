@@ -10,12 +10,14 @@ Vocabulary App helps users maintain their own vocabulary database and turn it in
 
 1. Create or import entries.
 2. Organize entries into collections and cards.
-3. Review cards on a user-controlled schedule.
-4. Practice with quizzes and learning pools.
+3. Browse or study cards as preparation.
+4. Complete Card-scoped quizzes as the authoritative Card learning event.
 5. Inspect statistics and daily progress.
 6. Export or back up local data.
 
-The `Today` page acts as the daily learning home. It summarizes due work, suggests review and quiz actions, and reports activity derived from existing local logs.
+The `Today` page acts as the daily learning home. During Milestone 11 its
+recommendations and summaries are being migrated from legacy Review-schedule
+state to factual Card-scoped Quiz history.
 
 ## Lifecycle Status
 
@@ -34,11 +36,28 @@ a native desktop UI, and hardens/packages the desktop product.
 - [PRE_GIT_HISTORY.md](PRE_GIT_HISTORY.md) documents development before the
   initial public Git baseline.
 
+### Approved Milestone 11 learning semantics
+
+- Review is a Card browse/study/preparation surface and an entry point into
+  Quiz. Browsing alone is not a completed learning event.
+- Completing a Quiz scoped to a specific Card is the authoritative completed
+  learning/review event for that Card. Entering that Quiz directly is equally
+  valid; the user does not need to visit Review first.
+- A random or whole-pool Quiz remains valid Entry-level performance activity,
+  but it must not fabricate completion for an unrelated Card.
+- Independent manual next-review scheduling and Again/Hard/Good/Easy interval
+  scheduling are being retired from the active model during Milestone 11. No
+  replacement SRS algorithm is being introduced in this milestone.
+- `entries.id` is the permanent Entry identity. The approved Card direction is
+  a stable `card_id` with mutable, historically traceable Entry membership.
+  Current legacy records that only identify `collection_id + card_number` must
+  not be presented as more precise than the stored evidence supports.
+
 ## Product Philosophy
 
 - **Local-first:** learning data is stored in a local SQLite database.
 - **User-owned content:** users create, edit, import, and maintain their own entries.
-- **Explicit control:** review scheduling, quiz answers, pool membership, imports, deletion, and backup actions remain user-controlled.
+- **Explicit control:** Card composition, quiz answers, pool membership, imports, deletion, and backup actions remain user-controlled.
 - **No hidden language authority:** the app organizes learning data but does not claim to verify linguistic accuracy.
 - **Migration-friendly architecture:** reusable logic stays outside the Streamlit UI.
 
@@ -67,13 +86,15 @@ See [CONTENT_POLICY.md](CONTENT_POLICY.md) for the detailed user-owned content p
 - Add, remove, reorder, and delete collection workflows
 - System collections for Mistake Book, Starred, and Proficient Pool
 
-### Review scheduling
+### Review and legacy scheduling compatibility
 
-- Collection Card review unit
-- Due, overdue, and unscheduled cards
-- Direct user-controlled scheduling
-- Review state and history logs
-- Review History / Schedule management
+- Collection Card browse/study surface
+- Card-to-Quiz focus handoff
+- Legacy due/overdue, manual scheduling, Review state, and Review History
+  surfaces retained in the current Streamlit baseline pending M11.2 migration
+
+These legacy scheduling surfaces describe current compatibility behavior, not
+the approved authoritative learning-completion model.
 
 ### Quiz and learning pools
 
@@ -82,6 +103,7 @@ See [CONTENT_POLICY.md](CONTENT_POLICY.md) for the detailed user-owned content p
 - Matching practice
 - Template-aware quiz rules
 - Active-session protection and duplicate-answer protection
+- Entry-level results linked to permanent `entry_id`
 - Mistake Book recovery workflow
 - Proficient Pool random audits
 
@@ -95,7 +117,7 @@ See [CONTENT_POLICY.md](CONTENT_POLICY.md) for the detailed user-owned content p
 ### Daily learning workflow
 
 - `Today` as the default learning home
-- Due and overdue review workload
+- Legacy due/overdue workload pending M11.2 semantic migration
 - Daily quiz suggestions
 - Special-pool status
 - Review and quiz focus navigation
@@ -163,7 +185,7 @@ vocab-app/
     |-- entry_templates.py       # Template management
     |-- migrations.py            # Schema/app metadata and additive migrations
     |-- collections.py           # Collections, cards, and ordering
-    |-- review.py                # Review scheduling
+    |-- review.py                # Card review compatibility state pending M11.2
     |-- quiz.py                  # Quiz sessions and answer logs
     |-- template_quiz.py         # Template-aware quiz rules
     |-- statistics.py            # Read-only statistics queries
@@ -271,7 +293,7 @@ Milestones 1-10 completed the current feature set and productization
 foundations:
 
 - Local entry and collection management
-- Collection Card review scheduling
+- Historical Collection Card review scheduling baseline
 - Quiz sessions and learning pools
 - Template-based entries and French presets
 - Statistics and Review Calendar

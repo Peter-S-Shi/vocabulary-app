@@ -1,6 +1,6 @@
 # Vocabulary App Project Status
 
-Last reviewed: 2026-08-09
+Last reviewed: 2026-08-11
 
 This file is the authoritative evidence-based snapshot of the current project
 state.
@@ -17,6 +17,10 @@ Desktop-specific migration principles and workflow mapping are defined in
 ## Current Milestone
 
 **Milestone 11: Pre-Desktop Stabilization**
+
+M11.1 Semantic Alignment and QA Scope Lock is complete on the candidate branch
+`agent/m11-1-semantic-alignment` and is pending independent Draft PR review and
+merge. No M11.2 behavior implementation has started.
 
 The project is no longer preparing to freeze and release the existing
 Streamlit application as the final current-version target.
@@ -98,6 +102,20 @@ The QA process also identified:
 - new feature requests; and
 - areas requiring direct repository verification.
 
+M11.1 reconciled all 66 stable QA IDs against the current repository and the
+approved learning semantics:
+
+- M11.2: 5 items;
+- M11.3: 5 items;
+- M11.4: 17 items;
+- M12+/Desktop, M13, or Deferred: 12 items;
+- stale expectation or verified no action: 27 items; and
+- unable to verify from repository evidence: 0 items.
+
+The counts above classify the QA inventory once per stable QA ID. Additional
+repository-derived engineering findings are recorded separately in the M11.1
+Draft PR and do not inflate the 66-item source total.
+
 The manual QA artifact should remain a living project artifact and should be
 updated only in sections affected by later milestones or regression work.
 
@@ -119,35 +137,45 @@ silently overwrite fields such as:
 This must be resolved before the Streamlit application is treated as a
 trustworthy migration baseline.
 
-### Review Completion vs Schedule Change
+### Unified Review and Quiz Semantics
 
-Current behavior requires semantic correction.
+The approved authoritative model is:
 
-The intended product model is:
+```text
+Browse / study a Card
+-> complete a Card-scoped Quiz
+-> one completed Card learning/review event
+```
 
-**Review Completed**
+- Review is a Card browse/study/preparation surface and an entry point into
+  Quiz. Browsing alone is not completion.
+- A direct Card-scoped Quiz completion is valid without first entering Review.
+- Quiz item activity remains the authoritative Entry-level performance
+  evidence.
+- A random or whole-pool Quiz remains valid performance activity but must not
+  fabricate completion for an unrelated Card.
+- Independent manual next-review scheduling, due/interval/ease state, and
+  Again/Hard/Good/Easy are being retired from active product truth.
+- No replacement SRS algorithm is approved for M11.
 
-- represents actual review exposure;
-- increments review count;
-- updates the last-reviewed timestamp; and
-- appears in review activity/history.
-
-**Schedule Changed**
-
-- changes only the future review date;
-- must not increment review count;
-- must not update the last-reviewed timestamp; and
-- must not be reported as completed review activity.
-
-The scheduling model remains user-controlled.
-
-The product should not restore hard-coded `+1 / +7 / +30` scheduling as the
-primary interaction and should not restore Again/Hard/Good/Easy SRS as the
-main Review model.
+Current code does not yet enforce this model. `src/quiz.py` completes Quiz
+sessions without creating a Card learning event, while
+`src/review.py:update_card_next_due_at()` writes a `manual_schedule_update` row
+to `card_review_logs`. Today and Statistics currently count those logs as
+completed Review activity. This is an M11.2 data/state semantic inconsistency.
 
 ### Card Identity and Historical Truthfulness
 
-An unresolved architectural issue exists between:
+The approved architecture resolves the product decision as follows:
+
+- `entries.id` is the permanent authoritative Entry identity;
+- Cards receive a stable durable `card_id`;
+- `card_number` remains a display/order concept;
+- Card membership remains user-mutable; and
+- historical Card learning must retain the membership revision used at the
+  time without false backfill.
+
+The current implementation still has an unresolved migration gap between:
 
 - cards dynamically derived from collection order and `card_size`; and
 - historical review/card records associated with collection and card number.
@@ -155,19 +183,20 @@ An unresolved architectural issue exists between:
 Collection reordering or card-size changes can cause the same apparent Card
 number to refer to different entries while retaining old history.
 
-A minimal-risk architectural decision is required before broader desktop and
-analytics work depends on Card history.
-
-The decision must consider:
+A minimal-risk additive implementation is required before broader desktop and
+analytics work depends on Card history. It must cover:
 
 - historical truthfulness;
 - reorder behavior;
 - card-size changes;
 - backward compatibility;
 - migration cost; and
-- future desktop behavior.
+- future desktop behavior;
+- Card names and metadata; and
+- Entry deletion/history behavior.
 
-No stable-Card-ID migration has yet been approved.
+The stable-Card-ID direction is approved; the schema migration and regression
+work belong to M11.3 and have not started.
 
 ### Entry Health
 
@@ -190,12 +219,15 @@ Review count alone must not make an Entry Strong.
 
 An Entry reviewed repeatedly but never tested can remain **Never Quizzed**.
 
-Entry Health requires renewed manual acceptance after the Statistics semantics
-are reconciled.
+Static inspection of `src/statistics.py:get_entry_performance_summary()` and
+`get_strong_entries()` shows that current Entry Health derives attempts and
+accuracy from `quiz_item_logs`, plus special-pool state; it does not use Review
+count to classify Strong. M11.4 must re-accept this behavior after M11.2 and
+M11.3 changes.
 
 ## Other QA Findings Requiring Later Triage
 
-Known QA findings also include:
+QA findings assigned outside active M11 implementation include:
 
 - partial Chinese/French localization;
 - hard-coded Entry Type filter behavior that does not naturally cover custom
@@ -203,20 +235,22 @@ Known QA findings also include:
 - whether the Status filter should remain as a product decision;
 - lack of one unified configurable display-order model across canonical and
   custom fields;
-- Template Import Preview not fully exposing dynamic `field:*` information;
-- Ordered Quiz Queue editing being implemented but poorly discoverable;
-- stale historical acceptance expectations around Again/Hard/Good/Easy;
-- obsolete or compatibility-only review-rating code that requires an explicit
-  deprecation/retention decision;
-- legacy entry-level review-count semantics still appearing in some UI
-  contexts; and
-- exceptional error rendering that may expose local file paths or database
-  details.
+- Template Import Preview not fully exposing dynamic `field:*` information and
+  proposed Template-definition import, assigned to M13;
+- duplicate/merge and wider import-matching ideas, assigned to M13/M14 or
+  Deferred according to later approved scope;
+- keyboard, narrow-screen, localization, and external-evaluator work assigned
+  to the desktop/hardening lifecycle; and
+- Ordered Quiz Queue editing being implemented but poorly discoverable,
+  assigned to the later desktop experience.
 
-These findings must be classified by Milestone 11 rather than treated as an
-undifferentiated list of release blockers.
+The old M05-Q03 Again/Hard/Good/Easy expectation and Streamlit Release Candidate
+recommendation items are stale QA expectations. The old QA reading guide's
+`Review = exposure/history` plus manual-date model is also superseded by the
+approved M11 semantics; the original local QA input remains unchanged as
+historical evidence.
 
-Streamlit-only polish should not receive the same priority as data correctness,
+Streamlit-only polish does not receive the same priority as data correctness,
 historical truthfulness, privacy, or reusable core behavior.
 
 ## Active New Product Scope
@@ -265,8 +299,8 @@ The intended analytical model distinguishes:
 
 Important analytical principles include:
 
-- Review = exposure/history;
-- Quiz = demonstrated performance;
+- completed Card-scoped Quiz = Card learning/review completion;
+- Quiz item logs = demonstrated Entry-level performance;
 - sparse data must not produce overconfident conclusions;
 - personal baselines and relative performance are more useful than isolated
   percentages;
@@ -445,6 +479,11 @@ For the 2026-08-09 lifecycle-alignment change:
 These checks must be rerun as appropriate against each significant engineering
 milestone baseline.
 
+For M11.1, repository evidence was inspected across Entry editing, Review,
+Quiz, Today, Statistics, Collection/Card mutation, schema, backup metadata, and
+user-facing exception paths. M11.1 changes documentation only; validation
+results are recorded in its Draft PR.
+
 ### Manual QA
 
 Full-product manual QA now exists and has produced a baseline acceptance and
@@ -452,7 +491,9 @@ triage dataset.
 
 Status:
 
-**Established; requires Milestone 11 reconciliation and targeted re-testing.**
+**Established; all 66 QA IDs reconciled by M11.1. Targeted implementation and
+re-acceptance remain assigned to M11.2-M11.4. No additional product-owner UI
+test is required for M11.1.**
 
 ### Existing Database Compatibility
 
@@ -508,22 +549,36 @@ On 2026-08-09, immediately before the lifecycle-alignment branch was created:
 - default remote branch: `main`; and
 - local `main` matched the fetched remote branch.
 
-The lifecycle-alignment commit and pull request are recorded by Git history
-after this verified baseline rather than embedded recursively as this file's
-own commit identifier.
+The lifecycle-alignment PR was merged to `main` as:
+
+`f5ce774bc6645d8e6b0e80dbef71c77158c98de8`
+
+M11.1 started from that synchronized local/remote baseline on branch
+`agent/m11-1-semantic-alignment`. Its own commit and Draft PR are recorded by
+Git/GitHub rather than embedded recursively as this file's own commit identifier.
 
 Status:
 
-**Pre-alignment remote baseline verified; lifecycle revision applied in the
-documentation branch.**
+**Lifecycle baseline verified on `main`; M11.1 candidate branch pending Draft
+PR review and merge.**
 
 ## Known Risks
 
-- Card history currently depends on identity semantics that may become
-  misleading after collection reorder or card-size changes.
-- Review schedule changes may currently contaminate completed-review activity
-  semantics.
+- Card history, Quiz sessions, Review state/logs, and Card metadata currently
+  depend on `collection_id + card_number`, which becomes misleading after
+  reorder or `card_size` changes.
+- Card membership has no revision history, so old Card composition cannot be
+  reliably reconstructed.
+- Entry deletion cascades to `quiz_item_logs`, which can remove Entry-level
+  evidence while retaining parent Quiz-session totals; M11.3 must resolve the
+  intended historical behavior without false backfill.
+- Quiz completion does not currently create the approved Card learning event.
+- Manual date changes write `card_review_logs`; Today and Statistics count all
+  such rows as completed Review activity.
 - Streamlit entry-edit widget state can risk unintended data overwrite.
+- Generic exception strings are rendered in several Streamlit pages and may
+  expose local paths or database/internal details. Intentional path display in
+  Settings remains a separate, expected local-data feature.
 - Active Quiz recovery combines durable session state with transient UI state.
 - Dense table and selection workflows depend on Streamlit behavior and must be
   redesigned deliberately for desktop.
@@ -541,8 +596,13 @@ documentation branch.**
 
 ## Unknown or Unverified
 
-- Final Card identity/history strategy.
-- Full classification and resolution plan for all current manual QA findings.
+- Exact additive schema and migration design for approved stable Card identity
+  and membership revisions.
+- Truthful legacy-history treatment where old Card composition is unknowable.
+- Exact treatment of legacy Review-only records after active scheduling is
+  retired.
+- Safe Card-learning completion transaction and restart/idempotence behavior
+  across all compatible Quiz types.
 - Current repository-wide regression after the latest product-scope decision.
 - Large/dense dataset behavior under the future desktop UI.
 - Desktop framework selection.
@@ -593,28 +653,28 @@ M11  Pre-Desktop Stabilization
 
 ## Next Engineering Objective
 
-Begin **Milestone 11: Pre-Desktop Stabilization**.
+After M11.1 independent review and merge, begin **M11.2: Unified Learning Flow
+and Core Integrity**.
 
-The first work should:
+M11.2 should:
 
-1. reconcile the existing full-product manual QA findings;
-2. separate data/correctness/migration blockers from disposable
-   Streamlit-specific polish;
-3. resolve the confirmed entry-editing integrity issue;
-4. enforce Review Completed vs Schedule Changed semantics;
-5. prepare the Card identity/history options for product-owner decision;
-6. re-accept Entry Health against current product semantics; and
-7. establish and verify the pre-desktop baseline before repository
-   restructuring begins.
+1. resolve the complete Entry edit-state integrity issue;
+2. make completed Card-scoped Quiz the authoritative Card learning event;
+3. preserve direct Card Quiz completion;
+4. provide Quick Quiz and Choose Quiz Type routes from Review;
+5. retire independent manual scheduling and legacy SRS behavior from active
+   product truth;
+6. migrate Today, Statistics, and Review-related consumers; and
+7. fix confirmed user-facing raw exception leakage.
 
 Do not begin full development of the three new major capabilities before this
 baseline is trustworthy.
 
 ## Repository State
 
-- Intended branch: `main`
-- Verified pre-alignment remote commit:
-  `16c21d173e8ebbb486c6f87b03fc047d2cf02e7a`
+- Candidate branch: `agent/m11-1-semantic-alignment`
+- Verified synchronized M11.1 base commit:
+  `f5ce774bc6645d8e6b0e80dbef71c77158c98de8`
 - Release tag: none recorded
 - Current lifecycle documents:
   - `ROADMAP.md`
