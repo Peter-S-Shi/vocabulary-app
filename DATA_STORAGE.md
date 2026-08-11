@@ -14,6 +14,12 @@ events. Revision membership stores Entry IDs and positions rather than copying
 full Entry content. Ordinary browsing and Quiz activity do not create new Card
 revisions.
 
+Hard-deleting an Entry removes its current Entry row and Collection membership,
+but preserves its existing Quiz item logs, Card revision membership IDs, and
+Entry-change events. Quiz logs already store prompt, expected answer, user
+answer, correctness, and the original `entry_id`; the app does not fabricate
+the deleted Entry's full content.
+
 ## Git and the Data Folder
 
 `data/.gitkeep` is an empty repository placeholder that keeps the folder structure available after cloning.

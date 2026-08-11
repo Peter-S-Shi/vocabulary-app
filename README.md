@@ -272,7 +272,7 @@ The application initializes the database automatically when it starts. Do not de
 
 Before major upgrades or manual database operations, create a backup from the app or copy the database while the app is stopped.
 
-Schema/app metadata supports software update compatibility. The M11.3 migration moves `10.6.0-baseline` to `11.3.0-card-history`, preserves legacy Quiz uncertainty, and leaves optional modules disabled by default.
+Schema/app metadata supports software update compatibility. The M11.3 migration chain moves `10.6.0-baseline` through `11.3.0-card-history` to `11.3.1-quiz-log-history`, preserves legacy Quiz uncertainty and hard-deleted Entry activity, and leaves optional modules disabled by default.
 
 Advanced users may set `VOCAB_APP_DB_PATH` before launch to select another database path. Normal users do not need this setting, and the app does not automatically move or merge databases.
 

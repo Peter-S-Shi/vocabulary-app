@@ -6,7 +6,8 @@ import sqlite3
 
 
 BASELINE_SCHEMA_VERSION = "10.6.0-baseline"
-CURRENT_SCHEMA_VERSION = "11.3.0-card-history"
+CARD_HISTORY_SCHEMA_VERSION = "11.3.0-card-history"
+CURRENT_SCHEMA_VERSION = "11.3.1-quiz-log-history"
 APP_DATA_VERSION = "11.3"
 
 METADATA_KEYS = {
@@ -125,12 +126,74 @@ def migrate_to_m11_3_card_history(conn: sqlite3.Connection) -> None:
     set_metadata(conn, "app_data_version", APP_DATA_VERSION)
 
 
+def _quiz_item_logs_has_entry_foreign_key(conn: sqlite3.Connection) -> bool:
+    rows = conn.execute("PRAGMA foreign_key_list(quiz_item_logs)").fetchall()
+    for row in rows:
+        source_column = row["from"] if isinstance(row, sqlite3.Row) else row[3]
+        target_table = row["table"] if isinstance(row, sqlite3.Row) else row[2]
+        if source_column == "entry_id" and target_table == "entries":
+            return True
+    return False
+
+
+def migrate_quiz_logs_to_preserved_entry_identity(conn: sqlite3.Connection) -> None:
+    if _quiz_item_logs_has_entry_foreign_key(conn):
+        conn.execute(
+            """
+            CREATE TABLE quiz_item_logs_m11_3_preserved (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER NOT NULL,
+                entry_id INTEGER NOT NULL,
+                prompt TEXT NOT NULL,
+                expected_answer TEXT NOT NULL,
+                user_answer TEXT,
+                is_correct INTEGER,
+                answered_at TEXT NOT NULL,
+                FOREIGN KEY(session_id) REFERENCES quiz_sessions(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO quiz_item_logs_m11_3_preserved (
+                id, session_id, entry_id, prompt, expected_answer,
+                user_answer, is_correct, answered_at
+            )
+            SELECT
+                id, session_id, entry_id, prompt, expected_answer,
+                user_answer, is_correct, answered_at
+            FROM quiz_item_logs
+            ORDER BY id
+            """
+        )
+        conn.execute("DROP TABLE quiz_item_logs")
+        conn.execute(
+            "ALTER TABLE quiz_item_logs_m11_3_preserved RENAME TO quiz_item_logs"
+        )
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_quiz_item_logs_session_id ON quiz_item_logs(session_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_quiz_item_logs_entry_id ON quiz_item_logs(entry_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_quiz_item_logs_answered_at ON quiz_item_logs(answered_at)"
+    )
+
+
 MIGRATIONS: list[dict[str, str | MigrationFunction]] = [
     {
         "from": BASELINE_SCHEMA_VERSION,
-        "to": CURRENT_SCHEMA_VERSION,
+        "to": CARD_HISTORY_SCHEMA_VERSION,
         "name": "m11.3_stable_card_identity_and_entry_history",
         "function": migrate_to_m11_3_card_history,
+    },
+    {
+        "from": CARD_HISTORY_SCHEMA_VERSION,
+        "to": CURRENT_SCHEMA_VERSION,
+        "name": "m11.3_preserve_quiz_logs_after_entry_delete",
+        "function": migrate_quiz_logs_to_preserved_entry_identity,
     },
 ]
 

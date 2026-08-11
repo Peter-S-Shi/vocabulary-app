@@ -77,6 +77,13 @@ Card learning event. `quiz_sessions.completed_at` is the source timestamp; the
 system does not create a parallel Review-completion event. Non-Card Quiz
 sessions remain Entry-performance evidence only.
 
+`quiz_item_logs.entry_id` is a durable historical integer reference rather
+than a cascading foreign key to the current `entries` table. Hard-deleting an
+Entry therefore preserves its Quiz item evidence, including the stored prompt,
+expected answer, user answer, correctness, and original Entry ID. Historical
+views use a generic `Deleted Entry #<id>` label when no current term exists;
+they do not reconstruct or invent deleted Entry content.
+
 `entry_collections.position` plus `collections.card_size` remains the sole
 source for current Card grouping. `cards`, `card_revisions`, and
 `card_revision_entries` add durable identity and immutable historical

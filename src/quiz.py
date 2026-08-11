@@ -735,7 +735,7 @@ def get_quiz_item_log_view(
         where_clauses.append(
             """
             (
-                LOWER(e.term) LIKE ?
+                LOWER(COALESCE(e.term, 'Deleted Entry #' || qil.entry_id)) LIKE ?
                 OR LOWER(qil.prompt) LIKE ?
                 OR LOWER(qil.expected_answer) LIKE ?
                 OR LOWER(COALESCE(qil.user_answer, '')) LIKE ?
@@ -774,7 +774,7 @@ def get_quiz_item_log_view(
                 qs.quiz_type,
                 qs.status AS session_status,
                 qil.entry_id,
-                e.term,
+                COALESCE(e.term, 'Deleted Entry #' || qil.entry_id) AS term,
                 qil.prompt,
                 qil.expected_answer,
                 qil.user_answer,
@@ -782,7 +782,7 @@ def get_quiz_item_log_view(
                 qil.answered_at
             FROM quiz_item_logs qil
             JOIN quiz_sessions qs ON qs.id = qil.session_id
-            JOIN entries e ON e.id = qil.entry_id
+            LEFT JOIN entries e ON e.id = qil.entry_id
             LEFT JOIN collections c ON c.id = qs.collection_id
             {where_sql}
             ORDER BY qil.answered_at DESC, qil.id DESC

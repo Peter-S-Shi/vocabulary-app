@@ -131,8 +131,7 @@ CREATE TABLE IF NOT EXISTS quiz_item_logs (
     user_answer TEXT,
     is_correct INTEGER,
     answered_at TEXT NOT NULL,
-    FOREIGN KEY(session_id) REFERENCES quiz_sessions(id) ON DELETE CASCADE,
-    FOREIGN KEY(entry_id) REFERENCES entries(id) ON DELETE CASCADE
+    FOREIGN KEY(session_id) REFERENCES quiz_sessions(id) ON DELETE CASCADE
 );
 """
 

@@ -26,14 +26,23 @@ from src.collections import (
     update_collection,
     update_entry_collections,
 )
-from src.entries import add_entry, delete_entries, get_entry_change_events, update_entry
+from src.entries import (
+    add_entry,
+    delete_entries,
+    get_entry_by_id,
+    get_entry_change_events,
+    update_entry,
+)
 from src.import_export import import_general_entry_rows
 from src.migrations import (
     BASELINE_SCHEMA_VERSION,
+    CARD_HISTORY_SCHEMA_VERSION,
     CURRENT_SCHEMA_VERSION,
     MIGRATIONS,
     get_schema_version,
+    migrate_to_m11_3_card_history,
     run_migrations,
+    set_schema_version,
 )
 
 
@@ -117,9 +126,107 @@ class M113CardHistoryTests(unittest.TestCase):
                 "SELECT COUNT(*) FROM card_revision_entries"
             ).fetchone()[0]
             foreign_key_errors = conn.execute("PRAGMA foreign_key_check").fetchall()
+            log_foreign_keys = conn.execute(
+                "PRAGMA foreign_key_list(quiz_item_logs)"
+            ).fetchall()
         self.assertEqual(cards, 3)
         self.assertEqual(memberships, len(entry_ids))
         self.assertEqual(foreign_key_errors, [])
+        self.assertNotIn("entry_id", {row["from"] for row in log_foreign_keys})
+
+    def test_migrated_and_fresh_quiz_log_schema_converge_without_entry_fk(self) -> None:
+        with db.get_connection() as conn:
+            fresh_columns = [
+                tuple(row) for row in conn.execute("PRAGMA table_info(quiz_item_logs)")
+            ]
+            fresh_foreign_keys = [
+                (row["table"], row["from"], row["to"], row["on_delete"])
+                for row in conn.execute("PRAGMA foreign_key_list(quiz_item_logs)")
+            ]
+
+        migrated_path = Path(self.temp_dir.name) / "m11_3_existing.sqlite3"
+        db.DB_PATH = migrated_path
+        with sqlite3.connect(migrated_path) as conn:
+            conn.row_factory = sqlite3.Row
+            conn.execute(db.CREATE_ENTRIES_TABLE_SQL)
+            conn.execute(db.CREATE_COLLECTIONS_TABLE_SQL)
+            conn.execute(db.CREATE_ENTRY_COLLECTIONS_TABLE_SQL)
+            conn.execute(db.CREATE_COLLECTION_CARD_METADATA_TABLE_SQL)
+            conn.execute(db.CREATE_QUIZ_SESSIONS_TABLE_SQL)
+            conn.execute(
+                """
+                CREATE TABLE quiz_item_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id INTEGER NOT NULL,
+                    entry_id INTEGER NOT NULL,
+                    prompt TEXT NOT NULL,
+                    expected_answer TEXT NOT NULL,
+                    user_answer TEXT,
+                    is_correct INTEGER,
+                    answered_at TEXT NOT NULL,
+                    FOREIGN KEY(session_id) REFERENCES quiz_sessions(id) ON DELETE CASCADE,
+                    FOREIGN KEY(entry_id) REFERENCES entries(id) ON DELETE CASCADE
+                )
+                """
+            )
+            now = "2026-08-11T13:00:00+00:00"
+            conn.execute(
+                "INSERT INTO collections (id, name, card_size, created_at, updated_at) VALUES (1, 'Existing M11.3', 8, ?, ?)",
+                (now, now),
+            )
+            conn.execute(
+                """
+                INSERT INTO entries (
+                    id, language, explanation_language, entry_type, term, meaning,
+                    created_at, updated_at
+                ) VALUES (1, 'English', 'English', 'word', 'before-delete', 'meaning', ?, ?)
+                """,
+                (now, now),
+            )
+            conn.execute(
+                "INSERT INTO entry_collections (entry_id, collection_id, position, added_at) VALUES (1, 1, 1, ?)",
+                (now,),
+            )
+            conn.execute(
+                """
+                INSERT INTO quiz_sessions (
+                    id, collection_id, card_number, quiz_type, started_at,
+                    total_items, status
+                ) VALUES (1, 1, 1, 'term_to_meaning', ?, 1, 'completed')
+                """,
+                (now,),
+            )
+            conn.execute(
+                """
+                INSERT INTO quiz_item_logs (
+                    id, session_id, entry_id, prompt, expected_answer,
+                    user_answer, is_correct, answered_at
+                ) VALUES (7, 1, 1, 'before-delete', 'meaning', 'meaning', 1, ?)
+                """,
+                (now,),
+            )
+            migrate_to_m11_3_card_history(conn)
+            set_schema_version(conn, CARD_HISTORY_SCHEMA_VERSION)
+
+        db.init_db()
+        with db.get_connection() as conn:
+            migrated_columns = [
+                tuple(row) for row in conn.execute("PRAGMA table_info(quiz_item_logs)")
+            ]
+            migrated_foreign_keys = [
+                (row["table"], row["from"], row["to"], row["on_delete"])
+                for row in conn.execute("PRAGMA foreign_key_list(quiz_item_logs)")
+            ]
+            preserved = conn.execute(
+                "SELECT id, entry_id, prompt, expected_answer, is_correct FROM quiz_item_logs"
+            ).fetchone()
+            self.assertEqual(get_schema_version(conn), CURRENT_SCHEMA_VERSION)
+        self.assertEqual(migrated_columns, fresh_columns)
+        self.assertEqual(migrated_foreign_keys, fresh_foreign_keys)
+        self.assertEqual(
+            tuple(preserved),
+            (7, 1, "before-delete", "meaning", 1),
+        )
 
     def test_legacy_quiz_remains_unknown_and_card_name_migrates(self) -> None:
         legacy_path = Path(self.temp_dir.name) / "legacy.sqlite3"
@@ -270,6 +377,77 @@ class M113CardHistoryTests(unittest.TestCase):
             [row["id"] for row in get_entries_in_collection(collection_id)],
             entry_ids[1:],
         )
+
+    def test_entry_hard_delete_preserves_quiz_card_and_edit_history(self) -> None:
+        from src.collections import create_collection
+
+        collection_id = create_collection("Historical activity", card_size=8)
+        entry_id = add_entry(
+            "English",
+            "English",
+            "word",
+            "original-term",
+            "historical-answer",
+        )
+        add_entries_to_collection([entry_id], collection_id)
+        update_entry(
+            entry_id,
+            "English",
+            "English",
+            "word",
+            "edited-term",
+            "historical-answer",
+        )
+        card_group = get_card_groups_for_collection(collection_id)[0]
+        original_revision_id = int(card_group["card_revision_id"])
+        session_id = quiz.create_quiz_session(
+            collection_id,
+            1,
+            "term_to_meaning",
+            1,
+        )
+        quiz.record_quiz_answer(
+            session_id,
+            entry_id,
+            "edited-term",
+            "historical-answer",
+            "historical-answer",
+            True,
+        )
+
+        delete_entries([entry_id])
+
+        self.assertIsNone(get_entry_by_id(entry_id))
+        with db.get_connection() as conn:
+            log = conn.execute(
+                """
+                SELECT entry_id, prompt, expected_answer, user_answer, is_correct
+                FROM quiz_item_logs
+                WHERE session_id = ?
+                """,
+                (session_id,),
+            ).fetchone()
+            self.assertEqual(
+                get_card_revision_entry_ids(conn, original_revision_id),
+                [entry_id],
+            )
+        self.assertEqual(
+            tuple(log),
+            (
+                entry_id,
+                "edited-term",
+                "historical-answer",
+                "historical-answer",
+                1,
+            ),
+        )
+        self.assertEqual(len(get_entry_change_events(entry_id)), 1)
+        rendered_log = quiz.get_quiz_item_log_view(session_id=session_id)[0]
+        self.assertEqual(rendered_log["entry_id"], entry_id)
+        self.assertEqual(rendered_log["term"], f"Deleted Entry #{entry_id}")
+        self.assertEqual(rendered_log["prompt"], "edited-term")
+        self.assertEqual(rendered_log["expected_answer"], "historical-answer")
+        self.assertEqual(rendered_log["is_correct"], 1)
 
     def test_card_size_retirement_reappearance_and_name_identity(self) -> None:
         collection_id, _ = self._collection_with_entries(3, 2)

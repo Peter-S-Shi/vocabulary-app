@@ -196,7 +196,8 @@ Current Card grouping remains dynamically derived from
 identify active slots, and immutable revisions record the ordered Entry IDs
 that belonged to each Card at each material change.
 
-The additive `10.6.0-baseline -> 11.3.0-card-history` migration:
+The additive migration chain
+`10.6.0-baseline -> 11.3.0-card-history -> 11.3.1-quiz-log-history`:
 
 - establishes one active stable Card per current slot and one baseline revision;
 - preserves active Card IDs across membership revisions;
@@ -204,7 +205,9 @@ The additive `10.6.0-baseline -> 11.3.0-card-history` migration:
 - moves active Card names to stable identity while retaining the old metadata table as compatibility-only;
 - binds new Card-scoped Quiz sessions to the exact `card_id` and `card_revision_id` used at start;
 - leaves legacy pre-M11.3 Quiz composition null/unknown where it cannot be proved;
-- records compact, field-level old/new evidence for successful non-no-op Entry edits; and
+- records compact, field-level old/new evidence for successful non-no-op Entry edits;
+- preserves existing `quiz_item_logs` after Entry hard deletion without
+  inventing deleted Entry content; and
 - requires an evidence-based Streamlit confirmation before user-driven cross-Card reorganization.
 
 Collection mutation and Card-history reconciliation share one transaction.
@@ -212,8 +215,10 @@ Reads and ordinary Quiz activity create no Card revisions. The reusable core
 remains Streamlit-independent and is suitable for a later native confirmation
 dialog.
 
-Known deletion boundary: ordinary membership changes and Entry hard deletion
-do not remove the stored integer Entry IDs from Card revision snapshots.
+Known deletion boundary: Entry hard deletion preserves `quiz_item_logs`,
+stored integer Entry IDs in Card revision snapshots, and
+`entry_change_events`. Historical Quiz views fall back to
+`Deleted Entry #<id>` plus the log's stored prompt/answer evidence.
 Deleting an entire Collection retains the existing product behavior of
 deleting that Collection's associated Card/Quiz history. A different
 Collection-deletion retention policy remains a product decision for M11.4.
@@ -225,7 +230,7 @@ M11.3 verified implementation commit:
 later documentation-only metadata commit; its exact head is recorded in the
 Draft PR and closeout report.
 
-Candidate verification includes 30 passing M11.2/M11.3 unit and Streamlit
+Candidate verification includes 32 passing M11.2/M11.3 unit and Streamlit
 AppTests on isolated synthetic databases, migration failure rollback,
 idempotent restart, storage-noise checks, architecture audit, and packaging
 readiness. The packaging checker retains its expected warning that the local
@@ -602,22 +607,14 @@ M11.2 started from that exact synchronized commit on branch
 
 Status:
 
-**M11.1 merged and synchronized; M11.2 candidate pending Draft PR review.**
+**M11.1 and M11.2 merged; M11.3 candidate pending Draft PR review.**
 
 ## Known Risks
 
-- Card history, Quiz sessions, Review state/logs, and Card metadata currently
-  depend on `collection_id + card_number`, which becomes misleading after
-  reorder or `card_size` changes.
-- Card membership has no revision history, so old Card composition cannot be
-  reliably reconstructed.
-- Entry deletion cascades to `quiz_item_logs`, which can remove Entry-level
-  evidence while retaining parent Quiz-session totals; M11.3 must resolve the
-  intended historical behavior without false backfill.
+- Deleting an entire Collection still deletes its associated Card/Quiz history;
+  any different retention policy remains an explicit M11.4 product decision.
 - Legacy scheduler state and logs remain in the schema for compatibility even
   though active M11.2 UI and completion reporting no longer use them.
-- Card learning completion still depends on transitional
-  `collection_id + card_number` until M11.3 introduces stable Card identity.
 - SQLite connection cleanup emits ResourceWarnings under the isolated M11.2
   test harness; this does not affect test results but remains technical debt.
 - Active Quiz recovery combines durable session state with transient UI state.
@@ -637,11 +634,7 @@ Status:
 
 ## Unknown or Unverified
 
-- Exact additive schema and migration design for approved stable Card identity
-  and membership revisions.
-- Truthful legacy-history treatment where old Card composition is unknowable.
-- Product-owner acceptance of the M11.2 Streamlit behavior after Draft PR
-  review.
+- Product-owner semantic re-acceptance of the combined M11.2/M11.3 baseline.
 - Large/dense dataset behavior under the future desktop UI.
 - Desktop framework selection.
 - Desktop accessibility and interaction model.
