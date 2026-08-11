@@ -344,6 +344,8 @@ def _card_entry_count_sql(conn: Connection) -> str:
     """
 
 
+# Legacy scheduler reports are retained for compatibility with older callers.
+# M11.2 active UI and learning-completion metrics must not call this section.
 def _review_card_rows_where(conn: Connection, where_sql: str, params: tuple = ()) -> list[dict]:
     if not table_exists(conn, "card_review_states") or not table_exists(conn, "collections"):
         return []
@@ -557,15 +559,18 @@ def get_review_activity_over_time(conn: Connection, days: int = 30) -> list[dict
     dates = _date_range(start_iso, end_iso)
     summary = {calendar_date: {"date": calendar_date, "review_count": 0} for calendar_date in dates}
 
-    if table_exists(conn, "card_review_logs"):
+    if table_exists(conn, "quiz_sessions"):
         rows = fetch_all_dicts(
             conn,
             """
-            SELECT DATE(reviewed_at) AS date, COUNT(*) AS review_count
-            FROM card_review_logs
-            WHERE DATE(reviewed_at) >= DATE(?)
-              AND DATE(reviewed_at) <= DATE(?)
-            GROUP BY DATE(reviewed_at)
+            SELECT DATE(completed_at) AS date, COUNT(*) AS review_count
+            FROM quiz_sessions
+            WHERE status = 'completed'
+              AND completed_at IS NOT NULL
+              AND card_number > 0
+              AND DATE(completed_at) >= DATE(?)
+              AND DATE(completed_at) <= DATE(?)
+            GROUP BY DATE(completed_at)
             """,
             (start_iso, end_iso),
         )
@@ -594,6 +599,154 @@ def get_quiz_overview_stats(conn: Connection) -> dict:
         "wrong_items": item_counts["wrong"],
         "overall_accuracy": _accuracy(item_counts["correct"], item_counts["attempts"]),
     }
+
+
+def get_card_learning_overview_stats(conn: Connection) -> dict:
+    if not table_exists(conn, "quiz_sessions"):
+        return {
+            "completed_card_sessions": 0,
+            "cards_with_completion": 0,
+            "never_quizzed_cards": get_card_count_stats(conn)["total_cards_estimated"],
+        }
+
+    completed_card_sessions = _count(
+        conn,
+        "quiz_sessions",
+        "WHERE status = 'completed' AND completed_at IS NOT NULL AND card_number > 0",
+    )
+    cards_with_completion_row = fetch_one_dict(
+        conn,
+        """
+        SELECT COUNT(*) AS card_count
+        FROM (
+            SELECT collection_id, card_number
+            FROM quiz_sessions
+            WHERE status = 'completed'
+              AND completed_at IS NOT NULL
+              AND card_number > 0
+            GROUP BY collection_id, card_number
+        )
+        """,
+    )
+    cards_with_completion = int(cards_with_completion_row.get("card_count") or 0)
+
+    never_quizzed_cards = 0
+    if table_exists(conn, "collections") and table_exists(conn, "entry_collections"):
+        never_row = fetch_one_dict(
+            conn,
+            """
+            WITH current_cards AS (
+                SELECT
+                    c.id AS collection_id,
+                    CAST(((ec.position - 1) / c.card_size) AS INTEGER) + 1 AS card_number
+                FROM collections c
+                JOIN entry_collections ec ON ec.collection_id = c.id
+                GROUP BY c.id, card_number
+            ),
+            completed_cards AS (
+                SELECT collection_id, card_number
+                FROM quiz_sessions
+                WHERE status = 'completed'
+                  AND completed_at IS NOT NULL
+                  AND card_number > 0
+                GROUP BY collection_id, card_number
+            )
+            SELECT COUNT(*) AS card_count
+            FROM current_cards current
+            LEFT JOIN completed_cards completed
+              ON completed.collection_id = current.collection_id
+             AND completed.card_number = current.card_number
+            WHERE completed.collection_id IS NULL
+            """,
+        )
+        never_quizzed_cards = int(never_row.get("card_count") or 0)
+
+    return {
+        "completed_card_sessions": completed_card_sessions,
+        "cards_with_completion": cards_with_completion,
+        "never_quizzed_cards": never_quizzed_cards,
+    }
+
+
+def get_collection_card_learning_stats(conn: Connection) -> list[dict]:
+    if not table_exists(conn, "collections"):
+        return []
+    return fetch_all_dicts(
+        conn,
+        """
+        SELECT
+            c.id AS collection_id,
+            c.name AS collection_name,
+            c.card_size,
+            COUNT(DISTINCT ec.entry_id) AS entry_count,
+            CASE
+                WHEN COUNT(DISTINCT ec.entry_id) = 0 THEN 0
+                ELSE CAST(
+                    (COUNT(DISTINCT ec.entry_id) + c.card_size - 1) / c.card_size
+                    AS INTEGER
+                )
+            END AS estimated_card_count,
+            COUNT(DISTINCT CASE
+                WHEN qs.status = 'completed'
+                 AND qs.completed_at IS NOT NULL
+                 AND qs.card_number > 0
+                THEN qs.id
+            END) AS card_completion_count,
+            MAX(CASE
+                WHEN qs.status = 'completed' AND qs.card_number > 0
+                THEN qs.completed_at
+            END) AS last_card_completion
+        FROM collections c
+        LEFT JOIN entry_collections ec ON ec.collection_id = c.id
+        LEFT JOIN quiz_sessions qs ON qs.collection_id = c.id
+        GROUP BY c.id, c.name, c.card_size
+        ORDER BY c.name COLLATE NOCASE
+        """,
+    )
+
+
+def get_card_learning_sessions_between_dates(
+    conn: Connection,
+    start_date: str | date,
+    end_date: str | date,
+) -> list[dict]:
+    start_iso, end_iso = _default_trend_range(start_date, end_date)
+    if not table_exists(conn, "quiz_sessions"):
+        return []
+    collection_join = (
+        "LEFT JOIN collections c ON c.id = qs.collection_id"
+        if table_exists(conn, "collections")
+        else ""
+    )
+    collection_select = (
+        "c.name AS collection_name"
+        if table_exists(conn, "collections")
+        else "'' AS collection_name"
+    )
+    return fetch_all_dicts(
+        conn,
+        f"""
+        SELECT
+            qs.id AS session_id,
+            qs.completed_at,
+            qs.collection_id,
+            {collection_select},
+            qs.card_number,
+            qs.quiz_type,
+            qs.total_items,
+            qs.correct_count,
+            qs.wrong_count
+        FROM quiz_sessions qs
+        {collection_join}
+        WHERE qs.status = 'completed'
+          AND qs.completed_at IS NOT NULL
+          AND qs.card_number > 0
+          AND DATE(qs.completed_at) >= DATE(?)
+          AND DATE(qs.completed_at) <= DATE(?)
+        ORDER BY qs.completed_at DESC, qs.id DESC
+        """,
+        (start_iso, end_iso),
+    )
 
 
 def _quiz_item_counts(conn: Connection, extra_join_sql: str = "", where_sql: str = "", params: tuple = ()) -> dict:
@@ -887,19 +1040,21 @@ def get_review_activity_trend(
         for calendar_date in dates
     }
 
-    if table_exists(conn, "card_review_logs"):
+    if table_exists(conn, "quiz_sessions"):
         rows = fetch_all_dicts(
             conn,
             """
             SELECT
-                DATE(reviewed_at) AS date,
+                DATE(completed_at) AS date,
                 COUNT(id) AS reviewed_card_count,
-                COALESCE(SUM(entry_count), 0) AS reviewed_entry_count
-            FROM card_review_logs
-            WHERE reviewed_at IS NOT NULL
-              AND DATE(reviewed_at) >= DATE(?)
-              AND DATE(reviewed_at) <= DATE(?)
-            GROUP BY DATE(reviewed_at)
+                COALESCE(SUM(total_items), 0) AS reviewed_entry_count
+            FROM quiz_sessions
+            WHERE status = 'completed'
+              AND completed_at IS NOT NULL
+              AND card_number > 0
+              AND DATE(completed_at) >= DATE(?)
+              AND DATE(completed_at) <= DATE(?)
+            GROUP BY DATE(completed_at)
             """,
             (start_iso, end_iso),
         )

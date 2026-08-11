@@ -1,3 +1,11 @@
+"""Legacy Review scheduler compatibility APIs.
+
+M11.2 removes all active UI and workflow call sites for these mutation and SRS
+helpers. They remain isolated temporarily so existing installations and legacy
+history can be inspected without destructive schema or data changes. Current
+Card learning completion comes only from completed Card-scoped Quiz sessions.
+"""
+
 from datetime import date, datetime, timedelta, timezone
 
 from src.collections import (
@@ -6,6 +14,9 @@ from src.collections import (
     get_collections,
 )
 from src.db import get_connection
+
+
+LEGACY_SRS_COMPATIBILITY_ONLY = True
 
 
 RATINGS = {"Again", "Hard", "Good", "Easy"}

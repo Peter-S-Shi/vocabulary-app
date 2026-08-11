@@ -29,6 +29,112 @@ def normalize_today(today=None) -> str:
     raise ValueError("today must be None, a date, a datetime, or a YYYY-MM-DD string")
 
 
+def get_study_cards(conn) -> list[dict]:
+    """Return current Card groups with factual Quiz-completion metadata.
+
+    Card identity remains the transitional collection/card-number pair until
+    M11.3. Legacy Review scheduling state is intentionally not consulted.
+    """
+    if not _has_tables(conn, "collections", "entry_collections"):
+        return []
+
+    quiz_join = ""
+    quiz_select = "0 AS completion_count, NULL AS last_completed_at"
+    if _table_exists(conn, "quiz_sessions"):
+        quiz_join = """
+            LEFT JOIN quiz_sessions qs
+              ON qs.collection_id = c.id
+             AND qs.card_number = (
+                    CAST(((ec.position - 1) / c.card_size) AS INTEGER) + 1
+                 )
+             AND qs.card_number > 0
+             AND qs.status = 'completed'
+             AND qs.completed_at IS NOT NULL
+        """
+        quiz_select = (
+            "COUNT(DISTINCT qs.id) AS completion_count, "
+            "MAX(qs.completed_at) AS last_completed_at"
+        )
+
+    rows = conn.execute(
+        f"""
+        SELECT
+            c.id AS collection_id,
+            c.name AS collection_name,
+            c.card_size,
+            CAST(((ec.position - 1) / c.card_size) AS INTEGER) + 1 AS card_number,
+            COUNT(DISTINCT ec.entry_id) AS entry_count,
+            {quiz_select}
+        FROM collections c
+        JOIN entry_collections ec ON ec.collection_id = c.id
+        {quiz_join}
+        GROUP BY
+            c.id,
+            c.name,
+            c.card_size,
+            CAST(((ec.position - 1) / c.card_size) AS INTEGER) + 1
+        ORDER BY c.name COLLATE NOCASE, card_number
+        """
+    ).fetchall()
+    return [
+        {
+            "collection_id": int(row["collection_id"]),
+            "collection_name": row["collection_name"],
+            "card_number": int(row["card_number"]),
+            "card_size": int(row["card_size"]),
+            "entry_count": int(row["entry_count"]),
+            "completion_count": int(row["completion_count"] or 0),
+            "last_completed_at": row["last_completed_at"],
+            "status": "never_quizzed" if not row["last_completed_at"] else "quizzed",
+        }
+        for row in rows
+    ]
+
+
+def get_study_workload(conn, today=None) -> dict:
+    today_iso = normalize_today(today)
+    cards = get_study_cards(conn)
+    never_quizzed_cards = [card for card in cards if card["completion_count"] == 0]
+    return {
+        "today": today_iso,
+        "total_cards": len(cards),
+        "total_entries": sum(card["entry_count"] for card in cards),
+        "never_quizzed_cards": len(never_quizzed_cards),
+        "previously_quizzed_cards": len(cards) - len(never_quizzed_cards),
+    }
+
+
+def get_card_learning_history(
+    conn,
+    collection_id: int,
+    card_number: int,
+) -> list[dict]:
+    if not _table_exists(conn, "quiz_sessions"):
+        return []
+    rows = conn.execute(
+        """
+        SELECT
+            id AS session_id,
+            completed_at,
+            quiz_type,
+            total_items,
+            correct_count,
+            wrong_count
+        FROM quiz_sessions
+        WHERE collection_id = ?
+          AND card_number = ?
+          AND card_number > 0
+          AND status = 'completed'
+          AND completed_at IS NOT NULL
+        ORDER BY completed_at DESC, id DESC
+        """,
+        (int(collection_id), int(card_number)),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+# Legacy scheduler read APIs are retained for compatibility with older callers.
+# M11.2 active UI and completion reporting must not call this section.
 def get_today_due_review_cards(
     conn,
     today=None,
@@ -122,68 +228,31 @@ def get_review_focus_payload(
     card_number: int,
     today=None,
 ) -> dict | None:
-    today_iso = normalize_today(today)
+    del today
 
     if not _has_tables(conn, "collections", "entry_collections"):
         return None
 
-    state_join = ""
-    state_select = "NULL AS next_due_at, NULL AS review_state_status"
-    if _table_exists(conn, "card_review_states"):
-        state_select = "s.next_due_at, s.status AS review_state_status"
-        state_join = """
-            LEFT JOIN card_review_states s
-              ON s.collection_id = c.id
-             AND s.card_number = ?
-        """
-
-    params = [int(card_number), int(card_number), int(collection_id)]
-    if state_join:
-        params = [
-            int(card_number),
-            int(card_number),
-            int(card_number),
-            int(collection_id),
-        ]
-
     row = conn.execute(
-        f"""
+        """
         SELECT
             c.id AS collection_id,
             c.name AS collection_name,
             ? AS card_number,
             c.card_size,
-            {state_select},
             COUNT(ec.entry_id) AS entry_count
         FROM collections c
-        {state_join}
         LEFT JOIN entry_collections ec
           ON ec.collection_id = c.id
          AND (CAST(((ec.position - 1) / c.card_size) AS INTEGER) + 1) = ?
         WHERE c.id = ?
         GROUP BY c.id, c.name, c.card_size
         """,
-        tuple(params),
+        (int(card_number), int(card_number), int(collection_id)),
     ).fetchone()
 
     if row is None or int(row["entry_count"]) <= 0:
         return None
-
-    next_due_at = row["next_due_at"]
-    is_unscheduled = next_due_at is None or str(next_due_at).strip() == ""
-    is_overdue = False
-    is_due_today = False
-    days_overdue = 0
-
-    if not is_unscheduled:
-        try:
-            due_date = date.fromisoformat(str(next_due_at)[:10])
-            today_date = date.fromisoformat(today_iso)
-            is_overdue = due_date < today_date
-            is_due_today = due_date == today_date
-            days_overdue = max((today_date - due_date).days, 0)
-        except ValueError:
-            pass
 
     return {
         "collection_id": row["collection_id"],
@@ -191,13 +260,7 @@ def get_review_focus_payload(
         "card_number": int(card_number),
         "entry_count": int(row["entry_count"]),
         "card_size": row["card_size"],
-        "next_due_at": next_due_at,
-        "review_state_status": row["review_state_status"],
-        "is_overdue": is_overdue,
-        "is_due_today": is_due_today,
-        "is_unscheduled": is_unscheduled,
-        "days_overdue": days_overdue,
-        "status": _focus_due_status(is_overdue, is_due_today, is_unscheduled),
+        "status": "available",
     }
 
 
@@ -294,7 +357,7 @@ def get_special_collection_status(conn) -> dict:
     return status
 
 
-def get_today_review_activity(conn, today=None) -> dict:
+def get_today_card_learning_activity(conn, today=None) -> dict:
     today_iso = normalize_today(today)
     activity = {
         "today": today_iso,
@@ -304,20 +367,19 @@ def get_today_review_activity(conn, today=None) -> dict:
         "recent_reviewed_cards": [],
     }
 
-    if not _has_tables(conn, "card_review_logs"):
+    if not _has_tables(conn, "quiz_sessions"):
         return activity
-
-    action_column = _first_existing_column(conn, "card_review_logs", ("rating", "action"))
-    if action_column is None:
-        action_column = "''"
 
     summary_row = conn.execute(
         """
         SELECT
             COUNT(*) AS reviewed_cards,
-            COALESCE(SUM(entry_count), 0) AS reviewed_entries
-        FROM card_review_logs
-        WHERE DATE(reviewed_at) = DATE(?)
+            COALESCE(SUM(total_items), 0) AS reviewed_entries
+        FROM quiz_sessions
+        WHERE status = 'completed'
+          AND completed_at IS NOT NULL
+          AND card_number > 0
+          AND DATE(completed_at) = DATE(?)
         """,
         (today_iso,),
     ).fetchone()
@@ -325,11 +387,14 @@ def get_today_review_activity(conn, today=None) -> dict:
     activity["reviewed_entries"] = int(summary_row["reviewed_entries"] if summary_row else 0)
 
     action_rows = conn.execute(
-        f"""
-        SELECT {action_column} AS action, COUNT(*) AS action_count
-        FROM card_review_logs
-        WHERE DATE(reviewed_at) = DATE(?)
-        GROUP BY {action_column}
+        """
+        SELECT quiz_type AS action, COUNT(*) AS action_count
+        FROM quiz_sessions
+        WHERE status = 'completed'
+          AND completed_at IS NOT NULL
+          AND card_number > 0
+          AND DATE(completed_at) = DATE(?)
+        GROUP BY quiz_type
         ORDER BY action_count DESC, action ASC
         """,
         (today_iso,),
@@ -341,20 +406,25 @@ def get_today_review_activity(conn, today=None) -> dict:
 
     join_collections = _table_exists(conn, "collections")
     collection_name_select = "c.name AS collection_name" if join_collections else "'' AS collection_name"
-    collection_join = "LEFT JOIN collections c ON c.id = l.collection_id" if join_collections else ""
+    collection_join = "LEFT JOIN collections c ON c.id = qs.collection_id" if join_collections else ""
     recent_rows = conn.execute(
         f"""
         SELECT
-            l.collection_id,
+            qs.id AS session_id,
+            qs.collection_id,
             {collection_name_select},
-            l.card_number,
-            l.reviewed_at,
-            {action_column.replace('rating', 'l.rating').replace('action', 'l.action')} AS action,
-            l.entry_count
-        FROM card_review_logs l
+            qs.card_number,
+            qs.completed_at,
+            qs.completed_at AS reviewed_at,
+            qs.quiz_type AS action,
+            qs.total_items AS entry_count
+        FROM quiz_sessions qs
         {collection_join}
-        WHERE DATE(l.reviewed_at) = DATE(?)
-        ORDER BY l.reviewed_at DESC, l.id DESC
+        WHERE qs.status = 'completed'
+          AND qs.completed_at IS NOT NULL
+          AND qs.card_number > 0
+          AND DATE(qs.completed_at) = DATE(?)
+        ORDER BY qs.completed_at DESC, qs.id DESC
         LIMIT 10
         """,
         (today_iso,),
@@ -364,30 +434,34 @@ def get_today_review_activity(conn, today=None) -> dict:
     return activity
 
 
+def get_today_review_activity(conn, today=None) -> dict:
+    """Compatibility name for the Quiz-backed Card-learning activity model."""
+    return get_today_card_learning_activity(conn, today)
+
+
 def get_reviewed_cards_today(conn, today=None) -> list[dict]:
     today_iso = normalize_today(today)
 
-    if not _has_tables(conn, "card_review_logs", "collections", "entry_collections"):
+    if not _has_tables(conn, "quiz_sessions", "collections"):
         return []
 
     rows = conn.execute(
         """
         SELECT
-            l.collection_id,
+            qs.collection_id,
             c.name AS collection_name,
-            l.card_number,
+            qs.card_number,
             c.card_size,
-            MAX(l.reviewed_at) AS last_reviewed_at,
-            COALESCE(MAX(l.entry_count), COUNT(ec.entry_id), 0) AS entry_count
-        FROM card_review_logs l
-        JOIN collections c ON c.id = l.collection_id
-        LEFT JOIN entry_collections ec
-          ON ec.collection_id = l.collection_id
-         AND (CAST(((ec.position - 1) / c.card_size) AS INTEGER) + 1) = l.card_number
-        WHERE DATE(l.reviewed_at) = DATE(?)
-        GROUP BY l.collection_id, c.name, l.card_number, c.card_size
-        HAVING COALESCE(MAX(l.entry_count), COUNT(ec.entry_id), 0) > 0
-        ORDER BY MAX(l.reviewed_at) DESC, c.name COLLATE NOCASE, l.card_number
+            MAX(qs.completed_at) AS last_reviewed_at,
+            MAX(qs.total_items) AS entry_count
+        FROM quiz_sessions qs
+        JOIN collections c ON c.id = qs.collection_id
+        WHERE qs.status = 'completed'
+          AND qs.completed_at IS NOT NULL
+          AND qs.card_number > 0
+          AND DATE(qs.completed_at) = DATE(?)
+        GROUP BY qs.collection_id, c.name, qs.card_number, c.card_size
+        ORDER BY MAX(qs.completed_at) DESC, c.name COLLATE NOCASE, qs.card_number
         """,
         (today_iso,),
     ).fetchall()
@@ -409,15 +483,18 @@ def get_daily_quiz_candidates(conn, today=None) -> list[dict]:
     today_iso = normalize_today(today)
     candidates = []
 
-    for index, card in enumerate(get_reviewed_cards_today(conn, today_iso), start=1):
+    never_quizzed_cards = [
+        card for card in get_study_cards(conn) if card["completion_count"] == 0
+    ]
+    for index, card in enumerate(never_quizzed_cards[:5], start=1):
         candidates.append(
             {
-                "recommendation_type": "reviewed_card_quiz",
+                "recommendation_type": "never_quizzed_card",
                 "priority": index,
-                "title": "Quiz a card reviewed today",
+                "title": "Quiz a never-quizzed card",
                 "description": (
-                    f"Practice {card['collection_name']} / Card #{card['card_number']} "
-                    "after review."
+                    f"Complete {card['collection_name']} / Card #{card['card_number']} "
+                    "to record its first Card learning event."
                 ),
                 "collection_id": card["collection_id"],
                 "collection_name": card["collection_name"],
@@ -425,7 +502,7 @@ def get_daily_quiz_candidates(conn, today=None) -> list[dict]:
                 "entry_count": card["entry_count"],
                 "preferred_quiz_type": "mixed_mcq",
                 "enabled": True,
-                "reason": "reviewed_today",
+                "reason": "never_quizzed",
                 "quiz_mode": "card",
             }
         )
@@ -811,15 +888,14 @@ def get_today_proficient_pool_summary(conn, today=None) -> dict:
 
 def get_today_remaining_workload(conn, today=None) -> dict:
     today_iso = normalize_today(today)
-    workload = get_today_review_workload(conn, today_iso)
+    workload = get_study_workload(conn, today_iso)
     special_collections = get_special_collection_status(conn)
     quiz_activity = get_today_quiz_activity(conn, today_iso)
     return {
         "today": today_iso,
-        "due_cards_remaining": workload["due_today_cards"] + workload["unscheduled_due_cards"],
-        "overdue_cards": workload["overdue_cards"],
-        "total_due_cards": workload["total_due_cards"],
-        "estimated_due_entries": workload["estimated_due_entries"],
+        "available_cards": workload["total_cards"],
+        "never_quizzed_cards": workload["never_quizzed_cards"],
+        "total_entries": workload["total_entries"],
         "mistake_book_entries": special_collections["mistake_book"]["entry_count"],
         "active_quiz": quiz_activity["active_sessions"] > 0,
     }
@@ -850,31 +926,18 @@ def get_today_learning_summary(conn, today=None) -> dict:
 
 def build_today_recommendations(conn, today=None) -> list[dict]:
     today_iso = normalize_today(today)
-    workload = get_today_review_workload(conn, today_iso)
+    workload = get_study_workload(conn, today_iso)
     special_collections = get_special_collection_status(conn)
 
-    if workload["overdue_cards"] > 0:
+    if workload["never_quizzed_cards"] > 0:
         return [
             _recommendation(
                 1,
-                "review_overdue",
-                "Review overdue cards",
-                f"You have {workload['overdue_cards']} overdue card(s) waiting.",
+                "study_never_quizzed",
+                "Study or quiz a new Card",
+                f"You have {workload['never_quizzed_cards']} Card(s) without a completed Card Quiz.",
                 "Review",
-                "Open Review and start with overdue cards.",
-            )
-        ]
-
-    if workload["due_today_cards"] > 0 or workload["unscheduled_due_cards"] > 0:
-        due_count = workload["due_today_cards"] + workload["unscheduled_due_cards"]
-        return [
-            _recommendation(
-                1,
-                "review_due_today",
-                "Review today's cards",
-                f"You have {due_count} card(s) due today.",
-                "Review",
-                "Open Review and complete today's scheduled cards.",
+                "Open Review to study a Card, then use Quick Quiz or Choose Quiz Type.",
             )
         ]
 
@@ -922,7 +985,7 @@ def build_today_recommendations(conn, today=None) -> list[dict]:
             1,
             "add_or_organize_entries",
             "Add or organize entries",
-            "No review or practice source is waiting right now.",
+            "No Card or special-pool practice source is available yet.",
             "Entries",
             "Add entries or organize existing entries into collections.",
         )
@@ -931,17 +994,17 @@ def build_today_recommendations(conn, today=None) -> list[dict]:
 
 def build_today_completion_summary(conn, today=None) -> dict:
     today_iso = normalize_today(today)
-    workload = get_today_review_workload(conn, today_iso)
-    review_activity = get_today_review_activity(conn, today_iso)
+    workload = get_study_workload(conn, today_iso)
+    review_activity = get_today_card_learning_activity(conn, today_iso)
     quiz_activity = get_today_quiz_activity(conn, today_iso)
     special_collections = get_special_collection_status(conn)
 
-    if workload["total_due_cards"] == 0:
-        review_status = "no_due_review"
-    elif review_activity["reviewed_cards"] >= workload["total_due_cards"]:
-        review_status = "review_complete"
+    if review_activity["reviewed_cards"] > 0:
+        review_status = "card_learning_completed"
+    elif workload["total_cards"] > 0:
+        review_status = "cards_available"
     else:
-        review_status = "review_remaining"
+        review_status = "no_cards_available"
 
     if quiz_activity["item_attempts"] > 0:
         practice_status = "practice_done"
@@ -953,17 +1016,13 @@ def build_today_completion_summary(conn, today=None) -> dict:
     else:
         practice_status = "no_practice_source"
 
-    remaining_due_cards = max(
-        workload["total_due_cards"] - review_activity["reviewed_cards"],
-        0,
-    )
-
     return {
         "today": today_iso,
         "review_status": review_status,
         "practice_status": practice_status,
         "reviewed_cards": review_activity["reviewed_cards"],
-        "remaining_due_cards": remaining_due_cards,
+        "available_cards": workload["total_cards"],
+        "never_quizzed_cards": workload["never_quizzed_cards"],
         "quiz_item_attempts": quiz_activity["item_attempts"],
         "quiz_accuracy": quiz_activity["accuracy"],
     }
@@ -974,10 +1033,10 @@ def get_today_overview(conn, today=None) -> dict:
     return {
         "today": today_iso,
         "content_inventory": get_content_inventory(conn),
-        "review_workload": get_today_review_workload(conn, today_iso),
-        "due_review_cards": get_today_due_review_cards(conn, today_iso),
+        "study_workload": get_study_workload(conn, today_iso),
+        "study_cards": get_study_cards(conn),
         "special_collections": get_special_collection_status(conn),
-        "review_activity": get_today_review_activity(conn, today_iso),
+        "review_activity": get_today_card_learning_activity(conn, today_iso),
         "quiz_activity": get_today_quiz_activity(conn, today_iso),
         "daily_quiz_recommendations": get_daily_quiz_recommendations(conn, today_iso),
         "today_learning_summary": get_today_learning_summary(conn, today_iso),
@@ -991,6 +1050,7 @@ def get_content_inventory(conn) -> dict:
     entry_count = 0
     collection_count = 0
     review_state_count = 0
+    card_count = 0
 
     if _table_exists(conn, "entries"):
         entry_count = int(conn.execute("SELECT COUNT(*) FROM entries").fetchone()[0])
@@ -1008,10 +1068,13 @@ def get_content_inventory(conn) -> dict:
             conn.execute("SELECT COUNT(*) FROM card_review_states").fetchone()[0]
         )
 
+    card_count = len(get_study_cards(conn))
+
     return {
         "entry_count": entry_count,
         "collection_count": collection_count,
         "review_state_count": review_state_count,
+        "card_count": card_count,
     }
 
 
@@ -1145,17 +1208,13 @@ def _daily_completion_status(
 ) -> str:
     has_review = review_summary["reviewed_cards"] > 0
     has_quiz = quiz_summary["item_attempts"] > 0
-    has_completed_quiz = quiz_summary["completed_sessions"] > 0
-    has_due_work = remaining_workload["total_due_cards"] > 0
 
     if not has_review and not has_quiz:
         return "Not started"
-    if not has_due_work and has_completed_quiz:
-        return "Daily work mostly complete"
-    if not has_due_work:
-        return "Review cleared"
+    if has_review:
+        return "Card learning completed"
     if has_quiz:
-        return "Quiz practiced"
+        return "Quiz practice recorded"
     return "In progress"
 
 

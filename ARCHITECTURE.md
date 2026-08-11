@@ -6,7 +6,7 @@ Vocabulary App is a local-first Python application with a reusable core, a SQLit
 
 | Layer | Allowed Responsibilities | Forbidden Responsibilities |
 |---|---|---|
-| Core modules | SQL, validation, business rules, scheduling, reusable query helpers, import/export and backup operations | Streamlit widgets, `session_state`, page rendering |
+| Core modules | SQL, validation, business rules, reusable query helpers, import/export and backup operations | Streamlit widgets, `session_state`, page rendering |
 | Streamlit UI | Widgets, layout, page flow, user input collection, transient navigation and focus state | Direct SQL when avoidable, schema creation, durable business rules |
 | App shell | Page configuration, initialization, sidebar navigation, page routing | Learning algorithms, SQL, collection ordering, parsing |
 
@@ -39,8 +39,8 @@ Streamlit `session_state` is UI state. Durable state and duplicate-action protec
 - `src/entries.py`: entry CRUD, search, filters, and batch operations
 - `src/entry_templates.py`: templates, fields, and template values
 - `src/collections.py`: collection membership, cards, positions, and system pools
-- `src/review.py`: card review state, scheduling, and logs
-- `src/quiz.py`: quiz sessions, item generation, answers, and logs
+- `src/review.py`: isolated legacy Review/SRS compatibility state and logs
+- `src/quiz.py`: quiz sessions, item generation, answers, logs, and idempotent completion
 - `src/template_quiz.py`: template-aware quiz rules
 - `src/statistics.py`: read-only statistics and calendar queries
 - `src/learning_workflow.py`: read-only Today workflow queries and recommendations
@@ -68,6 +68,18 @@ UI modules call core functions rather than duplicating durable rules.
 - UI modules should not contain raw SQL.
 - Migrations should be additive, backup-aware, and preserve user data.
 - `data/vocab.db` must not be committed to Git.
+
+## Learning Completion Semantics
+
+A completed Quiz scoped to one Collection Card is the active authoritative
+Card learning event. `quiz_sessions.completed_at` is the source timestamp; the
+system does not create a parallel Review-completion event. Non-Card Quiz
+sessions remain Entry-performance evidence only.
+
+Review is a browse, study, and Quiz-launch surface. Legacy Review scheduling
+tables and APIs remain compatibility-only during M11.2 and must not drive
+active Today, Statistics, or Learning History completion claims. Stable Card
+identity and truthful membership history remain explicitly assigned to M11.3.
 
 ## Future Desktop Migration
 

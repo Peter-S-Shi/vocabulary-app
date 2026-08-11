@@ -22,7 +22,7 @@ PAGES = {
     "Quiz": render_quiz_page,
     "Statistics": render_statistics_page,
     "Import / Export": render_import_export_page,
-    "Review History / Schedule": render_review_history_page,
+    "Learning History": render_review_history_page,
     "Dashboard": render_dashboard_page,
     "Settings / Data": render_settings_page,
 }
@@ -48,7 +48,7 @@ selected_page = st.sidebar.radio(
     key="current_page",
     format_func=t,
 )
-st.sidebar.caption(t("Local-first MVP | Milestone 10.7"))
+st.sidebar.caption(t("Local-first compatibility UI | Milestone 11.2"))
 
 PAGES[selected_page]()
 

@@ -7,6 +7,7 @@ import streamlit as st
 from src import statistics as stats
 from src.db import get_connection
 from src.ui_streamlit.common import render_back_to_today_button
+from src.ui_streamlit.error_handling import show_unexpected_error
 
 
 QUIZ_TYPE_LABELS = {
@@ -26,7 +27,7 @@ SPECIAL_POOL_LABELS = {
 }
 
 STATISTICS_FOCUS_LABELS = {
-    "review_calendar": "Review Calendar",
+    "review_calendar": "Card Learning History",
     "entry_health": "Entry Health",
     "trends": "Trends & Analytics",
     "special_pools": "Special Pools",
@@ -108,8 +109,11 @@ def _render_table(rows: list[dict], empty_message: str) -> None:
 
 
 def _section_error(section_name: str, error: Exception) -> None:
-    st.error(f"Could not load {section_name}.")
-    st.caption(str(error))
+    del error
+    show_unexpected_error(
+        f"loading {section_name}",
+        f"Could not load {section_name}.",
+    )
 
 
 def _render_overview_tab(conn) -> None:
@@ -120,7 +124,7 @@ def _render_overview_tab(conn) -> None:
         entry_stats = stats.get_entry_overview_stats(conn)
         collection_stats = stats.get_collection_overview_stats(conn)
         card_stats = stats.get_card_count_stats(conn)
-        review_stats = stats.get_review_overview_stats(conn)
+        card_learning_stats = stats.get_card_learning_overview_stats(conn)
         quiz_stats = stats.get_quiz_overview_stats(conn)
         special_stats = stats.get_special_collection_stats(conn)
         template_usage = stats.get_template_usage_stats(conn)
@@ -139,12 +143,11 @@ def _render_overview_tab(conn) -> None:
     col4.metric("Cards", _format_count(card_stats["total_cards_estimated"]))
     col5.metric("Templates", len(template_usage))
 
-    st.write("Review Status")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Due Today", review_stats["due_today_count"])
-    col2.metric("Overdue", review_stats["overdue_count"])
-    col3.metric("Next 7 Days", review_stats["upcoming_7_days_count"])
-    col4.metric("Unscheduled", review_stats["unscheduled_count"])
+    st.write("Card Learning Status")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Card Completions", card_learning_stats["completed_card_sessions"])
+    col2.metric("Cards With Completion", card_learning_stats["cards_with_completion"])
+    col3.metric("Never Quizzed Cards", card_learning_stats["never_quizzed_cards"])
 
     st.write("Quiz Status")
     col1, col2, col3, col4 = st.columns(4)
@@ -208,54 +211,6 @@ def _render_entries_templates_tab(conn) -> None:
     _render_table(template_rows, "No template usage statistics yet.")
 
 
-def _review_card_display_rows(rows: list[dict]) -> list[dict]:
-    return [
-        {
-            "date": _format_date(row.get("date") or row.get("due_date")),
-            "collection": row.get("collection_name"),
-            "card": f"#{row.get('card_number')}",
-            "entries": row.get("entry_count"),
-            "status": row.get("status"),
-            "review_count": row.get("review_count"),
-            "interval_days": row.get("current_interval_days"),
-            "next_due_at": _format_date(row.get("next_due_at")),
-        }
-        for row in rows
-    ]
-
-
-def _range_dates(selected_range: str, selected_date: date) -> tuple[date, date]:
-    today = date.today()
-    if selected_range == "Today":
-        return today, today
-    if selected_range == "Next 7 days":
-        return today, today + timedelta(days=7)
-    if selected_range == "Next 14 days":
-        return today, today + timedelta(days=14)
-    if selected_range == "Next 30 days":
-        return today, today + timedelta(days=30)
-    if selected_range == "This month":
-        start_date = selected_date.replace(day=1)
-        if selected_date.month == 12:
-            next_month = selected_date.replace(year=selected_date.year + 1, month=1, day=1)
-        else:
-            next_month = selected_date.replace(month=selected_date.month + 1, day=1)
-        return start_date, next_month - timedelta(days=1)
-    return selected_date, selected_date
-
-
-def _calendar_summary_rows(rows: list[dict]) -> list[dict]:
-    return [
-        {
-            "date": _format_date(row.get("date")),
-            "due_cards": row.get("due_card_count", row.get("card_count", 0)),
-            "due_entries": row.get("due_entry_count", row.get("entry_count", 0)),
-            "overdue_cards": row.get("overdue_card_count", 0),
-        }
-        for row in rows
-    ]
-
-
 def _analytics_range(selected_range: str) -> tuple[date, date]:
     today = date.today()
     if selected_range == "Last 7 days":
@@ -282,8 +237,8 @@ def _trend_review_rows(rows: list[dict]) -> list[dict]:
     return [
         {
             "date": _format_date(row.get("date")),
-            "reviewed_cards": row.get("reviewed_card_count"),
-            "reviewed_entries": row.get("reviewed_entry_count"),
+            "card_completions": row.get("reviewed_card_count"),
+            "card_quiz_items": row.get("reviewed_entry_count"),
         }
         for row in rows
     ]
@@ -310,66 +265,41 @@ def _chart_rows(rows: list[dict], value_keys: list[str]) -> list[dict]:
 
 
 def _render_collections_review_tab(conn) -> None:
-    st.subheader("Collections & Review")
-    st.caption("Review collection sizes, card counts, and current schedule status. This view is read-only.")
+    st.subheader("Collections & Card Learning")
+    st.caption(
+        "Collection/Card counts and completed Card-scoped Quiz activity. "
+        "No due-date schedule is inferred."
+    )
 
     try:
-        collection_sizes = stats.get_collection_size_stats(conn)
-        review_stats = stats.get_review_overview_stats(conn)
-        due_stats = stats.get_due_review_stats(conn)
-        upcoming_cards = stats.get_upcoming_review_cards(conn, days=7)
+        collection_sizes = stats.get_collection_card_learning_stats(conn)
+        card_learning = stats.get_card_learning_overview_stats(conn)
     except Exception as error:
-        _section_error("collection and review statistics", error)
+        _section_error("collection and Card learning statistics", error)
         return
 
     if not collection_sizes:
         st.info("No collections found yet. Create collections to see collection statistics.")
-    if review_stats["total_review_states"] == 0:
-        st.info("No review schedule data found yet. Review states will appear after collections/cards are synced.")
 
-    st.write("Collection Sizes")
+    st.write("Collection Card Activity")
     collection_rows = [
         {
             "collection_id": row.get("collection_id"),
             "collection": row.get("collection_name"),
-            "type": _system_label(row),
             "entries": row.get("entry_count"),
             "card_size": row.get("card_size"),
             "estimated_cards": row.get("estimated_card_count"),
-            "review_states": row.get("review_state_count"),
+            "card_completions": row.get("card_completion_count"),
+            "last_card_completion": _format_date(row.get("last_card_completion")),
         }
         for row in collection_sizes
     ]
     _render_table(collection_rows, "No collections yet.")
 
-    st.write("Review Overview")
-    col1, col2, col3, col4, col5 = st.columns(5)
-    col1.metric("Review States", review_stats["total_review_states"])
-    col2.metric("Due Today", review_stats["due_today_count"])
-    col3.metric("Overdue", review_stats["overdue_count"])
-    col4.metric("Next 7 Days", review_stats["upcoming_7_days_count"])
-    col5.metric("Next 30 Days", review_stats["upcoming_30_days_count"])
-
-    due_col, overdue_col = st.columns(2)
-    with due_col:
-        st.write("Cards Due Today")
-        _render_table(
-            _review_card_display_rows(due_stats["due_today"]),
-            "No review cards are due today.",
-        )
-    with overdue_col:
-        st.write("Overdue Cards")
-        _render_table(
-            _review_card_display_rows(due_stats["overdue"]),
-            "No overdue review cards.",
-        )
-
-    st.write("Upcoming Review Cards - Next 7 Days")
-    _render_table(
-        _review_card_display_rows(upcoming_cards),
-        "No scheduled review cards in the next 7 days.",
-    )
-    st.info("Open the Review Calendar tab for date selection and range-based schedule details.")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Completed Card Quizzes", card_learning["completed_card_sessions"])
+    col2.metric("Cards With Completion", card_learning["cards_with_completion"])
+    col3.metric("Never Quizzed Cards", card_learning["never_quizzed_cards"])
 
 
 def _render_quiz_performance_tab(conn) -> None:
@@ -456,8 +386,11 @@ def _render_special_pools_tab(conn) -> None:
 
 
 def _render_review_calendar_tab(conn) -> None:
-    st.subheader("Review Calendar")
-    st.caption("See which collection cards are scheduled for review on each date. This view is read-only.")
+    st.subheader("Card Learning History")
+    st.caption(
+        "Completed Card-scoped Quiz sessions are shown as Card learning events. "
+        "Legacy Review dates are not treated as current completions."
+    )
 
     try:
         today = date.today()
@@ -470,60 +403,67 @@ def _render_review_calendar_tab(conn) -> None:
             )
         with control_col2:
             selected_range = st.selectbox(
-                "Quick Range",
-                ["Today", "Next 7 days", "Next 14 days", "Next 30 days", "This month"],
+                "History Range",
+                ["Today", "Last 7 days", "Last 30 days", "This month"],
                 index=1,
                 key="statistics_review_calendar_range",
             )
 
-        range_start, range_end = _range_dates(selected_range, selected_date)
-        selected_date_cards = stats.get_review_cards_for_date(conn, selected_date)
-        range_summary = stats.get_review_calendar_summary(conn, range_start, range_end)
-        range_cards = stats.get_review_cards_between_dates(conn, range_start, range_end)
-        overdue_cards = stats.get_overdue_review_cards(conn, today)
+        if selected_range == "Today":
+            range_start, range_end = today, today
+        elif selected_range == "Last 7 days":
+            range_start, range_end = today - timedelta(days=6), today
+        elif selected_range == "Last 30 days":
+            range_start, range_end = today - timedelta(days=29), today
+        else:
+            range_start, range_end = today.replace(day=1), today
+
+        selected_sessions = stats.get_card_learning_sessions_between_dates(
+            conn, selected_date, selected_date
+        )
+        range_sessions = stats.get_card_learning_sessions_between_dates(
+            conn, range_start, range_end
+        )
     except Exception as error:
-        _section_error("review calendar", error)
+        _section_error("Card learning history", error)
         return
 
-    selected_due_entries = sum(_safe_int(row.get("entry_count")) for row in selected_date_cards)
-    selected_collections = len({row.get("collection_id") for row in selected_date_cards if row.get("collection_id") is not None})
+    selected_items = sum(_safe_int(row.get("total_items")) for row in selected_sessions)
+    selected_correct = sum(_safe_int(row.get("correct_count")) for row in selected_sessions)
+    selected_collections = len(
+        {
+            row.get("collection_id")
+            for row in selected_sessions
+            if row.get("collection_id") is not None
+        }
+    )
+    selected_accuracy = selected_correct / selected_items if selected_items else None
 
     metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
-    metric_col1.metric("Due Cards", len(selected_date_cards))
-    metric_col2.metric("Due Entries", selected_due_entries)
-    metric_col3.metric("Overdue Cards", len(overdue_cards))
+    metric_col1.metric("Card Completions", len(selected_sessions))
+    metric_col2.metric("Quiz Items", selected_items)
+    metric_col3.metric("Accuracy", _format_percent(selected_accuracy))
     metric_col4.metric("Collections", selected_collections)
 
     st.write(f"Selected Date Detail - {selected_date.isoformat()}")
     _render_table(
-        _review_card_display_rows(selected_date_cards),
-        "No review cards scheduled for this date.",
+        selected_sessions,
+        "No completed Card-scoped Quiz on this date.",
     )
 
-    st.write(f"Upcoming Workload - {range_start.isoformat()} to {range_end.isoformat()}")
-    _render_table(
-        _calendar_summary_rows(range_summary),
-        "No review workload in the selected range.",
-    )
-
-    with st.expander("Scheduled Cards in Selected Range", expanded=False):
+    with st.expander(
+        f"Card Completions - {range_start.isoformat()} to {range_end.isoformat()}",
+        expanded=False,
+    ):
         _render_table(
-            _review_card_display_rows(range_cards),
-            "No scheduled cards in the selected range.",
+            range_sessions,
+            "No Card learning completions in the selected range.",
         )
-
-    st.write("Overdue Review Cards")
-    if overdue_cards:
-        st.warning(f"{len(overdue_cards)} review card{' is' if len(overdue_cards) == 1 else 's are'} overdue. This calendar does not reschedule them automatically.")
-    _render_table(
-        _review_card_display_rows(overdue_cards),
-        "No overdue review cards.",
-    )
 
 
 def _render_trends_analytics_tab(conn) -> None:
     st.subheader("Trends & Analytics")
-    st.caption("Track quiz accuracy, review activity, and recent learning momentum over time. This view is read-only.")
+    st.caption("Track Quiz accuracy and Quiz-backed Card learning over time. This view is read-only.")
 
     range_col1, range_col2, range_col3 = st.columns([1, 1, 1])
     with range_col1:
@@ -558,7 +498,6 @@ def _render_trends_analytics_tab(conn) -> None:
         review_trend = stats.get_review_activity_trend(conn, start_date, end_date)
         quiz_type_performance = stats.get_quiz_type_performance(conn, start_date, end_date)
         collection_performance = stats.get_collection_quiz_performance(conn, start_date, end_date)
-        review_actions = stats.get_review_action_distribution(conn, start_date, end_date)
         template_performance = stats.get_template_quiz_performance(conn, start_date, end_date)
     except Exception as error:
         _section_error("trend analytics", error)
@@ -567,8 +506,8 @@ def _render_trends_analytics_tab(conn) -> None:
     metric_col1, metric_col2, metric_col3, metric_col4, metric_col5 = st.columns(5)
     metric_col1.metric("Quiz Items", momentum["quiz_items_answered"])
     metric_col2.metric("Quiz Accuracy", _format_percent(momentum["quiz_accuracy"]))
-    metric_col3.metric("Reviewed Cards", momentum["reviewed_cards"])
-    metric_col4.metric("Reviewed Entries", momentum["reviewed_entries"])
+    metric_col3.metric("Card Completions", momentum["reviewed_cards"])
+    metric_col4.metric("Card Quiz Items", momentum["reviewed_entries"])
     metric_col5.metric("Active Days", momentum["active_days"])
 
     st.write("Quiz Activity Trend")
@@ -581,13 +520,13 @@ def _render_trends_analytics_tab(conn) -> None:
         "No quiz activity found in this date range.",
     )
 
-    st.write("Review Activity Trend")
+    st.write("Card Learning Completion Trend")
     active_review_rows = [row for row in review_trend if _safe_int(row.get("reviewed_card_count")) > 0]
     if active_review_rows:
         st.bar_chart(_chart_rows(review_trend, ["reviewed_card_count", "reviewed_entry_count"]), x="date", y=["reviewed_card_count", "reviewed_entry_count"])
     _render_table(
         _trend_review_rows(review_trend),
-        "No review activity found in this date range.",
+        "No completed Card-scoped Quiz found in this date range.",
     )
 
     st.write("Quiz Type Performance")
@@ -621,12 +560,6 @@ def _render_trends_analytics_tab(conn) -> None:
     _render_table(
         collection_rows,
         "No collection quiz performance found in this date range.",
-    )
-
-    st.write("Review Action Distribution")
-    _render_table(
-        review_actions,
-        "No review actions found in this date range.",
     )
 
     st.write("Template Quiz Performance")
@@ -1022,7 +955,7 @@ def _render_template_french_stats_tab(conn) -> None:
 
 def render_statistics_page() -> None:
     st.title("Statistics")
-    st.caption("Learning overview for entries, reviews, quizzes, templates, and special pools.")
+    st.caption("Learning overview for entries, Card learning, quizzes, templates, and special pools.")
     render_back_to_today_button("statistics_back_to_today_top")
 
     focus_tab = st.session_state.get("focus_statistics_tab")
@@ -1035,10 +968,10 @@ def render_statistics_page() -> None:
         tabs = st.tabs([
             "Overview",
             "Entries & Templates",
-            "Collections & Review",
+            "Collections & Card Learning",
             "Quiz Performance",
             "Special Pools",
-            "Review Calendar",
+            "Card Learning History",
             "Trends & Analytics",
             "Entry Health",
             "Template & French Stats",

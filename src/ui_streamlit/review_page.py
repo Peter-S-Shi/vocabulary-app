@@ -1,12 +1,10 @@
 ﻿import streamlit as st
 
-from datetime import date, timedelta
 
 from src.collections import get_card_groups_for_collection
 from src.db import get_connection
 from src.entries import update_entry
-from src.learning_workflow import get_review_focus_payload, normalize_today
-from src.review import get_due_cards, sync_all_card_review_states, update_card_next_due_at
+from src.learning_workflow import get_review_focus_payload, get_study_cards
 from src.ui_streamlit.common import (
     ENTRY_TYPES,
     EXPLANATION_LANGUAGES,
@@ -63,7 +61,6 @@ def _get_review_focus() -> dict | None:
                 conn,
                 int(collection_id),
                 int(card_number),
-                normalize_today(),
             )
     except (TypeError, ValueError):
         _clear_review_focus()
@@ -91,8 +88,8 @@ def _is_focus_for_card(card: dict) -> bool:
     )
 
 
-def _find_matching_due_card(due_cards: list[dict], focus_payload: dict) -> dict | None:
-    for card in due_cards:
+def _find_matching_card(study_cards: list[dict], focus_payload: dict) -> dict | None:
+    for card in study_cards:
         if (
             card["collection_id"] == focus_payload["collection_id"]
             and card["card_number"] == focus_payload["card_number"]
@@ -101,11 +98,11 @@ def _find_matching_due_card(due_cards: list[dict], focus_payload: dict) -> dict 
     return None
 
 
-def _focused_due_card_index(due_cards: list[dict], focus_payload: dict | None) -> int:
+def _focused_card_index(study_cards: list[dict], focus_payload: dict | None) -> int:
     if focus_payload is None:
         return 0
 
-    for index, card in enumerate(due_cards):
+    for index, card in enumerate(study_cards):
         if (
             card["collection_id"] == focus_payload["collection_id"]
             and card["card_number"] == focus_payload["card_number"]
@@ -115,7 +112,7 @@ def _focused_due_card_index(due_cards: list[dict], focus_payload: dict | None) -
     return 0
 
 
-def _render_focus_banner(focus_payload: dict | None, due_cards: list[dict]) -> None:
+def _render_focus_banner(focus_payload: dict | None, study_cards: list[dict]) -> None:
     if (
         st.session_state.get("review_focus_collection_id") is None
         and st.session_state.get("focus_review_collection_id") is None
@@ -127,59 +124,23 @@ def _render_focus_banner(focus_payload: dict | None, due_cards: list[dict]) -> N
         _clear_review_focus()
         return
 
-    due_match = _find_matching_due_card(due_cards, focus_payload)
-    due_label = "This card is no longer due, but you can still inspect it here."
-    if due_match is not None:
-        if focus_payload["is_overdue"]:
-            due_label = f"This card is overdue by {focus_payload['days_overdue']} day(s)."
-        elif focus_payload["is_due_today"]:
-            due_label = "This card is due today."
-        elif focus_payload["is_unscheduled"]:
-            due_label = "This card is unscheduled and available for review."
+    focus_match = _find_matching_card(study_cards, focus_payload)
+    availability = (
+        "This Card is available to study or quiz."
+        if focus_match is not None
+        else "This Card is no longer available in its current Collection position."
+    )
 
     st.info(
         "Focused from Today: "
         f"{focus_payload['collection_name']} / Card #{focus_payload['card_number']}. "
-        f"{due_label}"
+        f"{availability}"
     )
 
     if st.button("Clear Today focus", key="clear_today_review_focus"):
         _clear_review_focus()
         st.success("Today focus cleared.")
         st.rerun()
-
-
-def _render_schedule_buttons(selected_due_card: dict) -> None:
-    st.subheader("Schedule Next Review")
-    default_due_date = date.today() + timedelta(days=1)
-    selected_due_date = st.date_input(
-        "Next review date",
-        value=default_due_date,
-        min_value=date.today(),
-        key=(
-            "review_selected_card_next_due_"
-            f"{selected_due_card['collection_id']}_{selected_due_card['card_number']}"
-        ),
-    )
-    if st.button(
-        "Save Next Review Date",
-        key=(
-            "review_selected_card_save_due_"
-            f"{selected_due_card['collection_id']}_{selected_due_card['card_number']}"
-        ),
-    ):
-        try:
-            result = update_card_next_due_at(
-                collection_id=selected_due_card["collection_id"],
-                card_number=selected_due_card["card_number"],
-                next_due_at=selected_due_date.isoformat(),
-            )
-            st.success(f"Next review scheduled for {result['next_due_at']}.")
-            if _is_focus_for_card(selected_due_card):
-                _clear_review_focus()
-            st.rerun()
-        except ValueError as error:
-            st.error(str(error))
 
 
 def _review_card_state_prefix(selected_due_card: dict) -> str:
@@ -256,7 +217,6 @@ def _render_entry_extra_info(entry: dict) -> None:
         {"field": "tags", "value": entry.get("tags", "")},
         {"field": "source", "value": entry.get("source", "")},
         {"field": "status", "value": entry.get("status", "")},
-        {"field": "review_count", "value": entry.get("review_count", "")},
         {"field": "correct_count", "value": entry.get("correct_count", "")},
         {"field": "wrong_count", "value": entry.get("wrong_count", "")},
         {"field": "created_at", "value": entry.get("created_at", "")},
@@ -394,19 +354,30 @@ def _render_selected_card_review(selected_due_card: dict, entries: list[dict]) -
         st.dataframe(review_rows, use_container_width=True, hide_index=True)
 
 
-def _save_review_card_quiz_focus(selected_due_card: dict) -> None:
-    st.session_state["quiz_focus_collection_id"] = selected_due_card["collection_id"]
-    st.session_state["quiz_focus_card_number"] = selected_due_card["card_number"]
-    st.session_state["quiz_focus_type"] = "mixed_mcq"
-    st.session_state["quiz_focus_source"] = "review_selected_card"
-    st.session_state["quiz_focus_reason"] = "review_card_quiz"
-    st.session_state["quiz_focus_title"] = (
-        f"{selected_due_card['collection_name']} / Card #{selected_due_card['card_number']}"
-    )
-    st.session_state["focus_quiz_collection_id"] = selected_due_card["collection_id"]
-    st.session_state["focus_quiz_card_number"] = selected_due_card["card_number"]
-    st.session_state["focus_quiz_source"] = "review_card_quiz"
-    st.session_state["quiz_autostart_focus"] = True
+def _review_quiz_focus_values(selected_card: dict, autostart: bool) -> dict:
+    reason = "review_quick_quiz" if autostart else "review_choose_quiz_type"
+    return {
+        "quiz_focus_collection_id": selected_card["collection_id"],
+        "quiz_focus_card_number": selected_card["card_number"],
+        "quiz_focus_type": "mixed_mcq",
+        "quiz_focus_source": "review_selected_card",
+        "quiz_focus_reason": reason,
+        "quiz_focus_title": (
+            f"{selected_card['collection_name']} / Card #{selected_card['card_number']}"
+        ),
+        "focus_quiz_collection_id": selected_card["collection_id"],
+        "focus_quiz_card_number": selected_card["card_number"],
+        "focus_quiz_source": reason,
+    }
+
+
+def _save_review_card_quiz_focus(selected_due_card: dict, autostart: bool) -> None:
+    for key, value in _review_quiz_focus_values(selected_due_card, autostart).items():
+        st.session_state[key] = value
+    if autostart:
+        st.session_state["quiz_autostart_focus"] = True
+    else:
+        st.session_state.pop("quiz_autostart_focus", None)
     set_page_focus("Quiz")
     st.info("Quiz focus saved. Continue on the Quiz page.")
     st.rerun()
@@ -414,55 +385,57 @@ def _save_review_card_quiz_focus(selected_due_card: dict) -> None:
 
 def render_review_page() -> None:
     st.title("Review")
+    st.caption(
+        "Browse and study a Card here. Browsing does not complete learning; "
+        "a completed Card-scoped Quiz records the Card learning event."
+    )
     render_back_to_today_button("review_back_to_today_top")
 
-    if st.button("Sync Review Cards"):
-        created_count = sync_all_card_review_states()
-        st.success(f"{created_count} new card review states created.")
-        st.rerun()
-
-    sync_all_card_review_states()
-    due_cards = get_due_cards()
+    with get_connection() as conn:
+        study_cards = get_study_cards(conn)
     focus_payload = _get_review_focus()
 
-    st.header("Today Due Cards")
-    _render_focus_banner(focus_payload, due_cards)
+    st.header("Available Study Cards")
+    _render_focus_banner(focus_payload, study_cards)
 
-    if not due_cards:
-        st.info("No cards are due today.")
+    if not study_cards:
+        st.info("No Cards are available. Add entries to a Collection first.")
         return
 
-    due_card_rows = [
+    study_card_rows = [
         {
             "collection_name": card["collection_name"],
             "card_number": card["card_number"],
             "card_size": card["card_size"],
             "entry_count": card["entry_count"],
-            "status": card["status"],
-            "review_count": card["review_count"],
-            "current_interval_days": card["current_interval_days"],
-            "next_due_at": card["next_due_at"],
+            "card_quiz_completions": card["completion_count"],
+            "last_card_quiz": card["last_completed_at"],
         }
-        for card in due_cards
+        for card in study_cards
     ]
-    st.dataframe(due_card_rows, use_container_width=True, hide_index=True)
+    st.dataframe(study_card_rows, use_container_width=True, hide_index=True)
 
     selected_due_card = st.selectbox(
-        "Select a due card to review",
-        due_cards,
-        index=_focused_due_card_index(due_cards, focus_payload),
+        "Select a Card to study",
+        study_cards,
+        index=_focused_card_index(study_cards, focus_payload),
         format_func=lambda card: (
             f"{card['collection_name']} | Card #{card['card_number']} | "
             f"{card['entry_count']} entries"
         ),
     )
 
-    st.header("Review Selected Card")
+    st.header("Study Selected Card")
     st.write(
         f"{selected_due_card['collection_name']} - Card #{selected_due_card['card_number']}"
     )
-    if st.button("Quiz This Card", key="review_start_selected_card_quiz"):
-        _save_review_card_quiz_focus(selected_due_card)
+    quiz_col1, quiz_col2 = st.columns(2)
+    with quiz_col1:
+        if st.button("Quick Quiz", key="review_quick_quiz", type="primary"):
+            _save_review_card_quiz_focus(selected_due_card, autostart=True)
+    with quiz_col2:
+        if st.button("Choose Quiz Type", key="review_choose_quiz_type"):
+            _save_review_card_quiz_focus(selected_due_card, autostart=False)
 
     selected_card_entries = _find_card_entries(
         selected_due_card["collection_id"],
@@ -470,6 +443,4 @@ def render_review_page() -> None:
     )
 
     _render_selected_card_review(selected_due_card, selected_card_entries)
-
-    _render_schedule_buttons(selected_due_card)
 
