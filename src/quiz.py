@@ -8,6 +8,7 @@ from src.collections import (
     get_system_collection_by_type_or_name,
     is_entry_in_system_collection,
 )
+from src.card_history import get_current_card_identity
 from src.db import get_connection
 
 
@@ -38,7 +39,9 @@ QUIZ_SESSION_COLUMNS = """
     total_items,
     correct_count,
     wrong_count,
-    status
+    status,
+    card_id,
+    card_revision_id
 """
 
 QUIZ_ITEM_LOG_COLUMNS = """
@@ -137,6 +140,15 @@ def create_quiz_session(
     now = _now_iso()
 
     with get_connection() as connection:
+        card_identity = None
+        if card_number > 0:
+            card_identity = get_current_card_identity(
+                connection,
+                collection_id,
+                card_number,
+            )
+            if card_identity is None:
+                raise ValueError("The selected Card has no current stable identity.")
         cursor = connection.execute(
             """
             INSERT INTO quiz_sessions (
@@ -145,11 +157,23 @@ def create_quiz_session(
                 quiz_type,
                 started_at,
                 total_items,
-                status
+                status,
+                card_id,
+                card_revision_id
             )
-            VALUES (?, ?, ?, ?, ?, 'active')
+            VALUES (?, ?, ?, ?, ?, 'active', ?, ?)
             """,
-            (collection_id, card_number, quiz_type, now, total_items),
+            (
+                collection_id,
+                card_number,
+                quiz_type,
+                now,
+                total_items,
+                None if card_identity is None else int(card_identity["card_id"]),
+                None
+                if card_identity is None
+                else int(card_identity["card_revision_id"]),
+            ),
         )
 
     return int(cursor.lastrowid)
@@ -1333,4 +1357,3 @@ def grade_matching_answers(items: list[dict], user_matches: dict) -> list[dict]:
         )
 
     return results
-

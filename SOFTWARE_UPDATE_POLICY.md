@@ -25,9 +25,16 @@ The `app_metadata` table stores lightweight compatibility information:
 Current baseline:
 
 ```text
-schema_version = 10.6.0-baseline
-app_data_version = 10.6
+schema_version = 11.3.0-card-history
+app_data_version = 11.3
 ```
+
+The additive M11.3 transition starts from `10.6.0-baseline`. It creates stable
+Card identity and revision tables, adds nullable Card/revision links to Quiz
+sessions, and creates compact Entry-change events. Existing Card names are
+copied to the matching active stable Card. Pre-M11.3 Quiz sessions are not
+backfilled with a current revision when their historical composition is
+unknown.
 
 Future migrations should be registered in `src/migrations.py` and run through database initialization.
 

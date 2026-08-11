@@ -8,6 +8,12 @@ Vocabulary App is local-first. In the development version, its SQLite database i
 
 The database contains user-created entries and learning records. It is user data, not source code.
 
+From M11.3, learning records include stable Card identity, ordered Card
+membership revisions, nullable Quiz-to-revision links, and compact Entry edit
+events. Revision membership stores Entry IDs and positions rather than copying
+full Entry content. Ordinary browsing and Quiz activity do not create new Card
+revisions.
+
 ## Git and the Data Folder
 
 `data/.gitkeep` is an empty repository placeholder that keeps the folder structure available after cloning.
@@ -38,7 +44,8 @@ The app creates the selected parent directory when opening the database. An over
 Backups are user-data files and should be stored separately from source code.
 
 - SQLite backup is a consistent snapshot of the active database.
-- XLSX backup stores supported tables as structured sheets.
+- XLSX backup stores supported tables as structured sheets, including M11.3
+  Card identity/revision and Entry-change tables.
 - XLSX restore remains preview-only and does not overwrite the active database.
 
 Stop the app before manually copying `vocab.db`.

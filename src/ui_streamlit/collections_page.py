@@ -3,6 +3,8 @@ from math import ceil
 
 from src.entries import get_entry_detail_with_template_values
 from src.collections import (
+    CROSS_CARD_CONFIRMATION_MESSAGE,
+    CrossCardMoveConfirmationRequired,
     create_collection,
     delete_collection,
     get_card_groups_for_collection,
@@ -300,6 +302,22 @@ def _render_collection_settings(collections: list[dict]) -> None:
         st.warning(t("The selected collection no longer exists."))
         return
 
+    pending_key = f"pending_card_size_change_{settings_collection['id']}"
+    pending_change = st.session_state.get(pending_key)
+    if pending_change:
+        st.warning(CROSS_CARD_CONFIRMATION_MESSAGE)
+        confirm_col, cancel_col = st.columns(2)
+        with confirm_col:
+            if st.button("Confirm Card reorganization", key=f"confirm_{pending_key}"):
+                update_collection(**pending_change, confirm_cross_card=True)
+                del st.session_state[pending_key]
+                st.success(t("Collection updated."))
+                st.rerun()
+        with cancel_col:
+            if st.button("Cancel", key=f"cancel_{pending_key}"):
+                del st.session_state[pending_key]
+                st.rerun()
+
     with st.form("edit_collection_form"):
         settings_name = st.text_input(t("Name"), value=settings_collection["name"])
         settings_description = st.text_area(
@@ -328,6 +346,14 @@ def _render_collection_settings(collections: list[dict]) -> None:
             )
             st.success(t("Collection updated."))
             st.rerun()
+        except CrossCardMoveConfirmationRequired:
+            st.session_state[pending_key] = {
+                "collection_id": settings_collection["id"],
+                "name": settings_name,
+                "description": settings_description,
+                "card_size": int(settings_card_size),
+            }
+            st.warning(CROSS_CARD_CONFIRMATION_MESSAGE)
         except ValueError as error:
             st.error(str(error))
 
@@ -372,6 +398,29 @@ def _render_delete_collection(settings_collection: dict) -> None:
 
 
 def _render_collection_entries(view_collection: dict, collection_entries: list[dict]) -> None:
+    pending_remove_key = f"pending_cross_card_remove_{view_collection['id']}"
+    pending_remove = st.session_state.get(pending_remove_key)
+    if pending_remove:
+        st.warning(CROSS_CARD_CONFIRMATION_MESSAGE)
+        confirm_col, cancel_col = st.columns(2)
+        with confirm_col:
+            if st.button(
+                "Confirm removal and Card reorganization",
+                key=f"confirm_{pending_remove_key}",
+            ):
+                removed_count = remove_entries_from_collection(
+                    pending_remove,
+                    view_collection["id"],
+                    confirm_cross_card=True,
+                )
+                del st.session_state[pending_remove_key]
+                st.success(f"{removed_count} entries removed from collection.")
+                st.rerun()
+        with cancel_col:
+            if st.button("Cancel", key=f"cancel_{pending_remove_key}"):
+                del st.session_state[pending_remove_key]
+                st.rerun()
+
     st.subheader(t("Remove Entries from Collection"))
     selected_entries_to_remove = st.multiselect(
         t("Select entries to remove from this collection"),
@@ -387,12 +436,19 @@ def _render_collection_entries(view_collection: dict, collection_entries: list[d
         if not confirm_remove:
             st.warning(t("Confirm before removing entries from this collection."))
         else:
-            removed_count = remove_entries_from_collection(
-                [entry["id"] for entry in selected_entries_to_remove],
-                view_collection["id"],
-            )
-            st.success(f"{removed_count} entries removed from collection.")
-            st.rerun()
+            try:
+                removed_count = remove_entries_from_collection(
+                    [entry["id"] for entry in selected_entries_to_remove],
+                    view_collection["id"],
+                )
+            except CrossCardMoveConfirmationRequired:
+                st.session_state[pending_remove_key] = [
+                    int(entry["id"]) for entry in selected_entries_to_remove
+                ]
+                st.warning(CROSS_CARD_CONFIRMATION_MESSAGE)
+            else:
+                st.success(f"{removed_count} entries removed from collection.")
+                st.rerun()
 
     st.subheader(t("Reorder Entries in Collection"))
     selected_move_entry = st.selectbox(
@@ -408,6 +464,25 @@ def _render_collection_entries(view_collection: dict, collection_entries: list[d
         step=1,
     )
 
+    pending_move_key = f"pending_cross_card_move_{view_collection['id']}"
+    pending_move = st.session_state.get(pending_move_key)
+    if pending_move:
+        st.warning(CROSS_CARD_CONFIRMATION_MESSAGE)
+        confirm_col, cancel_col = st.columns(2)
+        with confirm_col:
+            if st.button(
+                "Confirm move and Card reorganization",
+                key=f"confirm_{pending_move_key}",
+            ):
+                move_entry_in_collection(**pending_move, confirm_cross_card=True)
+                del st.session_state[pending_move_key]
+                st.success(t("Entry moved."))
+                st.rerun()
+        with cancel_col:
+            if st.button("Cancel", key=f"cancel_{pending_move_key}"):
+                del st.session_state[pending_move_key]
+                st.rerun()
+
     if st.button(t("Move Entry")):
         try:
             move_entry_in_collection(
@@ -417,6 +492,13 @@ def _render_collection_entries(view_collection: dict, collection_entries: list[d
             )
             st.success(t("Entry moved."))
             st.rerun()
+        except CrossCardMoveConfirmationRequired:
+            st.session_state[pending_move_key] = {
+                "collection_id": view_collection["id"],
+                "entry_id": selected_move_entry["id"],
+                "new_position": int(new_position),
+            }
+            st.warning(CROSS_CARD_CONFIRMATION_MESSAGE)
         except ValueError as error:
             st.error(str(error))
 

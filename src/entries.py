@@ -1,5 +1,8 @@
 from datetime import datetime, timezone
+import json
 
+from src.card_history import preview_collection_transition, reconcile_collection_card_history
+from src.collections import CrossCardMoveConfirmationRequired
 from src.db import get_connection
 from src.entry_templates import (
     ensure_general_entry_template,
@@ -307,8 +310,73 @@ def update_entry_with_template(
     if errors:
         raise ValueError("\n".join(errors))
 
-    now = _now_iso()
+    canonical_after = {
+        "template_id": template_id,
+        "language": clean_entry_data["language"],
+        "explanation_language": clean_entry_data["explanation_language"],
+        "entry_type": clean_entry_data["entry_type"],
+        "term": canonical_values["term"],
+        "meaning": canonical_values["meaning"],
+        "example": canonical_values["example"],
+        "notes": canonical_values["notes"],
+        "tags": canonical_values["tags"],
+        "source": canonical_values["source"],
+        "status": clean_entry_data["status"],
+    }
     with get_connection() as connection:
+        canonical_before_row = connection.execute(
+            """
+            SELECT template_id, language, explanation_language, entry_type,
+                   term, meaning, example, notes, tags, source, status
+            FROM entries
+            WHERE id = ?
+            """,
+            (int(entry_id),),
+        ).fetchone()
+        if canonical_before_row is None:
+            raise ValueError("Entry not found.")
+        canonical_before = {
+            key: canonical_before_row[key]
+            for key in canonical_after
+        }
+        for optional_key in ("example", "notes", "tags", "source"):
+            canonical_before[optional_key] = str(canonical_before[optional_key] or "")
+        field_rows = connection.execute(
+            """
+            SELECT fields.id, fields.field_key, COALESCE(values_table.field_value, '') AS field_value
+            FROM entry_template_fields AS fields
+            LEFT JOIN entry_field_values AS values_table
+              ON values_table.field_id = fields.id
+             AND values_table.entry_id = ?
+            WHERE fields.template_id = ?
+            ORDER BY fields.display_order, fields.id
+            """,
+            (int(entry_id), template_id),
+        ).fetchall()
+        template_after = {
+            str(row["field_key"]): str(template_values.get(row["field_key"], "") or "")
+            for row in field_rows
+        }
+        changes = {
+            key: {"old": canonical_before[key], "new": new_value}
+            for key, new_value in canonical_after.items()
+            if canonical_before[key] != new_value
+        }
+        changes.update(
+            {
+                f"template.{row['field_key']}": {
+                    "old": str(row["field_value"] or ""),
+                    "new": template_after[str(row["field_key"])],
+                }
+                for row in field_rows
+                if str(row["field_value"] or "")
+                != template_after[str(row["field_key"])]
+            }
+        )
+        if not changes:
+            return
+
+        now = _now_iso()
         connection.execute(
             """
             UPDATE entries
@@ -343,8 +411,53 @@ def update_entry_with_template(
                 entry_id,
             ),
         )
+        connection.executemany(
+            """
+            INSERT INTO entry_field_values (
+                entry_id, field_id, field_value, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(entry_id, field_id) DO UPDATE SET
+                field_value = excluded.field_value,
+                updated_at = excluded.updated_at
+            """,
+            [
+                (
+                    int(entry_id),
+                    int(row["id"]),
+                    template_after[str(row["field_key"])],
+                    now,
+                    now,
+                )
+                for row in field_rows
+            ],
+        )
+        connection.execute(
+            """
+            INSERT INTO entry_change_events (
+                entry_id, changed_at, changes_json, change_source
+            ) VALUES (?, ?, ?, 'app_edit')
+            """,
+            (int(entry_id), now, json.dumps(changes, ensure_ascii=False, sort_keys=True)),
+        )
 
-    set_entry_template_values(entry_id, template_values)
+
+def get_entry_change_events(entry_id: int) -> list[dict]:
+    with get_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT id, entry_id, changed_at, changes_json, change_source
+            FROM entry_change_events
+            WHERE entry_id = ?
+            ORDER BY changed_at, id
+            """,
+            (int(entry_id),),
+        ).fetchall()
+    events = []
+    for row in rows:
+        event = dict(row)
+        event["changes"] = json.loads(event.pop("changes_json"))
+        events.append(event)
+    return events
 
 
 def update_entry(
@@ -410,28 +523,78 @@ def update_entry(
     )
 
 
-def delete_entry(entry_id: int) -> None:
-    with get_connection() as connection:
-        connection.execute(
-            """
-            DELETE FROM entries
-            WHERE id = ?
-            """,
-            (entry_id,),
-        )
+def delete_entry(entry_id: int, *, confirm_cross_card: bool = False) -> None:
+    delete_entries([entry_id], confirm_cross_card=confirm_cross_card)
 
 
-def delete_entries(entry_ids: list[int]) -> int:
+def delete_entries(
+    entry_ids: list[int],
+    *,
+    confirm_cross_card: bool = False,
+) -> int:
     if not entry_ids:
         return 0
 
+    unique_entry_ids = list(dict.fromkeys(int(entry_id) for entry_id in entry_ids))
     with get_connection() as connection:
+        placeholders = ",".join("?" for _ in unique_entry_ids)
+        affected_rows = connection.execute(
+            f"""
+            SELECT DISTINCT collection_id
+            FROM entry_collections
+            WHERE entry_id IN ({placeholders})
+            ORDER BY collection_id
+            """,
+            unique_entry_ids,
+        ).fetchall()
+        affected_collection_ids = [int(row["collection_id"]) for row in affected_rows]
+        previews = []
+        remove_ids = set(unique_entry_ids)
+        for collection_id in affected_collection_ids:
+            before_ids = [
+                int(row["entry_id"])
+                for row in connection.execute(
+                    "SELECT entry_id FROM entry_collections WHERE collection_id = ? ORDER BY position, id",
+                    (collection_id,),
+                ).fetchall()
+            ]
+            preview = preview_collection_transition(
+                connection,
+                collection_id,
+                proposed_entry_ids=[value for value in before_ids if value not in remove_ids],
+            )
+            if preview["requires_confirmation"]:
+                previews.append(preview)
+        if previews and not confirm_cross_card:
+            raise CrossCardMoveConfirmationRequired({"collections": previews})
+
         cursor = connection.executemany(
             """
             DELETE FROM entries
             WHERE id = ?
             """,
-            [(entry_id,) for entry_id in entry_ids],
+            [(entry_id,) for entry_id in unique_entry_ids],
         )
+        for collection_id in affected_collection_ids:
+            remaining_rows = connection.execute(
+                "SELECT entry_id FROM entry_collections WHERE collection_id = ? ORDER BY position, id",
+                (collection_id,),
+            ).fetchall()
+            connection.executemany(
+                """
+                UPDATE entry_collections
+                SET position = ?
+                WHERE collection_id = ? AND entry_id = ?
+                """,
+                [
+                    (position, collection_id, int(row["entry_id"]))
+                    for position, row in enumerate(remaining_rows, start=1)
+                ],
+            )
+            reconcile_collection_card_history(
+                connection,
+                collection_id,
+                change_reason="entries_hard_deleted",
+            )
 
     return cursor.rowcount

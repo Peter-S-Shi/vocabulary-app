@@ -1531,7 +1531,11 @@ def _render_mistakes_for_session(completed_session: dict) -> None:
 
 
 def _remove_entries_from_mistake_book(entry_ids: list[int]) -> int:
-    return remove_entries_from_system_collection(entry_ids, "mistake_book")
+    return remove_entries_from_system_collection(
+        entry_ids,
+        "mistake_book",
+        confirm_cross_card=True,
+    )
 
 
 def _render_mistake_book_recovery_summary(completed_session: dict) -> None:
@@ -1832,7 +1836,11 @@ def _render_mistake_book_section() -> None:
 
 
 def _remove_entries_from_proficient_pool(entry_ids: list[int]) -> int:
-    return remove_entries_from_system_collection(entry_ids, "proficient_pool")
+    return remove_entries_from_system_collection(
+        entry_ids,
+        "proficient_pool",
+        confirm_cross_card=True,
+    )
 
 
 def _render_proficient_pool_random_quiz_controls() -> None:
@@ -2129,4 +2137,3 @@ def render_quiz_page() -> None:
         _render_proficient_pool_section()
     else:
         _render_quiz_reference_sections()
-

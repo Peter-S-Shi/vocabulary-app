@@ -48,9 +48,9 @@ a native desktop UI, and hardens/packages the desktop product.
 - Independent manual next-review scheduling and Again/Hard/Good/Easy interval
   scheduling are being retired from the active model during Milestone 11. No
   replacement SRS algorithm is being introduced in this milestone.
-- `entries.id` is the permanent Entry identity. The approved Card direction is
-  a stable `card_id` with mutable, historically traceable Entry membership.
-  Current legacy records that only identify `collection_id + card_number` must
+- `entries.id` is the permanent Entry identity. Cards now have a stable
+  `card_id` with mutable, revisioned, historically traceable Entry membership.
+  Legacy records that only identify `collection_id + card_number` must
   not be presented as more precise than the stored evidence supports.
 
 ## Product Philosophy
@@ -185,6 +185,7 @@ vocab-app/
     |-- entry_templates.py       # Template management
     |-- migrations.py            # Schema/app metadata and additive migrations
     |-- collections.py           # Collections, cards, and ordering
+    |-- card_history.py          # Stable Card identity and membership revisions
     |-- review.py                # Legacy Review/SRS compatibility APIs
     |-- quiz.py                  # Quiz sessions and answer logs
     |-- template_quiz.py         # Template-aware quiz rules
@@ -206,7 +207,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for boundary rules and [MIGRATION_READINE
 
 Packaging and desktop options are documented in [PACKAGING_FEASIBILITY.md](PACKAGING_FEASIBILITY.md) and [DESKTOP_MIGRATION_PLAN.md](DESKTOP_MIGRATION_PLAN.md).
 
-Software update safety is documented in [SOFTWARE_UPDATE_POLICY.md](SOFTWARE_UPDATE_POLICY.md). Milestone 10.6 establishes the first explicit schema-version baseline through `app_metadata` and `src/migrations.py`.
+Software update safety is documented in [SOFTWARE_UPDATE_POLICY.md](SOFTWARE_UPDATE_POLICY.md). Milestone 11.3 advances the explicit schema version through an additive migration that establishes stable Card identity and history.
 
 ## Installation
 
@@ -271,7 +272,7 @@ The application initializes the database automatically when it starts. Do not de
 
 Before major upgrades or manual database operations, create a backup from the app or copy the database while the app is stopped.
 
-Milestone 10.6 adds read-only schema/app metadata for software update compatibility. Future schema changes should use additive migrations, preserve user data, and keep optional modules disabled by default.
+Schema/app metadata supports software update compatibility. The M11.3 migration moves `10.6.0-baseline` to `11.3.0-card-history`, preserves legacy Quiz uncertainty, and leaves optional modules disabled by default.
 
 Advanced users may set `VOCAB_APP_DB_PATH` before launch to select another database path. Normal users do not need this setting, and the app does not automatically move or merge databases.
 
@@ -301,6 +302,7 @@ foundations:
 - SQLite/XLSX backup and restore preview
 - Today and Daily Learning Workflow
 - Schema/app metadata and software-update compatibility foundation
+- Stable Card identity, membership revisions, Quiz revision linkage, and compact Entry edit history
 - Productization QA and public-repository documentation polish
 
 Milestone 10 productization closure is not equivalent to current-version

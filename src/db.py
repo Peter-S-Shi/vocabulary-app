@@ -115,6 +115,8 @@ CREATE TABLE IF NOT EXISTS quiz_sessions (
     correct_count INTEGER NOT NULL DEFAULT 0,
     wrong_count INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'active',
+    card_id INTEGER,
+    card_revision_id INTEGER,
     FOREIGN KEY(collection_id) REFERENCES collections(id) ON DELETE CASCADE
 );
 """

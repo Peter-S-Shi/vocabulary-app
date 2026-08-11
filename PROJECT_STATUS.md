@@ -19,9 +19,11 @@ Desktop-specific migration principles and workflow mapping are defined in
 **Milestone 11: Pre-Desktop Stabilization**
 
 M11.1 Semantic Alignment and QA Scope Lock has been merged to `main`.
-M11.2 Unified Learning Flow and Core Integrity is implemented on candidate
-branch `agent/m11-2-unified-learning-flow` and is pending independent Draft PR
-review. M11.3 has not started.
+M11.2 Unified Learning Flow and Core Integrity is merged to `main` at
+`eb8cda4e50b987b5db37b36425d3e47c94c28eaa`.
+M11.3 Stable Card Identity and Entry-Level History is implemented on candidate
+branch `agent/m11-3-card-identity-history` and is pending independent Draft PR
+review. M11.4 has not started.
 
 The project is no longer preparing to freeze and release the existing
 Streamlit application as the final current-version target.
@@ -166,7 +168,7 @@ Browse / study a Card
   Again/Hard/Good/Easy are being retired from active product truth.
 - No replacement SRS algorithm is approved for M11.
 
-The M11.2 candidate enforces this model without adding a second event table:
+M11.2 enforces this model without adding a second event table:
 `quiz_sessions.completed_at` is the Card learning-completion source for
 completed Card-scoped Quiz sessions. Today, Statistics, and Learning History
 derive Card completion only from that evidence. Manual scheduling and legacy
@@ -184,28 +186,51 @@ The approved architecture resolves the product decision as follows:
 - historical Card learning must retain the membership revision used at the
   time without false backfill.
 
-The current implementation still has an unresolved migration gap between:
+M11.3 resolves the previous migration gap between:
 
 - cards dynamically derived from collection order and `card_size`; and
 - historical review/card records associated with collection and card number.
 
-Collection reordering or card-size changes can cause the same apparent Card
-number to refer to different entries while retaining old history.
+Current Card grouping remains dynamically derived from
+`entry_collections.position + collections.card_size`. Stable `card_id` rows now
+identify active slots, and immutable revisions record the ordered Entry IDs
+that belonged to each Card at each material change.
 
-A minimal-risk additive implementation is required before broader desktop and
-analytics work depends on Card history. It must cover:
+The additive `10.6.0-baseline -> 11.3.0-card-history` migration:
 
-- historical truthfulness;
-- reorder behavior;
-- card-size changes;
-- backward compatibility;
-- migration cost; and
-- future desktop behavior;
-- Card names and metadata; and
-- Entry deletion/history behavior.
+- establishes one active stable Card per current slot and one baseline revision;
+- preserves active Card IDs across membership revisions;
+- retires disappearing Cards and never reuses their IDs when a slot reappears;
+- moves active Card names to stable identity while retaining the old metadata table as compatibility-only;
+- binds new Card-scoped Quiz sessions to the exact `card_id` and `card_revision_id` used at start;
+- leaves legacy pre-M11.3 Quiz composition null/unknown where it cannot be proved;
+- records compact, field-level old/new evidence for successful non-no-op Entry edits; and
+- requires an evidence-based Streamlit confirmation before user-driven cross-Card reorganization.
 
-The stable-Card-ID direction is approved; the schema migration and regression
-work belong to M11.3 and have not started.
+Collection mutation and Card-history reconciliation share one transaction.
+Reads and ordinary Quiz activity create no Card revisions. The reusable core
+remains Streamlit-independent and is suitable for a later native confirmation
+dialog.
+
+Known deletion boundary: ordinary membership changes and Entry hard deletion
+do not remove the stored integer Entry IDs from Card revision snapshots.
+Deleting an entire Collection retains the existing product behavior of
+deleting that Collection's associated Card/Quiz history. A different
+Collection-deletion retention policy remains a product decision for M11.4.
+
+M11.3 branch: `agent/m11-3-card-identity-history`.
+M11.3 base: `eb8cda4e50b987b5db37b36425d3e47c94c28eaa`.
+The exact candidate head commit is recorded in the Draft PR and closeout
+report after verification.
+
+Candidate verification includes 30 passing M11.2/M11.3 unit and Streamlit
+AppTests on isolated synthetic databases, migration failure rollback,
+idempotent restart, storage-noise checks, architecture audit, and packaging
+readiness. The packaging checker retains its expected warning that the local
+personal database exists and must remain excluded from Git/releases.
+
+Next engineering objective:
+**M11.4 — Semantic Re-acceptance & Pre-Desktop Baseline Closure**.
 
 ### Entry Health
 
