@@ -116,6 +116,13 @@ The counts above classify the QA inventory once per stable QA ID. Additional
 repository-derived engineering findings are recorded separately in the M11.1
 Draft PR and do not inflate the 66-item source total.
 
+The original source results for M04-Q04, M05-Q05, and M07-Q02 remain Pass.
+They are retained according to their own legacy-workflow meaning as
+re-acceptance or superseded-expectation scope; they are not evidence for the
+separate P1 finding that manual schedule updates are counted as completed
+Review activity. That repository-derived finding is tracked independently as
+`Derived M11-REVIEW-LOG-01` and does not change the source-item counts.
+
 The manual QA artifact should remain a living project artifact and should be
 updated only in sections affected by later milestones or regression work.
 
