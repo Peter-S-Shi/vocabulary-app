@@ -15,9 +15,9 @@ Vocabulary App helps users maintain their own vocabulary database and turn it in
 5. Inspect statistics and daily progress.
 6. Export or back up local data.
 
-The `Today` page acts as the daily learning home. During Milestone 11 its
-recommendations and summaries are being migrated from legacy Review-schedule
-state to factual Card-scoped Quiz history.
+The `Today` page acts as the daily learning home. Its Card-learning activity
+and summaries use factual completed Card-scoped Quiz history rather than
+legacy Review-schedule state.
 
 ## Lifecycle Status
 
@@ -86,15 +86,15 @@ See [CONTENT_POLICY.md](CONTENT_POLICY.md) for the detailed user-owned content p
 - Add, remove, reorder, and delete collection workflows
 - System collections for Mistake Book, Starred, and Proficient Pool
 
-### Review and legacy scheduling compatibility
+### Card study and learning history
 
 - Collection Card browse/study surface
-- Card-to-Quiz focus handoff
-- Legacy due/overdue, manual scheduling, Review state, and Review History
-  surfaces retained in the current Streamlit baseline pending M11.2 migration
-
-These legacy scheduling surfaces describe current compatibility behavior, not
-the approved authoritative learning-completion model.
+- Quick Card Quiz and Choose Quiz Type handoff routes
+- Completed Card-scoped Quiz history
+- Legacy Review history available only as explicitly labelled compatibility
+  data
+- Legacy scheduling state retained in storage compatibility code but excluded
+  from active completion truth and Streamlit scheduling controls
 
 ### Quiz and learning pools
 
@@ -107,21 +107,21 @@ the approved authoritative learning-completion model.
 - Mistake Book recovery workflow
 - Proficient Pool random audits
 
-### Statistics and review calendar
+### Statistics and Card learning history
 
-- Entry, template, collection, review, quiz, and special-pool statistics
-- Review calendar and workload ranges
+- Entry, template, collection, Card-learning, quiz, and special-pool statistics
+- Completed Card-learning history and historical ranges
 - Learning trends and entry-health views
 - Read-only statistics architecture
 
 ### Daily learning workflow
 
 - `Today` as the default learning home
-- Legacy due/overdue workload pending M11.2 semantic migration
+- Available-Card and never-quizzed workload
 - Daily quiz suggestions
 - Special-pool status
-- Review and quiz focus navigation
-- Daily learning summary based on local logs
+- Card-study and Quiz focus navigation
+- Daily learning summary based on completed Card-scoped Quiz sessions
 
 ### Import / export
 
@@ -185,7 +185,7 @@ vocab-app/
     |-- entry_templates.py       # Template management
     |-- migrations.py            # Schema/app metadata and additive migrations
     |-- collections.py           # Collections, cards, and ordering
-    |-- review.py                # Card review compatibility state pending M11.2
+    |-- review.py                # Legacy Review/SRS compatibility APIs
     |-- quiz.py                  # Quiz sessions and answer logs
     |-- template_quiz.py         # Template-aware quiz rules
     |-- statistics.py            # Read-only statistics queries

@@ -18,9 +18,10 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 **Milestone 11: Pre-Desktop Stabilization**
 
-M11.1 Semantic Alignment and QA Scope Lock is complete on the candidate branch
-`agent/m11-1-semantic-alignment` and is pending independent Draft PR review and
-merge. No M11.2 behavior implementation has started.
+M11.1 Semantic Alignment and QA Scope Lock has been merged to `main`.
+M11.2 Unified Learning Flow and Core Integrity is implemented on candidate
+branch `agent/m11-2-unified-learning-flow` and is pending independent Draft PR
+review. M11.3 has not started.
 
 The project is no longer preparing to freeze and release the existing
 Streamlit application as the final current-version target.
@@ -165,11 +166,12 @@ Browse / study a Card
   Again/Hard/Good/Easy are being retired from active product truth.
 - No replacement SRS algorithm is approved for M11.
 
-Current code does not yet enforce this model. `src/quiz.py` completes Quiz
-sessions without creating a Card learning event, while
-`src/review.py:update_card_next_due_at()` writes a `manual_schedule_update` row
-to `card_review_logs`. Today and Statistics currently count those logs as
-completed Review activity. This is an M11.2 data/state semantic inconsistency.
+The M11.2 candidate enforces this model without adding a second event table:
+`quiz_sessions.completed_at` is the Card learning-completion source for
+completed Card-scoped Quiz sessions. Today, Statistics, and Learning History
+derive Card completion only from that evidence. Manual scheduling and legacy
+Review logs remain compatibility data but are no longer active completion
+truth or active Streamlit workflow controls.
 
 ### Card Identity and Historical Truthfulness
 
@@ -564,10 +566,16 @@ M11.1 started from that synchronized local/remote baseline on branch
 `agent/m11-1-semantic-alignment`. Its own commit and Draft PR are recorded by
 Git/GitHub rather than embedded recursively as this file's own commit identifier.
 
+M11.1 was merged to `main` as:
+
+`daf505b4fce0760af0c4c1eb97effcc9c0b74849`
+
+M11.2 started from that exact synchronized commit on branch
+`agent/m11-2-unified-learning-flow`.
+
 Status:
 
-**Lifecycle baseline verified on `main`; M11.1 candidate branch pending Draft
-PR review and merge.**
+**M11.1 merged and synchronized; M11.2 candidate pending Draft PR review.**
 
 ## Known Risks
 
@@ -579,13 +587,12 @@ PR review and merge.**
 - Entry deletion cascades to `quiz_item_logs`, which can remove Entry-level
   evidence while retaining parent Quiz-session totals; M11.3 must resolve the
   intended historical behavior without false backfill.
-- Quiz completion does not currently create the approved Card learning event.
-- Manual date changes write `card_review_logs`; Today and Statistics count all
-  such rows as completed Review activity.
-- Streamlit entry-edit widget state can risk unintended data overwrite.
-- Generic exception strings are rendered in several Streamlit pages and may
-  expose local paths or database/internal details. Intentional path display in
-  Settings remains a separate, expected local-data feature.
+- Legacy scheduler state and logs remain in the schema for compatibility even
+  though active M11.2 UI and completion reporting no longer use them.
+- Card learning completion still depends on transitional
+  `collection_id + card_number` until M11.3 introduces stable Card identity.
+- SQLite connection cleanup emits ResourceWarnings under the isolated M11.2
+  test harness; this does not affect test results but remains technical debt.
 - Active Quiz recovery combines durable session state with transient UI state.
 - Dense table and selection workflows depend on Streamlit behavior and must be
   redesigned deliberately for desktop.
@@ -606,11 +613,8 @@ PR review and merge.**
 - Exact additive schema and migration design for approved stable Card identity
   and membership revisions.
 - Truthful legacy-history treatment where old Card composition is unknowable.
-- Exact treatment of legacy Review-only records after active scheduling is
-  retired.
-- Safe Card-learning completion transaction and restart/idempotence behavior
-  across all compatible Quiz types.
-- Current repository-wide regression after the latest product-scope decision.
+- Product-owner acceptance of the M11.2 Streamlit behavior after Draft PR
+  review.
 - Large/dense dataset behavior under the future desktop UI.
 - Desktop framework selection.
 - Desktop accessibility and interaction model.
@@ -658,30 +662,36 @@ M11  Pre-Desktop Stabilization
 -> M20 Packaging and Release Candidate
 ```
 
+## M11.2 Review Gate
+
+Review and re-accept the **M11.2: Unified Learning Flow and Core Integrity**
+Draft PR. The candidate:
+
+1. isolates Entry edit widget state by permanent Entry ID;
+2. makes completed Card-scoped Quiz the sole active Card completion evidence;
+3. preserves direct Card Quiz completion and idempotent recovery;
+4. provides Quick Quiz and Choose Quiz Type routes from Review;
+5. removes independent scheduling/SRS controls from active Streamlit truth;
+6. migrates Today, Statistics, and Learning History; and
+7. replaces confirmed raw unexpected-error rendering with safe messages and
+   local diagnostic logging.
+
+Do not begin M11.3 until M11.2 is independently reviewed and merged.
+
 ## Next Engineering Objective
 
-After M11.1 independent review and merge, begin **M11.2: Unified Learning Flow
-and Core Integrity**.
+After that review gate and merge, the exact next engineering objective is:
 
-M11.2 should:
-
-1. resolve the complete Entry edit-state integrity issue;
-2. make completed Card-scoped Quiz the authoritative Card learning event;
-3. preserve direct Card Quiz completion;
-4. provide Quick Quiz and Choose Quiz Type routes from Review;
-5. retire independent manual scheduling and legacy SRS behavior from active
-   product truth;
-6. migrate Today, Statistics, and Review-related consumers; and
-7. fix confirmed user-facing raw exception leakage.
+**M11.3 — Stable Card Identity and Entry-Level History**
 
 Do not begin full development of the three new major capabilities before this
 baseline is trustworthy.
 
 ## Repository State
 
-- Candidate branch: `agent/m11-1-semantic-alignment`
-- Verified synchronized M11.1 base commit:
-  `f5ce774bc6645d8e6b0e80dbef71c77158c98de8`
+- Candidate branch: `agent/m11-2-unified-learning-flow`
+- Verified synchronized M11.2 base commit:
+  `daf505b4fce0760af0c4c1eb97effcc9c0b74849`
 - Release tag: none recorded
 - Current lifecycle documents:
   - `ROADMAP.md`

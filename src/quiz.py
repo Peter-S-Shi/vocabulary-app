@@ -311,12 +311,61 @@ def _get_quiz_answer_counts(connection, session_id: int):
     ).fetchone()
 
 
-def mark_quiz_session_completed(session_id: int) -> None:
-    now = _now_iso()
+def _get_last_answered_at(connection, session_id: int) -> str | None:
+    row = connection.execute(
+        """
+        SELECT MAX(answered_at) AS last_answered_at
+        FROM quiz_item_logs
+        WHERE session_id = ?
+        """,
+        (session_id,),
+    ).fetchone()
+    return row["last_answered_at"] if row else None
+
+
+def is_card_scoped_quiz_session(session: dict) -> bool:
+    return (
+        session.get("status") == "completed"
+        and session.get("completed_at") is not None
+        and int(session.get("card_number") or 0) > 0
+    )
+
+
+def mark_quiz_session_completed(session_id: int) -> bool:
+    """Complete one fully answered active session without rewriting history.
+
+    Returns True only when this call changes an active session to completed.
+    An already completed session is an idempotent no-op.
+    """
 
     with get_connection() as connection:
+        session = connection.execute(
+            """
+            SELECT id, status, completed_at, total_items
+            FROM quiz_sessions
+            WHERE id = ?
+            """,
+            (session_id,),
+        ).fetchone()
+        if session is None:
+            raise ValueError("Quiz session was not found")
+        if session["status"] == "cancelled":
+            raise ValueError("A cancelled quiz session cannot be completed")
+        if session["status"] == "completed":
+            return False
+
         counts = _get_quiz_answer_counts(connection, session_id)
-        connection.execute(
+        total_items = int(session["total_items"] or 0)
+        logged_items = int(counts["logged_items"] or 0)
+        if total_items <= 0 or logged_items < total_items:
+            raise ValueError("Quiz session is not fully answered")
+
+        completed_at = (
+            session["completed_at"]
+            or _get_last_answered_at(connection, session_id)
+            or _now_iso()
+        )
+        cursor = connection.execute(
             """
             UPDATE quiz_sessions
             SET
@@ -326,15 +375,17 @@ def mark_quiz_session_completed(session_id: int) -> None:
                 wrong_count = ?,
                 status = 'completed'
             WHERE id = ?
+              AND status = 'active'
             """,
             (
-                now,
-                counts["logged_items"],
+                completed_at,
+                logged_items,
                 counts["correct_count"],
                 counts["wrong_count"],
                 session_id,
             ),
         )
+        return cursor.rowcount == 1
 
 
 def mark_quiz_session_cancelled(session_id: int) -> None:
@@ -396,6 +447,7 @@ def reconcile_finished_active_quiz_sessions() -> int:
                 session.completed_at,
                 session.total_items,
                 COUNT(logs.id) AS logged_items,
+                MAX(logs.answered_at) AS last_answered_at,
                 COALESCE(SUM(CASE WHEN logs.is_correct = 1 THEN 1 ELSE 0 END), 0) AS correct_count,
                 COALESCE(SUM(CASE WHEN logs.is_correct = 0 THEN 1 ELSE 0 END), 0) AS wrong_count
             FROM quiz_sessions AS session
@@ -424,7 +476,7 @@ def reconcile_finished_active_quiz_sessions() -> int:
                   AND status = 'active'
                 """,
                 (
-                    now,
+                    row["last_answered_at"] or now,
                     int(row["logged_items"]),
                     int(row["correct_count"]),
                     int(row["wrong_count"]),

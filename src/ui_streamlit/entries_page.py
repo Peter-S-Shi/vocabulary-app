@@ -48,6 +48,10 @@ def _checkbox_key(entry_id: int) -> str:
     return f"select_entry_{st.session_state.selection_token}_{entry_id}"
 
 
+def _edit_widget_key(entry_id: int, field_name: str) -> str:
+    return f"edit_entry_{int(entry_id)}_{field_name}"
+
+
 def _sync_visible_selection(entries: list[dict]) -> None:
     for entry in entries:
         checkbox_key = _checkbox_key(entry["id"])
@@ -514,14 +518,15 @@ def _render_edit_entry(all_entries: list[dict]) -> None:
         if int(collection["id"]) in current_collection_ids
     ]
 
-    with st.form("edit_entry_form"):
+    entry_id = int(edit_entry["id"])
+    with st.form(f"edit_entry_form_{entry_id}"):
         meta_col1, meta_col2, meta_col3, meta_col4 = st.columns(4)
         with meta_col1:
             edit_language = st.selectbox(
                 "Language",
                 LANGUAGES,
                 index=option_index(LANGUAGES, edit_entry["language"]),
-                key="edit_language",
+                key=_edit_widget_key(entry_id, "language"),
             )
         with meta_col2:
             edit_explanation_language = st.selectbox(
@@ -531,21 +536,21 @@ def _render_edit_entry(all_entries: list[dict]) -> None:
                     EXPLANATION_LANGUAGES,
                     edit_entry["explanation_language"],
                 ),
-                key="edit_explanation_language",
+                key=_edit_widget_key(entry_id, "explanation_language"),
             )
         with meta_col3:
             edit_entry_type = st.selectbox(
                 "Entry Type",
                 ENTRY_TYPES,
                 index=option_index(ENTRY_TYPES, edit_entry["entry_type"]),
-                key="edit_entry_type",
+                key=_edit_widget_key(entry_id, "entry_type"),
             )
         with meta_col4:
             edit_status = st.selectbox(
                 "Status",
                 STATUSES,
                 index=option_index(STATUSES, edit_entry["status"]),
-                key="edit_status",
+                key=_edit_widget_key(entry_id, "status"),
             )
 
         st.subheader("Template Fields")
@@ -563,11 +568,13 @@ def _render_edit_entry(all_entries: list[dict]) -> None:
                 manual_term = st.text_input(
                     "Canonical Term *",
                     value=edit_entry["term"] or "",
+                    key=_edit_widget_key(entry_id, "canonical_term"),
                 )
             if mapping["needs_manual_meaning"]:
                 manual_meaning = st.text_area(
                     "Canonical Meaning *",
                     value=edit_entry["meaning"] or "",
+                    key=_edit_widget_key(entry_id, "canonical_meaning"),
                 )
 
         st.subheader("Collections")
@@ -577,6 +584,7 @@ def _render_edit_entry(all_entries: list[dict]) -> None:
                 editable_collections,
                 default=current_editable_collections,
                 format_func=collection_label,
+                key=_edit_widget_key(entry_id, "collections"),
             )
         else:
             selected_edit_collections = []

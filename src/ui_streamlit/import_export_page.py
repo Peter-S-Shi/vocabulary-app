@@ -35,6 +35,7 @@ from src.import_export import (
     rows_to_csv_bytes,
     rows_to_xlsx_bytes,
 )
+from src.ui_streamlit.error_handling import show_unexpected_error
 
 
 def _render_export_section() -> None:
@@ -85,9 +86,8 @@ def _render_export_section() -> None:
 
     try:
         columns = get_export_columns(rows)
-    except Exception as error:
-        st.error("Could not prepare this export.")
-        st.caption(str(error))
+    except Exception:
+        show_unexpected_error("preparing an export", "Could not prepare this export.")
         return
     metric_col1, metric_col2 = st.columns(2)
     metric_col1.metric("Rows", len(rows)); metric_col2.metric("Columns", len(columns))
@@ -185,8 +185,12 @@ def _render_import_section() -> None:
             st.session_state.import_result = None; st.session_state.import_preview_completed = False
         except ImportPreviewError as error:
             st.session_state.import_preview_result = None; st.error(str(error))
-        except Exception as error:
-            st.session_state.import_preview_result = None; st.error("Could not build the import preview."); st.caption(str(error))
+        except Exception:
+            st.session_state.import_preview_result = None
+            show_unexpected_error(
+                "building an import preview",
+                "Could not build the import preview.",
+            )
     preview = st.session_state.get("import_preview_result")
     if not preview:
         return
@@ -261,8 +265,11 @@ def _render_import_section() -> None:
                 writer = import_template_entry_rows if is_template_mode else import_general_entry_rows
                 result = writer(preview["valid_rows"], duplicate_handling=duplicate_handling, target_collection_id=None if target_collection is None else int(target_collection["id"]))
             st.session_state.import_result = result; st.session_state.import_preview_completed = True
-        except Exception as error:
-            st.error("Import failed before the batch could be completed."); st.caption(str(error))
+        except Exception:
+            show_unexpected_error(
+                "importing vocabulary rows",
+                "Import failed before the batch could be completed.",
+            )
     result = st.session_state.get("import_result")
     if result:
         st.success("Import finished.")
@@ -335,8 +342,11 @@ def _render_backup_section() -> None:
         summary = get_backup_summary()
         database_bytes = get_database_file_bytes()
         workbook_bytes = build_full_backup_workbook_bytes()
-    except BackupError as error:
-        st.error(str(error))
+    except BackupError:
+        show_unexpected_error(
+            "preparing a backup",
+            "The backup could not be prepared.",
+        )
         return
 
     metric_data = [

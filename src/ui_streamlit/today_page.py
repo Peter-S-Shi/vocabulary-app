@@ -6,34 +6,13 @@ from src.collections import get_card_groups_for_collection, get_collections
 from src.db import get_connection
 from src.learning_workflow import get_today_overview, normalize_today
 from src.ui_streamlit.common import set_page_focus
+from src.ui_streamlit.error_handling import show_unexpected_error
 
 
 def _format_accuracy(value: float | None) -> str:
     if value is None:
         return "N/A"
     return f"{value:.1f}%"
-
-
-def _display_status(status: str) -> str:
-    labels = {
-        "overdue": "Overdue",
-        "due_today": "Due Today",
-        "unscheduled": "Unscheduled",
-    }
-    return labels.get(status, status.replace("_", " ").title())
-
-
-def _days_overdue(next_due_at: str | None, today_iso: str) -> int:
-    if not next_due_at:
-        return 0
-
-    try:
-        due_date = date.fromisoformat(str(next_due_at)[:10])
-        today_date = date.fromisoformat(today_iso)
-    except ValueError:
-        return 0
-
-    return max((today_date - due_date).days, 0)
 
 
 def _save_page_focus(page: str, reason: str, success_message: str) -> None:
@@ -72,7 +51,7 @@ def _save_quiz_focus(recommendation: dict) -> None:
     st.rerun()
 
 
-def _save_ordered_review_quiz_queue(due_cards: list[dict]) -> None:
+def _save_ordered_review_quiz_queue(study_cards: list[dict]) -> None:
     quiz_queue = [
         {
             "collection_id": card["collection_id"],
@@ -83,12 +62,12 @@ def _save_ordered_review_quiz_queue(due_cards: list[dict]) -> None:
             "reason": card["status"],
             "title": f"{card['collection_name']} / Card #{card['card_number']}",
         }
-        for card in due_cards
+        for card in study_cards
     ]
     first_item = quiz_queue[0]
     st.session_state["quiz_queue"] = quiz_queue
     st.session_state["quiz_queue_index"] = 0
-    st.session_state["quiz_queue_source"] = "today_due_review_cards"
+    st.session_state["quiz_queue_source"] = "today_study_cards"
     st.session_state["quiz_queue_created_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     st.session_state["quiz_focus_collection_id"] = first_item["collection_id"]
     st.session_state["quiz_focus_card_number"] = first_item["card_number"]
@@ -101,19 +80,19 @@ def _save_ordered_review_quiz_queue(due_cards: list[dict]) -> None:
     st.session_state["focus_quiz_card_number"] = first_item["card_number"]
     st.session_state["focus_quiz_source"] = first_item["reason"]
     set_page_focus("Quiz")
-    st.info("Today's due-card quiz queue is ready. Continue on the Quiz page.")
+    st.info("The Card quiz queue is ready. Continue on the Quiz page.")
     st.rerun()
 
 
 def _render_focus_metrics(overview: dict) -> None:
-    workload = overview["review_workload"]
+    workload = overview["study_workload"]
     special_collections = overview["special_collections"]
     quiz_activity = overview["quiz_activity"]
     review_activity = overview["review_activity"]
 
     metric_cols = st.columns(4)
-    metric_cols[0].metric("Due / Overdue Cards", workload["total_due_cards"])
-    metric_cols[1].metric("Due Entries", workload["estimated_due_entries"])
+    metric_cols[0].metric("Available Cards", workload["total_cards"])
+    metric_cols[1].metric("Never Quizzed", workload["never_quizzed_cards"])
     metric_cols[2].metric(
         "Mistake Book",
         special_collections["mistake_book"]["entry_count"],
@@ -126,7 +105,7 @@ def _render_focus_metrics(overview: dict) -> None:
     activity_cols = st.columns(3)
     activity_cols[0].metric("Quiz Items Today", quiz_activity["item_attempts"])
     activity_cols[1].metric("Accuracy Today", _format_accuracy(quiz_activity["accuracy"]))
-    activity_cols[2].metric("Reviewed Cards Today", review_activity["reviewed_cards"])
+    activity_cols[2].metric("Card Learning Today", review_activity["reviewed_cards"])
 
 
 def _render_recommendations(overview: dict) -> None:
@@ -160,72 +139,82 @@ def _render_recommendations(overview: dict) -> None:
 
 
 def _render_today_review(overview: dict) -> None:
-    today_iso = overview["today"]
-    workload = overview["review_workload"]
+    workload = overview["study_workload"]
     review_activity = overview["review_activity"]
-    due_cards = overview["due_review_cards"]
+    study_cards = sorted(
+        overview["study_cards"],
+        key=lambda card: (
+            card["completion_count"] > 0,
+            card["collection_name"].casefold(),
+            card["card_number"],
+        ),
+    )
 
-    st.header("Today's Review")
+    st.header("Study and Card Quiz")
+    st.caption(
+        "Browsing a Card is preparation. Completing a Card-scoped Quiz records "
+        "one Card learning event."
+    )
     _render_active_ordered_quiz_queue()
 
     metric_cols = st.columns(5)
-    metric_cols[0].metric("Overdue Cards", workload["overdue_cards"])
-    metric_cols[1].metric("Due Today", workload["due_today_cards"])
-    metric_cols[2].metric("Due Entries", workload["estimated_due_entries"])
-    metric_cols[3].metric("Reviewed Cards", review_activity["reviewed_cards"])
-    metric_cols[4].metric("Reviewed Entries", review_activity["reviewed_entries"])
+    metric_cols[0].metric("Available Cards", workload["total_cards"])
+    metric_cols[1].metric("Never Quizzed", workload["never_quizzed_cards"])
+    metric_cols[2].metric("Card Entries", workload["total_entries"])
+    metric_cols[3].metric("Card Completions Today", review_activity["reviewed_cards"])
+    metric_cols[4].metric("Completed Quiz Items", review_activity["reviewed_entries"])
 
-    if not due_cards:
-        st.info("No review cards due today.")
-        _render_no_due_review_suggestions(overview)
+    if not study_cards:
+        st.info("No Cards are available yet.")
+        _render_no_card_suggestions(overview)
         if st.button("Save Review focus", key="today_review_focus_empty"):
             _save_page_focus(
                 "Review",
-                "review_check",
-                "Open the Review page from the sidebar whenever you want to inspect review cards.",
+                "study_check",
+                "Open Review after adding entries to a Collection.",
             )
         return
 
-    first_card = due_cards[0]
+    first_card = study_cards[0]
     action_col1, action_col2 = st.columns(2)
     with action_col1:
-        if st.button("Start Today's Review", key="today_start_review", type="primary"):
+        if st.button("Study First Card", key="today_start_review", type="primary"):
             _save_review_focus(first_card, first_card["status"])
     with action_col2:
-        if st.button("Start Ordered Quiz Queue", key="today_start_ordered_quiz_queue"):
-            _save_ordered_review_quiz_queue(due_cards)
+        if st.button("Start Ordered Card Quiz Queue", key="today_start_ordered_quiz_queue"):
+            _save_ordered_review_quiz_queue(study_cards)
 
     rows = [
         {
-            "Status": _display_status(card["status"]),
+            "Learning State": "Never Quizzed" if card["completion_count"] == 0 else "Quizzed",
             "Collection": card["collection_name"],
             "Card #": card["card_number"],
             "Entry Count": card["entry_count"],
-            "Next Due": card["next_due_at"] or "",
-            "Days Overdue": _days_overdue(card["next_due_at"], today_iso),
+            "Card Quiz Completions": card["completion_count"],
+            "Last Card Quiz": card["last_completed_at"] or "",
         }
-        for card in due_cards
+        for card in study_cards
     ]
     st.dataframe(rows, use_container_width=True, hide_index=True)
 
     with st.expander("Choose a specific card"):
-        for index, card in enumerate(due_cards, start=1):
+        for index, card in enumerate(study_cards, start=1):
             row_cols = st.columns([3, 1, 1, 1])
             row_cols[0].write(
-                f"**{_display_status(card['status'])}** - "
+                f"**{'Never Quizzed' if card['completion_count'] == 0 else 'Quizzed'}** - "
                 f"{card['collection_name']} / Card #{card['card_number']}"
             )
             row_cols[1].write(f"{card['entry_count']} entries")
-            row_cols[2].write(card["next_due_at"] or "Unscheduled")
+            row_cols[2].write(card["last_completed_at"] or "No completed Card Quiz")
             with row_cols[3]:
-                if st.button("Review this card", key=f"today_review_card_{index}_{card['collection_id']}_{card['card_number']}"):
+                if st.button("Study this Card", key=f"today_review_card_{index}_{card['collection_id']}_{card['card_number']}"):
                     _save_review_focus(card, card["status"])
 
     if st.button("Save Review focus", key="today_review_focus"):
         _save_page_focus(
             "Review",
-            "due_review",
-            "Open the Review page from the sidebar. Today's review focus has been saved.",
+            "study_cards",
+            "Open Review to select and study any available Card.",
         )
 
 
@@ -412,7 +401,7 @@ def _render_active_ordered_quiz_queue() -> None:
                 st.rerun()
 
 
-def _render_no_due_review_suggestions(overview: dict) -> None:
+def _render_no_card_suggestions(overview: dict) -> None:
     special_collections = overview["special_collections"]
     suggestions = []
 
@@ -463,7 +452,7 @@ def _render_practice_suggestions(overview: dict) -> None:
         if proficient_pool["entry_count"] > 0:
             st.write(
                 f"Proficient Pool has {proficient_pool['entry_count']} entries. "
-                "Consider a random audit when review workload is light."
+                "Consider a random audit when you want a broader check."
             )
         else:
             st.caption(
@@ -505,7 +494,7 @@ def _render_daily_quiz(overview: dict) -> None:
     st.header("Daily Quiz")
     if not recommendations:
         st.info(
-            "No quiz recommendation yet. Complete a review card, add entries to "
+            "No quiz recommendation yet. Add Card entries or add entries to "
             "Mistake Book, Starred, or Proficient Pool, then come back here."
         )
         return
@@ -556,8 +545,8 @@ def _render_activity_summary(overview: dict) -> None:
 
     st.header("Today's Activity")
     activity_cols = st.columns(4)
-    activity_cols[0].metric("Reviewed Cards", review_activity["reviewed_cards"])
-    activity_cols[1].metric("Reviewed Entries", review_activity["reviewed_entries"])
+    activity_cols[0].metric("Card Learning Completions", review_activity["reviewed_cards"])
+    activity_cols[1].metric("Items in Card Completions", review_activity["reviewed_entries"])
     activity_cols[2].metric("Quiz Sessions", completed_sessions + active_sessions + cancelled_sessions)
     activity_cols[3].metric("Quiz Items", quiz_activity["item_attempts"])
 
@@ -570,7 +559,7 @@ def _render_activity_summary(overview: dict) -> None:
         st.info("No learning activity recorded today yet.")
 
     if review_activity["actions"]:
-        with st.expander("Review actions today"):
+        with st.expander("Card completion Quiz types today"):
             st.dataframe(
                 [
                     {"Action": action, "Count": count}
@@ -600,21 +589,21 @@ def _render_daily_learning_summary(overview: dict) -> None:
     st.subheader(summary["completion_status"])
 
     cols = st.columns(5)
-    cols[0].metric("Cards Reviewed", review_summary["reviewed_cards"])
+    cols[0].metric("Card Completions", review_summary["reviewed_cards"])
     cols[1].metric("Quiz Attempts", quiz_summary["item_attempts"])
     cols[2].metric("Wrong Today", mistake_summary["wrong_count"])
     cols[3].metric("Recovered", mistake_summary["recovered_count"])
-    cols[4].metric("Remaining Due", remaining["total_due_cards"])
+    cols[4].metric("Never Quizzed Cards", remaining["never_quizzed_cards"])
 
     review_cols = st.columns(3)
-    review_cols[0].metric("Reviewed Entries", review_summary["reviewed_entries"])
+    review_cols[0].metric("Completed Card Items", review_summary["reviewed_entries"])
     review_cols[1].metric("Collections Touched", len(review_summary["collections_touched"]))
     review_cols[2].metric("Proficient Failures", proficient_summary["failed_count"])
 
     if review_summary["reviewed_cards"] == 0:
-        st.info("No cards reviewed yet today.")
+        st.info("No Card-scoped Quiz completion recorded today.")
     if quiz_summary["item_attempts"] == 0:
-        st.info("No quiz completed today yet. Try a quick Mistake Drill or a quiz from today's reviewed cards.")
+        st.info("No quiz activity recorded today yet. Try a Card Quiz or a special-pool drill.")
     if mistake_summary["wrong_count"] == 0:
         st.caption("No mistakes logged today. Nice - or maybe you have not quizzed yet.")
     if proficient_summary["failed_count"] == 0:
@@ -624,14 +613,14 @@ def _render_daily_learning_summary(overview: dict) -> None:
 
     st.subheader("Still To Do")
     st.write(
-        f"Due cards remaining: {remaining['due_cards_remaining']} | "
-        f"Overdue cards: {remaining['overdue_cards']} | "
+        f"Available Cards: {remaining['available_cards']} | "
+        f"Never quizzed Cards: {remaining['never_quizzed_cards']} | "
         f"Mistake Book entries: {remaining['mistake_book_entries']} | "
         f"Active quiz: {'Yes' if remaining['active_quiz'] else 'No'}"
     )
 
     if review_summary["details"]:
-        with st.expander("Review details"):
+        with st.expander("Card learning completion details"):
             st.dataframe(review_summary["details"], use_container_width=True, hide_index=True)
 
     if quiz_summary["session_details"]:
@@ -655,10 +644,11 @@ def _render_completion_summary(overview: dict) -> None:
     summary = overview["completion_summary"]
 
     st.header("Daily Summary")
-    st.write(f"Review status: `{summary['review_status']}`")
+    st.write(f"Card learning status: `{summary['review_status']}`")
     st.write(f"Practice status: `{summary['practice_status']}`")
     st.caption(
-        f"Remaining due cards: {summary['remaining_due_cards']} | "
+        f"Available Cards: {summary['available_cards']} | "
+        f"Never quizzed Cards: {summary['never_quizzed_cards']} | "
         f"Quiz attempts: {summary['quiz_item_attempts']} | "
         f"Quiz accuracy: {_format_accuracy(summary['quiz_accuracy'])}"
     )
@@ -666,11 +656,11 @@ def _render_completion_summary(overview: dict) -> None:
 
 def _render_workflow_checklist() -> None:
     st.header("Workflow Checklist")
-    st.write("1. Review overdue and due cards.")
-    st.write("2. Practice recent mistakes.")
-    st.write("3. Audit Proficient Pool if you have energy.")
+    st.write("1. Study a Card when preparation would help.")
+    st.write("2. Complete a Card-scoped Quiz to record Card learning.")
+    st.write("3. Practice recent mistakes or audit Proficient Pool.")
     st.write("4. Add or organize new entries when needed.")
-    st.write("5. Check today's summary before closing the app.")
+    st.write("5. Check today's factual activity summary before closing the app.")
 
 
 def _render_workflow_shortcuts() -> None:
@@ -685,7 +675,7 @@ def _render_workflow_shortcuts() -> None:
             set_page_focus("Quiz", today_focus_reason="manual_quiz_shortcut")
             st.rerun()
     with shortcut_cols[2]:
-        if st.button("Review Calendar", key="today_shortcut_review_calendar"):
+        if st.button("Card Learning History", key="today_shortcut_review_calendar"):
             set_page_focus(
                 "Statistics",
                 focus_statistics_tab="review_calendar",
@@ -708,7 +698,7 @@ def _render_empty_start_message(overview: dict) -> None:
     if inventory["entry_count"] == 0:
         st.info(
             "No entries yet. Start by adding your first vocabulary entries, then "
-            "organize them into collections for review and quiz."
+            "organize them into Collections for Card study and Quiz."
         )
         if st.button("Open Entries", key="today_empty_open_entries"):
             set_page_focus("Entries")
@@ -716,15 +706,15 @@ def _render_empty_start_message(overview: dict) -> None:
     elif inventory["collection_count"] == 0:
         st.info(
             "Your entries are ready. Create a collection and add entries to it "
-            "to enable card-based review and quiz."
+            "to enable Card study and Quiz."
         )
         if st.button("Open Collections", key="today_empty_open_collections"):
             set_page_focus("Collections")
             st.rerun()
-    elif inventory["review_state_count"] == 0:
+    elif inventory.get("card_count", 0) == 0:
         st.info(
-            "Collections are available, but no review cards are scheduled yet. "
-            "Open Review and sync review cards when you are ready."
+            "Collections are available, but no Cards contain entries yet. "
+            "Add entries to a Collection to enable Card study and Quiz."
         )
         if st.button("Open Review", key="today_empty_open_review"):
             set_page_focus("Review")
@@ -734,8 +724,8 @@ def _render_empty_start_message(overview: dict) -> None:
 def render_today_page() -> None:
     st.title("Today")
     st.caption(
-        "Your daily learning home. Review what is due, practice weak items, "
-        "and keep your learning workflow moving."
+        "Your factual daily learning home: study Cards, complete Quizzes, and "
+        "practice weak items without an automatic schedule."
     )
 
     today_iso = normalize_today()
@@ -744,8 +734,11 @@ def render_today_page() -> None:
     try:
         with get_connection() as conn:
             overview = get_today_overview(conn, today_iso)
-    except Exception as error:
-        st.warning(f"Today could not load a learning overview yet: {error}")
+    except Exception:
+        show_unexpected_error(
+            "loading Today overview",
+            "Today could not load the learning overview.",
+        )
         return
 
     _render_empty_start_message(overview)
