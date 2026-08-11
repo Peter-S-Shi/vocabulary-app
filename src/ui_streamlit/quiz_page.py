@@ -2,6 +2,8 @@
 
 
 from src.collections import (
+    CROSS_CARD_CONFIRMATION_MESSAGE,
+    CrossCardMoveConfirmationRequired,
     get_card_groups_for_collection,
     get_collection_by_id,
     get_collections,
@@ -1530,12 +1532,46 @@ def _render_mistakes_for_session(completed_session: dict) -> None:
         )
 
 
-def _remove_entries_from_mistake_book(entry_ids: list[int]) -> int:
-    return remove_entries_from_system_collection(
-        entry_ids,
-        "mistake_book",
-        confirm_cross_card=True,
-    )
+def _queue_system_collection_removal(
+    entry_ids: list[int],
+    system_type: str,
+    label: str,
+) -> int | None:
+    try:
+        return remove_entries_from_system_collection(entry_ids, system_type)
+    except CrossCardMoveConfirmationRequired:
+        st.session_state["pending_system_collection_removal"] = {
+            "entry_ids": [int(entry_id) for entry_id in entry_ids],
+            "system_type": system_type,
+            "label": label,
+        }
+        return None
+
+
+def _render_pending_system_collection_removal() -> None:
+    pending = st.session_state.get("pending_system_collection_removal")
+    if not pending:
+        return
+    st.warning(CROSS_CARD_CONFIRMATION_MESSAGE)
+    confirm_col, cancel_col = st.columns(2)
+    with confirm_col:
+        if st.button("Confirm removal and Card reorganization"):
+            removed_count = remove_entries_from_system_collection(
+                pending["entry_ids"],
+                pending["system_type"],
+                confirm_cross_card=True,
+            )
+            del st.session_state["pending_system_collection_removal"]
+            st.success(f"Removed {removed_count} entries from {pending['label']}.")
+            st.rerun()
+    with cancel_col:
+        if st.button("Cancel Card reorganization", key="cancel_system_collection_removal"):
+            del st.session_state["pending_system_collection_removal"]
+            st.rerun()
+
+
+def _remove_entries_from_mistake_book(entry_ids: list[int]) -> int | None:
+    return _queue_system_collection_removal(entry_ids, "mistake_book", "Mistake Book")
 
 
 def _render_mistake_book_recovery_summary(completed_session: dict) -> None:
@@ -1598,11 +1634,15 @@ def _render_mistake_book_recovery_summary(completed_session: dict) -> None:
     with action_col1:
         if st.button("Remove Selected Recovered", disabled=not selected_entry_ids):
             removed_count = _remove_entries_from_mistake_book(selected_entry_ids)
+            if removed_count is None:
+                st.rerun()
             st.success(f"Removed {removed_count} entr{'y' if removed_count == 1 else 'ies'} from Mistake Book.")
             st.rerun()
     with action_col2:
         if st.button("Remove All Recovered"):
             removed_count = _remove_entries_from_mistake_book(selectable_entry_ids)
+            if removed_count is None:
+                st.rerun()
             st.success(f"Removed {removed_count} entr{'y' if removed_count == 1 else 'ies'} from Mistake Book.")
             st.rerun()
     with action_col3:
@@ -1658,6 +1698,8 @@ def _render_mistake_book_mastery() -> None:
             disabled=active_session is not None or not selected_entry_ids,
         ):
             removed_count = _remove_entries_from_mistake_book(selected_entry_ids)
+            if removed_count is None:
+                st.rerun()
             st.success(f"Removed {removed_count} entr{'y' if removed_count == 1 else 'ies'} from Mistake Book.")
             st.rerun()
     with batch_col2:
@@ -1669,6 +1711,8 @@ def _render_mistake_book_mastery() -> None:
             disabled=active_session is not None or not recommended_entry_ids,
         ):
             removed_count = _remove_entries_from_mistake_book(recommended_entry_ids)
+            if removed_count is None:
+                st.rerun()
             st.success(f"Removed {removed_count} recommended entr{'y' if removed_count == 1 else 'ies'} from Mistake Book.")
             st.rerun()
 
@@ -1835,11 +1879,11 @@ def _render_mistake_book_section() -> None:
     _render_mistake_book_mastery()
 
 
-def _remove_entries_from_proficient_pool(entry_ids: list[int]) -> int:
-    return remove_entries_from_system_collection(
+def _remove_entries_from_proficient_pool(entry_ids: list[int]) -> int | None:
+    return _queue_system_collection_removal(
         entry_ids,
         "proficient_pool",
-        confirm_cross_card=True,
+        "Proficient Pool",
     )
 
 
@@ -1999,11 +2043,15 @@ def _render_proficient_pool_failed_summary(completed_session: dict) -> None:
     with action_col1:
         if st.button("Remove Selected Failed", disabled=not selected_entry_ids):
             removed_count = _remove_entries_from_proficient_pool(selected_entry_ids)
+            if removed_count is None:
+                st.rerun()
             st.success(f"Removed {removed_count} entr{'y' if removed_count == 1 else 'ies'} from Proficient Pool.")
             st.rerun()
     with action_col2:
         if st.button("Remove All Failed"):
             removed_count = _remove_entries_from_proficient_pool(removable_entry_ids)
+            if removed_count is None:
+                st.rerun()
             st.success(f"Removed {removed_count} entr{'y' if removed_count == 1 else 'ies'} from Proficient Pool.")
             st.rerun()
     with action_col3:
@@ -2105,6 +2153,7 @@ def _render_quiz_reference_sections() -> None:
 
 def render_quiz_page() -> None:
     st.title("Quiz")
+    _render_pending_system_collection_removal()
     render_back_to_today_button("quiz_back_to_today_top")
     focus = _get_quiz_focus()
     _render_quiz_focus_banner(focus)
