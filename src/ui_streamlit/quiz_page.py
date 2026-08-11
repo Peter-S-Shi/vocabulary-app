@@ -59,6 +59,9 @@ QUIZ_TYPE_OPTIONS = {
     "Matching": "matching",
 }
 
+WHOLE_COLLECTION_QUIZ_TYPES = {"matching"}
+REVIEW_CARD_FOCUS_REASONS = {"review_quick_quiz", "review_choose_quiz_type"}
+
 SELF_GRADED_TYPES = {"term_to_meaning", "meaning_to_term", TEMPLATE_FIELD_SELF_GRADED}
 MCQ_TYPES = {"term_to_meaning_mcq", "meaning_to_term_mcq", "mixed_mcq", TEMPLATE_FIELD_MCQ}
 MATCHING_TYPES = {"matching", TEMPLATE_FIELD_MATCHING}
@@ -242,6 +245,25 @@ def _quiz_type_label(quiz_type_value: str) -> str:
             return label
 
     return quiz_type_value
+
+
+def _is_review_card_focus(focus: dict | None) -> bool:
+    if focus is None or focus.get("reason") not in REVIEW_CARD_FOCUS_REASONS:
+        return False
+    try:
+        return int(focus.get("card_number") or 0) > 0
+    except (TypeError, ValueError):
+        return False
+
+
+def _compatible_quiz_type_options(focus: dict | None) -> dict[str, str]:
+    if not _is_review_card_focus(focus):
+        return dict(QUIZ_TYPE_OPTIONS)
+    return {
+        label: quiz_type
+        for label, quiz_type in QUIZ_TYPE_OPTIONS.items()
+        if quiz_type not in WHOLE_COLLECTION_QUIZ_TYPES
+    }
 
 
 def _log_item_result(
@@ -983,7 +1005,10 @@ def _render_quick_quiz_presets(collections: list[dict]) -> None:
         )
 
 
-def _render_manual_quiz_selection(collections: list[dict]) -> None:
+def _render_manual_quiz_selection(
+    collections: list[dict],
+    focus: dict | None = None,
+) -> None:
     st.subheader("Manual Quiz Selection")
 
     selected_collection = st.selectbox(
@@ -1002,10 +1027,11 @@ def _render_manual_quiz_selection(collections: list[dict]) -> None:
         st.warning("This collection has no cards yet.")
         return
 
-    quiz_type_labels = list(QUIZ_TYPE_OPTIONS.keys())
+    quiz_type_options = _compatible_quiz_type_options(focus)
+    quiz_type_labels = list(quiz_type_options.keys())
     prefill_quiz_type = st.session_state.get("quiz_prefill_type")
     prefill_quiz_type_label = next(
-        (label for label, quiz_type in QUIZ_TYPE_OPTIONS.items() if quiz_type == prefill_quiz_type),
+        (label for label, quiz_type in quiz_type_options.items() if quiz_type == prefill_quiz_type),
         quiz_type_labels[0],
     )
     selected_quiz_type_label = st.selectbox(
@@ -1014,7 +1040,7 @@ def _render_manual_quiz_selection(collections: list[dict]) -> None:
         index=quiz_type_labels.index(prefill_quiz_type_label),
         key="quiz_type_select",
     )
-    selected_quiz_type = QUIZ_TYPE_OPTIONS[selected_quiz_type_label]
+    selected_quiz_type = quiz_type_options[selected_quiz_type_label]
 
     selected_card_number = 1
     selected_matching_count = None
@@ -1055,7 +1081,10 @@ def _render_manual_quiz_selection(collections: list[dict]) -> None:
             st.rerun()
 
 
-def _render_template_aware_quiz_setup(collections: list[dict]) -> None:
+def _render_template_aware_quiz_setup(
+    collections: list[dict],
+    focus: dict | None = None,
+) -> None:
     st.subheader("Template-Aware Quiz")
 
     selected_collection = st.selectbox(
@@ -1063,7 +1092,9 @@ def _render_template_aware_quiz_setup(collections: list[dict]) -> None:
         collections,
         index=_selectbox_index_by_id(
             collections,
-            st.session_state.get("last_quiz_collection_id"),
+            focus.get("collection_id")
+            if _is_review_card_focus(focus)
+            else st.session_state.get("last_quiz_collection_id"),
         ),
         format_func=collection_label,
         key="template_quiz_collection_select",
@@ -1077,6 +1108,15 @@ def _render_template_aware_quiz_setup(collections: list[dict]) -> None:
     selected_card_number = st.selectbox(
         "Template Quiz Card",
         [card_group["card_number"] for card_group in card_groups],
+        index=next(
+            (
+                index
+                for index, card_group in enumerate(card_groups)
+                if _is_review_card_focus(focus)
+                and card_group["card_number"] == focus.get("card_number")
+            ),
+            0,
+        ),
         format_func=lambda card_number: f"Card #{card_number}",
         key="template_quiz_card_select",
     )
@@ -1179,11 +1219,18 @@ def _render_quiz_setup() -> None:
     if _get_quiz_queue():
         st.divider()
 
-    _render_quick_quiz_presets(collections)
+    if _is_review_card_focus(focus):
+        st.info(
+            "Choose a Quiz type for the selected Review Card. "
+            "Whole-Collection modes are not available in this focused flow."
+        )
+    else:
+        _render_quick_quiz_presets(collections)
+        st.divider()
+
+    _render_template_aware_quiz_setup(collections, focus)
     st.divider()
-    _render_template_aware_quiz_setup(collections)
-    st.divider()
-    _render_manual_quiz_selection(collections)
+    _render_manual_quiz_selection(collections, focus)
 
 
 def _complete_active_quiz() -> None:
