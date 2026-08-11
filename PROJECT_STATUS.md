@@ -220,8 +220,10 @@ Collection-deletion retention policy remains a product decision for M11.4.
 
 M11.3 branch: `agent/m11-3-card-identity-history`.
 M11.3 base: `eb8cda4e50b987b5db37b36425d3e47c94c28eaa`.
-The exact candidate head commit is recorded in the Draft PR and closeout
-report after verification.
+M11.3 verified implementation commit:
+`f651a49271468c0442e75915f20a8b1aa17736e3`. The Draft PR head may include a
+later documentation-only metadata commit; its exact head is recorded in the
+Draft PR and closeout report.
 
 Candidate verification includes 30 passing M11.2/M11.3 unit and Streamlit
 AppTests on isolated synthetic databases, migration failure rollback,
