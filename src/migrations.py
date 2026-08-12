@@ -7,8 +7,11 @@ import sqlite3
 
 BASELINE_SCHEMA_VERSION = "10.6.0-baseline"
 CARD_HISTORY_SCHEMA_VERSION = "11.3.0-card-history"
-CURRENT_SCHEMA_VERSION = "11.3.1-quiz-log-history"
-APP_DATA_VERSION = "11.3"
+QUIZ_LOG_HISTORY_SCHEMA_VERSION = "11.3.1-quiz-log-history"
+LINKED_APPEND_SOURCE_SCHEMA_VERSION = "13.0.0-linked-append-source"
+CURRENT_SCHEMA_VERSION = LINKED_APPEND_SOURCE_SCHEMA_VERSION
+M11_APP_DATA_VERSION = "11.3"
+APP_DATA_VERSION = "13.0"
 
 METADATA_KEYS = {
     "schema_version",
@@ -123,7 +126,7 @@ def migrate_to_m11_3_card_history(conn: sqlite3.Connection) -> None:
             change_reason="m11.3_migration_baseline",
             migrate_legacy_names=True,
         )
-    set_metadata(conn, "app_data_version", APP_DATA_VERSION)
+    set_metadata(conn, "app_data_version", M11_APP_DATA_VERSION)
 
 
 def _quiz_item_logs_has_entry_foreign_key(conn: sqlite3.Connection) -> bool:
@@ -182,6 +185,24 @@ def migrate_quiz_logs_to_preserved_entry_identity(conn: sqlite3.Connection) -> N
     )
 
 
+def migrate_to_m13_linked_append_source(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS collection_source_links (
+            collection_id INTEGER PRIMARY KEY,
+            source_path TEXT NOT NULL,
+            source_type TEXT NOT NULL CHECK(source_type IN ('csv', 'xlsx')),
+            import_mode TEXT NOT NULL CHECK(import_mode IN ('general_entry', 'template_aware')),
+            sheet_name TEXT,
+            linked_at TEXT NOT NULL,
+            last_refreshed_at TEXT,
+            FOREIGN KEY(collection_id) REFERENCES collections(id) ON DELETE CASCADE
+        )
+        """
+    )
+    set_metadata(conn, "app_data_version", APP_DATA_VERSION)
+
+
 MIGRATIONS: list[dict[str, str | MigrationFunction]] = [
     {
         "from": BASELINE_SCHEMA_VERSION,
@@ -191,9 +212,15 @@ MIGRATIONS: list[dict[str, str | MigrationFunction]] = [
     },
     {
         "from": CARD_HISTORY_SCHEMA_VERSION,
-        "to": CURRENT_SCHEMA_VERSION,
+        "to": QUIZ_LOG_HISTORY_SCHEMA_VERSION,
         "name": "m11.3_preserve_quiz_logs_after_entry_delete",
         "function": migrate_quiz_logs_to_preserved_entry_identity,
+    },
+    {
+        "from": QUIZ_LOG_HISTORY_SCHEMA_VERSION,
+        "to": LINKED_APPEND_SOURCE_SCHEMA_VERSION,
+        "name": "m13_linked_append_source",
+        "function": migrate_to_m13_linked_append_source,
     },
 ]
 

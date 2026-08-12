@@ -12,11 +12,11 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 ## Current Phase
 
-**Import and Template Evolution Core — Batch A Pending Independent Review**
+**Import and Template Evolution Core Complete**
 
 ## Current Milestone
 
-**Milestone 13 In Progress**
+**Milestone 13 Complete**
 
 M11.1 Semantic Alignment and QA Scope Lock has been merged to `main`.
 M11.2 Unified Learning Flow and Core Integrity is merged to `main` at
@@ -42,9 +42,9 @@ M13 began from merged M12 commit
 `agent/m13-import-template-evolution`.
 
 ```text
-M13 Batch A — Template Definition Portability implemented / pending independent review
-M13 Batch B — not started
-M13 Batch C — not started
+M13 Batch A — Template Definition Portability independently reviewed / passed
+M13 Batch B — Linked Append Source independently reviewed / passed
+M13 Batch C — Integration, Regression, and Closure verified / complete
 ```
 
 Batch A defines Template Definition CSV version 1 with these exact columns:
@@ -80,6 +80,110 @@ or timestamps.
 M13 Batch A verified correctness implementation commit:
 `247652c56131b73f8bc582751c748e614dc7f890`. A later documentation-only
 metadata commit may be the remote branch head during independent review.
+
+Batch A passed independent review at branch head
+`44fdde0fe79e6810b2cb1dc5a4fb3cbeea04dfab` and was merged through PR #8 to
+`main` at `8574b31dde9b213fe83aade9583bf2e360fce0da`. The product owner then
+authorized Batch B and Batch C on the same M13 branch. M14 remains unstarted.
+
+Batch B implementation commit:
+`633d7484874fbbf0beb7064e9abed9389414d9e4`.
+
+Batch B adds one additive, idempotent migration:
+
+```text
+11.3.1-quiz-log-history
+→ 13.0.0-linked-append-source
+app_data_version = 13.0
+```
+
+The local-only `collection_source_links` table contains exactly:
+
+```text
+collection_id        INTEGER PRIMARY KEY
+source_path          TEXT NOT NULL
+source_type          TEXT NOT NULL        # csv | xlsx
+import_mode          TEXT NOT NULL        # general_entry | template_aware
+sheet_name           TEXT NULL
+linked_at            TEXT NOT NULL
+last_refreshed_at    TEXT NULL
+```
+
+Its Collection foreign key uses `ON DELETE CASCADE`. The linked file content,
+source-row identity, row hashes, Entry mappings, and import history are not
+stored. The metadata is included in database and XLSX backups.
+
+The reusable Streamlit-independent core provides:
+
+```text
+get_collection_source_link(...)
+preview_collection_source_link(...)
+confirm_collection_source_link(...)
+preview_linked_source_refresh(...)
+confirm_linked_source_refresh(...)
+unlink_collection_source(...)
+```
+
+Initial link and manual refresh rescan the current local CSV/XLSX through the
+existing import engine and classify rows as New Valid, Invalid, or Duplicate.
+Only New Valid rows can be appended after explicit confirmation. A readable
+source with zero New Valid rows may still be linked. Preview is read-only;
+confirmed writes use one transaction/savepoint for Entries, Collection
+membership, Card-history reconciliation, link metadata, and refresh timestamp.
+
+The linked file is non-authoritative. Source deletion, reordering, or editing
+never deletes, reorders, or overwrites existing app Entries. App edits and
+deletes never modify the source file. Because v1 deliberately stores no stable
+source-row identity, an edited old row that becomes non-duplicate may later be
+offered as New Valid and appended as another Entry. Missing or moved files
+produce controlled errors while preserving the Collection, history, link, and
+prior refresh timestamp. Unlink removes metadata only.
+
+The existing General Entry and Template-aware import writers now reconcile
+Card history on the same active connection even when the caller owns that
+connection. Existing Collection Import explicitly defers per-row reconciliation
+and continues to reconcile once per batch, avoiding history noise.
+
+Before Batch C, `origin/main` and the reviewed Batch B branch were synchronized
+with normal merge commit `5efaddc21a58e1610b2f8858dfd152507e1ec3c7`.
+No upstream product changes existed beyond the known PR #8 Batch A merge.
+
+Batch C verifies the combined M13 architecture end to end. A Template
+Definition exported from one synthetic database imports as a user-owned
+Template in another database and drives a template-aware Linked Append Source
+without portable internal IDs. Shared `display_order = 0` fields remain
+deterministic. Initial confirmation imports the Entry, field values, Collection
+membership, Card revision, and source metadata atomically; unchanged refresh
+imports zero and creates no history noise.
+
+General Entry, Template-aware, and Collection import remain compatible.
+Standalone duplicate `skip` and `import_anyway` retain their previous scope;
+linked sources never expose `import_anyway`. Caller-owned transactions remain
+rollbackable, while Collection Import defers row-level reconciliation and
+creates one final Card-history reconciliation per batch.
+
+Synthetic migration coverage proves the complete supported chain from
+`10.6.0-baseline` through M11.3 to `13.0.0-linked-append-source`, direct M11.3
+migration, failure rollback, fresh-schema convergence, and repeated-startup
+idempotence without lost Entry, Collection, Quiz, Card, or link data. Database
+and XLSX backups include link metadata. A copied database reopens cleanly; an
+unavailable restored source path produces a controlled result without changing
+Entries, Collection membership, Card history, link metadata, or refresh time.
+
+Accepted M13 v1 limitations are:
+
+- one linked source per Collection, manual refresh, and local CSV/XLSX only;
+- `general_entry` and `template_aware` linked modes only;
+- no source-row identity, hashes, overwrite, delete/reorder propagation,
+  background watching, or desktop picker UI;
+- an edited old row may appear as New Valid, and an app-deleted Entry may be
+  offered again on a later refresh;
+- a restored local source path may be unavailable on another machine; and
+- Template Definition v1 is CSV-only, one Template per file, with no
+  overwrite/merge/auto-rename, system ownership portability, or
+  `speech_language_role`.
+
+These are accepted scope limits, not data-integrity blockers.
 
 ```text
 Milestone 12 Complete
@@ -627,6 +731,34 @@ For M13 Batch A:
 - no schema, migration, Streamlit UI, linked-source, analytics, audio, or
   desktop implementation was introduced.
 
+For M13 Batch B:
+
+- all 21 focused Linked Append Source test methods passed, covering the 26
+  required migration, CSV/XLSX, classification, transaction, non-authoritative
+  source, missing-source, unlink, Card-history, and backup behaviors;
+- the complete automated suite passed all 81 tests;
+- Python compilation and Quiz-randomization checks passed;
+- `scripts/audit_architecture.py` scanned 34 Python files and reported no
+  serious boundary violations or warnings;
+- packaging readiness passed with only the expected warning that the local
+  `data/vocab.db` must remain excluded; and
+- no Streamlit UI or desktop UI implementation was added.
+
+For M13 Batch C:
+
+- all 6 focused integration/closure tests passed;
+- combined Batch A + Batch B + Batch C focused tests passed all 49 tests;
+- the complete automated suite passed all 87 tests;
+- migration, transaction, import, Card-history, backup/reopen, restored-path,
+  and privacy assertions passed using synthetic databases and files only;
+- Python compilation and Quiz-randomization checks passed;
+- `scripts/audit_architecture.py` scanned 34 Python files and reported no
+  serious boundary violations or warnings;
+- packaging readiness passed with only the expected local-database exclusion
+  warning; and
+- no Streamlit UI, desktop UI, analytics, audio, or M14 implementation was
+  introduced.
+
 For M11.1, repository evidence was inspected across Entry editing, Review,
 Quiz, Today, Statistics, Collection/Card mutation, schema, backup metadata, and
 user-facing exception paths. M11.1 changes documentation only; validation
@@ -650,8 +782,8 @@ Additive schema/app metadata and migration foundations exist.
 Existing SQLite databases remain protected assets and must continue to open
 through later desktop development.
 
-Future schema changes for linked sources, analytics, Template speech metadata,
-or audio caching must remain additive, versioned, backup-aware, and
+Future schema changes for analytics, Template speech metadata, or audio caching
+must remain additive, versioned, backup-aware, and
 compatibility-tested.
 
 Status:
@@ -804,14 +936,29 @@ behaviorally unchanged. Consolidating `scripts/` and `tools/`, decomposing
 large core modules, and changing runtime package layout are deferred because
 they would add churn without M12 user value.
 
-## Next M13 Internal Gate
+## Milestone 13 Closure Result
 
-After independent Batch A approval, continue on the same branch with:
+Milestone 13 is complete. Template Definition Portability, Linked Append
+Sources, migration convergence, existing import compatibility, Card-history
+truth, backup/reopen readiness, privacy documentation, and architecture
+boundaries passed the Batch C closure gate.
 
-**M13 Batch B — Linked Append Source**
+Batch A was merged separately through PR #8. The final M13 Draft PR contains
+Batch B plus Batch C and is the remaining review/merge gate for bringing the
+complete M13 closure state onto `main`.
 
-Do not begin Batch B before explicit product-owner approval. Batch C and M14
-have not started.
+Batch C verified closure commit:
+`9b3ea9ec50682f61ac55470b0ae5b189506ded81`.
+
+Final M13 Draft PR: #9, **M13: Complete import and template evolution core**.
+It was opened from the verified closure head and contains Batch B + Batch C.
+A later documentation-only PR metadata commit may be the current Draft PR head.
+
+## Next Objective
+
+**M14 — Learning Analytics and Insight Core**
+
+M14 has not started. Do not begin it before explicit product-owner approval.
 
 ## Repository State
 
@@ -820,6 +967,18 @@ have not started.
   `6e339ec846f22f14ee454d9ad0d68ba3fb83aee6`
 - Verified M13 Batch A correctness implementation commit:
   `247652c56131b73f8bc582751c748e614dc7f890`
+- Independently reviewed M13 Batch A head:
+  `44fdde0fe79e6810b2cb1dc5a4fb3cbeea04dfab`
+- M13 Batch A merge commit on `main`:
+  `8574b31dde9b213fe83aade9583bf2e360fce0da`
+- Verified M13 Batch B implementation commit:
+  `633d7484874fbbf0beb7064e9abed9389414d9e4`
+- M13 Batch C synchronization merge commit:
+  `5efaddc21a58e1610b2f8858dfd152507e1ec3c7`
+- Verified M13 Batch C closure commit:
+  `9b3ea9ec50682f61ac55470b0ae5b189506ded81`
+- Final M13 Draft PR:
+  `#9 — M13: Complete import and template evolution core`
 - Merged M11 trustworthy-baseline commit:
   `f0e0d2c06fa4137c07ab2f892df117af2ed3a060`
 - Verified synchronized M12 base commit:
@@ -839,4 +998,6 @@ have not started.
   - `docs/migration/DESKTOP_MIGRATION_PLAN.md`
 - Closure evidence: `docs/history/MILESTONE11_CLOSURE.md`
 - Current lifecycle state:
-  **M13 Batch A Pending Independent Review**
+  **Milestone 13 Complete — Import and Template Evolution Core Complete**
+- Exact next objective:
+  **M14 — Learning Analytics and Insight Core (not started)**

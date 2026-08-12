@@ -26,6 +26,19 @@ Review state/history, Quiz sessions, and Quiz item logs. The UI requires the
 Collection name plus an acknowledgement of permanent history deletion. The
 Vocabulary Entries themselves remain in the local database.
 
+From M13, a Collection may also have one `collection_source_links` metadata
+row for a user-selected local CSV or XLSX append source. This row stores the
+local `source_path`, file type, import mode, optional worksheet name, link time,
+and last successful refresh time. It does not copy the source file into SQLite
+and does not store permanent source-row identity, hashes, or Entry mappings.
+
+The linked file is non-authoritative. A manual confirmed refresh may append
+new valid rows, but source deletion, reordering, or editing does not delete,
+reorder, or overwrite existing app Entries. If the file is moved, deleted, or
+unavailable after a database is restored on another machine, refresh returns a
+controlled unavailable-source result and preserves existing app data and link
+metadata. Unlinking removes only the metadata row.
+
 ## Git and the Data Folder
 
 `data/.gitkeep` is an empty repository placeholder that keeps the folder structure available after cloning.
@@ -57,8 +70,13 @@ Backups are user-data files and should be stored separately from source code.
 
 - SQLite backup is a consistent snapshot of the active database.
 - XLSX backup stores supported tables as structured sheets, including M11.3
-  Card identity/revision and Entry-change tables.
+  Card identity/revision and Entry-change tables, plus M13 linked-source
+  metadata.
 - XLSX restore remains preview-only and does not overwrite the active database.
+
+Because linked-source metadata includes `source_path`, private SQLite and XLSX
+backups may contain local file paths. Treat backups as private user data and do
+not publish or commit them.
 
 Stop the app before manually copying `vocab.db`.
 

@@ -104,11 +104,11 @@ target.
 
 ## Current Phase
 
-**Repository Restructure Complete / Import and Template Evolution Core Next**
+**Import and Template Evolution Core Complete / Learning Analytics and Insight Core Next**
 
-The trustworthy data/business-logic baseline and repository restructure are
-complete. The immediate objective is to implement the reusable Import and
-Template Evolution foundation before later analytics, audio, and desktop work.
+The trustworthy data/business-logic baseline, repository restructure, and
+reusable Import and Template Evolution foundation are complete. The immediate
+objective is Milestone 14 — Learning Analytics and Insight Core.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -308,6 +308,8 @@ objective is Milestone 13 — Import and Template Evolution Core.
 
 ## Milestone 13: Import and Template Evolution Core
 
+**Status: Complete — Import and Template Evolution Core Established.**
+
 Milestone 13 extends the reusable import/template engine without investing in a
 new Streamlit-heavy interface.
 
@@ -328,7 +330,7 @@ template, including appropriate values such as:
 - field type;
 - required status;
 - display order; and
-- speech-language role where supported.
+- no speech-language role in portable definition v1.
 
 The exported format should be suitable for later re-import.
 
@@ -395,6 +397,19 @@ desktop milestones.
 - Refresh does not silently delete, reorder, or overwrite existing entries.
 - Core functionality is UI-independent.
 - Existing import/export behavior remains compatible.
+
+M13 closed with Template Definition CSV v1 and a reusable Linked Append Source
+core. Template fields retain their original non-negative `display_order`;
+shared values are deterministic by `(display_order ASC, field_key ASC)`. Linked
+sources support one local CSV/XLSX source per Collection in `general_entry` or
+`template_aware` mode, require preview and explicit confirmation, and append
+New Valid rows only. They are non-authoritative and do not synchronize source
+deletions, reordering, or edits back onto app content.
+
+The accepted v1 limits include no permanent source-row identity, no background
+refresh, no desktop picker UI, and no Template overwrite/merge, system
+ownership portability, or `speech_language_role`. These are scope limits, not
+M13 blockers. The next objective is Milestone 14; M14 has not started.
 
 ---
 
