@@ -21,6 +21,28 @@ from src.insights import (
 AS_OF = date(2026, 8, 12)
 
 
+def window(attempts: int, correct: int, sessions: int) -> dict:
+    accuracy = None if attempts == 0 else correct / attempts
+    eligible = attempts >= 3 and sessions >= 2
+    if not eligible:
+        performance = "unavailable"
+    elif accuracy >= 0.8:
+        performance = "positive"
+    elif accuracy >= 0.6:
+        performance = "mixed"
+    else:
+        performance = "negative"
+    return {
+        "attempts": attempts,
+        "correct": correct,
+        "wrong": attempts - correct,
+        "accuracy": accuracy,
+        "distinct_sessions": sessions,
+        "eligible": eligible,
+        "performance": performance,
+    }
+
+
 def profile(**overrides) -> dict:
     base = {
         "entry_id": 1,
@@ -30,33 +52,17 @@ def profile(**overrides) -> dict:
         "in_mistake_book": False,
         "in_proficient_pool": False,
         "in_starred": False,
-        "attempts": 8,
-        "correct": 7,
-        "wrong": 1,
-        "accuracy": 0.875,
+        "attempts": 10,
+        "correct": 8,
+        "wrong": 2,
+        "accuracy": 0.8,
         "evidence_state": "strong",
         "freshness": "fresh",
         "overall_performance": "positive",
-        "recent": {
-            "attempts": 5,
-            "correct": 4,
-            "wrong": 1,
-            "accuracy": 0.8,
-            "distinct_sessions": 2,
-            "eligible": True,
-            "performance": "positive",
-        },
-        "prior": {
-            "attempts": 3,
-            "correct": 3,
-            "wrong": 0,
-            "accuracy": 1.0,
-            "distinct_sessions": 2,
-            "eligible": True,
-            "performance": "positive",
-        },
+        "recent": window(5, 4, 2),
+        "prior": window(5, 4, 2),
         "trajectory": "stable",
-        "trajectory_delta_pp": -20.0,
+        "trajectory_delta_pp": 0.0,
         "repeated_recent_errors": False,
         "repeated_recent_success": True,
         "baseline": {"comparison": "near_baseline"},
@@ -156,15 +162,57 @@ class M14BatchBInsightsTests(unittest.TestCase):
         return add_entry("English", "English", "word", label, f"meaning-{label}")
 
     def test_primary_finding_arbitration_covers_frozen_entry_cases(self) -> None:
-        never = _entry_finding(profile(attempts=0, evidence_state="none", freshness="unavailable"))
-        sparse = _entry_finding(profile(attempts=2, evidence_state="sparse"))
-        developing = _entry_finding(profile(attempts=3, evidence_state="developing"))
+        never = _entry_finding(profile(
+            attempts=0,
+            correct=0,
+            wrong=0,
+            accuracy=None,
+            evidence_state="none",
+            freshness="unavailable",
+            overall_performance="unavailable",
+            recent=window(0, 0, 0),
+            prior=window(0, 0, 0),
+            trajectory="unavailable",
+            trajectory_delta_pp=None,
+            repeated_recent_success=False,
+        ))
+        sparse = _entry_finding(profile(
+            attempts=2,
+            correct=2,
+            wrong=0,
+            accuracy=1.0,
+            evidence_state="sparse",
+            overall_performance="unavailable",
+            recent=window(2, 2, 1),
+            prior=window(0, 0, 0),
+            trajectory="unavailable",
+            trajectory_delta_pp=None,
+            repeated_recent_success=False,
+        ))
+        developing = _entry_finding(profile(
+            attempts=3,
+            correct=3,
+            wrong=0,
+            accuracy=1.0,
+            evidence_state="developing",
+            overall_performance="unavailable",
+            recent=window(3, 3, 2),
+            prior=window(0, 0, 0),
+            trajectory="unavailable",
+            trajectory_delta_pp=None,
+            repeated_recent_success=False,
+        ))
         mixed = _entry_finding(profile(
             attempts=5,
+            correct=3,
+            wrong=2,
             evidence_state="sufficient",
             accuracy=0.6,
             overall_performance="mixed",
-            recent={**profile()["recent"], "performance": "mixed", "accuracy": 0.6},
+            recent=window(5, 3, 3),
+            prior=window(0, 0, 0),
+            trajectory="unavailable",
+            trajectory_delta_pp=None,
             repeated_recent_success=False,
         ))
         self.assertEqual(never["primary_finding"], "never_quizzed")
@@ -172,9 +220,13 @@ class M14BatchBInsightsTests(unittest.TestCase):
         self.assertEqual(developing["primary_finding"], "insufficient_evidence")
         self.assertEqual(mixed["primary_finding"], "none")
 
-    def test_needs_attention_priority_and_pool_conflict(self) -> None:
+    def test_fresh_declining_needs_attention_is_high(self) -> None:
         recent = {**profile()["recent"], "correct": 1, "wrong": 4, "accuracy": 0.2, "performance": "negative"}
         finding = _entry_finding(profile(
+            correct=5,
+            wrong=5,
+            accuracy=0.5,
+            overall_performance="negative",
             recent=recent,
             trajectory="declining",
             trajectory_delta_pp=-60,
@@ -187,10 +239,31 @@ class M14BatchBInsightsTests(unittest.TestCase):
         self.assertIn("declining_trajectory", finding["reason_codes"])
         self.assertIn("pool_conflict", finding["reason_codes"])
 
+    def test_aging_identical_needs_attention_stays_medium(self) -> None:
+        recent = {**profile()["recent"], "correct": 1, "wrong": 4, "accuracy": 0.2, "performance": "negative"}
+        finding = _entry_finding(profile(
+            correct=5,
+            wrong=5,
+            accuracy=0.5,
+            overall_performance="negative",
+            freshness="aging",
+            recent=recent,
+            trajectory="declining",
+            trajectory_delta_pp=-60.0,
+            repeated_recent_errors=True,
+        ))
+        self.assertEqual(finding["primary_finding"], "needs_attention")
+        self.assertEqual(finding["priority"], "medium")
+        self.assertIn("declining_trajectory", finding["reason_codes"])
+
     def test_recovery_requires_adjacent_negative_to_positive_windows(self) -> None:
         prior = {**profile()["prior"], "correct": 1, "wrong": 4, "accuracy": 0.2, "performance": "negative"}
         finding = _entry_finding(profile(
             attempts=10,
+            correct=5,
+            wrong=5,
+            accuracy=0.5,
+            overall_performance="negative",
             prior=prior,
             trajectory="improving",
             trajectory_delta_pp=60,
@@ -207,9 +280,17 @@ class M14BatchBInsightsTests(unittest.TestCase):
 
     def test_stale_wins_and_moves_old_signals_to_historical_context(self) -> None:
         finding = _entry_finding(profile(
+            correct=5,
+            wrong=5,
+            accuracy=0.5,
             freshness="stale",
+            overall_performance="negative",
+            recent=window(5, 1, 2),
+            prior=window(5, 4, 2),
             trajectory="declining",
+            trajectory_delta_pp=-60.0,
             repeated_recent_errors=True,
+            repeated_recent_success=False,
         ))
         self.assertEqual(finding["primary_finding"], "stale_evidence")
         self.assertEqual(finding["priority"], "medium")
@@ -248,7 +329,48 @@ class M14BatchBInsightsTests(unittest.TestCase):
         self.assertEqual(cluster["priority"], "high")
         self.assertEqual(cluster["supporting_entry_ids"], entry_ids)
         self.assertEqual([item["priority"] for item in cluster["member_findings"]], ["high", "medium", "medium"])
+        self.assertEqual(cluster["ranking_metadata"]["evidence_state"], "strong")
+        self.assertEqual(cluster["ranking_metadata"]["recent_accuracy"], 0.5)
         self.assertEqual(cluster["suggested_action"]["action_type"], "focused_practice")
+
+    def test_cluster_and_standalone_ranking_uses_real_member_evidence(self) -> None:
+        collection_id = create_collection("Ranking evidence", card_size=2)
+        first, second, standalone = (
+            self._entry("cluster-a"),
+            self._entry("cluster-b"),
+            self._entry("standalone"),
+        )
+        add_entries_to_collection([first, second, standalone], collection_id)
+        cluster_members = [
+            entry_finding(first, "needs_attention", "medium"),
+            entry_finding(second, "needs_attention", "medium"),
+        ]
+        for finding in cluster_members:
+            finding["evidence_state"] = "sufficient"
+            finding["metrics"]["recent_accuracy"] = 0.6
+        standalone_finding = entry_finding(standalone, "needs_attention", "medium")
+        standalone_finding["evidence_state"] = "strong"
+        standalone_finding["metrics"]["recent_accuracy"] = 0.2
+
+        with db.get_connection() as conn:
+            forward = build_learning_brief(
+                conn, [*cluster_members, standalone_finding]
+            )
+            reversed_result = build_learning_brief(
+                conn, [standalone_finding, *reversed(cluster_members)]
+            )
+
+        self.assertEqual(forward, reversed_result)
+        self.assertEqual(forward[0]["scope_id"], standalone)
+        self.assertEqual(forward[1]["scope_type"], "entry_cluster")
+        self.assertEqual(
+            forward[1]["ranking_metadata"],
+            {
+                "evidence_state": "sufficient",
+                "recent_accuracy": 0.6,
+                "supporting_entry_count": 2,
+            },
+        )
 
     def test_different_findings_on_same_card_do_not_cluster(self) -> None:
         collection_id = create_collection("No semantic cluster", card_size=10)

@@ -113,7 +113,8 @@ def _entry_finding(profile: dict) -> dict:
             reasons.append("below_personal_baseline")
         priority = (
             "high"
-            if trajectory == "declining" or recent["wrong"] >= 4
+            if freshness == "fresh"
+            and (trajectory == "declining" or recent["wrong"] >= 4)
             else "medium"
         )
         action_type = "focused_practice"
@@ -464,18 +465,36 @@ def build_action_candidates(
             finding, context = members[0]
             candidates.append({**finding, "card_context": context})
             continue
-        member_findings = [item[0] for item in members]
+        member_findings = sorted(
+            (item[0] for item in members),
+            key=lambda item: int(item["scope_id"]),
+        )
         context = members[0][1]
         priority = min(
             (item["priority"] for item in member_findings),
             key=lambda value: PRIORITY_ORDER[value],
         )
         entry_ids = sorted(int(item["scope_id"]) for item in member_findings)
+        evidence_state = max(
+            (item["evidence_state"] for item in member_findings),
+            key=lambda value: EVIDENCE_STATE_ORDER[value],
+        )
+        recent_accuracies = [
+            item.get("metrics", {}).get("recent_accuracy")
+            for item in member_findings
+            if item.get("metrics", {}).get("recent_accuracy") is not None
+        ]
+        recent_accuracy = min(recent_accuracies) if recent_accuracies else None
         candidates.append({
             "scope_type": "entry_cluster",
             "scope_id": context["card_id"],
             "primary_finding": member_findings[0]["primary_finding"],
             "priority": priority,
+            "ranking_metadata": {
+                "evidence_state": evidence_state,
+                "recent_accuracy": recent_accuracy,
+                "supporting_entry_count": len(member_findings),
+            },
             "supporting_entry_ids": entry_ids,
             "card_context": context,
             "reason_codes": sorted({
@@ -519,6 +538,7 @@ def _stable_identity(candidate: dict) -> tuple:
 
 def _rank_key(candidate: dict) -> tuple:
     metrics = candidate.get("metrics", {})
+    ranking_metadata = candidate.get("ranking_metadata", {})
     severity = 0.0
     if candidate["primary_finding"] == "coverage_gap":
         severity = 1.0 - float(
@@ -527,9 +547,14 @@ def _rank_key(candidate: dict) -> tuple:
             else metrics["interpretable_ratio"]
         )
     elif candidate["primary_finding"] == "needs_attention":
-        accuracy = metrics.get("recent_accuracy")
-        severity = 1.0 if accuracy is None else 1.0 - float(accuracy)
-    evidence_rank = -EVIDENCE_STATE_ORDER.get(candidate.get("evidence_state", "none"), 0)
+        accuracy = ranking_metadata.get(
+            "recent_accuracy", metrics.get("recent_accuracy")
+        )
+        severity = 0.0 if accuracy is None else 1.0 - float(accuracy)
+    evidence_state = ranking_metadata.get(
+        "evidence_state", candidate.get("evidence_state")
+    )
+    evidence_rank = -EVIDENCE_STATE_ORDER.get(evidence_state, 0)
     return (
         PRIORITY_ORDER[candidate["priority"]],
         FINDING_ORDER[candidate["primary_finding"]],

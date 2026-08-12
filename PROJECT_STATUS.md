@@ -60,13 +60,19 @@ Card context deterministically; a Collection-scoped Brief preserves the
 requested Collection context. Entry Health compatibility remains unchanged
 until Batch C.
 
+The verified Batch B correctness patch requires fresh evidence before an
+urgent Needs Attention signal can upgrade from Medium to High; an otherwise
+identical aging signal remains Medium. Cluster ranking metadata is derived
+deterministically from supporting member Findings without rewriting their
+individual priority, Evidence State, or reason codes.
+
 Batch B verification on 2026-08-12 passed:
 
 ```text
-Focused M14 Batch B tests: 15/15
+Focused M14 Batch B tests: 17/17
 Focused M14 Batch A regression: 11/11
 Existing M11/M13 tests included in the full suite: 87/87
-Full repository suite: 113/113
+Full repository suite: 115/115
 Compile check: passed
 Architecture audit: passed, no warnings
 Packaging readiness: passed with the expected ignored local-database warning
