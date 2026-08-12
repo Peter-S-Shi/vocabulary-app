@@ -3,8 +3,8 @@
 This roadmap is the authoritative lifecycle and milestone outline for
 Vocabulary App. For the current evidence-based snapshot, see
 `PROJECT_STATUS.md`. For desktop-specific migration principles and workflow
-mapping, see `DESKTOP_MIGRATION_PLAN.md`. For the reconstructed history before
-Git was initialized, see `PRE_GIT_HISTORY.md`.
+mapping, see `docs/migration/DESKTOP_MIGRATION_PLAN.md`. For the reconstructed
+history before Git was initialized, see `docs/history/PRE_GIT_HISTORY.md`.
 
 ## Product Goal and Constraints
 
@@ -104,11 +104,11 @@ target.
 
 ## Current Phase
 
-**Trustworthy Pre-Desktop Baseline Established / Repository Restructure Next**
+**Repository Restructure Complete / Import and Template Evolution Core Next**
 
-The immediate objective is to establish a trustworthy data and business-logic
-baseline, reorganize the repository, implement reusable foundations for the
-new product capabilities, and then migrate the product interface to desktop.
+The trustworthy data/business-logic baseline and repository restructure are
+complete. The immediate objective is to implement the reusable Import and
+Template Evolution foundation before later analytics, audio, and desktop work.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -119,9 +119,10 @@ been implemented and verified.
 
 **Status: Complete — Trustworthy Pre-Desktop Baseline Established.**
 
-Closure evidence is recorded in `MILESTONE11_CLOSURE.md`. This status does not
+Closure evidence is recorded in `docs/history/MILESTONE11_CLOSURE.md`. This status does not
 mean Feature Freeze, Release Ready, Desktop Ready, or Product Hardening
-completion. The next objective is Milestone 12 — Repository Restructure.
+completion. Milestone 12 subsequently reorganized the repository without
+changing this historical baseline.
 
 Milestone 11 resolves defects and semantic inconsistencies that would otherwise
 be carried into the desktop application.
@@ -230,7 +231,7 @@ Hardening milestone.
 
 ## Milestone 12: Repository Restructure
 
-**Status: Ready to begin; implementation not started.**
+**Status: Complete — Repository Restructure Complete.**
 
 Milestone 12 reorganizes the repository before the next major development
 cycle.
@@ -297,6 +298,11 @@ Repository restructuring must:
 - No functional product behavior changes are introduced except unavoidable
   path/reference corrections.
 - `PROJECT_STATUS.md` records the completed restructure and verified commit.
+
+M12 moved 14 supporting documents into a compact `docs/` hierarchy, added a
+documentation index, repaired current references, and left the application,
+core modules, schema, migrations, and learning semantics unchanged. The next
+objective is Milestone 13 — Import and Template Evolution Core.
 
 ---
 

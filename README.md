@@ -22,9 +22,10 @@ legacy Review-schedule state.
 ## Lifecycle Status
 
 Milestones 1-10 feature development and productization are complete historical
-work. **Milestone 11 is complete** and has established a **Trustworthy
-Pre-Desktop Baseline**. The next objective is **Milestone 12 — Repository
-Restructure**. M12 is ready to begin but its implementation has not started.
+work. **Milestone 11 is complete** and established a **Trustworthy
+Pre-Desktop Baseline**. **Milestone 12 is complete** and established the
+organized repository/documentation structure. The next objective is
+**Milestone 13 — Import and Template Evolution Core**; M13 has not started.
 
 Streamlit remains the currently runnable compatibility/reference UI, but it is
 no longer the intended Release Candidate target. The active lifecycle now
@@ -34,7 +35,7 @@ a native desktop UI, and hardens/packages the desktop product.
 - [ROADMAP.md](ROADMAP.md) is the authoritative lifecycle and milestone plan.
 - [PROJECT_STATUS.md](PROJECT_STATUS.md) is the authoritative current-state
   snapshot.
-- [PRE_GIT_HISTORY.md](PRE_GIT_HISTORY.md) documents development before the
+- [Pre-Git history](docs/history/PRE_GIT_HISTORY.md) documents development before the
   initial public Git baseline.
 
 ### Approved Milestone 11 learning semantics
@@ -66,7 +67,7 @@ Users are responsible for ensuring that content they create, import, export, or 
 
 This product boundary is intentional: manual editing can support deeper learning, local storage protects personal study data, and avoiding bundled language databases reduces licensing risk. It also keeps the system flexible for English, French, and future user-defined languages or templates.
 
-See [CONTENT_POLICY.md](CONTENT_POLICY.md) for the detailed user-owned content policy.
+See [Content Policy](docs/policies/CONTENT_POLICY.md) for the detailed user-owned content policy.
 
 ## Current Features
 
@@ -173,8 +174,8 @@ vocab-app/
 |-- app.py                       # Streamlit app shell and sidebar routing
 |-- requirements.txt
 |-- README.md
-|-- DATA_SAFETY.md
 |-- CONTRIBUTING.md
+|-- docs/                        # Documentation index and supporting records
 |-- data/
 |   |-- .gitkeep
 |   `-- vocab.db                 # Local user data; ignored by Git
@@ -204,14 +205,14 @@ Core modules return plain Python data structures and do not depend on Streamlit.
 
 Streamlit is the current UI layer, while reusable learning and data logic lives under `src/`. Streamlit-specific code stays in `app.py` and `src/ui_streamlit/`.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for boundary rules and [MIGRATION_READINESS.md](MIGRATION_READINESS.md) for the practical desktop migration assessment.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for boundary rules and [Migration Readiness](docs/migration/MIGRATION_READINESS.md) for the practical desktop migration assessment.
 
-Packaging and desktop options are documented in [PACKAGING_FEASIBILITY.md](PACKAGING_FEASIBILITY.md) and [DESKTOP_MIGRATION_PLAN.md](DESKTOP_MIGRATION_PLAN.md).
+Packaging and desktop options are documented in [Packaging Feasibility](docs/packaging/PACKAGING_FEASIBILITY.md) and the [Desktop Migration Plan](docs/migration/DESKTOP_MIGRATION_PLAN.md).
 
-Software update safety is documented in [SOFTWARE_UPDATE_POLICY.md](SOFTWARE_UPDATE_POLICY.md). Milestone 11.3 advances the explicit schema version through an additive migration that establishes stable Card identity and history.
+Software update safety is documented in the [Software Update Policy](docs/policies/SOFTWARE_UPDATE_POLICY.md). Milestone 11.3 advances the explicit schema version through an additive migration that establishes stable Card identity and history.
 
 Final M11 semantic, regression, QA, migration, and technical-debt evidence is
-recorded in [MILESTONE11_CLOSURE.md](MILESTONE11_CLOSURE.md).
+recorded in the [Milestone 11 Closure](docs/history/MILESTONE11_CLOSURE.md).
 
 ## Installation
 
@@ -280,7 +281,7 @@ Schema/app metadata supports software update compatibility. The M11.3 migration 
 
 Advanced users may set `VOCAB_APP_DB_PATH` before launch to select another database path. Normal users do not need this setting, and the app does not automatically move or merge databases.
 
-Future packaged versions may use an operating-system app-data directory rather than the source folder. See [DATA_STORAGE.md](DATA_STORAGE.md) for path behavior and [DATA_SAFETY.md](DATA_SAFETY.md) for practical handling guidance.
+Future packaged versions may use an operating-system app-data directory rather than the source folder. See [Data Storage](docs/policies/DATA_STORAGE.md) for path behavior and [Data Safety](docs/policies/DATA_SAFETY.md) for practical handling guidance.
 
 ## Import / Export and Backup Safety
 
@@ -316,10 +317,10 @@ Candidate acceptance in Milestones 19-20.
 
 Detailed manual QA documents are available for recent milestones:
 
-- `MILESTONE8_MANUAL_QA.md`
-- `MILESTONE9_MANUAL_QA.md`
-- `MILESTONE10_MANUAL_QA.md`
-- `MILESTONE10_PRODUCTIZATION_QA.md`
+- [Milestone 8 Manual QA](docs/qa/MILESTONE8_MANUAL_QA.md)
+- [Milestone 9 Manual QA](docs/qa/MILESTONE9_MANUAL_QA.md)
+- [Milestone 10 Manual QA](docs/qa/MILESTONE10_MANUAL_QA.md)
+- [Milestone 10 Productization QA](docs/qa/MILESTONE10_PRODUCTIZATION_QA.md)
 
 ## Roadmap
 
@@ -339,7 +340,7 @@ M11 Pre-Desktop Stabilization
 ```
 
 Streamlit is not the final release target. See [ROADMAP.md](ROADMAP.md) for
-scope and exit criteria and [DESKTOP_MIGRATION_PLAN.md](DESKTOP_MIGRATION_PLAN.md)
+scope and exit criteria and the [Desktop Migration Plan](docs/migration/DESKTOP_MIGRATION_PLAN.md)
 for the migration strategy.
 
 ## Common Errors

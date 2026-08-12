@@ -49,7 +49,7 @@ The automated script `scripts/audit_architecture.py` checks these boundaries wit
 
 1. Milestone 11 Pre-Desktop Stabilization is complete and establishes the
    trustworthy data/business-logic baseline documented in
-   `MILESTONE11_CLOSURE.md`.
+   `../history/MILESTONE11_CLOSURE.md`.
 2. Complete the Milestone 12 repository restructure without changing product
    behavior.
 3. Implement reusable import/template, analytics, and audio foundations in

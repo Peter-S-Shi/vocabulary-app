@@ -8,13 +8,13 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 REQUIRED_DOCS = (
     "README.md",
-    "CONTENT_POLICY.md",
-    "DATA_SAFETY.md",
-    "DATA_STORAGE.md",
+    "docs/policies/CONTENT_POLICY.md",
+    "docs/policies/DATA_SAFETY.md",
+    "docs/policies/DATA_STORAGE.md",
     "ARCHITECTURE.md",
-    "MIGRATION_READINESS.md",
-    "PACKAGING_FEASIBILITY.md",
-    "DESKTOP_MIGRATION_PLAN.md",
+    "docs/migration/MIGRATION_READINESS.md",
+    "docs/packaging/PACKAGING_FEASIBILITY.md",
+    "docs/migration/DESKTOP_MIGRATION_PLAN.md",
 )
 
 REQUIRED_IGNORE_RULES = (
@@ -87,4 +87,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

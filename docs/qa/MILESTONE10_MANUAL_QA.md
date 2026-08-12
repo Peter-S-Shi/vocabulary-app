@@ -13,7 +13,7 @@
 - [ ] Existing entries still search and display correctly.
 - [ ] Existing collections still show card groups correctly.
 - [ ] Existing review and quiz pages still work.
-- [ ] `SOFTWARE_UPDATE_POLICY.md` exists and is accurate.
+- [ ] `../policies/SOFTWARE_UPDATE_POLICY.md` exists and is accurate.
 
 ## Milestone 10.7 Productization Closure
 
