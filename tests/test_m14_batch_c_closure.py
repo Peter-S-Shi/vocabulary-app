@@ -383,10 +383,10 @@ class M14BatchCClosureTests(unittest.TestCase):
         self.assertEqual(sum(counts.values()), 100)
         self.assertEqual(first, second)
         self.assertEqual(first_brief, second_brief)
-        self.assertLessEqual(len(first_brief), 5)
+        self.assertEqual(len(first["coverage_findings"]), 15)
+        self.assertEqual(len(first_brief), 5)
         self.assertEqual(before, after)
         self.assertLess(len(select_statements), 200)
-        self.assertGreater(len(first["coverage_findings"]), 0)
         self.assertEqual(
             counts,
             {
@@ -398,6 +398,46 @@ class M14BatchCClosureTests(unittest.TestCase):
                 "strength": 3,
                 "stale_evidence": 1,
             },
+        )
+
+        for item in first_brief[:2]:
+            self.assertEqual(item["scope_type"], "entry")
+            self.assertEqual(item["primary_finding"], "needs_attention")
+            self.assertEqual(item["priority"], "high")
+            self.assertEqual(
+                item["suggested_action"]["action_type"], "focused_practice"
+            )
+
+        for item in first_brief[2:4]:
+            self.assertEqual(item["scope_type"], "collection")
+            self.assertEqual(item["primary_finding"], "coverage_gap")
+            self.assertEqual(item["coverage_gap_type"], "breadth_gap")
+            self.assertEqual(item["priority"], "high")
+            self.assertEqual(
+                item["suggested_action"]["action_type"],
+                "quiz_uncovered_content",
+            )
+
+        final_item = first_brief[4]
+        self.assertEqual(final_item["scope_type"], "entry")
+        self.assertEqual(final_item["primary_finding"], "stale_evidence")
+        self.assertEqual(final_item["priority"], "medium")
+        self.assertEqual(
+            final_item["suggested_action"]["action_type"], "verify_knowledge"
+        )
+
+        recovery_findings = [
+            item
+            for item in first["entry_findings"]
+            if item["primary_finding"] == "recovery"
+        ]
+        self.assertEqual(len(recovery_findings), 1)
+        self.assertNotIn(
+            "recovery",
+            [item["primary_finding"] for item in first_brief],
+        )
+        self.assertTrue(
+            all(item["priority"] in {"high", "medium"} for item in first_brief)
         )
 
 
