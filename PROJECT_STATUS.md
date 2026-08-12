@@ -16,7 +16,7 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 ## Current Milestone
 
-**Milestone 14 Batch A Verified — Batch B/C Not Started**
+**Milestone 14 Batch A/B Verified — Batch C Not Started**
 
 M14 began from synchronized `main` at
 `98b6bc6567bc7bb61284344cd6452eb9cde11457` on branch
@@ -46,8 +46,36 @@ Architecture audit: passed, no warnings
 Packaging readiness: passed with the expected ignored local-database warning
 ```
 
-Batch A is ready for product-owner and independent review. M14 is not complete,
-and Batch B must not start without explicit authorization.
+Batch A was independently accepted at
+`290494f328f17b14cf01cd81c47f6a72770510ac`. After explicit product-owner
+authorization, Batch B added the reusable, Streamlit-independent,
+deterministic interpretation layer in `src/insights.py`.
+
+Batch B derives exactly one Primary Finding per current Entry, scope-level
+Coverage Gap Findings, discrete priority, structured read-only actions,
+same-Card compatible clusters, Brief-only Coverage hierarchy suppression, and
+a deterministic Learning Brief capped at five items. Full Findings remain
+separate from the lossy Brief. A global Brief resolves multi-Collection Entry
+Card context deterministically; a Collection-scoped Brief preserves the
+requested Collection context. Entry Health compatibility remains unchanged
+until Batch C.
+
+Batch B verification on 2026-08-12 passed:
+
+```text
+Focused M14 Batch B tests: 15/15
+Focused M14 Batch A regression: 11/11
+Existing M11/M13 tests included in the full suite: 87/87
+Full repository suite: 113/113
+Compile check: passed
+Architecture audit: passed, no warnings
+Packaging readiness: passed with the expected ignored local-database warning
+```
+
+Batch B adds no schema change, migration, persisted Finding/Brief state, or
+learning-state mutation. Semantic deviations: none. M14 is not complete;
+Batch C has not started and requires product-owner and independent acceptance
+of Batch B first.
 
 M11.1 Semantic Alignment and QA Scope Lock has been merged to `main`.
 M11.2 Unified Learning Flow and Core Integrity is merged to `main` at
@@ -987,16 +1015,18 @@ merge gate is complete.
 
 ## Next Objective
 
-**Review and accept M14 Batch A — Evidence & Analytics Core**
+**Review and accept M14 Batch B — Insight & Brief Engine**
 
-M14 Batch A is implemented and verified on the M14 development branch. Batch B
-and Batch C have not started. Do not begin Batch B before explicit
-product-owner authorization.
+M14 Batch A and Batch B are implemented and verified on the M14 development
+branch. Batch C has not started. Do not begin Batch C before explicit
+product-owner authorization following independent Batch B review.
 
 ## Repository State
 
 - Active M14 branch: `agent/m14-learning-analytics-insight-core`
 - M14 base commit: `98b6bc6567bc7bb61284344cd6452eb9cde11457`
+- Accepted M14 Batch A head:
+  `290494f328f17b14cf01cd81c47f6a72770510ac`
 - Completed M13 branch: `agent/m13-import-template-evolution`
 - Merged M12 base commit:
   `6e339ec846f22f14ee454d9ad0d68ba3fb83aee6`
@@ -1035,6 +1065,6 @@ product-owner authorization.
   - `docs/migration/DESKTOP_MIGRATION_PLAN.md`
 - Closure evidence: `docs/history/MILESTONE11_CLOSURE.md`
 - Current lifecycle state:
-  **Milestone 14 Batch A Verified — Batch B/C Not Started**
+  **Milestone 14 Batch A/B Verified — Batch C Not Started**
 - Exact next objective:
-  **M14 Batch A product-owner and independent review**
+  **M14 Batch B product-owner and independent review**
