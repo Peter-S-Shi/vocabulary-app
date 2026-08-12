@@ -21,6 +21,17 @@ CROSS_CARD_CONFIRMATION_MESSAGE = (
     "composition used at that time. Future study will use the new Card composition."
 )
 
+COLLECTION_DELETE_WARNING = (
+    "Deleting this Collection permanently deletes its Card identity/revision "
+    "history, legacy Review schedule/history, and Quiz sessions/item logs. "
+    "The vocabulary Entries themselves are not deleted."
+)
+
+COLLECTION_DELETE_CONFIRMATION = (
+    "I understand this Collection and all of its associated Card, Review, and "
+    "Quiz history will be permanently deleted."
+)
+
 
 class CrossCardMoveConfirmationRequired(ValueError):
     def __init__(self, preview: dict):

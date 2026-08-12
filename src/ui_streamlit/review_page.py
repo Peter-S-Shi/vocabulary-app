@@ -20,6 +20,7 @@ from src.ui_streamlit.common import (
 REVIEW_FOCUS_KEYS = [
     "review_focus_collection_id",
     "review_focus_card_number",
+    "review_focus_card_id",
     "review_focus_source",
     "review_focus_created_at",
     "review_focus_return_page",
@@ -67,6 +68,10 @@ def _get_review_focus() -> dict | None:
         return None
 
     if payload is None:
+        return None
+
+    expected_card_id = st.session_state.get("review_focus_card_id")
+    if expected_card_id is None or int(expected_card_id) != int(payload["card_id"]):
         return None
 
     payload["source"] = st.session_state.get("review_focus_source")
@@ -359,6 +364,7 @@ def _review_quiz_focus_values(selected_card: dict, autostart: bool) -> dict:
     return {
         "quiz_focus_collection_id": selected_card["collection_id"],
         "quiz_focus_card_number": selected_card["card_number"],
+        "quiz_focus_card_id": selected_card.get("card_id"),
         "quiz_focus_type": "mixed_mcq",
         "quiz_focus_source": "review_selected_card",
         "quiz_focus_reason": reason,
@@ -443,4 +449,3 @@ def render_review_page() -> None:
     )
 
     _render_selected_card_review(selected_due_card, selected_card_entries)
-

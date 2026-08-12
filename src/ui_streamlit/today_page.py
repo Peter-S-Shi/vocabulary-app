@@ -24,6 +24,7 @@ def _save_page_focus(page: str, reason: str, success_message: str) -> None:
 def _save_review_focus(card: dict, reason: str) -> None:
     st.session_state["review_focus_collection_id"] = card["collection_id"]
     st.session_state["review_focus_card_number"] = card["card_number"]
+    st.session_state["review_focus_card_id"] = card.get("card_id")
     st.session_state["review_focus_source"] = "today"
     st.session_state["review_focus_created_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     st.session_state["review_focus_return_page"] = "Today"
@@ -38,6 +39,7 @@ def _save_review_focus(card: dict, reason: str) -> None:
 def _save_quiz_focus(recommendation: dict) -> None:
     st.session_state["quiz_focus_collection_id"] = recommendation["collection_id"]
     st.session_state["quiz_focus_card_number"] = recommendation["card_number"]
+    st.session_state["quiz_focus_card_id"] = recommendation.get("card_id")
     st.session_state["quiz_focus_type"] = recommendation["preferred_quiz_type"]
     st.session_state["quiz_focus_source"] = "today_daily_quiz"
     st.session_state["quiz_focus_reason"] = recommendation["reason"]
@@ -57,6 +59,7 @@ def _save_ordered_review_quiz_queue(study_cards: list[dict]) -> None:
             "collection_id": card["collection_id"],
             "collection_name": card["collection_name"],
             "card_number": card["card_number"],
+            "card_id": card.get("card_id"),
             "entry_count": card["entry_count"],
             "preferred_quiz_type": "mixed_mcq",
             "reason": card["status"],
@@ -71,6 +74,7 @@ def _save_ordered_review_quiz_queue(study_cards: list[dict]) -> None:
     st.session_state["quiz_queue_created_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     st.session_state["quiz_focus_collection_id"] = first_item["collection_id"]
     st.session_state["quiz_focus_card_number"] = first_item["card_number"]
+    st.session_state["quiz_focus_card_id"] = first_item.get("card_id")
     st.session_state["quiz_focus_type"] = first_item["preferred_quiz_type"]
     st.session_state["quiz_focus_source"] = "today_ordered_quiz_queue"
     st.session_state["quiz_focus_reason"] = first_item["reason"]
@@ -219,7 +223,10 @@ def _render_today_review(overview: dict) -> None:
 
 
 def _quiz_queue_item_key(item: dict) -> str:
-    return f"{int(item['collection_id'])}:{int(item['card_number'])}"
+    card_identity = item.get("card_id")
+    if card_identity is not None:
+        return f"card:{int(card_identity)}"
+    return f"legacy:{int(item['collection_id'])}:{int(item['card_number'])}"
 
 
 def _sync_quiz_focus_to_current_queue_item() -> None:
@@ -233,6 +240,7 @@ def _sync_quiz_focus_to_current_queue_item() -> None:
     current_item = queue[queue_index]
     st.session_state["quiz_focus_collection_id"] = current_item["collection_id"]
     st.session_state["quiz_focus_card_number"] = current_item["card_number"]
+    st.session_state["quiz_focus_card_id"] = current_item.get("card_id")
     st.session_state["quiz_focus_type"] = current_item.get("preferred_quiz_type", "mixed_mcq")
     st.session_state["quiz_focus_source"] = "today_ordered_quiz_queue"
     st.session_state["quiz_focus_reason"] = current_item.get("reason", "queued_card")
@@ -250,6 +258,7 @@ def _queue_item_from_card(collection: dict, card_group: dict, reason: str = "man
         "collection_id": collection["id"],
         "collection_name": collection["name"],
         "card_number": card_group["card_number"],
+        "card_id": card_group.get("card_id"),
         "entry_count": len(card_group.get("entries", [])),
         "preferred_quiz_type": "mixed_mcq",
         "reason": reason,
@@ -749,4 +758,3 @@ def render_today_page() -> None:
     _render_practice_suggestions(overview)
     _render_daily_learning_summary(overview)
     _render_workflow_shortcuts()
-

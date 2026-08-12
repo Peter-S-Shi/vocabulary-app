@@ -22,8 +22,9 @@ legacy Review-schedule state.
 ## Lifecycle Status
 
 Milestones 1-10 feature development and productization are complete historical
-work. The project is now in **Scope Reopened / Pre-Desktop Stabilization** at
-**Milestone 11**.
+work. **Milestone 11 is complete** and has established a **Trustworthy
+Pre-Desktop Baseline**. The next objective is **Milestone 12 — Repository
+Restructure**; M12 has not started.
 
 Streamlit remains the currently runnable compatibility/reference UI, but it is
 no longer the intended Release Candidate target. The active lifecycle now
@@ -208,6 +209,9 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for boundary rules and [MIGRATION_READINE
 Packaging and desktop options are documented in [PACKAGING_FEASIBILITY.md](PACKAGING_FEASIBILITY.md) and [DESKTOP_MIGRATION_PLAN.md](DESKTOP_MIGRATION_PLAN.md).
 
 Software update safety is documented in [SOFTWARE_UPDATE_POLICY.md](SOFTWARE_UPDATE_POLICY.md). Milestone 11.3 advances the explicit schema version through an additive migration that establishes stable Card identity and history.
+
+Final M11 semantic, regression, QA, migration, and technical-debt evidence is
+recorded in [MILESTONE11_CLOSURE.md](MILESTONE11_CLOSURE.md).
 
 ## Installation
 

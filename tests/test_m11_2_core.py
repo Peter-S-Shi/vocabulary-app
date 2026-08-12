@@ -56,6 +56,12 @@ class M112CoreIntegrityTests(unittest.TestCase):
                 self.collection_id,
                 change_reason="synthetic_test_fixture",
             )
+            self.card_id = int(
+                conn.execute(
+                    "SELECT id FROM cards WHERE collection_id = ? AND card_number = 1 AND is_active = 1",
+                    (self.collection_id,),
+                ).fetchone()[0]
+            )
 
     def tearDown(self) -> None:
         db.DB_PATH = self.original_db_path
@@ -293,6 +299,7 @@ class M112CoreIntegrityTests(unittest.TestCase):
             "collection_id": self.collection_id,
             "collection_name": "Synthetic Collection",
             "card_number": 1,
+            "card_id": self.card_id,
         }
         quick = _review_quiz_focus_values(card, autostart=True)
         choose = _review_quiz_focus_values(card, autostart=False)
@@ -320,6 +327,7 @@ class M112CoreIntegrityTests(unittest.TestCase):
         app = AppTest.from_file(str(project_root / "app.py")).run(timeout=30)
         app.session_state["quiz_focus_collection_id"] = self.collection_id
         app.session_state["quiz_focus_card_number"] = 1
+        app.session_state["quiz_focus_card_id"] = self.card_id
         app.session_state["quiz_focus_type"] = "mixed_mcq"
         app.session_state["quiz_focus_source"] = "review_selected_card"
         app.session_state["quiz_focus_reason"] = "review_choose_quiz_type"
@@ -359,6 +367,7 @@ class M112CoreIntegrityTests(unittest.TestCase):
             "collection_id": self.collection_id,
             "collection_name": "Synthetic Collection",
             "card_number": 1,
+            "card_id": self.card_id,
         }
         route_scopes = [
             {"quiz_focus_collection_id": self.collection_id, "quiz_focus_card_number": 1},

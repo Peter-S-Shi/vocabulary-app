@@ -47,8 +47,9 @@ The automated script `scripts/audit_architecture.py` checks these boundaries wit
 
 ## Recommended Desktop Migration Strategy
 
-1. Complete Milestone 11 Pre-Desktop Stabilization and establish a trustworthy
-   data/business-logic baseline.
+1. Milestone 11 Pre-Desktop Stabilization is complete and establishes the
+   trustworthy data/business-logic baseline documented in
+   `MILESTONE11_CLOSURE.md`.
 2. Complete the Milestone 12 repository restructure without changing product
    behavior.
 3. Implement reusable import/template, analytics, and audio foundations in
@@ -102,10 +103,10 @@ The core is migration-friendly, and Milestone 10.6 established schema/app
 metadata plus migration rules. This supports an incremental desktop migration,
 not an unverified full rewrite.
 
-The immediate prerequisite is a trustworthy pre-desktop baseline: Entry edit
+The trustworthy pre-desktop prerequisite is now established: Entry edit
 integrity, authoritative Card-scoped Quiz completion, retirement of independent
 manual scheduling, stable Card identity and membership history, Entry Health
-re-acceptance, database compatibility, and core/UI boundaries must be resolved
-or verified. Active Quiz recovery, dense tables, file workflows, focus state,
+re-acceptance, database compatibility, and core/UI boundaries are resolved or
+verified. Active Quiz continuation UX, dense tables, file workflows,
 dates/local time, writable data paths, and software updates remain migration
-risks.
+risks for M12 and later desktop work.

@@ -12,18 +12,28 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 ## Current Phase
 
-**Scope Reopened / Pre-Desktop Stabilization**
+**Trustworthy Pre-Desktop Baseline Established**
 
 ## Current Milestone
 
-**Milestone 11: Pre-Desktop Stabilization**
+**Milestone 11 Complete**
 
 M11.1 Semantic Alignment and QA Scope Lock has been merged to `main`.
 M11.2 Unified Learning Flow and Core Integrity is merged to `main` at
 `eb8cda4e50b987b5db37b36425d3e47c94c28eaa`.
-M11.3 Stable Card Identity and Entry-Level History is implemented on candidate
-branch `agent/m11-3-card-identity-history` and is pending independent Draft PR
-review. M11.4 has not started.
+M11.3 Stable Card Identity and Entry-Level History is merged to `main` at
+`ccda6b8385215835f3de997f268e2165c37249de`.
+M11.4 Semantic Re-acceptance and Baseline Closure has completed deterministic
+verification on branch `agent/m11-4-baseline-closure`; independent Draft PR
+review and merge are the remaining repository gate.
+
+```text
+Milestone 11 Complete
+Trustworthy Pre-Desktop Baseline Established
+```
+
+This is not Feature Freeze, Release Ready, Desktop Ready, Product Hardening
+completion, or Current Version Complete.
 
 The project is no longer preparing to freeze and release the existing
 Streamlit application as the final current-version target.
@@ -129,23 +139,14 @@ Review activity. That repository-derived finding is tracked independently as
 The manual QA artifact should remain a living project artifact and should be
 updated only in sections affected by later milestones or regression work.
 
-## Confirmed Pre-Desktop Priorities
+## Closed Pre-Desktop Priorities
 
 ### Entry Editing Integrity
 
-A confirmed high-priority issue exists in the current Streamlit entry-editing
-workflow:
-
-fixed widget-state behavior can carry values between different entries and may
-silently overwrite fields such as:
-
-- Language;
-- Explanation Language;
-- Entry Type; and
-- Status.
-
-This must be resolved before the Streamlit application is treated as a
-trustworthy migration baseline.
+M11.2 keyed editable state by permanent Entry ID. Automated Streamlit AppTest
+coverage verifies that switching Entry A to Entry B does not leak unsaved
+Language, Explanation Language, Entry Type, Status, canonical, Collection, or
+Template-field widget state.
 
 ### Unified Review and Quiz Semantics
 
@@ -220,8 +221,11 @@ stored integer Entry IDs in Card revision snapshots, and
 `entry_change_events`. Historical Quiz views fall back to
 `Deleted Entry #<id>` plus the log's stored prompt/answer evidence.
 Deleting an entire Collection retains the existing product behavior of
-deleting that Collection's associated Card/Quiz history. A different
-Collection-deletion retention policy remains a product decision for M11.4.
+deleting that Collection's Card identity/revision history, legacy Review
+history, Quiz sessions, and Quiz item logs. M11.4 accepts this as the current
+destructive product contract because the UI requires the Collection name, an
+explicit checkbox, and clear permanent-deletion wording. Vocabulary Entries
+remain. No deleted-Collection preservation architecture is claimed.
 
 M11.3 branch: `agent/m11-3-card-identity-history`.
 M11.3 base: `eb8cda4e50b987b5db37b36425d3e47c94c28eaa`.
@@ -230,14 +234,19 @@ M11.3 verified implementation commit:
 later documentation-only metadata commit; its exact head is recorded in the
 Draft PR and closeout report.
 
-Candidate verification includes 32 passing M11.2/M11.3 unit and Streamlit
-AppTests on isolated synthetic databases, migration failure rollback,
-idempotent restart, storage-noise checks, architecture audit, and packaging
-readiness. The packaging checker retains its expected warning that the local
-personal database exists and must remain excluded from Git/releases.
+M11.4 verification includes the complete M11.2/M11.3 regression suite plus
+targeted stable-history, Entry Health, destructive Collection deletion,
+restart/backup, stale-focus, duplicate-log, and edit-snapshot tests on isolated
+synthetic databases. The complete suite passes all 38 tests, including the 6
+targeted M11.4 closure tests. Python compilation, quiz-randomization,
+migration-failure rollback, architecture, privacy, and packaging-readiness
+checks also pass. The architecture audit scans 32 Python files with no serious
+boundary violations or warnings. The packaging checker retains its expected
+warning that the local personal database exists and must remain excluded from
+Git/releases. No schema or migration file changes in M11.4.
 
 Next engineering objective:
-**M11.4 — Semantic Re-acceptance & Pre-Desktop Baseline Closure**.
+**Milestone 12 — Repository Restructure**.
 
 ### Entry Health
 
@@ -260,11 +269,11 @@ Review count alone must not make an Entry Strong.
 
 An Entry reviewed repeatedly but never tested can remain **Never Quizzed**.
 
-Static inspection of `src/statistics.py:get_entry_performance_summary()` and
-`get_strong_entries()` shows that current Entry Health derives attempts and
-accuracy from `quiz_item_logs`, plus special-pool state; it does not use Review
-count to classify Strong. M11.4 must re-accept this behavior after M11.2 and
-M11.3 changes.
+M11.4 automated re-acceptance verifies that Entry Health derives attempts,
+accuracy, recency, Weak/Neglected/Strong/At Risk results, and special-pool
+signals from Quiz evidence and explicit pool membership. Artificially high
+legacy `review_count`/`correct_count` values do not make a never-quizzed Entry
+Strong; it remains **Never Quizzed**.
 
 ## Other QA Findings Requiring Later Triage
 
@@ -520,6 +529,17 @@ For the 2026-08-09 lifecycle-alignment change:
 These checks must be rerun as appropriate against each significant engineering
 milestone baseline.
 
+For M11.4:
+
+- the complete automated suite passed all 38 tests;
+- all 6 targeted M11.4 closure tests passed;
+- quiz-randomization and Python compilation checks passed;
+- `scripts/audit_architecture.py` scanned 32 Python files and reported no
+  serious boundary violations or warnings;
+- packaging readiness passed with only the expected local-database exclusion
+  warning; and
+- `git diff --check` passed, with no schema or migration file changes.
+
 For M11.1, repository evidence was inspected across Entry editing, Review,
 Quiz, Today, Statistics, Collection/Card mutation, schema, backup metadata, and
 user-facing exception paths. M11.1 changes documentation only; validation
@@ -532,9 +552,9 @@ triage dataset.
 
 Status:
 
-**Established; all 66 QA IDs reconciled by M11.1. Targeted implementation and
-re-acceptance remain assigned to M11.2-M11.4. No additional product-owner UI
-test is required for M11.1.**
+**Established and closed for M11. All 66 QA IDs were reconciled by M11.1; all
+17 IDs assigned to M11.4 have one final disposition in
+`MILESTONE11_CLOSURE.md`. No ambiguous M11-scope QA item remains.**
 
 ### Existing Database Compatibility
 
@@ -549,7 +569,8 @@ compatibility-tested.
 
 Status:
 
-**Foundation exists; new-scope migration verification pending.**
+**M11 migration baseline verified through fresh, representative legacy,
+intermediate, repeated-startup, rollback, and backup-readability scenarios.**
 
 ### Privacy and Secret Safety
 
@@ -607,12 +628,14 @@ M11.2 started from that exact synchronized commit on branch
 
 Status:
 
-**M11.1 and M11.2 merged; M11.3 candidate pending Draft PR review.**
+**M11.1, M11.2, and M11.3 merged. M11.4 closure candidate is based exactly on
+merged M11.3 commit `ccda6b8385215835f3de997f268e2165c37249de`.**
 
 ## Known Risks
 
-- Deleting an entire Collection still deletes its associated Card/Quiz history;
-  any different retention policy remains an explicit M11.4 product decision.
+- Deleting an entire Collection intentionally deletes its associated
+  Card/Review/Quiz history after explicit confirmation; this is an accepted
+  current product contract, not a retention promise.
 - Legacy scheduler state and logs remain in the schema for compatibility even
   though active M11.2 UI and completion reporting no longer use them.
 - SQLite connection cleanup emits ResourceWarnings under the isolated M11.2
@@ -634,7 +657,6 @@ Status:
 
 ## Unknown or Unverified
 
-- Product-owner semantic re-acceptance of the combined M11.2/M11.3 baseline.
 - Large/dense dataset behavior under the future desktop UI.
 - Desktop framework selection.
 - Desktop accessibility and interaction model.
@@ -682,40 +704,33 @@ M11  Pre-Desktop Stabilization
 -> M20 Packaging and Release Candidate
 ```
 
-## M11.2 Review Gate
+## Milestone 11 Closure Gate
 
-Review and re-accept the **M11.2: Unified Learning Flow and Core Integrity**
-Draft PR. The candidate:
-
-1. isolates Entry edit widget state by permanent Entry ID;
-2. makes completed Card-scoped Quiz the sole active Card completion evidence;
-3. preserves direct Card Quiz completion and idempotent recovery;
-4. provides Quick Quiz and Choose Quiz Type routes from Review;
-5. removes independent scheduling/SRS controls from active Streamlit truth;
-6. migrates Today, Statistics, and Learning History; and
-7. replaces confirmed raw unexpected-error rendering with safe messages and
-   local diagnostic logging.
-
-Do not begin M11.3 until M11.2 is independently reviewed and merged.
+The M11.4 Draft PR must independently verify the closure manifest, 17-item QA
+table, full automated suite, architecture audit, privacy/tracked-file audit,
+and packaging-readiness regression before merge. Do not begin M12 from the
+M11.4 branch.
 
 ## Next Engineering Objective
 
-After that review gate and merge, the exact next engineering objective is:
+After M11.4 independent review and merge, the exact next engineering objective
+is:
 
-**M11.3 — Stable Card Identity and Entry-Level History**
+**Milestone 12 — Repository Restructure**
 
 Do not begin full development of the three new major capabilities before this
 baseline is trustworthy.
 
 ## Repository State
 
-- Candidate branch: `agent/m11-2-unified-learning-flow`
-- Verified synchronized M11.2 base commit:
-  `daf505b4fce0760af0c4c1eb97effcc9c0b74849`
+- Candidate branch: `agent/m11-4-baseline-closure`
+- Verified synchronized M11.4 base commit:
+  `ccda6b8385215835f3de997f268e2165c37249de`
 - Release tag: none recorded
 - Current lifecycle documents:
   - `ROADMAP.md`
   - `PROJECT_STATUS.md`
   - `DESKTOP_MIGRATION_PLAN.md`
+- Closure evidence: `MILESTONE11_CLOSURE.md`
 - Current lifecycle state:
-  **Scope Reopened / Pre-Desktop Stabilization**
+  **Trustworthy Pre-Desktop Baseline Established**
