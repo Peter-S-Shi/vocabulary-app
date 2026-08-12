@@ -8,15 +8,15 @@ state.
 Lifecycle intent and future milestones are defined in `ROADMAP.md`.
 
 Desktop-specific migration principles and workflow mapping are defined in
-`DESKTOP_MIGRATION_PLAN.md`.
+`docs/migration/DESKTOP_MIGRATION_PLAN.md`.
 
 ## Current Phase
 
-**Trustworthy Pre-Desktop Baseline Established**
+**Repository Restructure Complete**
 
 ## Current Milestone
 
-**Milestone 11 Complete**
+**Milestone 12 Complete**
 
 M11.1 Semantic Alignment and QA Scope Lock has been merged to `main`.
 M11.2 Unified Learning Flow and Core Integrity is merged to `main` at
@@ -27,9 +27,15 @@ M11.4 Semantic Re-acceptance and Baseline Closure was merged through PR #5 to
 `main` at `f0e0d2c06fa4137c07ab2f892df117af2ed3a060`. Its independent review and
 merge gate is complete.
 
+M12 Repository Restructure began from synchronized `main` at
+`0bce62833632e7e73bdc4daf4430ba028415adfd` on branch
+`agent/m12-repository-restructure`. It moved 14 tracked supporting documents
+with `git mv`, created `docs/README.md`, and repaired current repository
+references without changing application behavior.
+
 ```text
-Milestone 11 Complete
-Trustworthy Pre-Desktop Baseline Established
+Milestone 12 Complete
+Repository Restructure Complete
 ```
 
 This is not Feature Freeze, Release Ready, Desktop Ready, Product Hardening
@@ -461,7 +467,7 @@ However, no final desktop framework has yet been approved.
 
 No minimal desktop shell has yet established production-level compatibility.
 
-`DESKTOP_MIGRATION_PLAN.md` has been revised as part of the current lifecycle
+`docs/migration/DESKTOP_MIGRATION_PLAN.md` has been revised as part of the current lifecycle
 alignment to remove the superseded Streamlit-first Release Candidate
 prerequisite.
 
@@ -545,6 +551,21 @@ For M11.4:
   warning; and
 - `git diff --check` passed, with no schema or migration file changes.
 
+For M12:
+
+- the complete automated suite passed all 38 tests;
+- Python compilation and Quiz-randomization checks passed;
+- `scripts/audit_architecture.py` scanned 32 Python files and reported no
+  serious boundary violations or warnings;
+- packaging readiness passed with only the expected local-database exclusion
+  warning;
+- 32 tracked relative Markdown links were resolved with zero broken links;
+- current plain-text references to all 14 moved documents were repaired;
+- the final root contains only durable entry points plus intentional source,
+  test, support, data-placeholder, sample, and documentation directories;
+- privacy/tracked-file and `git diff --check` audits passed; and
+- no `app.py`, `src/`, test, schema, migration, or runtime behavior file changed.
+
 For M11.1, repository evidence was inspected across Entry editing, Review,
 Quiz, Today, Statistics, Collection/Card mutation, schema, backup metadata, and
 user-facing exception paths. M11.1 changes documentation only; validation
@@ -559,7 +580,7 @@ Status:
 
 **Established and closed for M11. All 66 QA IDs were reconciled by M11.1; all
 17 IDs assigned to M11.4 have one final disposition in
-`MILESTONE11_CLOSURE.md`. No ambiguous M11-scope QA item remains.**
+`docs/history/MILESTONE11_CLOSURE.md`. No ambiguous M11-scope QA item remains.**
 
 ### Existing Database Compatibility
 
@@ -710,27 +731,34 @@ M11  Pre-Desktop Stabilization
 -> M20 Packaging and Release Candidate
 ```
 
-## Milestone 11 Closure Result
+## Milestone 12 Closure Result
 
-PR #5 independently verified the closure manifest, 17-item QA table, full
-automated suite, architecture audit, privacy/tracked-file audit, and
-packaging-readiness regression. The PR is merged and the Milestone 11 closure
-gate is complete.
+The repository root now retains the durable project entry points while
+historical, QA, migration, policy, and packaging documents have clear homes
+under `docs/`. `docs/README.md` is the supporting-document navigation index.
+
+The existing flat `src/` core-module layout, `src/ui_streamlit/`, `tests/`,
+`scripts/`, `tools/`, and `app.py` were intentionally left structurally and
+behaviorally unchanged. Consolidating `scripts/` and `tools/`, decomposing
+large core modules, and changing runtime package layout are deferred because
+they would add churn without M12 user value.
 
 ## Next Engineering Objective
 
 The exact next engineering objective is:
 
-**Milestone 12 — Repository Restructure**
+**Milestone 13 — Import and Template Evolution Core**
 
-M12 is ready to begin but its implementation has not started. The three new
-major capabilities remain outside M12 and must not be started opportunistically.
+M13 has not started. This M12 branch contains no Import/Template Evolution,
+analytics, audio, or desktop implementation.
 
 ## Repository State
 
-- Current synchronized branch: `main`
-- Verified synchronized M11.4 base commit:
-  `ccda6b8385215835f3de997f268e2165c37249de`
+- Candidate branch: `agent/m12-repository-restructure`
+- Merged M11 trustworthy-baseline commit:
+  `f0e0d2c06fa4137c07ab2f892df117af2ed3a060`
+- Verified synchronized M12 base commit:
+  `0bce62833632e7e73bdc4daf4430ba028415adfd`
 - Verified M11.4 implementation commit:
   `f0113e0592bf5198c429d3282c528c39b47f63fa`
 - M11.4 PR head:
@@ -741,7 +769,7 @@ major capabilities remain outside M12 and must not be started opportunistically.
 - Current lifecycle documents:
   - `ROADMAP.md`
   - `PROJECT_STATUS.md`
-  - `DESKTOP_MIGRATION_PLAN.md`
-- Closure evidence: `MILESTONE11_CLOSURE.md`
+  - `docs/migration/DESKTOP_MIGRATION_PLAN.md`
+- Closure evidence: `docs/history/MILESTONE11_CLOSURE.md`
 - Current lifecycle state:
-  **Trustworthy Pre-Desktop Baseline Established**
+  **Repository Restructure Complete**

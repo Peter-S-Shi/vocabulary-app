@@ -50,7 +50,7 @@
 - [ ] `app_data_version` is visible as read-only Settings / Data information.
 - [ ] `last_migration_at` is visible as read-only Settings / Data information.
 - [ ] Optional future feature flags are disabled by default.
-- [ ] Migration policy is documented in `SOFTWARE_UPDATE_POLICY.md`.
+- [ ] Migration policy is documented in `../policies/SOFTWARE_UPDATE_POLICY.md`.
 - [ ] Backup-before-upgrade principle is documented.
 - [ ] Future migrations are expected to be additive and idempotent.
 

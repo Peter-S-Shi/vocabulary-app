@@ -18,7 +18,7 @@ The app does not silently move or replace a database. User-created entries, temp
 
 ## User-Owned Content
 
-The software organizes and practices content supplied by users. It does not ship dictionary databases, pronunciation libraries, copyrighted word lists, or AI-generated learning datasets. See `CONTENT_POLICY.md`.
+The software organizes and practices content supplied by users. It does not ship dictionary databases, pronunciation libraries, copyrighted word lists, or AI-generated learning datasets. See `docs/policies/CONTENT_POLICY.md`.
 
 ## Streamlit Boundary Rule
 
