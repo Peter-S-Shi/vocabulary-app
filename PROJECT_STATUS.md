@@ -69,6 +69,10 @@ user-owned Template (`is_system = 0`). System ownership, internal IDs,
 timestamps, Entry content, Entry field values, database paths, and the
 not-yet-persisted `speech_language_role` are not portable fields.
 
+Portable fields preserve their original non-negative integer `display_order`.
+Ties are valid and use deterministic `(display_order ASC, field_key ASC)`
+ordering for export, preview, and import insertion; values are not renumbered.
+
 Batch A adds no schema or migration. Export/import round-trip verification
 compares portable Template and ordered field semantics rather than internal IDs
 or timestamps.
@@ -612,8 +616,8 @@ For M12:
 
 For M13 Batch A:
 
-- all 20 focused Template Definition tests passed;
-- the complete automated suite passed all 58 tests;
+- all 22 focused Template Definition tests passed;
+- the complete automated suite passed all 60 tests;
 - Python compilation and Quiz-randomization checks passed;
 - `scripts/audit_architecture.py` scanned 33 Python files and reported no
   serious boundary violations or warnings;

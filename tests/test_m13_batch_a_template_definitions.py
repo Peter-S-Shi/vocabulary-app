@@ -227,16 +227,88 @@ class M13BatchATemplateDefinitionTests(unittest.TestCase):
         self.assertFalse(preview["can_import"])
         self.assertTrue(any("required must be 0 or 1" in error for error in preview["errors"]))
 
-    def test_invalid_and_duplicate_display_order_are_rejected(self) -> None:
+    def test_invalid_display_order_is_rejected(self) -> None:
         rows = self._rows()
         rows[0]["display_order"] = "-1"
         invalid = preview_template_definition_csv(self._csv(rows))
         self.assertFalse(invalid["can_import"])
-        rows = self._rows()
-        rows[1]["display_order"] = "1"
-        duplicate = preview_template_definition_csv(self._csv(rows))
-        self.assertFalse(duplicate["can_import"])
-        self.assertTrue(any("duplicate display_order" in error for error in duplicate["errors"]))
+
+    def test_shared_zero_display_order_round_trip_is_deterministic(self) -> None:
+        rows = self._rows(name="Shared Order Portable")
+        rows[0]["field_key"] = "zeta"
+        rows[0]["field_label"] = "Zeta"
+        rows[0]["display_order"] = "0"
+        rows[1]["field_key"] = "alpha"
+        rows[1]["field_label"] = "Alpha"
+        rows[1]["display_order"] = "0"
+        source_csv = self._csv(rows)
+
+        preview = preview_template_definition_csv(source_csv)
+        self.assertTrue(preview["can_import"])
+        self.assertEqual(
+            [field["field_key"] for field in preview["fields"]],
+            ["alpha", "zeta"],
+        )
+        self.assertEqual(
+            [field["display_order"] for field in preview["fields"]],
+            [0, 0],
+        )
+
+        result = import_template_definition_csv(source_csv)
+        exported = export_template_definition_csv(result["template_id"])
+        exported_rows = export_template_definition_rows(result["template_id"])
+        self.assertEqual(
+            [row["field_key"] for row in exported_rows],
+            ["alpha", "zeta"],
+        )
+        self.assertEqual([row["display_order"] for row in exported_rows], [0, 0])
+
+        second_db_path = Path(self.temp_dir.name) / "m13_shared_order.sqlite3"
+        db.DB_PATH = second_db_path
+        try:
+            db.init_db()
+            second_preview = preview_template_definition_csv(exported)
+            self.assertTrue(second_preview["can_import"])
+            second_result = import_template_definition_csv(exported)
+            reexported = export_template_definition_csv(second_result["template_id"])
+        finally:
+            db.DB_PATH = self.test_db_path
+        self.assertEqual(reexported, exported)
+
+    def test_current_custom_field_workflow_with_default_orders_is_portable(self) -> None:
+        template_id = create_entry_template(
+            "Default Order Workflow", "Synthetic Streamlit-like workflow", "English", "custom"
+        )
+        create_template_field(template_id, "zeta", "Zeta")
+        create_template_field(template_id, "alpha", "Alpha")
+        create_template_field(template_id, "middle", "Middle")
+
+        current_fields = get_template_fields(template_id)
+        self.assertEqual([field["display_order"] for field in current_fields], [0, 0, 0])
+        exported = export_template_definition_csv(template_id)
+        exported_rows = export_template_definition_rows(template_id)
+        self.assertEqual(
+            [row["field_key"] for row in exported_rows],
+            ["alpha", "middle", "zeta"],
+        )
+
+        second_db_path = Path(self.temp_dir.name) / "m13_default_order.sqlite3"
+        db.DB_PATH = second_db_path
+        try:
+            db.init_db()
+            result = import_template_definition_csv(exported)
+            imported_fields = get_template_fields(result["template_id"])
+        finally:
+            db.DB_PATH = self.test_db_path
+
+        self.assertEqual(
+            [field["field_key"] for field in imported_fields],
+            ["alpha", "middle", "zeta"],
+        )
+        self.assertEqual(
+            [field["display_order"] for field in imported_fields],
+            [0, 0, 0],
+        )
 
     def test_zero_field_template_export_fails_explicitly(self) -> None:
         template_id = create_entry_template("Empty Portable", "", "English", "custom")

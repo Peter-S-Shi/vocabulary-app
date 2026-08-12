@@ -224,7 +224,6 @@ def preview_template_definition_csv(
     }
 
     field_keys: set[str] = set()
-    display_orders: set[int] = set()
     fields = []
     for index, row in enumerate(rows, start=2):
         prefix = f"Row {index}"
@@ -269,13 +268,6 @@ def preview_template_definition_csv(
             f"{prefix}: display_order",
             preview["errors"],
         )
-        if display_order is not None:
-            if display_order in display_orders:
-                preview["errors"].append(
-                    f"{prefix}: duplicate display_order: {display_order}."
-                )
-            display_orders.add(display_order)
-
         fields.append(
             {
                 "field_key": field_key,
