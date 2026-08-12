@@ -1,6 +1,6 @@
 # Vocabulary App Project Status
 
-Last reviewed: 2026-08-11
+Last reviewed: 2026-08-12
 
 This file is the authoritative evidence-based snapshot of the current project
 state.
@@ -12,11 +12,109 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 ## Current Phase
 
-**Import and Template Evolution Core Complete**
+**Learning Analytics and Insight Core Complete — Independent Review Pending**
 
 ## Current Milestone
 
-**Milestone 13 Complete**
+**Milestone 14 Complete on Draft Branch — Merge Pending**
+
+M14 began from synchronized `main` at
+`98b6bc6567bc7bb61284344cd6452eb9cde11457` on branch
+`agent/m14-learning-analytics-insight-core` after explicit product-owner
+approval.
+
+Batch A adds a reusable, Streamlit-independent, read-only analytics layer in
+`src/analytics.py`. It derives eligible Quiz evidence, Entry Evidence Profiles,
+Evidence State, freshness, recent/prior performance, trajectory, repeated
+patterns, same-language Personal Baseline, current Card/Collection/Template
+Coverage, historical Card revision context, and the distinction between
+Collection Content Knowledge and Scope Activity.
+
+The frozen product semantics are recorded in
+`docs/design/M14_SEMANTIC_CONTRACT.md`. Batch A adds no schema change,
+migration, persisted analytics state, user-facing Finding engine, Brief, or UI.
+Existing Entry Health remains intentionally unchanged until Batch C.
+
+Batch A verification on 2026-08-12 passed:
+
+```text
+Focused M14 Batch A tests: 11/11
+Relevant M11/M13 regression tests: 73/73
+Full repository suite: 98/98
+Compile check: passed
+Architecture audit: passed, no warnings
+Packaging readiness: passed with the expected ignored local-database warning
+```
+
+Batch A was independently accepted at
+`290494f328f17b14cf01cd81c47f6a72770510ac`. After explicit product-owner
+authorization, Batch B added the reusable, Streamlit-independent,
+deterministic interpretation layer in `src/insights.py`.
+
+Batch B derives exactly one Primary Finding per current Entry, scope-level
+Coverage Gap Findings, discrete priority, structured read-only actions,
+same-Card compatible clusters, Brief-only Coverage hierarchy suppression, and
+a deterministic Learning Brief capped at five items. Full Findings remain
+separate from the lossy Brief. A global Brief resolves multi-Collection Entry
+Card context deterministically; a Collection-scoped Brief preserves the
+requested Collection context. Entry Health compatibility remains unchanged
+until Batch C.
+
+The verified Batch B correctness patch requires fresh evidence before an
+urgent Needs Attention signal can upgrade from Medium to High; an otherwise
+identical aging signal remains Medium. Cluster ranking metadata is derived
+deterministically from supporting member Findings without rewriting their
+individual priority, Evidence State, or reason codes.
+
+Batch B verification on 2026-08-12 passed:
+
+```text
+Focused M14 Batch B tests: 17/17
+Focused M14 Batch A regression: 11/11
+Existing M11/M13 tests included in the full suite: 87/87
+Full repository suite: 115/115
+Compile check: passed
+Architecture audit: passed, no warnings
+Packaging readiness: passed with the expected ignored local-database warning
+```
+
+Batch B adds no schema change, migration, persisted Finding/Brief state, or
+learning-state mutation. Semantic deviations: none.
+
+After explicit Batch B acceptance, Batch C aligned the legacy Entry Health
+surface with M14. Public function names remain available, but Weak,
+Neglected, Strong, Proficient Risk, Mistake Recovery, overview, and Collection
+weakness outputs are compatibility projections over M14 Evidence Profiles and
+Primary Findings. The independent legacy threshold engine and obsolete
+Streamlit threshold controls were removed. The Streamlit page received only
+the minimum terminology and count changes needed to present M14 truth.
+
+Verified Batch C implementation commit:
+`7b667e578f0f36522ad2d07dfd64574661662165`.
+
+Batch C verification on 2026-08-12 passed:
+
+```text
+Focused M14 Batch C tests: 5/5
+Focused M14 Batch A regression: 11/11
+Focused M14 Batch B regression: 17/17
+Existing M11/M13 tests: 87/87
+Full repository suite: 120/120
+Compile/static check: passed
+Architecture audit: passed, 36 Python files, no warnings
+Packaging readiness: passed with the expected ignored local-database warning
+Privacy/tracked-file audit: passed
+```
+
+The integrated synthetic acceptance used 100 current Entries and produced
+exactly 100 Entry Primary Findings plus 15 Coverage Findings. Its deterministic
+Top-5 Brief contained two High Needs Attention items, two High Collection
+Breadth Gaps, and one Medium Stale Evidence item. Repeated execution was
+identical and analysis changed no durable learning-table count.
+
+M14 adds no schema change, migration, app-data-version change, persisted
+analytics state, or learning-state mutation. Semantic deviations: none. M14 is
+complete on the Draft branch, but independent review and merge remain pending.
 
 M11.1 Semantic Alignment and QA Scope Lock has been merged to `main`.
 M11.2 Unified Learning Flow and Core Integrity is merged to `main` at
@@ -84,7 +182,9 @@ metadata commit may be the remote branch head during independent review.
 Batch A passed independent review at branch head
 `44fdde0fe79e6810b2cb1dc5a4fb3cbeea04dfab` and was merged through PR #8 to
 `main` at `8574b31dde9b213fe83aade9583bf2e360fce0da`. The product owner then
-authorized Batch B and Batch C on the same M13 branch. M14 remains unstarted.
+authorized Batch B and Batch C on the same M13 branch. At that point, M14 had
+not started; this records the historical M13 handoff rather than the current
+lifecycle state.
 
 Batch B implementation commit:
 `633d7484874fbbf0beb7064e9abed9389414d9e4`.
@@ -413,11 +513,11 @@ Next engineering objective:
 
 ### Entry Health
 
-Entry Health remains an active and intended Statistics capability.
+Entry Health remains an active compatibility surface over M14.
 
 It is not deprecated.
 
-Its interpretation must remain primarily performance-aware:
+Its interpretation is now derived from M14 Quiz-evidence semantics:
 
 - Quiz attempts;
 - correct/wrong outcomes;
@@ -432,11 +532,13 @@ Review count alone must not make an Entry Strong.
 
 An Entry reviewed repeatedly but never tested can remain **Never Quizzed**.
 
-M11.4 automated re-acceptance verifies that Entry Health derives attempts,
-accuracy, recency, Weak/Neglected/Strong/At Risk results, and special-pool
-signals from Quiz evidence and explicit pool membership. Artificially high
-legacy `review_count`/`correct_count` values do not make a never-quizzed Entry
-Strong; it remains **Never Quizzed**.
+M11.4 established that Entry Health must use Quiz evidence rather than Review
+counts. M14 subsequently superseded the provisional Weak/Neglected/Strong/At
+Risk thresholds with one authoritative Primary Finding per current Entry.
+Legacy public API names now project Needs Attention, Stale Evidence, Strength,
+Recovery, Never Quizzed, Insufficient Evidence, or None without creating a
+second current diagnosis. Artificially high legacy `review_count` or
+`correct_count` values still cannot change that truth.
 
 ## Other QA Findings Requiring Later Triage
 
@@ -956,12 +1058,25 @@ merge gate is complete.
 
 ## Next Objective
 
-**M14 — Learning Analytics and Insight Core**
+**Independently review and accept the complete M14 Draft PR**
 
-M14 has not started. Do not begin it before explicit product-owner approval.
+M14 Batch A, Batch B, and Batch C are implemented and locally verified on the
+M14 development branch. Review Draft PR #10 against the frozen semantic
+contract and Batch C closure evidence. Do not merge automatically and do not
+begin M15 before explicit acceptance.
 
 ## Repository State
 
+- Active M14 branch: `agent/m14-learning-analytics-insight-core`
+- M14 base commit: `98b6bc6567bc7bb61284344cd6452eb9cde11457`
+- Accepted M14 Batch A head:
+  `290494f328f17b14cf01cd81c47f6a72770510ac`
+- Accepted M14 Batch B correctness head:
+  `1ca61e6714e5bc84cd34a51287d4981c928a9752`
+- Verified M14 Batch C implementation commit:
+  `7b667e578f0f36522ad2d07dfd64574661662165`
+- Active M14 Draft PR:
+  `#10 — M14: Build learning analytics and insight core`
 - Completed M13 branch: `agent/m13-import-template-evolution`
 - Merged M12 base commit:
   `6e339ec846f22f14ee454d9ad0d68ba3fb83aee6`
@@ -998,8 +1113,10 @@ M14 has not started. Do not begin it before explicit product-owner approval.
   - `ROADMAP.md`
   - `PROJECT_STATUS.md`
   - `docs/migration/DESKTOP_MIGRATION_PLAN.md`
-- Closure evidence: `docs/history/MILESTONE11_CLOSURE.md`
+- Current closure evidence:
+  - `docs/history/MILESTONE11_CLOSURE.md`
+  - `docs/history/MILESTONE14_CLOSURE.md`
 - Current lifecycle state:
-  **Milestone 13 Complete — Import and Template Evolution Core Complete**
+  **Milestone 14 Complete on Draft Branch — Independent Review and Merge Pending**
 - Exact next objective:
-  **M14 — Learning Analytics and Insight Core (not started)**
+  **Independent M14 review; do not begin M15 yet**

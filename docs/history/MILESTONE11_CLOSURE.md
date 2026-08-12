@@ -46,7 +46,7 @@ head `b5c75ca52aa67f9fa5a7af7698358a709314d935` and was merged to `main` as
 
 | Invariant ID | Exact evidence | Assertion | Verification | Result | Remaining limitation |
 |---|---|---|---|---|---|
-| M11.4-ENTRY-HEALTH | `src/statistics.py:get_entry_performance_summary`, `get_strong_entries`, `get_entry_health_overview` | Quiz/pool evidence is authoritative; legacy Review counts cannot make an Entry Strong | `test_entry_health_is_quiz_authoritative_and_review_count_independent` | Pass | Threshold redesign belongs to M14 |
+| M11.4-ENTRY-HEALTH | `src/statistics.py:get_entry_performance_summary`, `get_strong_entries`, `get_entry_health_overview` | Quiz/pool evidence is authoritative; legacy Review counts cannot make an Entry Strong | `test_entry_health_is_quiz_authoritative_and_m14_compatible` | Pass | M14 later replaced provisional thresholds with compatibility projections |
 | M11.4-TODAY | `src/learning_workflow.py:get_study_cards`, `get_today_card_learning_activity`, `build_today_completion_summary` | Today uses Quiz-backed Card completion and active stable Card identity | M11.2 activity tests plus `test_current_card_views_do_not_inherit_retired_card_history` | Pass | Visual redesign belongs to Desktop |
 | M11.4-STATISTICS | `src/statistics.py:get_card_learning_overview_stats`, `get_card_learning_sessions_between_dates` | Current Card status does not inherit retired-Card history; event rows retain session identity | Stable-history and Entry Health tests | Pass | Legacy sessions may have unknown Card identity |
 | M11.4-HISTORY | `src/learning_workflow.py:get_card_learning_history`; `src/ui_streamlit/review_history_page.py` | Current Card history is selected by stable `card_id`; legacy Review logs remain compatibility-only | Stable-history test and source inspection | Pass | Retired-Card browser UI is deferred |
@@ -92,7 +92,7 @@ result-export data is reproduced.
 | M06-Q05 | Active-session protection and restart | Verified under new semantics | Existing active session blocks replacement; reconciliation is idempotent and preserves logs |
 | M06-Q08 | Quiz logs and summary | Verified under new semantics | Item/session totals reconcile; snapshots remain truthful after Entry edits/deletion |
 | M07-Q03 | Quiz Performance and trends | Verified under new semantics | Aggregates use Quiz item/session evidence and Card history rows expose stable identity |
-| M07-Q04 | Entry Health and special pools | Verified under new semantics | Automated evidence covers Never Quizzed, Strong, Weak, and At Risk without Review-count influence |
+| M07-Q04 | Entry Health and special pools | Verified, then superseded by M14 interpretation | Quiz authority remains intact; current legacy-shaped APIs now project M14 Primary Findings and pool context |
 | M09-Q01 | Durable data after restart | Verified under new semantics | Repeated initialization preserves counts/schema; backup reopens with integrity `ok` |
 | M09-Q02 | Active Quiz refresh recovery | Verified under new semantics | Finished active sessions reconcile once from durable logs without duplicate items |
 | M09-Q03 | Stale focus and queue | Verified under new semantics | Missing/mismatched stable Card focus is explained and cleared; unavailable queue items are removed |
@@ -112,7 +112,7 @@ All 17 assigned QA IDs appear exactly once. None remains `probably fixed`,
 | Scheduling retirement | Active UI exposes no independent due-date/SRS mutation and legacy logs are excluded | M11.2 source and activity tests |
 | Stable Card identity | Reorder, cross-Card movement, resize, retirement/reappearance, and names retain truthful identity | M11.3 mutation/AppTests |
 | Historical evidence | Quiz revision binding, legacy unknown history, Entry deletion, and edited snapshots remain truthful | M11.3 and M11.4 history tests |
-| Current summaries | Today, Statistics, Learning History, and Entry Health use final Quiz-backed semantics | M11.4 stable-history and Entry Health tests |
+| Current summaries | Today, Statistics, Learning History, and Entry Health use Quiz-backed semantics; M14 is now the Entry-level interpretation authority | M11.4 stable-history test plus M14 Batch C compatibility tests |
 | Persistence | Fresh/legacy/intermediate migrations, rollback, restart, and backup readability are deterministic | M11.3 migration tests and M11.4 restart test |
 
 ## Verification results

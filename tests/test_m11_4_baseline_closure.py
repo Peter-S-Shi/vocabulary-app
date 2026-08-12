@@ -133,7 +133,7 @@ class M114BaselineClosureTests(unittest.TestCase):
             int(replacement_card["card_id"]),
         )
 
-    def test_entry_health_is_quiz_authoritative_and_review_count_independent(self) -> None:
+    def test_entry_health_is_quiz_authoritative_and_m14_compatible(self) -> None:
         collection_id = create_collection("Entry health", card_size=8)
         never_id = self._entry("never-quizzed")
         strong_id = self._entry("strong")
@@ -191,11 +191,12 @@ class M114BaselineClosureTests(unittest.TestCase):
         self.assertEqual(performance[never_id]["attempt_count"], 0)
         self.assertIsNone(performance[never_id]["last_quizzed_at"])
         self.assertNotIn(never_id, strong_ids)
-        self.assertEqual(neglected[never_id]["neglect_reason"], "never_quizzed")
-        self.assertIn(strong_id, strong_ids)
-        self.assertIn(weak_id, weak_ids)
-        self.assertIn(risk_id, risk_ids)
+        self.assertNotIn(never_id, neglected)
+        self.assertNotIn(strong_id, strong_ids)
+        self.assertNotIn(weak_id, weak_ids)
+        self.assertNotIn(risk_id, risk_ids)
         self.assertEqual(overview["never_quizzed_entries"], 1)
+        self.assertEqual(overview["insufficient_evidence"], 3)
 
     def test_collection_delete_contract_is_explicit_and_deterministic(self) -> None:
         self.assertIn("permanently deletes", COLLECTION_DELETE_WARNING)
