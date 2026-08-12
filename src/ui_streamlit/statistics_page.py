@@ -675,7 +675,10 @@ def _strong_rows(rows: list[dict]) -> list[dict]:
 
 def _render_entry_health_tab(conn) -> None:
     st.subheader("Entry Health")
-    st.caption("Find weak, neglected, strong, and at-risk entries based on quiz history and special collection status. This view is read-only.")
+    st.caption(
+        "View M14 learning interpretations derived from Quiz evidence. "
+        "This compatibility view is read-only."
+    )
 
     try:
         entry_stats = stats.get_entry_overview_stats(conn)
@@ -714,18 +717,9 @@ def _render_entry_health_tab(conn) -> None:
             key="entry_health_collection",
         )
 
-    control_col1, control_col2, control_col3 = st.columns(3)
-    with control_col1:
-        min_attempts = st.number_input("Min Attempts", min_value=0, max_value=20, value=2, step=1, key="entry_health_min_attempts")
-    with control_col2:
-        weak_threshold_percent = st.slider("Weak Accuracy Threshold", min_value=0, max_value=100, value=60, step=5, key="entry_health_weak_threshold")
-    with control_col3:
-        neglected_days = st.number_input("Neglected Cutoff Days", min_value=1, max_value=365, value=30, step=1, key="entry_health_neglected_days")
-
     language_filter = None if selected_language == "All" else selected_language
     template_filter = selected_template["template_id"]
     collection_filter = selected_collection["collection_id"]
-    weak_threshold = weak_threshold_percent / 100
 
     try:
         overview = stats.get_entry_health_overview(
@@ -733,24 +727,18 @@ def _render_entry_health_tab(conn) -> None:
             language=language_filter,
             template_id=template_filter,
             collection_id=collection_filter,
-            min_attempts=int(min_attempts),
-            weak_accuracy_threshold=weak_threshold,
-            neglected_days=int(neglected_days),
         )
         weak_entries = stats.get_weak_entries(
             conn,
             language=language_filter,
             template_id=template_filter,
             collection_id=collection_filter,
-            min_attempts=int(min_attempts),
-            accuracy_threshold=weak_threshold,
         )
         neglected_entries = stats.get_neglected_entries(
             conn,
             language=language_filter,
             template_id=template_filter,
             collection_id=collection_filter,
-            days_since_last_quiz=int(neglected_days),
         )
         risk_entries = stats.get_proficient_risk_entries(conn)
         recovery_candidates = stats.get_mistake_recovery_candidates(conn)
@@ -762,8 +750,6 @@ def _render_entry_health_tab(conn) -> None:
         )
         collection_weakness = stats.get_collection_weakness_summary(
             conn,
-            min_attempts=int(min_attempts),
-            accuracy_threshold=weak_threshold,
         )
     except Exception as error:
         _section_error("entry health", error)
@@ -771,25 +757,30 @@ def _render_entry_health_tab(conn) -> None:
 
     metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
     metric_col1.metric("Total Entries", overview["total_entries"])
-    metric_col2.metric("Weak", overview["weak_entries"])
-    metric_col3.metric("Neglected", overview["neglected_entries"])
+    metric_col2.metric("Needs Attention", overview["needs_attention"])
+    metric_col3.metric("Stale Evidence", overview["stale_evidence"])
     metric_col4.metric("Never Quizzed", overview["never_quizzed_entries"])
 
     metric_col1, metric_col2, metric_col3 = st.columns(3)
     metric_col1.metric("Mistake Book", overview["mistake_book_entries"])
     metric_col2.metric("Proficient Risk", overview["proficient_risk_entries"])
-    metric_col3.metric("Strong", overview["strong_entries"])
+    metric_col3.metric("Strength", overview["strength"])
 
-    st.write("Weak Entries")
+    metric_col1, metric_col2, metric_col3 = st.columns(3)
+    metric_col1.metric("Insufficient Evidence", overview["insufficient_evidence"])
+    metric_col2.metric("Recovery", overview["recovery"])
+    metric_col3.metric("No Current Finding", overview["none"])
+
+    st.write("Needs Attention")
     _render_table(
         _entry_health_common_rows(weak_entries),
-        "No weak entries found with the current filters.",
+        "No Entries currently need attention with these filters.",
     )
 
-    st.write("Neglected Entries")
+    st.write("Stale Evidence")
     _render_table(
         _neglected_rows(neglected_entries),
-        "No neglected entries found with the current filters.",
+        "No stale Entry evidence found with the current filters.",
     )
 
     st.write("Proficient Pool Risk")
@@ -804,25 +795,25 @@ def _render_entry_health_tab(conn) -> None:
         "No Mistake Book recovery candidates found.",
     )
 
-    with st.expander("Strong Entries", expanded=False):
+    with st.expander("Strength", expanded=False):
         _render_table(
             _strong_rows(strong_entries),
-            "No strong entries found with the current filters.",
+            "No Strength findings found with the current filters.",
         )
 
-    with st.expander("Collection Weakness Summary", expanded=False):
+    with st.expander("Collection Needs Attention Summary", expanded=False):
         _render_table(
             [
                 {
                     "collection_id": row.get("collection_id"),
                     "collection": row.get("collection_name"),
                     "entries": row.get("entry_count"),
-                    "weak_entries": row.get("weak_entry_count"),
-                    "weak_ratio": _format_percent(row.get("weak_ratio")),
+                    "needs_attention_entries": row.get("weak_entry_count"),
+                    "needs_attention_ratio": _format_percent(row.get("weak_ratio")),
                 }
                 for row in collection_weakness
             ],
-            "No collection weakness summary available.",
+            "No Collection Needs Attention summary available.",
         )
 
 
@@ -997,4 +988,3 @@ def render_statistics_page() -> None:
             _render_template_french_stats_tab(conn)
     finally:
         conn.close()
-

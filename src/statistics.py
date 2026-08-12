@@ -2,6 +2,9 @@
 from sqlite3 import Connection, Row
 from typing import Any
 
+from src.analytics import get_entry_evidence_profiles
+from src.insights import get_entry_findings
+
 
 SPECIAL_COLLECTIONS = {
     "mistake_book": "Mistake Book",
@@ -1409,21 +1412,80 @@ def _entry_flags(row: dict) -> str:
     return "; ".join(flags)
 
 
-def _weakness_reason(row: dict, min_attempts: int, accuracy_threshold: float) -> str:
-    reasons = []
-    if row.get("in_mistake_book"):
-        reasons.append("in_mistake_book")
-    if row.get("in_proficient_pool") and row.get("in_mistake_book"):
-        reasons.append("proficient_but_failed")
-    if int(row.get("attempt_count") or 0) == 0:
-        reasons.append("never_quizzed")
-    if int(row.get("wrong_count") or 0) > 0:
-        reasons.append("high_wrong_count")
-    if int(row.get("attempt_count") or 0) >= min_attempts:
-        accuracy = row.get("accuracy")
-        if accuracy is not None and accuracy <= accuracy_threshold:
-            reasons.append("low_accuracy")
-    return "; ".join(dict.fromkeys(reasons))
+def _m14_filter_value(value):
+    return None if value in (None, "", "All") else int(value)
+
+
+def _m14_entry_health_rows(
+    conn: Connection,
+    language: str | None = None,
+    template_id: int | str | None = None,
+    collection_id: int | str | None = None,
+    as_of_date: str | date | datetime | None = None,
+) -> list[dict]:
+    """Project M14 Entry Findings into the legacy Entry Health row shape."""
+
+    normalized_template_id = _m14_filter_value(template_id)
+    normalized_collection_id = _m14_filter_value(collection_id)
+    normalized_language = None if language in (None, "", "All") else language
+    performance_rows = {
+        int(row["entry_id"]): row
+        for row in get_entry_performance_summary(
+            conn,
+            normalized_language,
+            normalized_template_id,
+            normalized_collection_id,
+        )
+    }
+    profiles = {
+        int(item["entry_id"]): item
+        for item in get_entry_evidence_profiles(
+            conn,
+            language=normalized_language,
+            template_id=normalized_template_id,
+            collection_id=normalized_collection_id,
+            as_of_date=as_of_date,
+        )
+    }
+    findings = {
+        int(item["scope_id"]): item
+        for item in get_entry_findings(
+            conn,
+            language=normalized_language,
+            template_id=normalized_template_id,
+            collection_id=normalized_collection_id,
+            as_of_date=as_of_date,
+        )
+    }
+    rows = []
+    for entry_id in sorted(profiles):
+        profile = profiles[entry_id]
+        finding = findings[entry_id]
+        recent = profile["recent"]
+        row = performance_rows.get(entry_id, {"entry_id": entry_id})
+        rows.append(
+            {
+                **row,
+                "attempt_count": int(profile["attempts"]),
+                "correct_count": int(profile["correct"]),
+                "wrong_count": int(profile["wrong"]),
+                "accuracy": profile["accuracy"],
+                "last_quizzed_at": profile["last_attempt_at"],
+                "last_attempt_age_days": profile["last_attempt_age_days"],
+                "recent_attempt_count": int(recent["attempts"]),
+                "recent_correct_count": int(recent["correct"]),
+                "recent_wrong_count": int(recent["wrong"]),
+                "recent_accuracy": recent["accuracy"],
+                "primary_finding": finding["primary_finding"],
+                "m14_priority": finding["priority"],
+                "evidence_state": finding["evidence_state"],
+                "freshness": finding["freshness"],
+                "reason_codes": list(finding["reason_codes"]),
+                "suggested_action": dict(finding["suggested_action"]),
+                "historical_context": finding.get("historical_context"),
+            }
+        )
+    return rows
 
 
 def get_weak_entries(
@@ -1435,26 +1497,28 @@ def get_weak_entries(
     accuracy_threshold: float = 0.60,
     include_mistake_book: bool = True,
     limit: int = 100,
+    as_of_date: str | date | datetime | None = None,
 ) -> list[dict]:
-    rows = get_entry_performance_summary(conn, language, template_id, collection_id)
-    weak_rows = []
-    for row in rows:
-        accuracy = row.get("accuracy")
-        has_low_accuracy = row["attempt_count"] >= min_attempts and accuracy is not None and accuracy <= accuracy_threshold
-        in_mistake_book = bool(row.get("in_mistake_book"))
-        if has_low_accuracy or (include_mistake_book and in_mistake_book):
-            reason = _weakness_reason(row, min_attempts, accuracy_threshold)
-            weak_rows.append({**row, "weakness_reason": reason, "flags": _entry_flags(row)})
-
-    weak_rows.sort(
+    rows = _m14_entry_health_rows(
+        conn, language, template_id, collection_id, as_of_date
+    )
+    needs_attention = [
+        {
+            **row,
+            "weakness_reason": "; ".join(row["reason_codes"]),
+            "flags": _entry_flags(row),
+        }
+        for row in rows
+        if row["primary_finding"] == "needs_attention"
+    ]
+    needs_attention.sort(
         key=lambda row: (
-            0 if row.get("in_mistake_book") else 1,
-            999 if row.get("accuracy") is None else row["accuracy"],
-            -int(row.get("wrong_count") or 0),
-            row.get("last_quizzed_at") or "",
+            0 if row["m14_priority"] == "high" else 1,
+            999 if row.get("recent_accuracy") is None else row["recent_accuracy"],
+            int(row["entry_id"]),
         )
     )
-    return weak_rows[: int(limit)]
+    return needs_attention[: int(limit)]
 
 
 def get_neglected_entries(
@@ -1465,37 +1529,27 @@ def get_neglected_entries(
     days_since_last_quiz: int = 30,
     include_never_quizzed: bool = True,
     limit: int = 100,
+    as_of_date: str | date | datetime | None = None,
 ) -> list[dict]:
-    rows = get_entry_performance_summary(conn, language, template_id, collection_id)
-    cutoff = date.fromisoformat(_add_days(_today_iso(), -max(int(days_since_last_quiz), 0)))
-    neglected_rows = []
-    today = date.fromisoformat(_today_iso())
-
-    for row in rows:
-        last_quizzed_date = _to_iso_date(row.get("last_quizzed_at"))
-        if last_quizzed_date is None:
-            if include_never_quizzed:
-                neglected_rows.append({**row, "days_since_last_quiz": None, "neglect_reason": "never_quizzed"})
-            continue
-
-        last_date = date.fromisoformat(last_quizzed_date)
-        if last_date <= cutoff:
-            neglected_rows.append(
-                {
-                    **row,
-                    "days_since_last_quiz": (today - last_date).days,
-                    "neglect_reason": "not_practiced_recently",
-                }
-            )
-
-    neglected_rows.sort(
+    rows = _m14_entry_health_rows(
+        conn, language, template_id, collection_id, as_of_date
+    )
+    stale_rows = [
+        {
+            **row,
+            "days_since_last_quiz": row.get("last_attempt_age_days"),
+            "neglect_reason": "stale_evidence",
+        }
+        for row in rows
+        if row["primary_finding"] == "stale_evidence"
+    ]
+    stale_rows.sort(
         key=lambda row: (
-            0 if row.get("last_quizzed_at") is None else 1,
-            row.get("last_quizzed_at") or "",
-            row.get("created_at") or "",
+            -(int(row.get("days_since_last_quiz") or 0)),
+            int(row["entry_id"]),
         )
     )
-    return neglected_rows[: int(limit)]
+    return stale_rows[: int(limit)]
 
 
 def get_strong_entries(
@@ -1506,90 +1560,54 @@ def get_strong_entries(
     min_attempts: int = 3,
     accuracy_threshold: float = 0.80,
     limit: int = 100,
+    as_of_date: str | date | datetime | None = None,
 ) -> list[dict]:
-    rows = get_entry_performance_summary(conn, language, template_id, collection_id)
+    rows = _m14_entry_health_rows(
+        conn, language, template_id, collection_id, as_of_date
+    )
     strong_rows = [
         {**row, "flags": _entry_flags(row)}
         for row in rows
-        if row["attempt_count"] >= min_attempts
-        and row.get("accuracy") is not None
-        and row["accuracy"] >= accuracy_threshold
-        and not row.get("in_mistake_book")
+        if row["primary_finding"] == "strength"
     ]
-    strong_rows.sort(key=lambda row: (-(row.get("accuracy") or 0), -int(row.get("attempt_count") or 0), row.get("term") or ""))
-    return strong_rows[: int(limit)]
-
-
-def _recent_entry_counts(
-    conn: Connection,
-    entry_ids: list[int],
-    recent_days: int,
-) -> dict[int, dict]:
-    if not entry_ids or not table_exists(conn, "quiz_item_logs"):
-        return {}
-
-    start_iso = _add_days(_today_iso(), -max(int(recent_days) - 1, 0))
-    placeholders = ",".join("?" for _ in entry_ids)
-    rows = fetch_all_dicts(
-        conn,
-        f"""
-        SELECT
-            entry_id,
-            COUNT(id) AS recent_attempt_count,
-            COALESCE(SUM(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END), 0) AS recent_correct_count,
-            COALESCE(SUM(CASE WHEN is_correct = 0 THEN 1 ELSE 0 END), 0) AS recent_wrong_count,
-            MAX(answered_at) AS last_quizzed_at
-        FROM quiz_item_logs
-        WHERE entry_id IN ({placeholders})
-          AND answered_at IS NOT NULL
-          AND DATE(answered_at) >= DATE(?)
-        GROUP BY entry_id
-        """,
-        tuple(entry_ids + [start_iso]),
+    strong_rows.sort(
+        key=lambda row: (
+            -(row.get("accuracy") or 0),
+            -int(row.get("attempt_count") or 0),
+            int(row["entry_id"]),
+        )
     )
-    result = {}
-    for row in rows:
-        attempts = int(row.get("recent_attempt_count") or 0)
-        correct = int(row.get("recent_correct_count") or 0)
-        wrong = int(row.get("recent_wrong_count") or 0)
-        result[int(row["entry_id"])] = {
-            "recent_attempt_count": attempts,
-            "recent_correct_count": correct,
-            "recent_wrong_count": wrong,
-            "recent_accuracy": _accuracy(correct, attempts),
-            "last_quizzed_at": row.get("last_quizzed_at"),
-        }
-    return result
+    return strong_rows[: int(limit)]
 
 
 def get_proficient_risk_entries(
     conn: Connection,
     recent_days: int = 30,
     limit: int = 100,
+    as_of_date: str | date | datetime | None = None,
+    language: str | None = None,
+    template_id: int | str | None = None,
+    collection_id: int | str | None = None,
 ) -> list[dict]:
-    rows = [row for row in get_entry_performance_summary(conn) if row.get("in_proficient_pool")]
-    recent_counts = _recent_entry_counts(conn, [row["entry_id"] for row in rows], recent_days)
-    risk_rows = []
-
-    for row in rows:
-        recent = recent_counts.get(row["entry_id"], {
-            "recent_attempt_count": 0,
-            "recent_correct_count": 0,
-            "recent_wrong_count": 0,
-            "recent_accuracy": None,
-            "last_quizzed_at": row.get("last_quizzed_at"),
-        })
-        reasons = []
-        if row.get("in_mistake_book"):
-            reasons.append("also_in_mistake_book")
-        if recent["recent_wrong_count"] > 0:
-            reasons.append("recent_wrong_answer")
-        if recent["recent_accuracy"] is not None and recent["recent_accuracy"] < 0.8:
-            reasons.append("low_recent_accuracy")
-        if reasons:
-            risk_rows.append({**row, **recent, "risk_reason": "; ".join(reasons)})
-
-    risk_rows.sort(key=lambda row: (0 if row.get("in_mistake_book") else 1, -int(row.get("recent_wrong_count") or 0), row.get("last_quizzed_at") or ""))
+    risk_rows = [
+        {**row, "risk_reason": "; ".join(row["reason_codes"])}
+        for row in _m14_entry_health_rows(
+            conn,
+            language,
+            template_id,
+            collection_id,
+            as_of_date,
+        )
+        if row["primary_finding"] == "needs_attention"
+        and row.get("in_proficient_pool")
+    ]
+    risk_rows.sort(
+        key=lambda row: (
+            0 if row["m14_priority"] == "high" else 1,
+            -int(row.get("recent_wrong_count") or 0),
+            int(row["entry_id"]),
+        )
+    )
     return risk_rows[: int(limit)]
 
 
@@ -1598,23 +1616,20 @@ def get_mistake_recovery_candidates(
     recent_days: int = 30,
     min_recent_correct: int = 2,
     limit: int = 100,
+    as_of_date: str | date | datetime | None = None,
 ) -> list[dict]:
-    rows = [row for row in get_entry_performance_summary(conn) if row.get("in_mistake_book")]
-    recent_counts = _recent_entry_counts(conn, [row["entry_id"] for row in rows], recent_days)
-    candidates = []
-
-    for row in rows:
-        recent = recent_counts.get(row["entry_id"], {
-            "recent_attempt_count": 0,
-            "recent_correct_count": 0,
-            "recent_wrong_count": 0,
-            "recent_accuracy": None,
-            "last_quizzed_at": row.get("last_quizzed_at"),
-        })
-        if recent["recent_correct_count"] >= min_recent_correct:
-            candidates.append({**row, **recent, "recovery_reason": "recent_correct_answers"})
-
-    candidates.sort(key=lambda row: (-int(row.get("recent_correct_count") or 0), int(row.get("recent_wrong_count") or 0), row.get("term") or ""))
+    candidates = [
+        {**row, "recovery_reason": "; ".join(row["reason_codes"])}
+        for row in _m14_entry_health_rows(conn, as_of_date=as_of_date)
+        if row["primary_finding"] == "recovery" and row.get("in_mistake_book")
+    ]
+    candidates.sort(
+        key=lambda row: (
+            -int(row.get("recent_correct_count") or 0),
+            int(row.get("recent_wrong_count") or 0),
+            int(row["entry_id"]),
+        )
+    )
     return candidates[: int(limit)]
 
 
@@ -1626,21 +1641,42 @@ def get_entry_health_overview(
     min_attempts: int = 2,
     weak_accuracy_threshold: float = 0.60,
     neglected_days: int = 30,
+    as_of_date: str | date | datetime | None = None,
 ) -> dict:
-    all_rows = get_entry_performance_summary(conn, language, template_id, collection_id)
-    weak_entries = get_weak_entries(conn, language, template_id, collection_id, min_attempts, weak_accuracy_threshold)
-    neglected_entries = get_neglected_entries(conn, language, template_id, collection_id, neglected_days)
-    strong_entries = get_strong_entries(conn, language, template_id, collection_id, max(3, min_attempts), 0.80)
+    all_rows = _m14_entry_health_rows(
+        conn, language, template_id, collection_id, as_of_date
+    )
+    counts = {
+        finding: sum(1 for row in all_rows if row["primary_finding"] == finding)
+        for finding in (
+            "never_quizzed",
+            "insufficient_evidence",
+            "needs_attention",
+            "recovery",
+            "stale_evidence",
+            "strength",
+            "none",
+        )
+    }
     special_stats = get_special_collection_stats(conn)
 
     return {
         "total_entries": len(all_rows),
-        "weak_entries": len(weak_entries),
-        "neglected_entries": len(neglected_entries),
-        "strong_entries": len(strong_entries),
+        **counts,
+        "weak_entries": counts["needs_attention"],
+        "neglected_entries": counts["stale_evidence"],
+        "strong_entries": counts["strength"],
         "mistake_book_entries": special_stats["mistake_book"]["entry_count"],
-        "proficient_risk_entries": len(get_proficient_risk_entries(conn)),
-        "never_quizzed_entries": sum(1 for row in all_rows if int(row.get("attempt_count") or 0) == 0),
+        "proficient_risk_entries": len(
+            get_proficient_risk_entries(
+                conn,
+                as_of_date=as_of_date,
+                language=language,
+                template_id=template_id,
+                collection_id=collection_id,
+            )
+        ),
+        "never_quizzed_entries": counts["never_quizzed"],
     }
 
 
@@ -1648,14 +1684,22 @@ def get_collection_weakness_summary(
     conn: Connection,
     min_attempts: int = 2,
     accuracy_threshold: float = 0.60,
+    as_of_date: str | date | datetime | None = None,
 ) -> list[dict]:
     if not table_exists(conn, "collections") or not table_exists(conn, "entry_collections"):
         return []
 
-    weak_entry_ids = {row["entry_id"] for row in get_weak_entries(conn, min_attempts=min_attempts, accuracy_threshold=accuracy_threshold, limit=100000)}
+    weak_entry_ids = {
+        row["entry_id"]
+        for row in get_weak_entries(
+            conn, limit=100000, as_of_date=as_of_date
+        )
+    }
     collection_rows = get_collection_size_stats(conn)
     rows = []
     for collection in collection_rows:
+        if collection.get("system_type"):
+            continue
         entry_rows = fetch_all_dicts(
             conn,
             """
