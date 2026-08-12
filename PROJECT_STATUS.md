@@ -245,6 +245,11 @@ boundary violations or warnings. The packaging checker retains its expected
 warning that the local personal database exists and must remain excluded from
 Git/releases. No schema or migration file changes in M11.4.
 
+M11.4 verified implementation commit:
+`f0113e0592bf5198c429d3282c528c39b47f63fa`. The Draft PR head may include a
+later documentation-only metadata commit; its exact head is recorded in the
+Draft PR and closeout report.
+
 Next engineering objective:
 **Milestone 12 — Repository Restructure**.
 
@@ -726,6 +731,8 @@ baseline is trustworthy.
 - Candidate branch: `agent/m11-4-baseline-closure`
 - Verified synchronized M11.4 base commit:
   `ccda6b8385215835f3de997f268e2165c37249de`
+- Verified M11.4 implementation commit:
+  `f0113e0592bf5198c429d3282c528c39b47f63fa`
 - Release tag: none recorded
 - Current lifecycle documents:
   - `ROADMAP.md`

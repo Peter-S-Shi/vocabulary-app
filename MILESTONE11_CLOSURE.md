@@ -15,6 +15,10 @@ M11.4 started from merged M11.3 commit
 `ccda6b8385215835f3de997f268e2165c37249de` on branch
 `agent/m11-4-baseline-closure`. M12 has not started.
 
+Verified M11.4 implementation commit:
+`f0113e0592bf5198c429d3282c528c39b47f63fa`. A later documentation-only
+metadata commit may be the Draft PR head.
+
 ## Final semantics
 
 - `entries.id` remains the authoritative Entry identity.
