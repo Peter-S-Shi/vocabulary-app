@@ -46,6 +46,8 @@ Streamlit `session_state` is UI state. Durable state and duplicate-action protec
 - `src/statistics.py`: read-only statistics and calendar queries
 - `src/learning_workflow.py`: read-only Today workflow queries and recommendations
 - `src/import_export.py`: transfer formats, validation, preview, and confirmed import
+- `src/template_definitions.py`: deterministic, preview-first, atomic portable Template Definition CSV operations
+- `src/linked_sources.py`: append-only local CSV/XLSX source-link preview, confirmation, refresh, and unlink orchestration
 - `src/backup.py`: database/workbook backup and restore preview
 - `src/text_parser.py`: structured Quick Add parsing
 
@@ -69,6 +71,13 @@ UI modules call core functions rather than duplicating durable rules.
 - UI modules should not contain raw SQL.
 - Migrations should be additive, backup-aware, and preserve user data.
 - `data/vocab.db` must not be committed to Git.
+
+`collection_source_links` stores at most one local append-source link per
+Collection. It stores metadata, including the user-selected local path, but not
+source file bytes or row-to-Entry mappings. Linked-source preview and confirmed
+writes reuse `src/import_export.py`; they do not implement a parallel parser or
+validation language. The source is non-authoritative and cannot delete,
+reorder, or overwrite current app content.
 
 ## Learning Completion Semantics
 

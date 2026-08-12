@@ -25,7 +25,8 @@ Milestones 1-10 feature development and productization are complete historical
 work. **Milestone 11 is complete** and established a **Trustworthy
 Pre-Desktop Baseline**. **Milestone 12 is complete** and established the
 organized repository/documentation structure. The next objective is
-**Milestone 13 — Import and Template Evolution Core**; M13 has not started.
+**Milestone 14 — Learning Analytics and Insight Core**. **Milestone 13 is
+complete** and established the reusable Import and Template Evolution Core.
 
 Streamlit remains the currently runnable compatibility/reference UI, but it is
 no longer the intended Release Candidate target. The active lifecycle now
@@ -304,6 +305,8 @@ foundations:
 - Template-based entries and French presets
 - Statistics and Review Calendar
 - CSV/XLSX import and export
+- Portable, preview-first Template Definition CSV export/import
+- Reusable Linked Append Source core for manually confirmed CSV/XLSX additions
 - SQLite/XLSX backup and restore preview
 - Today and Daily Learning Workflow
 - Schema/app metadata and software-update compatibility foundation
