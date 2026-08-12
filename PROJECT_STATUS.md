@@ -73,6 +73,10 @@ Batch A adds no schema or migration. Export/import round-trip verification
 compares portable Template and ordered field semantics rather than internal IDs
 or timestamps.
 
+M13 Batch A verified implementation commit:
+`a6306c2f47b3609b011635fa7de3b0427226d91e`. A later documentation-only
+metadata commit may be the remote branch head during independent review.
+
 ```text
 Milestone 12 Complete
 Repository Restructure Complete
@@ -810,6 +814,8 @@ have not started.
 - Candidate branch: `agent/m13-import-template-evolution`
 - Merged M12 base commit:
   `6e339ec846f22f14ee454d9ad0d68ba3fb83aee6`
+- Verified M13 Batch A implementation commit:
+  `a6306c2f47b3609b011635fa7de3b0427226d91e`
 - Merged M11 trustworthy-baseline commit:
   `f0e0d2c06fa4137c07ab2f892df117af2ed3a060`
 - Verified synchronized M12 base commit:
