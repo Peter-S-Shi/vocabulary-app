@@ -888,12 +888,15 @@ def import_general_entry_rows(
     duplicate_handling: str = "skip",
     target_collection_id: int | None = None,
     connection: Connection | None = None,
+    reconcile_card_history: bool = True,
 ) -> dict:
     if duplicate_handling not in DUPLICATE_HANDLING_OPTIONS:
         raise ValueError("Duplicate handling must be 'skip' or 'import_anyway'.")
 
     owns_connection = connection is None
     conn = connection or get_connection()
+    if not conn.in_transaction:
+        conn.execute("BEGIN")
     result = {
         "attempted_count": len(valid_rows),
         "imported_count": 0,
@@ -1048,7 +1051,7 @@ def import_general_entry_rows(
                 result["failed_count"] += 1
                 result["errors"].append({"row_number": row_number, "message": str(error)})
 
-        if owns_connection and target_collection_id is not None and result["collection_added_count"]:
+        if reconcile_card_history and target_collection_id is not None and result["collection_added_count"]:
             reconcile_collection_card_history(
                 conn,
                 int(target_collection_id),
@@ -1138,12 +1141,15 @@ def import_template_entry_rows(
     duplicate_handling: str = "skip",
     target_collection_id: int | None = None,
     connection: Connection | None = None,
+    reconcile_card_history: bool = True,
 ) -> dict:
     if duplicate_handling not in DUPLICATE_HANDLING_OPTIONS:
         raise ValueError("Duplicate handling must be 'skip' or 'import_anyway'.")
 
     owns_connection = connection is None
     conn = connection or get_connection()
+    if not conn.in_transaction:
+        conn.execute("BEGIN")
     result = {
         "attempted_count": len(valid_rows),
         "imported_count": 0,
@@ -1271,7 +1277,7 @@ def import_template_entry_rows(
                 result["failed_count"] += 1
                 result["errors"].append({"row_number": row_number, "message": str(error)})
 
-        if owns_connection and target_collection_id is not None and result["added_to_collection_count"]:
+        if reconcile_card_history and target_collection_id is not None and result["added_to_collection_count"]:
             reconcile_collection_card_history(
                 conn,
                 int(target_collection_id),
@@ -1394,7 +1400,13 @@ def import_collection_rows(
             explicit_template = any(str(data.get(key) or "").strip() for key in ("template_id", "template_name", "template_type"))
             resolved_type = str(data.get("resolved_template_type") or "")
             writer = import_template_entry_rows if explicit_template and resolved_type != "general" else import_general_entry_rows
-            row_result = writer([row], duplicate_handling=duplicate_handling, target_collection_id=collection_id, connection=conn)
+            row_result = writer(
+                [row],
+                duplicate_handling=duplicate_handling,
+                target_collection_id=collection_id,
+                connection=conn,
+                reconcile_card_history=False,
+            )
             result["imported_entry_count"] += row_result["imported_count"]
             result["skipped_duplicate_count"] += row_result["skipped_duplicate_count"]
             result["failed_count"] += row_result["failed_count"]
@@ -1503,4 +1515,3 @@ def get_template_field_map_rows(connection: Connection | None = None) -> list[di
             ORDER BY templates.name, fields.display_order, fields.id
             """,
         )
-

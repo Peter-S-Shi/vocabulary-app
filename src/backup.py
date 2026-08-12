@@ -24,6 +24,7 @@ BACKUP_TABLES = (
     "entry_field_values",
     "collections",
     "entry_collections",
+    "collection_source_links",
     "cards",
     "card_revisions",
     "card_revision_entries",
@@ -239,4 +240,3 @@ def build_backup_filename(kind: str, extension: str, now: datetime | None = None
     safe_kind = "database" if kind == "database" else "full"
     suffix = extension.lower().lstrip(".")
     return f"vocabulary_app_{safe_kind}_backup_{timestamp}.{suffix}"
-
