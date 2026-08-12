@@ -77,6 +77,13 @@ Card learning event. `quiz_sessions.completed_at` is the source timestamp; the
 system does not create a parallel Review-completion event. Non-Card Quiz
 sessions remain Entry-performance evidence only.
 
+Current-facing Card status and history resolve the active Card by stable
+`card_id`, not merely by `collection_id + card_number`. A retired Card's Quiz
+history therefore cannot be reassigned to a later Card that reuses the same
+display number. Transient Today/Review/Quiz focus and queue state also carries
+and validates `card_id`; unavailable or mismatched state is explained and
+cleared rather than redirected to another Card.
+
 `quiz_item_logs.entry_id` is a durable historical integer reference rather
 than a cascading foreign key to the current `entries` table. Hard-deleting an
 Entry therefore preserves its Quiz item evidence, including the stored prompt,

@@ -614,24 +614,61 @@ def get_card_learning_overview_stats(conn: Connection) -> dict:
         "quiz_sessions",
         "WHERE status = 'completed' AND completed_at IS NOT NULL AND card_number > 0",
     )
-    cards_with_completion_row = fetch_one_dict(
-        conn,
-        """
-        SELECT COUNT(*) AS card_count
-        FROM (
-            SELECT collection_id, card_number
-            FROM quiz_sessions
-            WHERE status = 'completed'
-              AND completed_at IS NOT NULL
-              AND card_number > 0
-            GROUP BY collection_id, card_number
-        )
-        """,
+    stable_identity_available = table_exists(conn, "cards") and column_exists(
+        conn, "quiz_sessions", "card_id"
     )
+    if stable_identity_available:
+        cards_with_completion_row = fetch_one_dict(
+            conn,
+            """
+            SELECT COUNT(DISTINCT sessions.card_id) AS card_count
+            FROM quiz_sessions sessions
+            JOIN cards current ON current.id = sessions.card_id
+            WHERE sessions.status = 'completed'
+              AND sessions.completed_at IS NOT NULL
+              AND current.is_active = 1
+            """,
+        )
+    else:
+        cards_with_completion_row = fetch_one_dict(
+            conn,
+            """
+            SELECT COUNT(*) AS card_count
+            FROM (
+                SELECT collection_id, card_number
+                FROM quiz_sessions
+                WHERE status = 'completed'
+                  AND completed_at IS NOT NULL
+                  AND card_number > 0
+                GROUP BY collection_id, card_number
+            )
+            """,
+        )
     cards_with_completion = int(cards_with_completion_row.get("card_count") or 0)
 
     never_quizzed_cards = 0
-    if table_exists(conn, "collections") and table_exists(conn, "entry_collections"):
+    if stable_identity_available:
+        never_row = fetch_one_dict(
+            conn,
+            """
+            WITH completed_cards AS (
+                SELECT card_id
+                FROM quiz_sessions
+                WHERE status = 'completed'
+                  AND completed_at IS NOT NULL
+                  AND card_id IS NOT NULL
+                GROUP BY card_id
+            )
+            SELECT COUNT(*) AS card_count
+            FROM cards current
+            LEFT JOIN completed_cards completed
+              ON completed.card_id = current.id
+            WHERE current.is_active = 1
+              AND completed.card_id IS NULL
+            """,
+        )
+        never_quizzed_cards = int(never_row.get("card_count") or 0)
+    elif table_exists(conn, "collections") and table_exists(conn, "entry_collections"):
         never_row = fetch_one_dict(
             conn,
             """
@@ -732,6 +769,8 @@ def get_card_learning_sessions_between_dates(
             qs.collection_id,
             {collection_select},
             qs.card_number,
+            qs.card_id,
+            qs.card_revision_id,
             qs.quiz_type,
             qs.total_items,
             qs.correct_count,
@@ -1991,5 +2030,3 @@ def get_french_adjective_field_performance(conn: Connection, start_date=None, en
 
 def get_french_noun_field_performance(conn: Connection, start_date=None, end_date=None) -> list[dict]:
     return []
-
-

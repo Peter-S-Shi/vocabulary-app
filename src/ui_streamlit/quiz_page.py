@@ -97,6 +97,7 @@ QUIZ_STATE_KEYS = [
 QUIZ_FOCUS_KEYS = [
     "quiz_focus_collection_id",
     "quiz_focus_card_number",
+    "quiz_focus_card_id",
     "quiz_focus_type",
     "quiz_focus_source",
     "quiz_focus_reason",
@@ -455,6 +456,7 @@ def _get_quiz_queue_index() -> int:
 def _set_quiz_focus_from_queue_item(queue_item: dict) -> None:
     st.session_state["quiz_focus_collection_id"] = queue_item["collection_id"]
     st.session_state["quiz_focus_card_number"] = queue_item["card_number"]
+    st.session_state["quiz_focus_card_id"] = queue_item.get("card_id")
     st.session_state["quiz_focus_type"] = queue_item.get("preferred_quiz_type") or "mixed_mcq"
     st.session_state["quiz_focus_source"] = "ordered_quiz_queue"
     st.session_state["quiz_focus_reason"] = queue_item.get("reason") or "queued_card"
@@ -496,6 +498,53 @@ def _advance_quiz_queue() -> bool:
     return True
 
 
+def _reconcile_quiz_queue() -> int:
+    queue = _get_quiz_queue()
+    if not queue:
+        return 0
+
+    valid_items = []
+    for item in queue:
+        collection = get_collection_by_id(int(item.get("collection_id") or 0))
+        if collection is None:
+            continue
+        card_number = int(item.get("card_number") or 0)
+        if card_number <= 0:
+            valid_items.append(item)
+            continue
+        card_group = next(
+            (
+                group
+                for group in get_card_groups_for_collection(collection["id"])
+                if int(group["card_number"]) == card_number
+            ),
+            None,
+        )
+        if card_group is None:
+            continue
+        expected_card_id = item.get("card_id")
+        if expected_card_id is None or int(expected_card_id) != int(card_group["card_id"]):
+            continue
+        valid_items.append({**item, "card_id": int(card_group["card_id"])})
+
+    removed_count = len(queue) - len(valid_items)
+    if removed_count == 0:
+        return 0
+    if not valid_items:
+        _clear_quiz_queue()
+        _clear_quiz_focus()
+        return removed_count
+
+    st.session_state["quiz_queue"] = valid_items
+    st.session_state["quiz_queue_index"] = min(
+        _get_quiz_queue_index(), len(valid_items) - 1
+    )
+    _set_quiz_focus_from_queue_item(
+        valid_items[int(st.session_state["quiz_queue_index"])]
+    )
+    return removed_count
+
+
 def _get_quiz_focus() -> dict | None:
     collection_id = st.session_state.get("quiz_focus_collection_id")
     if collection_id is None:
@@ -526,10 +575,28 @@ def _get_quiz_focus() -> dict | None:
         except (TypeError, ValueError):
             card_number = None
 
+    card_id = None
+    if card_number is not None and card_number > 0:
+        card_group = next(
+            (
+                group
+                for group in get_card_groups_for_collection(collection_id)
+                if int(group["card_number"]) == card_number
+            ),
+            None,
+        )
+        if card_group is None:
+            return None
+        expected_card_id = st.session_state.get("quiz_focus_card_id")
+        if expected_card_id is None or int(expected_card_id) != int(card_group["card_id"]):
+            return None
+        card_id = int(card_group["card_id"])
+
     return {
         "collection_id": collection_id,
         "collection_name": collection["name"],
         "card_number": card_number,
+        "card_id": card_id,
         "quiz_type": quiz_type,
         "source": st.session_state.get("quiz_focus_source"),
         "reason": st.session_state.get("quiz_focus_reason")
@@ -2155,6 +2222,11 @@ def render_quiz_page() -> None:
     st.title("Quiz")
     _render_pending_system_collection_removal()
     render_back_to_today_button("quiz_back_to_today_top")
+    removed_queue_items = _reconcile_quiz_queue()
+    if removed_queue_items:
+        st.warning(
+            f"Removed {removed_queue_items} unavailable Card(s) from the Quiz queue."
+        )
     focus = _get_quiz_focus()
     _render_quiz_focus_banner(focus)
     section_options = ["Select Quiz", "Mistake Book", "Proficient Pool", "Logs & Performance"]

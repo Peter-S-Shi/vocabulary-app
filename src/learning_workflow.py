@@ -32,22 +32,33 @@ def normalize_today(today=None) -> str:
 def get_study_cards(conn) -> list[dict]:
     """Return current Card groups with factual Quiz-completion metadata.
 
-    Card identity remains the transitional collection/card-number pair until
-    M11.3. Legacy Review scheduling state is intentionally not consulted.
+    Current membership is still derived from collection position/card size,
+    while completion history is joined through the active stable Card ID.
+    Legacy Review scheduling state is intentionally not consulted.
     """
     if not _has_tables(conn, "collections", "entry_collections"):
         return []
 
-    quiz_join = ""
-    quiz_select = "0 AS completion_count, NULL AS last_completed_at"
-    if _table_exists(conn, "quiz_sessions"):
-        quiz_join = """
-            LEFT JOIN quiz_sessions qs
-              ON qs.collection_id = c.id
-             AND qs.card_number = (
+    stable_cards_available = _has_tables(conn, "cards", "card_revisions")
+    stable_card_join = ""
+    card_identity_select = "NULL AS card_id"
+    if stable_cards_available:
+        stable_card_join = """
+            JOIN cards current_card
+              ON current_card.collection_id = c.id
+             AND current_card.card_number = (
                     CAST(((ec.position - 1) / c.card_size) AS INTEGER) + 1
                  )
-             AND qs.card_number > 0
+             AND current_card.is_active = 1
+        """
+        card_identity_select = "current_card.id AS card_id"
+
+    quiz_join = ""
+    quiz_select = "0 AS completion_count, NULL AS last_completed_at"
+    if _table_exists(conn, "quiz_sessions") and stable_cards_available:
+        quiz_join = """
+            LEFT JOIN quiz_sessions qs
+              ON qs.card_id = current_card.id
              AND qs.status = 'completed'
              AND qs.completed_at IS NOT NULL
         """
@@ -63,16 +74,19 @@ def get_study_cards(conn) -> list[dict]:
             c.name AS collection_name,
             c.card_size,
             CAST(((ec.position - 1) / c.card_size) AS INTEGER) + 1 AS card_number,
+            {card_identity_select},
             COUNT(DISTINCT ec.entry_id) AS entry_count,
             {quiz_select}
         FROM collections c
         JOIN entry_collections ec ON ec.collection_id = c.id
+        {stable_card_join}
         {quiz_join}
         GROUP BY
             c.id,
             c.name,
             c.card_size,
-            CAST(((ec.position - 1) / c.card_size) AS INTEGER) + 1
+            CAST(((ec.position - 1) / c.card_size) AS INTEGER) + 1,
+            card_id
         ORDER BY c.name COLLATE NOCASE, card_number
         """
     ).fetchall()
@@ -81,6 +95,7 @@ def get_study_cards(conn) -> list[dict]:
             "collection_id": int(row["collection_id"]),
             "collection_name": row["collection_name"],
             "card_number": int(row["card_number"]),
+            "card_id": None if row["card_id"] is None else int(row["card_id"]),
             "card_size": int(row["card_size"]),
             "entry_count": int(row["entry_count"]),
             "completion_count": int(row["completion_count"] or 0),
@@ -111,24 +126,49 @@ def get_card_learning_history(
 ) -> list[dict]:
     if not _table_exists(conn, "quiz_sessions"):
         return []
+
+    stable_identity_available = _table_exists(conn, "cards") and _column_exists(
+        conn, "quiz_sessions", "card_id"
+    )
+    if stable_identity_available:
+        card_row = conn.execute(
+            """
+            SELECT id
+            FROM cards
+            WHERE collection_id = ?
+              AND card_number = ?
+              AND is_active = 1
+            """,
+            (int(collection_id), int(card_number)),
+        ).fetchone()
+        if card_row is None:
+            return []
+        identity_clause = "card_id = ?"
+        identity_params = (int(card_row["id"]),)
+    else:
+        identity_clause = "collection_id = ? AND card_number = ?"
+        identity_params = (int(collection_id), int(card_number))
+
     rows = conn.execute(
-        """
+        f"""
         SELECT
             id AS session_id,
             completed_at,
             quiz_type,
             total_items,
             correct_count,
-            wrong_count
+            wrong_count,
+            card_number,
+            card_id,
+            card_revision_id
         FROM quiz_sessions
-        WHERE collection_id = ?
-          AND card_number = ?
+        WHERE {identity_clause}
           AND card_number > 0
           AND status = 'completed'
           AND completed_at IS NOT NULL
         ORDER BY completed_at DESC, id DESC
         """,
-        (int(collection_id), int(card_number)),
+        identity_params,
     ).fetchall()
     return [dict(row) for row in rows]
 
@@ -230,7 +270,7 @@ def get_review_focus_payload(
 ) -> dict | None:
     del today
 
-    if not _has_tables(conn, "collections", "entry_collections"):
+    if not _has_tables(conn, "collections", "entry_collections", "cards"):
         return None
 
     row = conn.execute(
@@ -239,16 +279,26 @@ def get_review_focus_payload(
             c.id AS collection_id,
             c.name AS collection_name,
             ? AS card_number,
+            active_card.id AS card_id,
             c.card_size,
             COUNT(ec.entry_id) AS entry_count
         FROM collections c
+        JOIN cards active_card
+          ON active_card.collection_id = c.id
+         AND active_card.card_number = ?
+         AND active_card.is_active = 1
         LEFT JOIN entry_collections ec
           ON ec.collection_id = c.id
          AND (CAST(((ec.position - 1) / c.card_size) AS INTEGER) + 1) = ?
         WHERE c.id = ?
-        GROUP BY c.id, c.name, c.card_size
+        GROUP BY c.id, c.name, active_card.id, c.card_size
         """,
-        (int(card_number), int(card_number), int(collection_id)),
+        (
+            int(card_number),
+            int(card_number),
+            int(card_number),
+            int(collection_id),
+        ),
     ).fetchone()
 
     if row is None or int(row["entry_count"]) <= 0:
@@ -258,6 +308,7 @@ def get_review_focus_payload(
         "collection_id": row["collection_id"],
         "collection_name": row["collection_name"],
         "card_number": int(card_number),
+        "card_id": int(row["card_id"]),
         "entry_count": int(row["entry_count"]),
         "card_size": row["card_size"],
         "status": "available",
@@ -414,6 +465,8 @@ def get_today_card_learning_activity(conn, today=None) -> dict:
             qs.collection_id,
             {collection_name_select},
             qs.card_number,
+            qs.card_id,
+            qs.card_revision_id,
             qs.completed_at,
             qs.completed_at AS reviewed_at,
             qs.quiz_type AS action,
@@ -451,6 +504,7 @@ def get_reviewed_cards_today(conn, today=None) -> list[dict]:
             qs.collection_id,
             c.name AS collection_name,
             qs.card_number,
+            qs.card_id,
             c.card_size,
             MAX(qs.completed_at) AS last_reviewed_at,
             MAX(qs.total_items) AS entry_count
@@ -460,7 +514,7 @@ def get_reviewed_cards_today(conn, today=None) -> list[dict]:
           AND qs.completed_at IS NOT NULL
           AND qs.card_number > 0
           AND DATE(qs.completed_at) = DATE(?)
-        GROUP BY qs.collection_id, c.name, qs.card_number, c.card_size
+        GROUP BY qs.collection_id, c.name, qs.card_number, qs.card_id, c.card_size
         ORDER BY MAX(qs.completed_at) DESC, c.name COLLATE NOCASE, qs.card_number
         """,
         (today_iso,),
@@ -471,6 +525,7 @@ def get_reviewed_cards_today(conn, today=None) -> list[dict]:
             "collection_id": row["collection_id"],
             "collection_name": row["collection_name"],
             "card_number": row["card_number"],
+            "card_id": row["card_id"],
             "card_size": row["card_size"],
             "entry_count": int(row["entry_count"]),
             "last_reviewed_at": row["last_reviewed_at"],
@@ -499,6 +554,7 @@ def get_daily_quiz_candidates(conn, today=None) -> list[dict]:
                 "collection_id": card["collection_id"],
                 "collection_name": card["collection_name"],
                 "card_number": card["card_number"],
+                "card_id": card["card_id"],
                 "entry_count": card["entry_count"],
                 "preferred_quiz_type": "mixed_mcq",
                 "enabled": True,
@@ -548,6 +604,20 @@ def get_daily_quiz_candidates(conn, today=None) -> list[dict]:
         if card_number is None:
             continue
 
+        card_id = None
+        if card_number > 0 and _table_exists(conn, "cards"):
+            card_row = conn.execute(
+                """
+                SELECT id
+                FROM cards
+                WHERE collection_id = ?
+                  AND card_number = ?
+                  AND is_active = 1
+                """,
+                (int(collection["collection_id"]), int(card_number)),
+            ).fetchone()
+            card_id = None if card_row is None else int(card_row["id"])
+
         candidates.append(
             {
                 "recommendation_type": recommendation_type,
@@ -557,6 +627,7 @@ def get_daily_quiz_candidates(conn, today=None) -> list[dict]:
                 "collection_id": collection["collection_id"],
                 "collection_name": SPECIAL_COLLECTION_TYPES[system_type],
                 "card_number": card_number,
+                "card_id": card_id,
                 "entry_count": collection["entry_count"],
                 "preferred_quiz_type": "mixed_mcq",
                 "enabled": True,

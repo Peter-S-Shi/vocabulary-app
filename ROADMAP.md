@@ -104,7 +104,7 @@ target.
 
 ## Current Phase
 
-**Scope Reopened / Pre-Desktop Stabilization**
+**Trustworthy Pre-Desktop Baseline Established / Repository Restructure Next**
 
 The immediate objective is to establish a trustworthy data and business-logic
 baseline, reorganize the repository, implement reusable foundations for the
@@ -116,6 +116,12 @@ been implemented and verified.
 ---
 
 ## Milestone 11: Pre-Desktop Stabilization
+
+**Status: Complete — Trustworthy Pre-Desktop Baseline Established.**
+
+Closure evidence is recorded in `MILESTONE11_CLOSURE.md`. This status does not
+mean Feature Freeze, Release Ready, Desktop Ready, or Product Hardening
+completion. The next objective is Milestone 12 — Repository Restructure.
 
 Milestone 11 resolves defects and semantic inconsistencies that would otherwise
 be carried into the desktop application.

@@ -20,6 +20,12 @@ Entry-change events. Quiz logs already store prompt, expected answer, user
 answer, correctness, and the original `entry_id`; the app does not fabricate
 the deleted Entry's full content.
 
+Deleting an entire Collection is different: it is an explicitly destructive
+operation that removes the Collection's Card identity/revision history, legacy
+Review state/history, Quiz sessions, and Quiz item logs. The UI requires the
+Collection name plus an acknowledgement of permanent history deletion. The
+Vocabulary Entries themselves remain in the local database.
+
 ## Git and the Data Folder
 
 `data/.gitkeep` is an empty repository placeholder that keeps the folder structure available after cloning.

@@ -3,6 +3,8 @@ from math import ceil
 
 from src.entries import get_entry_detail_with_template_values
 from src.collections import (
+    COLLECTION_DELETE_CONFIRMATION,
+    COLLECTION_DELETE_WARNING,
     CROSS_CARD_CONFIRMATION_MESSAGE,
     CrossCardMoveConfirmationRequired,
     create_collection,
@@ -367,16 +369,13 @@ def _render_delete_collection(settings_collection: dict) -> None:
         return
 
     with st.expander(t("Delete this collection"), expanded=False):
-        st.warning(
-            "Deleting this collection removes its entry membership, card review schedule/history, "
-            "and quiz sessions. The vocabulary entries themselves are not deleted."
-        )
+        st.warning(t(COLLECTION_DELETE_WARNING))
         confirmation_name = st.text_input(
             t("Type the collection name to confirm"),
             key=f"delete_collection_name_{settings_collection['id']}",
         )
         confirmed = st.checkbox(
-            t("I understand the collection and its associated review/quiz history will be deleted."),
+            t(COLLECTION_DELETE_CONFIRMATION),
             key=f"delete_collection_confirm_{settings_collection['id']}",
         )
         name_matches = confirmation_name.strip() == settings_collection["name"]
