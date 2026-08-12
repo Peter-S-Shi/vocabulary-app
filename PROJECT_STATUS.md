@@ -12,7 +12,7 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 ## Current Phase
 
-**Import and Template Evolution Core — Batch A Pending Independent Review**
+**Import and Template Evolution Core — Batch B In Progress**
 
 ## Current Milestone
 
@@ -42,8 +42,8 @@ M13 began from merged M12 commit
 `agent/m13-import-template-evolution`.
 
 ```text
-M13 Batch A — Template Definition Portability implemented / pending independent review
-M13 Batch B — not started
+M13 Batch A — Template Definition Portability independently reviewed / passed
+M13 Batch B — Linked Append Source authorized / implementation started
 M13 Batch C — not started
 ```
 
@@ -80,6 +80,11 @@ or timestamps.
 M13 Batch A verified correctness implementation commit:
 `247652c56131b73f8bc582751c748e614dc7f890`. A later documentation-only
 metadata commit may be the remote branch head during independent review.
+
+Batch A passed independent review at branch head
+`44fdde0fe79e6810b2cb1dc5a4fb3cbeea04dfab` and was merged through PR #8 to
+`main` at `8574b31dde9b213fe83aade9583bf2e360fce0da`. The product owner then
+authorized Batch B on the same M13 branch. Batch C and M14 remain unstarted.
 
 ```text
 Milestone 12 Complete
@@ -804,14 +809,16 @@ behaviorally unchanged. Consolidating `scripts/` and `tools/`, decomposing
 large core modules, and changing runtime package layout are deferred because
 they would add churn without M12 user value.
 
-## Next M13 Internal Gate
+## Current M13 Internal Gate
 
-After independent Batch A approval, continue on the same branch with:
+Batch A passed independent review. Continue on the same branch with the
+product-owner-authorized implementation of:
 
 **M13 Batch B — Linked Append Source**
 
-Do not begin Batch B before explicit product-owner approval. Batch C and M14
-have not started.
+After Batch B implementation and independent review, the next internal gate is
+**M13 Batch C — Integration, Regression, and Closure**. Batch C and M14 have
+not started.
 
 ## Repository State
 
@@ -820,6 +827,10 @@ have not started.
   `6e339ec846f22f14ee454d9ad0d68ba3fb83aee6`
 - Verified M13 Batch A correctness implementation commit:
   `247652c56131b73f8bc582751c748e614dc7f890`
+- Independently reviewed M13 Batch A head:
+  `44fdde0fe79e6810b2cb1dc5a4fb3cbeea04dfab`
+- M13 Batch A merge commit on `main`:
+  `8574b31dde9b213fe83aade9583bf2e360fce0da`
 - Merged M11 trustworthy-baseline commit:
   `f0e0d2c06fa4137c07ab2f892df117af2ed3a060`
 - Verified synchronized M12 base commit:
@@ -839,4 +850,4 @@ have not started.
   - `docs/migration/DESKTOP_MIGRATION_PLAN.md`
 - Closure evidence: `docs/history/MILESTONE11_CLOSURE.md`
 - Current lifecycle state:
-  **M13 Batch A Pending Independent Review**
+  **M13 Batch B In Progress**
