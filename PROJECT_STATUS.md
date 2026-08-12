@@ -1,6 +1,6 @@
 # Vocabulary App Project Status
 
-Last reviewed: 2026-08-11
+Last reviewed: 2026-08-12
 
 This file is the authoritative evidence-based snapshot of the current project
 state.
@@ -12,11 +12,42 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 ## Current Phase
 
-**Import and Template Evolution Core Complete**
+**Learning Analytics and Insight Core In Progress**
 
 ## Current Milestone
 
-**Milestone 13 Complete**
+**Milestone 14 Batch A Verified — Batch B/C Not Started**
+
+M14 began from synchronized `main` at
+`98b6bc6567bc7bb61284344cd6452eb9cde11457` on branch
+`agent/m14-learning-analytics-insight-core` after explicit product-owner
+approval.
+
+Batch A adds a reusable, Streamlit-independent, read-only analytics layer in
+`src/analytics.py`. It derives eligible Quiz evidence, Entry Evidence Profiles,
+Evidence State, freshness, recent/prior performance, trajectory, repeated
+patterns, same-language Personal Baseline, current Card/Collection/Template
+Coverage, historical Card revision context, and the distinction between
+Collection Content Knowledge and Scope Activity.
+
+The frozen product semantics are recorded in
+`docs/design/M14_SEMANTIC_CONTRACT.md`. Batch A adds no schema change,
+migration, persisted analytics state, user-facing Finding engine, Brief, or UI.
+Existing Entry Health remains intentionally unchanged until Batch C.
+
+Batch A verification on 2026-08-12 passed:
+
+```text
+Focused M14 Batch A tests: 9/9
+Relevant M11/M13 regression tests: 73/73
+Full repository suite: 96/96
+Compile check: passed
+Architecture audit: passed, no warnings
+Packaging readiness: passed with the expected ignored local-database warning
+```
+
+Batch A is ready for product-owner and independent review. M14 is not complete,
+and Batch B must not start without explicit authorization.
 
 M11.1 Semantic Alignment and QA Scope Lock has been merged to `main`.
 M11.2 Unified Learning Flow and Core Integrity is merged to `main` at
@@ -956,12 +987,16 @@ merge gate is complete.
 
 ## Next Objective
 
-**M14 — Learning Analytics and Insight Core**
+**Review and accept M14 Batch A — Evidence & Analytics Core**
 
-M14 has not started. Do not begin it before explicit product-owner approval.
+M14 Batch A is implemented and verified on the M14 development branch. Batch B
+and Batch C have not started. Do not begin Batch B before explicit
+product-owner authorization.
 
 ## Repository State
 
+- Active M14 branch: `agent/m14-learning-analytics-insight-core`
+- M14 base commit: `98b6bc6567bc7bb61284344cd6452eb9cde11457`
 - Completed M13 branch: `agent/m13-import-template-evolution`
 - Merged M12 base commit:
   `6e339ec846f22f14ee454d9ad0d68ba3fb83aee6`
@@ -1000,6 +1035,6 @@ M14 has not started. Do not begin it before explicit product-owner approval.
   - `docs/migration/DESKTOP_MIGRATION_PLAN.md`
 - Closure evidence: `docs/history/MILESTONE11_CLOSURE.md`
 - Current lifecycle state:
-  **Milestone 13 Complete — Import and Template Evolution Core Complete**
+  **Milestone 14 Batch A Verified — Batch B/C Not Started**
 - Exact next objective:
-  **M14 — Learning Analytics and Insight Core (not started)**
+  **M14 Batch A product-owner and independent review**

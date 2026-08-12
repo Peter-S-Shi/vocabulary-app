@@ -10,6 +10,7 @@ Current repository entry points remain at the project root:
 
 Supporting documentation is organized by purpose:
 
+- [`design/`](design/) — frozen semantic contracts and durable product design
 - [`history/`](history/) — completed milestone records and reconstructed history
 - [`qa/`](qa/) — public manual QA plans and checklists
 - [`migration/`](migration/) — desktop-transition and migration-readiness guidance
