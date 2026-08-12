@@ -24,7 +24,7 @@ durable SQLite evidence
 
 `src/statistics.py` remains the factual measurement layer.
 `src/analytics.py` owns Evidence Profiles and neutral classifications.
-`src/insights.py` will own Findings, actions, clustering, and Brief selection.
+`src/insights.py` owns Findings, actions, clustering, and Brief selection.
 Core modules must remain independent of Streamlit.
 
 ## Authoritative evidence
@@ -218,5 +218,6 @@ never a High or Medium candidate.
 
 M14 v1 is read-only. It adds no schema migration, persisted Evidence Profile,
 Finding history, learning score, or parallel database. Existing Entry Health
-APIs remain available during Batch A and Batch B. Their compatibility
-projection onto M14 is deferred to Batch C.
+API names remain available as compatibility projections over M14 Evidence
+Profiles and Primary Findings. They do not retain an independent Weak,
+Neglected, Strong, At Risk, or Recovery threshold engine.

@@ -409,7 +409,7 @@ deletions, reordering, or edits back onto app content.
 The accepted v1 limits include no permanent source-row identity, no background
 refresh, no desktop picker UI, and no Template overwrite/merge, system
 ownership portability, or `speech_language_role`. These are scope limits, not
-M13 blockers. The next objective is Milestone 14; M14 has not started.
+M13 blockers. M13 closed cleanly and handed the lifecycle to Milestone 14.
 
 ---
 
@@ -496,9 +496,9 @@ Potential interpretable categories include:
 - Strengths;
 - Needs Attention;
 - Coverage Gaps;
-- Review Load;
+- Practice / Learning Activity;
 - Recovery;
-- Neglected Content;
+- Stale Evidence;
 - Never Quizzed; and
 - Insufficient Evidence.
 
@@ -521,6 +521,19 @@ required to invent or validate the analytical conclusion.
 - Entry Health remains consistent with the wider analytics model.
 - Representative datasets have deterministic expected analytical outcomes.
 - No major Streamlit Statistics redesign is required for milestone completion.
+
+M14 completed with a frozen semantic contract and three verified batches.
+Batch A established read-only Evidence Profiles, Coverage, Scope Activity, and
+Personal Baseline. Batch B established deterministic Primary Findings,
+structured actions, clustering, hierarchy suppression, and the capped Learning
+Brief. Batch C made M14 the Entry-level interpretation authority, converted
+legacy Entry Health APIs into compatibility projections, and passed integrated
+synthetic, M11/M13, architecture, privacy, and migration-safety acceptance.
+
+Accepted M14 v1 limits include no persisted insight history, no global learning
+score, no automatic pool/status mutation, no overdue insight backlog, no AI
+judgment requirement, and no desktop-native presentation. These are deliberate
+scope boundaries, not M14 closure defects.
 
 ---
 

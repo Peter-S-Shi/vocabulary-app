@@ -43,7 +43,9 @@ Streamlit `session_state` is UI state. Durable state and duplicate-action protec
 - `src/review.py`: isolated legacy Review/SRS compatibility state and logs
 - `src/quiz.py`: quiz sessions, item generation, answers, logs, and idempotent completion
 - `src/template_quiz.py`: template-aware quiz rules
-- `src/statistics.py`: read-only statistics and calendar queries
+- `src/statistics.py`: factual read-only statistics/calendar queries and legacy Entry Health compatibility projections over M14
+- `src/analytics.py`: M14 Evidence Profiles, neutral classifications, Coverage, Scope Activity, and Personal Baseline
+- `src/insights.py`: M14 Primary Findings, priority, structured actions, clustering, hierarchy suppression, and deterministic Learning Brief selection
 - `src/learning_workflow.py`: read-only Today workflow queries and recommendations
 - `src/import_export.py`: transfer formats, validation, preview, and confirmed import
 - `src/template_definitions.py`: deterministic, preview-first, atomic portable Template Definition CSV operations
@@ -111,6 +113,31 @@ sessions remain unknown when their historical composition cannot be proved.
 Review is a browse, study, and Quiz-launch surface. Legacy Review scheduling
 tables and APIs remain compatibility-only and must not drive active Today,
 Statistics, or Learning History completion claims.
+
+## Learning Analytics Authority
+
+M14 separates factual measurements, neutral analytical classification, and
+deterministic interpretation:
+
+```text
+SQLite Quiz evidence
+-> src/statistics.py factual measurements
+-> src/analytics.py Evidence Profiles / Coverage / Personal Baseline
+-> src/insights.py Findings / priority / actions / Learning Brief
+-> Entry Health compatibility projection
+-> current Streamlit or future desktop UI
+```
+
+Entry-level interpretation is authoritative in M14. Legacy public Entry Health
+function names remain callable where needed, but their rows are projections of
+M14 Primary Findings rather than a second threshold engine. Compatibility
+arguments from the former Weak/Neglected model may remain in signatures to
+avoid caller breakage; they do not override the frozen M14 contract.
+
+All M14 paths are read-only. They add no persisted Finding, Brief, score, due
+date, pool mutation, or parallel analytics database. Deleted Entries remain
+outside current actionable analytics while their preserved Quiz and Card
+revision history remains available to historical views.
 
 ## Future Desktop Migration
 
