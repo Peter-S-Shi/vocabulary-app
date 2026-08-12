@@ -217,6 +217,7 @@ def _personal_baseline_from_loaded(
     target_accuracy: float | None,
     target_scope_type: str,
     target_scope_id: int,
+    target_evidence_state: str | None = None,
 ) -> dict:
     excluded_ids = _excluded_entry_ids(
         metadata,
@@ -239,9 +240,22 @@ def _personal_baseline_from_loaded(
     days = len({_event_date(event) for event in comparator_events})
     accuracy = _accuracy(correct, attempts)
     eligible = attempts >= 20 and sessions >= 5 and days >= 3
+    target_evidence_sufficient = (
+        target_scope_type != "entry"
+        or (
+            target_evidence_state is not None
+            and EVIDENCE_STATE_ORDER[target_evidence_state]
+            >= EVIDENCE_STATE_ORDER["sufficient"]
+        )
+    )
     comparison = "unavailable"
     delta_pp = None
-    if eligible and target_accuracy is not None and accuracy is not None:
+    if (
+        eligible
+        and target_evidence_sufficient
+        and target_accuracy is not None
+        and accuracy is not None
+    ):
         delta_pp = round((target_accuracy - accuracy) * 100, 10)
         if delta_pp >= 15:
             comparison = "above_baseline"
@@ -260,6 +274,7 @@ def _personal_baseline_from_loaded(
         "distinct_days": days,
         "comparison": comparison,
         "delta_pp": delta_pp,
+        "target_evidence_sufficient": target_evidence_sufficient,
         "target_scope_type": target_scope_type,
         "target_scope_id": int(target_scope_id),
         "excluded_entry_count": len(excluded_ids),
@@ -280,6 +295,18 @@ def get_personal_baseline(
 
     metadata = _load_current_entry_metadata(conn)
     events = load_eligible_evidence_events(conn, as_of_date=as_of_date)
+    target_evidence_state = None
+    if target_scope_type == "entry" and int(target_scope_id) in metadata:
+        target_events = [
+            event
+            for event in events
+            if int(event["entry_id"]) == int(target_scope_id)
+        ]
+        target_evidence_state = _evidence_state(
+            len(target_events),
+            len({int(event["session_id"]) for event in target_events}),
+            len({_event_date(event) for event in target_events}),
+        )
     return _personal_baseline_from_loaded(
         metadata,
         events,
@@ -287,6 +314,7 @@ def get_personal_baseline(
         target_accuracy=target_accuracy,
         target_scope_type=target_scope_type,
         target_scope_id=target_scope_id,
+        target_evidence_state=target_evidence_state,
     )
 
 
@@ -377,6 +405,7 @@ def _entry_profile(
         target_accuracy=accuracy,
         target_scope_type="entry",
         target_scope_id=int(item["entry_id"]),
+        target_evidence_state=evidence_state,
     )
     return profile
 
@@ -496,22 +525,28 @@ def get_collection_scope_activity_profile(
     *,
     as_of_date: str | date | datetime | None = None,
 ) -> dict:
-    current_entry_ids = {
-        int(row[0])
-        for row in conn.execute(
-            "SELECT entry_id FROM entry_collections WHERE collection_id = ?",
-            (int(collection_id),),
-        ).fetchall()
-    }
-    events = [
-        event
-        for event in load_eligible_evidence_events(
-            conn,
-            entry_ids=current_entry_ids,
-            as_of_date=as_of_date,
-        )
-        if int(event["collection_id"]) == int(collection_id)
-    ]
+    reference_date = _to_date(as_of_date)
+    rows = conn.execute(
+        """
+        SELECT
+            quiz_item_logs.id AS log_id,
+            quiz_item_logs.entry_id,
+            quiz_item_logs.session_id,
+            quiz_item_logs.answered_at,
+            quiz_item_logs.is_correct
+        FROM quiz_item_logs
+        JOIN quiz_sessions ON quiz_sessions.id = quiz_item_logs.session_id
+        WHERE quiz_sessions.collection_id = ?
+          AND quiz_item_logs.is_correct IN (0, 1)
+        ORDER BY quiz_item_logs.answered_at, quiz_item_logs.id
+        """,
+        (int(collection_id),),
+    ).fetchall()
+    events = []
+    for row in rows:
+        event = dict(row)
+        if _event_date(event) <= reference_date:
+            events.append(event)
     return {
         "collection_id": int(collection_id),
         "eligible_attempts": len(events),

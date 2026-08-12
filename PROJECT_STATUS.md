@@ -38,9 +38,9 @@ Existing Entry Health remains intentionally unchanged until Batch C.
 Batch A verification on 2026-08-12 passed:
 
 ```text
-Focused M14 Batch A tests: 9/9
+Focused M14 Batch A tests: 11/11
 Relevant M11/M13 regression tests: 73/73
-Full repository suite: 96/96
+Full repository suite: 98/98
 Compile check: passed
 Architecture audit: passed, no warnings
 Packaging readiness: passed with the expected ignored local-database warning

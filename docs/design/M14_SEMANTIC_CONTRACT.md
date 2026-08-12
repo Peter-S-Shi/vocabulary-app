@@ -119,7 +119,10 @@ comparator:
 No cross-language fallback is allowed. Relative comparison is
 `above_baseline` at +15 percentage points or more, `below_baseline` at -15
 points or less, and `near_baseline` otherwise. It is `unavailable` when the
-comparator gate or target accuracy is unavailable.
+comparator gate or target accuracy is unavailable. For an Entry-level
+comparison, the target Entry must also have at least `sufficient` Evidence
+State. A sparse or developing target may still expose available comparator
+metadata, but its comparison remains `unavailable` and its delta remains null.
 
 ## Coverage and Collection meanings
 

@@ -361,6 +361,7 @@ class M14BatchAAnalyticsTests(unittest.TestCase):
         excluded_collection_id = create_collection("Target Scope", card_size=10)
         excluded_id = self._entry("excluded")
         add_entries_to_collection([target_id, excluded_id], excluded_collection_id)
+        self._add_outcomes(target_id, [1, 1, 1, 1, 0], session_count=3)
         now = "2026-08-01T00:00:00+00:00"
         conn = db.get_connection()
         try:
@@ -449,7 +450,7 @@ class M14BatchAAnalyticsTests(unittest.TestCase):
         self.assertEqual(template_baseline["accuracy"], 1.0)
         self.assertEqual(template_baseline["comparison"], "below_baseline")
         self.assertEqual(template_coverage["total_current_entries"], 2)
-        self.assertEqual(template_coverage["touched_count"], 1)
+        self.assertEqual(template_coverage["touched_count"], 2)
         self.assertFalse(no_fallback["eligible"])
         self.assertEqual(no_fallback["comparison"], "unavailable")
 
@@ -465,6 +466,7 @@ class M14BatchAAnalyticsTests(unittest.TestCase):
     def test_personal_baseline_exact_comparison_boundaries(self) -> None:
         target_id = self._entry("baseline-boundary-target")
         comparator_id = self._entry("baseline-boundary-comparator")
+        self._add_outcomes(target_id, [1, 1, 1, 1, 0], session_count=3)
         outcomes = [1] * 14 + [0] * 6
         self._add_outcomes(comparator_id, outcomes, session_count=5)
 
@@ -501,6 +503,29 @@ class M14BatchAAnalyticsTests(unittest.TestCase):
         self.assertEqual(below["comparison"], "below_baseline")
         self.assertEqual(near["delta_pp"], 14.9)
         self.assertEqual(near["comparison"], "near_baseline")
+
+    def test_sparse_entry_cannot_receive_personal_baseline_comparison(self) -> None:
+        target_id = self._entry("sparse-baseline-target")
+        comparator_id = self._entry("sparse-baseline-comparator")
+        self._add_outcomes(target_id, [1], session_count=1)
+        self._add_outcomes(comparator_id, [1] * 16 + [0] * 4, session_count=5)
+
+        with db.get_connection() as conn:
+            baseline = get_personal_baseline(
+                conn,
+                "English",
+                1.0,
+                target_scope_type="entry",
+                target_scope_id=target_id,
+                as_of_date=AS_OF,
+            )
+
+        self.assertTrue(baseline["eligible"])
+        self.assertEqual(baseline["attempts"], 20)
+        self.assertEqual(baseline["accuracy"], 0.80)
+        self.assertFalse(baseline["target_evidence_sufficient"])
+        self.assertEqual(baseline["comparison"], "unavailable")
+        self.assertIsNone(baseline["delta_pp"])
 
     def test_coverage_boundaries_and_cross_collection_scope_activity(self) -> None:
         self.assertEqual(analytics._coverage_state(0.49, (0.50, 0.80)), "limited")
@@ -549,6 +574,42 @@ class M14BatchAAnalyticsTests(unittest.TestCase):
         self.assertEqual(coverage_a["touched_count"], 1)
         self.assertEqual(activity_a["eligible_attempts"], 0)
         self.assertEqual(activity_b["eligible_attempts"], 1)
+
+    def test_collection_scope_activity_survives_membership_removal(self) -> None:
+        collection_a = create_collection("Historical Activity A", card_size=10)
+        entry_id = self._entry("historical-scope-activity")
+        add_entries_to_collection([entry_id], collection_a)
+        self._add_outcomes(
+            entry_id,
+            [1, 0],
+            session_count=2,
+            collection_id=collection_a,
+        )
+
+        with db.get_connection() as conn:
+            before = get_collection_scope_activity_profile(
+                conn,
+                collection_a,
+                as_of_date=AS_OF,
+            )
+
+        remove_entries_from_collection(
+            [entry_id],
+            collection_a,
+            confirm_cross_card=True,
+        )
+
+        with db.get_connection() as conn:
+            after = get_collection_scope_activity_profile(
+                conn,
+                collection_a,
+                as_of_date=AS_OF,
+            )
+
+        self.assertEqual(before, after)
+        self.assertEqual(after["eligible_attempts"], 2)
+        self.assertEqual(after["distinct_entries"], 1)
+        self.assertEqual(after["distinct_sessions"], 2)
 
     def test_current_card_history_and_deleted_entry_boundaries(self) -> None:
         collection_id = create_collection("Card History", card_size=1)
