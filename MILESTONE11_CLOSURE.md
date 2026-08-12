@@ -13,11 +13,12 @@ Complete.
 
 M11.4 started from merged M11.3 commit
 `ccda6b8385215835f3de997f268e2165c37249de` on branch
-`agent/m11-4-baseline-closure`. M12 has not started.
+`agent/m11-4-baseline-closure`.
 
 Verified M11.4 implementation commit:
-`f0113e0592bf5198c429d3282c528c39b47f63fa`. A later documentation-only
-metadata commit may be the Draft PR head.
+`f0113e0592bf5198c429d3282c528c39b47f63fa`. PR #5 used documentation-only
+head `b5c75ca52aa67f9fa5a7af7698358a709314d935` and was merged to `main` as
+`f0e0d2c06fa4137c07ab2f892df117af2ed3a060`.
 
 ## Final semantics
 
@@ -156,4 +157,5 @@ The exact next engineering objective is:
 
 **Milestone 12 — Repository Restructure**
 
-M12 must begin only after independent review and merge of the M11.4 Draft PR.
+The M11.4 independent review and merge gate is complete. M12 is ready to begin;
+its implementation has not started.

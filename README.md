@@ -24,7 +24,7 @@ legacy Review-schedule state.
 Milestones 1-10 feature development and productization are complete historical
 work. **Milestone 11 is complete** and has established a **Trustworthy
 Pre-Desktop Baseline**. The next objective is **Milestone 12 — Repository
-Restructure**; M12 has not started.
+Restructure**. M12 is ready to begin but its implementation has not started.
 
 Streamlit remains the currently runnable compatibility/reference UI, but it is
 no longer the intended Release Candidate target. The active lifecycle now
