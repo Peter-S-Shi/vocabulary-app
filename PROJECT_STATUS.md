@@ -23,9 +23,9 @@ M11.2 Unified Learning Flow and Core Integrity is merged to `main` at
 `eb8cda4e50b987b5db37b36425d3e47c94c28eaa`.
 M11.3 Stable Card Identity and Entry-Level History is merged to `main` at
 `ccda6b8385215835f3de997f268e2165c37249de`.
-M11.4 Semantic Re-acceptance and Baseline Closure has completed deterministic
-verification on branch `agent/m11-4-baseline-closure`; independent Draft PR
-review and merge are the remaining repository gate.
+M11.4 Semantic Re-acceptance and Baseline Closure was merged through PR #5 to
+`main` at `f0e0d2c06fa4137c07ab2f892df117af2ed3a060`. Its independent review and
+merge gate is complete.
 
 ```text
 Milestone 11 Complete
@@ -246,9 +246,9 @@ warning that the local personal database exists and must remain excluded from
 Git/releases. No schema or migration file changes in M11.4.
 
 M11.4 verified implementation commit:
-`f0113e0592bf5198c429d3282c528c39b47f63fa`. The Draft PR head may include a
-later documentation-only metadata commit; its exact head is recorded in the
-Draft PR and closeout report.
+`f0113e0592bf5198c429d3282c528c39b47f63fa`. PR #5 used documentation-only
+head `b5c75ca52aa67f9fa5a7af7698358a709314d935` and merged as
+`f0e0d2c06fa4137c07ab2f892df117af2ed3a060`.
 
 Next engineering objective:
 **Milestone 12 — Repository Restructure**.
@@ -633,8 +633,9 @@ M11.2 started from that exact synchronized commit on branch
 
 Status:
 
-**M11.1, M11.2, and M11.3 merged. M11.4 closure candidate is based exactly on
-merged M11.3 commit `ccda6b8385215835f3de997f268e2165c37249de`.**
+**M11.1, M11.2, M11.3, and M11.4 are merged. The trustworthy pre-desktop
+baseline is established on `main` at
+`f0e0d2c06fa4137c07ab2f892df117af2ed3a060`.**
 
 ## Known Risks
 
@@ -709,30 +710,33 @@ M11  Pre-Desktop Stabilization
 -> M20 Packaging and Release Candidate
 ```
 
-## Milestone 11 Closure Gate
+## Milestone 11 Closure Result
 
-The M11.4 Draft PR must independently verify the closure manifest, 17-item QA
-table, full automated suite, architecture audit, privacy/tracked-file audit,
-and packaging-readiness regression before merge. Do not begin M12 from the
-M11.4 branch.
+PR #5 independently verified the closure manifest, 17-item QA table, full
+automated suite, architecture audit, privacy/tracked-file audit, and
+packaging-readiness regression. The PR is merged and the Milestone 11 closure
+gate is complete.
 
 ## Next Engineering Objective
 
-After M11.4 independent review and merge, the exact next engineering objective
-is:
+The exact next engineering objective is:
 
 **Milestone 12 — Repository Restructure**
 
-Do not begin full development of the three new major capabilities before this
-baseline is trustworthy.
+M12 is ready to begin but its implementation has not started. The three new
+major capabilities remain outside M12 and must not be started opportunistically.
 
 ## Repository State
 
-- Candidate branch: `agent/m11-4-baseline-closure`
+- Current synchronized branch: `main`
 - Verified synchronized M11.4 base commit:
   `ccda6b8385215835f3de997f268e2165c37249de`
 - Verified M11.4 implementation commit:
   `f0113e0592bf5198c429d3282c528c39b47f63fa`
+- M11.4 PR head:
+  `b5c75ca52aa67f9fa5a7af7698358a709314d935`
+- M11.4 merge commit on `main`:
+  `f0e0d2c06fa4137c07ab2f892df117af2ed3a060`
 - Release tag: none recorded
 - Current lifecycle documents:
   - `ROADMAP.md`

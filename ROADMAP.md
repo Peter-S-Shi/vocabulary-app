@@ -230,6 +230,8 @@ Hardening milestone.
 
 ## Milestone 12: Repository Restructure
 
+**Status: Ready to begin; implementation not started.**
+
 Milestone 12 reorganizes the repository before the next major development
 cycle.
 
