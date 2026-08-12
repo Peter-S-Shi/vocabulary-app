@@ -3,9 +3,9 @@
 ## Outcome
 
 ```text
-Milestone 14 Complete on the M14 Draft Branch
+Milestone 14 Complete and Merged to main
 Learning Analytics and Insight Core Established
-Independent Review and Merge Pending
+Independent Review and Merge Gate Complete
 ```
 
 M14 started from synchronized `main` commit
@@ -17,6 +17,13 @@ Accepted implementation heads:
 - Batch A: `290494f328f17b14cf01cd81c47f6a72770510ac`
 - Batch B correctness: `1ca61e6714e5bc84cd34a51287d4981c928a9752`
 - Batch C implementation: `7b667e578f0f36522ad2d07dfd64574661662165`
+- Final Batch C acceptance hardening:
+  `8b5df4576e16c10917edb2a00a869fe390c44983`
+
+After product-owner acceptance and the final local Manual-QA privacy/tracking
+audit, PR #10, **M14: Complete learning analytics and insight core**, was
+merged normally to `main` at
+`880bda5c2bd0e8222af5489a9947469a333689ec`.
 
 M14 completion is a milestone closure only. It is not Feature Freeze, Desktop
 Ready, Release Ready, Product Hardening completion, or Current Version
@@ -118,8 +125,9 @@ Privacy/tracked-file audit: passed
 ```
 
 GitHub-hosted status checks were not configured at verification time. The
-results above are local automated verification, distinct from the required
-independent review of the Draft PR.
+results above are local automated verification. Independent review,
+product-owner acceptance, and the final Manual-QA privacy/tracking audit were
+completed before merge.
 
 ## Persistence and migration status
 
@@ -148,7 +156,6 @@ These are accepted scope limits, not M14 closure blockers.
 
 ## Next gate
 
-The existing M14 Draft PR must receive product-owner and independent review
-before merge. Do not merge automatically and do not begin M15 from this closure
-record alone. After M14 is accepted and merged, the Roadmap next milestone is
-M15 — Audio Foundation.
+The M14 review and merge gate is complete. The next Roadmap milestone is M15 —
+Audio Foundation. M15 has not started and requires its own reviewed scope and
+explicit implementation authorization.

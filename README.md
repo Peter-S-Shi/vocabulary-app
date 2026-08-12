@@ -24,9 +24,11 @@ legacy Review-schedule state.
 Milestones 1-10 feature development and productization are complete historical
 work. **Milestone 11 is complete** and established a **Trustworthy
 Pre-Desktop Baseline**. **Milestone 12 is complete** and established the
-organized repository/documentation structure. The next objective is
-**Milestone 14 — Learning Analytics and Insight Core**. **Milestone 13 is
-complete** and established the reusable Import and Template Evolution Core.
+organized repository/documentation structure. **Milestone 13 is complete**
+and established the reusable Import and Template Evolution Core. **Milestone
+14 is complete** and established the Learning Analytics and Insight Core. The
+next Roadmap milestone is **Milestone 15 — Audio Foundation**, which has not
+started.
 
 Streamlit remains the currently runnable compatibility/reference UI, but it is
 no longer the intended Release Candidate target. The active lifecycle now
