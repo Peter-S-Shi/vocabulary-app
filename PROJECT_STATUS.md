@@ -33,6 +33,10 @@ M12 Repository Restructure began from synchronized `main` at
 with `git mv`, created `docs/README.md`, and repaired current repository
 references without changing application behavior.
 
+M12 verified restructure commit:
+`b4c119a2eb0f88108ea93554355ee62ec5a72634`. A later documentation-only
+metadata commit may be the Draft PR head.
+
 ```text
 Milestone 12 Complete
 Repository Restructure Complete
@@ -759,6 +763,8 @@ analytics, audio, or desktop implementation.
   `f0e0d2c06fa4137c07ab2f892df117af2ed3a060`
 - Verified synchronized M12 base commit:
   `0bce62833632e7e73bdc4daf4430ba028415adfd`
+- Verified M12 restructure commit:
+  `b4c119a2eb0f88108ea93554355ee62ec5a72634`
 - Verified M11.4 implementation commit:
   `f0113e0592bf5198c429d3282c528c39b47f63fa`
 - M11.4 PR head:
