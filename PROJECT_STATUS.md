@@ -947,6 +947,13 @@ Batch A was merged separately through PR #8. The final M13 Draft PR contains
 Batch B plus Batch C and is the remaining review/merge gate for bringing the
 complete M13 closure state onto `main`.
 
+Batch C verified closure commit:
+`9b3ea9ec50682f61ac55470b0ae5b189506ded81`.
+
+Final M13 Draft PR: #9, **M13: Complete import and template evolution core**.
+It was opened from the verified closure head and contains Batch B + Batch C.
+A later documentation-only PR metadata commit may be the current Draft PR head.
+
 ## Next Objective
 
 **M14 — Learning Analytics and Insight Core**
@@ -968,6 +975,10 @@ M14 has not started. Do not begin it before explicit product-owner approval.
   `633d7484874fbbf0beb7064e9abed9389414d9e4`
 - M13 Batch C synchronization merge commit:
   `5efaddc21a58e1610b2f8858dfd152507e1ec3c7`
+- Verified M13 Batch C closure commit:
+  `9b3ea9ec50682f61ac55470b0ae5b189506ded81`
+- Final M13 Draft PR:
+  `#9 — M13: Complete import and template evolution core`
 - Merged M11 trustworthy-baseline commit:
   `f0e0d2c06fa4137c07ab2f892df117af2ed3a060`
 - Verified synchronized M12 base commit:
