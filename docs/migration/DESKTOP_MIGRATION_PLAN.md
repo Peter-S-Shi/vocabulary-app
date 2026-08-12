@@ -798,18 +798,18 @@ Collection.
 - [x] Quiz durable session and duplicate protection live in core/SQLite
 - [x] Today workflow queries are reusable
 - [x] Schema/app metadata and migration foundations exist
-- [ ] Entry-editing integrity issue resolved
-- [ ] Card-scoped Quiz is the authoritative Card learning completion
-- [ ] independent manual scheduling and legacy SRS retired from active behavior
-- [ ] stable Card identity and membership revisions implemented
-- [ ] Entry Health re-accepted
-- [ ] pre-desktop baseline verified
+- [x] Entry-editing integrity issue resolved
+- [x] Card-scoped Quiz is the authoritative Card learning completion
+- [x] independent manual scheduling and legacy SRS retired from active behavior
+- [x] stable Card identity and membership revisions implemented
+- [x] Entry Health re-accepted
+- [x] pre-desktop baseline verified
 
 ### New Core Foundations
 
-- [ ] Template Definition import/export core complete
-- [ ] linked Collection append-source core complete
-- [ ] Learning Analytics core complete
+- [x] Template Definition import/export core complete
+- [x] linked Collection append-source core complete
+- [x] Learning Analytics core complete
 - [ ] local TTS feasibility verified
 - [ ] Card audio composition core verified
 

@@ -104,11 +104,12 @@ target.
 
 ## Current Phase
 
-**Import and Template Evolution Core Complete / Learning Analytics and Insight Core Next**
+**Learning Analytics and Insight Core Complete / Audio Foundation Next**
 
-The trustworthy data/business-logic baseline, repository restructure, and
-reusable Import and Template Evolution foundation are complete. The immediate
-objective is Milestone 14 — Learning Analytics and Insight Core.
+The trustworthy data/business-logic baseline, repository restructure, Import
+and Template Evolution foundation, and Learning Analytics and Insight Core are
+complete. The next Roadmap milestone is Milestone 15 — Audio Foundation. M15
+does not begin until its scope is explicitly reviewed and authorized.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -414,6 +415,8 @@ M13 blockers. M13 closed cleanly and handed the lifecycle to Milestone 14.
 ---
 
 ## Milestone 14: Learning Analytics and Insight Core
+
+**Status: Complete — Learning Analytics and Insight Core Established.**
 
 Milestone 14 upgrades Statistics from metric display toward explainable,
 actionable learning analytics.

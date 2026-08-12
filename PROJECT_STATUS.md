@@ -12,16 +12,18 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 ## Current Phase
 
-**Learning Analytics and Insight Core Complete — Independent Review Pending**
+**Learning Analytics and Insight Core Complete — Audio Foundation Next**
 
 ## Current Milestone
 
-**Milestone 14 Complete on Draft Branch — Merge Pending**
+**Milestone 14 Complete and Merged — Milestone 15 Not Started**
 
 M14 began from synchronized `main` at
 `98b6bc6567bc7bb61284344cd6452eb9cde11457` on branch
 `agent/m14-learning-analytics-insight-core` after explicit product-owner
-approval.
+approval. After independent acceptance and the final Manual-QA
+privacy/tracking audit, PR #10 was merged normally to `main` at
+`880bda5c2bd0e8222af5489a9947469a333689ec`.
 
 Batch A adds a reusable, Streamlit-independent, read-only analytics layer in
 `src/analytics.py`. It derives eligible Quiz evidence, Entry Evidence Profiles,
@@ -92,6 +94,9 @@ the minimum terminology and count changes needed to present M14 truth.
 Verified Batch C implementation commit:
 `7b667e578f0f36522ad2d07dfd64574661662165`.
 
+Final Batch C acceptance-hardening commit:
+`8b5df4576e16c10917edb2a00a869fe390c44983`.
+
 Batch C verification on 2026-08-12 passed:
 
 ```text
@@ -114,7 +119,7 @@ identical and analysis changed no durable learning-table count.
 
 M14 adds no schema change, migration, app-data-version change, persisted
 analytics state, or learning-state mutation. Semantic deviations: none. M14 is
-complete on the Draft branch, but independent review and merge remain pending.
+complete on `main`; its independent review and merge gate is complete.
 
 M11.1 Semantic Alignment and QA Scope Lock has been merged to `main`.
 M11.2 Unified Learning Flow and Core Integrity is merged to `main` at
@@ -1056,18 +1061,30 @@ Final M13 PR: #9, **M13: Complete import and template evolution core**. It was
 merged from the verified Batch B + Batch C closure head. The M13 review and
 merge gate is complete.
 
+## Milestone 14 Closure Result
+
+Milestone 14 is complete. The frozen semantic contract, read-only Evidence
+Profiles, Coverage and Personal Baseline analytics, deterministic Findings and
+Learning Brief, and Entry Health compatibility projections passed the Batch C
+closure gate.
+
+The accepted M14 branch head was
+`8b5df4576e16c10917edb2a00a869fe390c44983`. PR #10, **M14: Complete learning
+analytics and insight core**, was merged normally to `main` at
+`880bda5c2bd0e8222af5489a9947469a333689ec`. The M14 review and merge gate is
+complete.
+
 ## Next Objective
 
-**Independently review and accept the complete M14 Draft PR**
+**Review and authorize Milestone 15 — Audio Foundation scope**
 
-M14 Batch A, Batch B, and Batch C are implemented and locally verified on the
-M14 development branch. Review Draft PR #10 against the frozen semantic
-contract and Batch C closure evidence. Do not merge automatically and do not
-begin M15 before explicit acceptance.
+M14 is merged and closed. M15 is the next Roadmap milestone, but it has not
+started. Review its dedicated scope before authorizing implementation; do not
+infer M15 implementation permission from M14 closure.
 
 ## Repository State
 
-- Active M14 branch: `agent/m14-learning-analytics-insight-core`
+- Completed M14 branch: `agent/m14-learning-analytics-insight-core`
 - M14 base commit: `98b6bc6567bc7bb61284344cd6452eb9cde11457`
 - Accepted M14 Batch A head:
   `290494f328f17b14cf01cd81c47f6a72770510ac`
@@ -1075,8 +1092,12 @@ begin M15 before explicit acceptance.
   `1ca61e6714e5bc84cd34a51287d4981c928a9752`
 - Verified M14 Batch C implementation commit:
   `7b667e578f0f36522ad2d07dfd64574661662165`
-- Active M14 Draft PR:
-  `#10 — M14: Build learning analytics and insight core`
+- Accepted M14 branch head:
+  `8b5df4576e16c10917edb2a00a869fe390c44983`
+- Final M14 PR:
+  `#10 — M14: Complete learning analytics and insight core` (merged)
+- M14 merge commit on `main`:
+  `880bda5c2bd0e8222af5489a9947469a333689ec`
 - Completed M13 branch: `agent/m13-import-template-evolution`
 - Merged M12 base commit:
   `6e339ec846f22f14ee454d9ad0d68ba3fb83aee6`
@@ -1117,6 +1138,6 @@ begin M15 before explicit acceptance.
   - `docs/history/MILESTONE11_CLOSURE.md`
   - `docs/history/MILESTONE14_CLOSURE.md`
 - Current lifecycle state:
-  **Milestone 14 Complete on Draft Branch — Independent Review and Merge Pending**
+  **Milestone 14 Complete and Merged — Audio Foundation Next**
 - Exact next objective:
-  **Independent M14 review; do not begin M15 yet**
+  **Review and explicitly authorize M15 scope before implementation**
