@@ -943,16 +943,16 @@ Sources, migration convergence, existing import compatibility, Card-history
 truth, backup/reopen readiness, privacy documentation, and architecture
 boundaries passed the Batch C closure gate.
 
-Batch A was merged separately through PR #8. The final M13 Draft PR contains
-Batch B plus Batch C and is the remaining review/merge gate for bringing the
-complete M13 closure state onto `main`.
+Batch A was merged separately through PR #8. Batch B plus Batch C were merged
+through PR #9, bringing the complete M13 closure state onto `main` at
+`b435c97cf48a7de22b417dec0a13775604ebd6d7`.
 
 Batch C verified closure commit:
 `9b3ea9ec50682f61ac55470b0ae5b189506ded81`.
 
-Final M13 Draft PR: #9, **M13: Complete import and template evolution core**.
-It was opened from the verified closure head and contains Batch B + Batch C.
-A later documentation-only PR metadata commit may be the current Draft PR head.
+Final M13 PR: #9, **M13: Complete import and template evolution core**. It was
+merged from the verified Batch B + Batch C closure head. The M13 review and
+merge gate is complete.
 
 ## Next Objective
 
@@ -962,7 +962,7 @@ M14 has not started. Do not begin it before explicit product-owner approval.
 
 ## Repository State
 
-- Candidate branch: `agent/m13-import-template-evolution`
+- Completed M13 branch: `agent/m13-import-template-evolution`
 - Merged M12 base commit:
   `6e339ec846f22f14ee454d9ad0d68ba3fb83aee6`
 - Verified M13 Batch A correctness implementation commit:
@@ -977,8 +977,10 @@ M14 has not started. Do not begin it before explicit product-owner approval.
   `5efaddc21a58e1610b2f8858dfd152507e1ec3c7`
 - Verified M13 Batch C closure commit:
   `9b3ea9ec50682f61ac55470b0ae5b189506ded81`
-- Final M13 Draft PR:
-  `#9 — M13: Complete import and template evolution core`
+- Final M13 PR:
+  `#9 — M13: Complete import and template evolution core` (merged)
+- M13 Batch B + Batch C merge commit on `main`:
+  `b435c97cf48a7de22b417dec0a13775604ebd6d7`
 - Merged M11 trustworthy-baseline commit:
   `f0e0d2c06fa4137c07ab2f892df117af2ed3a060`
 - Verified synchronized M12 base commit:
