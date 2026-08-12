@@ -12,11 +12,11 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 ## Current Phase
 
-**Repository Restructure Complete**
+**Import and Template Evolution Core — Batch A Pending Independent Review**
 
 ## Current Milestone
 
-**Milestone 12 Complete**
+**Milestone 13 In Progress**
 
 M11.1 Semantic Alignment and QA Scope Lock has been merged to `main`.
 M11.2 Unified Learning Flow and Core Integrity is merged to `main` at
@@ -36,6 +36,50 @@ references without changing application behavior.
 M12 verified restructure commit:
 `b4c119a2eb0f88108ea93554355ee62ec5a72634`. A later documentation-only
 metadata commit may be the Draft PR head.
+
+M13 began from merged M12 commit
+`6e339ec846f22f14ee454d9ad0d68ba3fb83aee6` on branch
+`agent/m13-import-template-evolution`.
+
+```text
+M13 Batch A — Template Definition Portability implemented / pending independent review
+M13 Batch B — not started
+M13 Batch C — not started
+```
+
+Batch A defines Template Definition CSV version 1 with these exact columns:
+
+```text
+definition_version
+template_name
+template_description
+language
+template_type
+field_key
+field_label
+field_type
+required
+display_order
+```
+
+The reusable core supports deterministic export, read-only preview and full
+validation, explicit existing-name conflict handling, and atomic confirmed
+import of one Template plus all fields. Imported definitions always create a
+user-owned Template (`is_system = 0`). System ownership, internal IDs,
+timestamps, Entry content, Entry field values, database paths, and the
+not-yet-persisted `speech_language_role` are not portable fields.
+
+Portable fields preserve their original non-negative integer `display_order`.
+Ties are valid and use deterministic `(display_order ASC, field_key ASC)`
+ordering for export, preview, and import insertion; values are not renumbered.
+
+Batch A adds no schema or migration. Export/import round-trip verification
+compares portable Template and ordered field semantics rather than internal IDs
+or timestamps.
+
+M13 Batch A verified correctness implementation commit:
+`247652c56131b73f8bc582751c748e614dc7f890`. A later documentation-only
+metadata commit may be the remote branch head during independent review.
 
 ```text
 Milestone 12 Complete
@@ -570,6 +614,19 @@ For M12:
 - privacy/tracked-file and `git diff --check` audits passed; and
 - no `app.py`, `src/`, test, schema, migration, or runtime behavior file changed.
 
+For M13 Batch A:
+
+- all 22 focused Template Definition tests passed;
+- the complete automated suite passed all 60 tests;
+- Python compilation and Quiz-randomization checks passed;
+- `scripts/audit_architecture.py` scanned 33 Python files and reported no
+  serious boundary violations or warnings;
+- packaging readiness passed with only the expected local-database exclusion
+  warning;
+- privacy/tracked-file and `git diff --check` audits passed; and
+- no schema, migration, Streamlit UI, linked-source, analytics, audio, or
+  desktop implementation was introduced.
+
 For M11.1, repository evidence was inspected across Entry editing, Review,
 Quiz, Today, Statistics, Collection/Card mutation, schema, backup metadata, and
 user-facing exception paths. M11.1 changes documentation only; validation
@@ -747,18 +804,22 @@ behaviorally unchanged. Consolidating `scripts/` and `tools/`, decomposing
 large core modules, and changing runtime package layout are deferred because
 they would add churn without M12 user value.
 
-## Next Engineering Objective
+## Next M13 Internal Gate
 
-The exact next engineering objective is:
+After independent Batch A approval, continue on the same branch with:
 
-**Milestone 13 — Import and Template Evolution Core**
+**M13 Batch B — Linked Append Source**
 
-M13 has not started. This M12 branch contains no Import/Template Evolution,
-analytics, audio, or desktop implementation.
+Do not begin Batch B before explicit product-owner approval. Batch C and M14
+have not started.
 
 ## Repository State
 
-- Candidate branch: `agent/m12-repository-restructure`
+- Candidate branch: `agent/m13-import-template-evolution`
+- Merged M12 base commit:
+  `6e339ec846f22f14ee454d9ad0d68ba3fb83aee6`
+- Verified M13 Batch A correctness implementation commit:
+  `247652c56131b73f8bc582751c748e614dc7f890`
 - Merged M11 trustworthy-baseline commit:
   `f0e0d2c06fa4137c07ab2f892df117af2ed3a060`
 - Verified synchronized M12 base commit:
@@ -778,4 +839,4 @@ analytics, audio, or desktop implementation.
   - `docs/migration/DESKTOP_MIGRATION_PLAN.md`
 - Closure evidence: `docs/history/MILESTONE11_CLOSURE.md`
 - Current lifecycle state:
-  **Repository Restructure Complete**
+  **M13 Batch A Pending Independent Review**

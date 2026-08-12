@@ -131,7 +131,7 @@ def _clean_optional_text(value: str | None) -> str | None:
     return clean_value
 
 
-def _normalize_field_key(field_key: str) -> str:
+def normalize_template_field_key(field_key: str) -> str:
     clean_key = field_key.strip().lower().replace("-", " ")
     clean_key = "_".join(clean_key.split())
     clean_key = re.sub(r"_+", "_", clean_key)
@@ -146,12 +146,20 @@ def _normalize_field_key(field_key: str) -> str:
     return clean_key
 
 
-def _validate_field_type(field_type: str) -> str:
+def validate_template_field_type(field_type: str) -> str:
     clean_type = field_type.strip() or "text"
     if clean_type not in ALLOWED_FIELD_TYPES:
         raise ValueError(f"Unsupported field type: {clean_type}")
 
     return clean_type
+
+
+def _normalize_field_key(field_key: str) -> str:
+    return normalize_template_field_key(field_key)
+
+
+def _validate_field_type(field_type: str) -> str:
+    return validate_template_field_type(field_type)
 
 
 def _is_system_template(template: dict | None) -> bool:
