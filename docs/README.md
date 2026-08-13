@@ -17,6 +17,11 @@ Supporting documentation is organized by purpose:
 - [`policies/`](policies/) — content, data, privacy, storage, and update policies
 - [`packaging/`](packaging/) — packaging feasibility and support assessments
 
+Current Audio Foundation decision records:
+
+- [M15.0 TTS Provider Selection Closure](history/M15_0_TTS_PROVIDER_SELECTION_CLOSURE.md)
+- [TTS License and Attribution Record](policies/TTS_LICENSE_AND_ATTRIBUTION.md)
+
 Executable development checks remain in [`scripts/`](../scripts/) and
 [`tools/`](../tools/). Local databases, private QA results, imports, exports,
 backups, secrets, and other user-owned artifacts are not repository
