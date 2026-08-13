@@ -187,11 +187,20 @@ def build_composition_segments(
     return tuple(segments)
 
 
-def _render_key(units: tuple[PlannedAudioUnit, ...], config: CompositionConfig) -> str:
+def compute_card_render_key(
+    segments: tuple[CompositionSegment, ...], config: CompositionConfig
+) -> str:
     payload = {
         "version": CARD_RENDER_VERSION,
         "audio_contract": CANONICAL_AUDIO_CONTRACT,
-        "ordered_unit_asset_keys": [unit.asset_key for unit in units],
+        "segments": [
+            {
+                "kind": segment.kind,
+                "asset_key": segment.asset_key,
+                "pause_ms": segment.pause_ms,
+            }
+            for segment in segments
+        ],
         "composition": asdict(config),
     }
     return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
@@ -232,7 +241,7 @@ def build_current_card_audio_plan(
         int(identity["card_id"]), int(identity["card_revision_id"]),
         int(identity["collection_id"]), int(identity["card_number"]),
         str(identity.get("name") or ""), entry_ids, planned_units, config,
-        segments, _render_key(planned_units, config) if not issues else "",
+        segments, compute_card_render_key(segments, config) if not issues else "",
         "ready" if not issues else "unresolved", tuple(issues),
     )
 

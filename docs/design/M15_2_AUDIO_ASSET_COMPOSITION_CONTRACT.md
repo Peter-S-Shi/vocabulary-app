@@ -53,10 +53,12 @@ configuration, explicit segments, readiness, and controlled issues.
 
 ## Card render identity and boundaries
 
-A Card render key fingerprints the ordered unit asset keys, canonical format,
-renderer version, repetition mode/count, and all pause timings. Card number,
-name, ID, and revision ID are excluded from content identity. Text/voice changes
-and current membership/order changes naturally produce a new render key.
+A Card render key fingerprints the final ordered composition segment sequence
+(`kind`, `asset_key`, and `pause_ms` for every segment), canonical format,
+renderer version, repetition mode/count, and all pause configuration. Card
+number, name, ID, revision ID, and Entry ID are excluded from content identity.
+Text/voice changes, current membership/order changes, and Entry-boundary changes
+naturally produce a new render key.
 
 Boundaries are explicit zero-valued PCM frames:
 

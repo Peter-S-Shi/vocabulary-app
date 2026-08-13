@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from pathlib import Path
 import tempfile
 import unittest
@@ -18,8 +19,10 @@ from src.audio_composition import (
     CompositionConfig,
     REPEAT_EACH_FIELD,
     REPEAT_WHOLE_CARD,
+    build_composition_segments,
     build_current_card_audio_plan,
     compose_card_audio,
+    compute_card_render_key,
 )
 from src.card_history import get_current_card_identity, reconcile_collection_card_history
 from src.collections import add_entries_to_collection, create_collection, set_card_name
@@ -192,6 +195,33 @@ class M152AudioCompositionTests(unittest.TestCase):
             collection_id, 1, providers=self.providers,
             composition_config=CompositionConfig(REPEAT_EACH_FIELD, 2),
         ))
+
+    def test_entry_grouping_pause_sequence_changes_render_key_for_same_unit_keys(self) -> None:
+        first = add_entry("English", "English", "word", "alpha", "first")
+        second = add_entry("English", "English", "word", "beta", "second")
+        collection_id = self._card([first, second])
+        plan = build_current_card_audio_plan(collection_id, 1, providers=self.providers)
+        original_grouping = plan.units
+        changed_grouping = (
+            original_grouping[0],
+            replace(original_grouping[1], entry_id=second),
+            original_grouping[2],
+            original_grouping[3],
+        )
+        self.assertEqual(
+            [unit.asset_key for unit in original_grouping],
+            [unit.asset_key for unit in changed_grouping],
+        )
+        original_segments = build_composition_segments(original_grouping, plan.config)
+        changed_segments = build_composition_segments(changed_grouping, plan.config)
+        self.assertNotEqual(
+            [(segment.kind, segment.asset_key, segment.pause_ms) for segment in original_segments],
+            [(segment.kind, segment.asset_key, segment.pause_ms) for segment in changed_segments],
+        )
+        self.assertNotEqual(
+            compute_card_render_key(original_segments, plan.config),
+            compute_card_render_key(changed_segments, plan.config),
+        )
 
     def test_text_and_explanation_language_changes_invalidate_only_relevant_units(self) -> None:
         entry_id = add_entry("English", "English", "word", "stable", "meaning")

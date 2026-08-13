@@ -27,7 +27,8 @@ schema remains `15.1.0-speech-semantics` and app-data remains `15.1`.
 Unit identity includes exact text, canonical language, frozen provider/voice,
 synthesis configuration, and format/contract versions while excluding Entry,
 Field, Template, Collection, and Card identity. Card render identity includes
-ordered unit keys plus repetition and pause configuration. Generated mono
+the final ordered segment sequence plus renderer, audio-contract, repetition,
+and pause configuration. Generated mono
 24 kHz signed 16-bit PCM WAV assets live in a configurable disposable local
 filesystem cache outside authoritative learning data.
 
@@ -39,9 +40,9 @@ state. M15.3 batch export, audio UI, and spoken Quiz behavior remain unstarted.
 Verification on 2026-08-13 passed:
 
 ```text
-Focused M15.2 tests: 14/14
-M15.2 + M15.1 compatibility tests: 27/27
-Full repository suite: 147/147
+Focused M15.2 tests: 15/15
+M15.2 + M15.1 compatibility tests: 28/28
+Full repository suite: 148/148
 Real M15.2 Card smoke: EN Kokoro + FR sherpa-onnx + ZH-CN Yaoyao passed
 Canonical Card artifact: readable mono 24 kHz signed 16-bit PCM WAV
 Generated smoke database/cache/audio: temporary and removed
