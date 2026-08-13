@@ -21,6 +21,7 @@ Current Audio Foundation decision records:
 
 - [M15.0 TTS Provider Selection Closure](history/M15_0_TTS_PROVIDER_SELECTION_CLOSURE.md)
 - [TTS License and Attribution Record](policies/TTS_LICENSE_AND_ATTRIBUTION.md)
+- [M15.1 Speech Semantic Contract](design/M15_1_SPEECH_SEMANTIC_CONTRACT.md)
 
 Executable development checks remain in [`scripts/`](../scripts/) and
 [`tools/`](../tools/). Local databases, private QA results, imports, exports,

@@ -28,10 +28,9 @@ organized repository/documentation structure. **Milestone 13 is complete**
 and established the reusable Import and Template Evolution Core. **Milestone
 14 is complete** and established the Learning Analytics and Insight Core.
 **Milestone 15.0 is closed** and records the selected English, French, and
-Mandarin TTS providers and their license/attribution requirements. Production
-M15 implementation has not started; the next Roadmap stage is **Milestone 15.1
-— Speech Semantics & TTS Provider Foundation**, subject to explicit review and
-authorization.
+Mandarin TTS providers and their license/attribution requirements. **Milestone
+15.1 — Speech Semantics & TTS Provider Foundation** is implemented on its
+dedicated review branch and awaits independent review; M15.2 has not started.
 
 Streamlit remains the currently runnable compatibility/reference UI, but it is
 no longer the intended Release Candidate target. The active lifecycle now
@@ -41,6 +40,8 @@ a native desktop UI, and hardens/packages the desktop product.
 - [ROADMAP.md](ROADMAP.md) is the authoritative lifecycle and milestone plan.
 - [PROJECT_STATUS.md](PROJECT_STATUS.md) is the authoritative current-state
   snapshot.
+- [M15.1 Speech Semantic Contract](docs/design/M15_1_SPEECH_SEMANTIC_CONTRACT.md)
+  records the current audio-field and provider-routing invariants.
 - [Pre-Git history](docs/history/PRE_GIT_HISTORY.md) documents development before the
   initial public Git baseline.
 

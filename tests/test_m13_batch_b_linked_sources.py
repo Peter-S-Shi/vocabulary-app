@@ -171,9 +171,9 @@ class M13BatchBLinkedSourceTests(unittest.TestCase):
             applied = run_migrations(conn)
             migrated_schema = [tuple(row) for row in conn.execute("PRAGMA table_info(collection_source_links)")]
             preserved = conn.execute("SELECT name FROM collections WHERE name = 'Preserved'").fetchone()
-            self.assertEqual(get_schema_version(conn), LINKED_APPEND_SOURCE_SCHEMA_VERSION)
-            self.assertEqual(get_metadata(conn, "app_data_version"), "13.0")
-        self.assertEqual(applied, ["m13_linked_append_source"])
+            self.assertEqual(get_schema_version(conn), CURRENT_SCHEMA_VERSION)
+            self.assertEqual(get_metadata(conn, "app_data_version"), APP_DATA_VERSION)
+        self.assertEqual(applied, ["m13_linked_append_source", "m15.1_template_speech_semantics"])
         self.assertEqual(migrated_schema, fresh_schema)
         self.assertIsNotNone(preserved)
 
@@ -188,7 +188,9 @@ class M13BatchBLinkedSourceTests(unittest.TestCase):
                 set_metadata(connection, "app_data_version", "13.0")
                 raise RuntimeError("synthetic migration failure")
 
-            migration = MIGRATIONS[-1]
+            migration = next(
+                item for item in MIGRATIONS if item["name"] == "m13_linked_append_source"
+            )
             original = migration["function"]
             migration["function"] = failing_migration
             try:
