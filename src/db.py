@@ -157,6 +157,8 @@ CREATE TABLE IF NOT EXISTS entry_template_fields (
     field_label TEXT NOT NULL,
     field_type TEXT NOT NULL DEFAULT 'text',
     required INTEGER NOT NULL DEFAULT 0,
+    speech_language_role TEXT NOT NULL DEFAULT 'unresolved'
+        CHECK(speech_language_role IN ('entry', 'explanation', 'none', 'unresolved')),
     display_order INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,

@@ -104,13 +104,13 @@ target.
 
 ## Current Phase
 
-**Audio Foundation — M15.0 Selection Gate Closed / M15.1 Next**
+**Audio Foundation — M15.1 Implementation Ready for Independent Review**
 
 The trustworthy data/business-logic baseline, repository restructure, Import
 and Template Evolution foundation, and Learning Analytics and Insight Core are
-complete. Milestone 15.0 has closed the TTS provider-selection and feasibility
-gate. Milestone 15.1 is the next engineering stage, but it does not begin until
-its dedicated scope is explicitly reviewed and authorized.
+complete. Milestone 15.0 closed the TTS provider-selection and feasibility
+gate. Milestone 15.1 implementation is now on its dedicated review branch; it
+is not complete on `main` until independent review and merge.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -575,6 +575,9 @@ It did not resolve the schema's missing explicit field-level
 `speech_language_role`. The audition heuristic is not a product contract.
 
 ### 15.1 Speech Semantics & TTS Provider Foundation
+
+**Status: Implementation ready for independent review; not complete on
+`main`.**
 
 Establish the reusable, UI-independent speech contract and provider boundary.
 

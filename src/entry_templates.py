@@ -15,6 +15,7 @@ GENERAL_ENTRY_FIELDS = [
         "field_label": "Term",
         "field_type": "text",
         "required": 1,
+        "speech_language_role": "entry",
         "display_order": 1,
     },
     {
@@ -22,6 +23,7 @@ GENERAL_ENTRY_FIELDS = [
         "field_label": "Meaning",
         "field_type": "long_text",
         "required": 1,
+        "speech_language_role": "explanation",
         "display_order": 2,
     },
     {
@@ -29,6 +31,7 @@ GENERAL_ENTRY_FIELDS = [
         "field_label": "Example",
         "field_type": "long_text",
         "required": 0,
+        "speech_language_role": "none",
         "display_order": 3,
     },
     {
@@ -36,6 +39,7 @@ GENERAL_ENTRY_FIELDS = [
         "field_label": "Notes",
         "field_type": "long_text",
         "required": 0,
+        "speech_language_role": "none",
         "display_order": 4,
     },
     {
@@ -43,6 +47,7 @@ GENERAL_ENTRY_FIELDS = [
         "field_label": "Tags",
         "field_type": "text",
         "required": 0,
+        "speech_language_role": "none",
         "display_order": 5,
     },
     {
@@ -50,6 +55,7 @@ GENERAL_ENTRY_FIELDS = [
         "field_label": "Source",
         "field_type": "text",
         "required": 0,
+        "speech_language_role": "none",
         "display_order": 6,
     },
 ]
@@ -68,46 +74,65 @@ FRENCH_VERB_PRESENT_TEMPLATE_NAME = "French Verb Present"
 FRENCH_ADJECTIVE_AGREEMENT_TEMPLATE_NAME = "French Adjective Agreement"
 FRENCH_NOUN_GENDER_PLURAL_TEMPLATE_NAME = "French Noun Gender Plural"
 
+def _speech_field(
+    field_key: str,
+    field_label: str,
+    field_type: str,
+    required: int,
+    display_order: int,
+    role: str,
+) -> dict:
+    return {
+        "field_key": field_key,
+        "field_label": field_label,
+        "field_type": field_type,
+        "required": required,
+        "display_order": display_order,
+        "speech_language_role": role,
+    }
+
+
 FRENCH_VERB_PRESENT_FIELDS = [
-    {"field_key": "infinitive", "field_label": "Infinitive", "field_type": "text", "required": 1, "display_order": 1},
-    {"field_key": "meaning", "field_label": "Meaning", "field_type": "long_text", "required": 1, "display_order": 2},
-    {"field_key": "je", "field_label": "je", "field_type": "text", "required": 0, "display_order": 3},
-    {"field_key": "tu", "field_label": "tu", "field_type": "text", "required": 0, "display_order": 4},
-    {"field_key": "il_elle_on", "field_label": "il/elle/on", "field_type": "text", "required": 0, "display_order": 5},
-    {"field_key": "nous", "field_label": "nous", "field_type": "text", "required": 0, "display_order": 6},
-    {"field_key": "vous", "field_label": "vous", "field_type": "text", "required": 0, "display_order": 7},
-    {"field_key": "ils_elles", "field_label": "ils/elles", "field_type": "text", "required": 0, "display_order": 8},
-    {"field_key": "example", "field_label": "Example", "field_type": "long_text", "required": 0, "display_order": 9},
-    {"field_key": "notes", "field_label": "Notes", "field_type": "long_text", "required": 0, "display_order": 10},
-    {"field_key": "tags", "field_label": "Tags", "field_type": "text", "required": 0, "display_order": 11},
-    {"field_key": "source", "field_label": "Source", "field_type": "text", "required": 0, "display_order": 12},
+    _speech_field("infinitive", "Infinitive", "text", 1, 1, "entry"),
+    _speech_field("meaning", "Meaning", "long_text", 1, 2, "explanation"),
+    _speech_field("je", "je", "text", 1, 3, "entry"),
+    _speech_field("tu", "tu", "text", 1, 4, "entry"),
+    _speech_field("il_elle_on", "il/elle/on", "text", 1, 5, "entry"),
+    _speech_field("nous", "nous", "text", 1, 6, "entry"),
+    _speech_field("vous", "vous", "text", 1, 7, "entry"),
+    _speech_field("ils_elles", "ils/elles", "text", 1, 8, "entry"),
+    _speech_field("example", "Example", "long_text", 0, 9, "none"),
+    _speech_field("notes", "Notes", "long_text", 0, 10, "none"),
+    _speech_field("tags", "Tags", "text", 0, 11, "none"),
+    _speech_field("source", "Source", "text", 0, 12, "none"),
 ]
 
 FRENCH_ADJECTIVE_AGREEMENT_FIELDS = [
-    {"field_key": "masculine_singular", "field_label": "Masculine Singular", "field_type": "text", "required": 1, "display_order": 1},
-    {"field_key": "meaning", "field_label": "Meaning", "field_type": "long_text", "required": 1, "display_order": 2},
-    {"field_key": "feminine_singular", "field_label": "Feminine Singular", "field_type": "text", "required": 0, "display_order": 3},
-    {"field_key": "masculine_plural", "field_label": "Masculine Plural", "field_type": "text", "required": 0, "display_order": 4},
-    {"field_key": "feminine_plural", "field_label": "Feminine Plural", "field_type": "text", "required": 0, "display_order": 5},
-    {"field_key": "example", "field_label": "Example", "field_type": "long_text", "required": 0, "display_order": 6},
-    {"field_key": "notes", "field_label": "Notes", "field_type": "long_text", "required": 0, "display_order": 7},
-    {"field_key": "tags", "field_label": "Tags", "field_type": "text", "required": 0, "display_order": 8},
-    {"field_key": "source", "field_label": "Source", "field_type": "text", "required": 0, "display_order": 9},
+    _speech_field("masculine_singular", "Masculine Singular", "text", 1, 1, "entry"),
+    _speech_field("meaning", "Meaning", "long_text", 1, 2, "explanation"),
+    _speech_field("feminine_singular", "Feminine Singular", "text", 1, 3, "entry"),
+    _speech_field("masculine_plural", "Masculine Plural", "text", 1, 4, "entry"),
+    _speech_field("feminine_plural", "Feminine Plural", "text", 1, 5, "entry"),
+    _speech_field("example", "Example", "long_text", 0, 6, "none"),
+    _speech_field("notes", "Notes", "long_text", 0, 7, "none"),
+    _speech_field("tags", "Tags", "text", 0, 8, "none"),
+    _speech_field("source", "Source", "text", 0, 9, "none"),
 ]
 
 FRENCH_NOUN_GENDER_PLURAL_FIELDS = [
-    {"field_key": "singular", "field_label": "Singular", "field_type": "text", "required": 1, "display_order": 1},
-    {"field_key": "meaning", "field_label": "Meaning", "field_type": "long_text", "required": 1, "display_order": 2},
-    {"field_key": "gender", "field_label": "Gender", "field_type": "text", "required": 0, "display_order": 3},
-    {"field_key": "plural", "field_label": "Plural", "field_type": "text", "required": 0, "display_order": 4},
-    {"field_key": "article", "field_label": "Article", "field_type": "text", "required": 0, "display_order": 5},
-    {"field_key": "example", "field_label": "Example", "field_type": "long_text", "required": 0, "display_order": 6},
-    {"field_key": "notes", "field_label": "Notes", "field_type": "long_text", "required": 0, "display_order": 7},
-    {"field_key": "tags", "field_label": "Tags", "field_type": "text", "required": 0, "display_order": 8},
-    {"field_key": "source", "field_label": "Source", "field_type": "text", "required": 0, "display_order": 9},
+    _speech_field("singular", "Singular", "text", 1, 1, "entry"),
+    _speech_field("meaning", "Meaning", "long_text", 1, 2, "explanation"),
+    _speech_field("gender", "Gender", "text", 1, 3, "entry"),
+    _speech_field("plural", "Plural", "text", 1, 4, "entry"),
+    _speech_field("article", "Article", "text", 1, 5, "entry"),
+    _speech_field("example", "Example", "long_text", 0, 6, "none"),
+    _speech_field("notes", "Notes", "long_text", 0, 7, "none"),
+    _speech_field("tags", "Tags", "text", 0, 8, "none"),
+    _speech_field("source", "Source", "text", 0, 9, "none"),
 ]
 
 ALLOWED_FIELD_TYPES = {"text", "long_text"}
+ALLOWED_SPEECH_LANGUAGE_ROLES = {"entry", "explanation", "none", "unresolved"}
 FIELD_KEY_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
@@ -117,6 +142,17 @@ def _now_iso() -> str:
 
 def _normalize_required(required: bool | int) -> int:
     return 1 if bool(required) else 0
+
+
+def normalize_speech_language_role(role: str | None, required: bool | int) -> str:
+    if role is None or not str(role).strip():
+        return "unresolved" if bool(required) else "none"
+    clean_role = str(role).strip().lower()
+    if clean_role not in ALLOWED_SPEECH_LANGUAGE_ROLES:
+        raise ValueError(f"Unsupported speech language role: {clean_role}")
+    if bool(required) and clean_role == "none":
+        raise ValueError("A required Template field cannot use speech language role none.")
+    return clean_role
 
 
 
@@ -289,11 +325,13 @@ def create_template_field(
     field_type: str = "text",
     required: bool | int = False,
     display_order: int = 0,
+    speech_language_role: str | None = None,
     allow_system: bool = False,
 ) -> int:
     clean_key = _normalize_field_key(field_key)
     clean_label = field_label.strip()
     clean_type = _validate_field_type(field_type)
+    clean_role = normalize_speech_language_role(speech_language_role, required)
 
     if not clean_label:
         raise ValueError("Template field label is required.")
@@ -318,11 +356,12 @@ def create_template_field(
                 field_label,
                 field_type,
                 required,
+                speech_language_role,
                 display_order,
                 created_at,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 template_id,
@@ -330,6 +369,7 @@ def create_template_field(
                 clean_label,
                 clean_type,
                 _normalize_required(required),
+                clean_role,
                 int(display_order),
                 now,
                 now,
@@ -349,6 +389,7 @@ def get_template_fields(template_id: int) -> list[dict]:
                 field_label,
                 field_type,
                 required,
+                speech_language_role,
                 display_order,
                 created_at,
                 updated_at
@@ -407,6 +448,23 @@ def ensure_template_fields(template_id: int, fields: list[dict]) -> None:
     for field in fields:
         if field["field_key"] not in existing_fields:
             create_template_field(template_id=template_id, allow_system=True, **field)
+            continue
+        existing = existing_fields[field["field_key"]]
+        required = _normalize_required(field.get("required", existing["required"]))
+        role = normalize_speech_language_role(
+            field.get("speech_language_role", existing.get("speech_language_role")),
+            required,
+        )
+        if int(existing["required"]) != required or existing.get("speech_language_role") != role:
+            with get_connection() as connection:
+                connection.execute(
+                    """
+                    UPDATE entry_template_fields
+                    SET required = ?, speech_language_role = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (required, role, _now_iso(), int(existing["id"])),
+                )
 
 
 def ensure_french_verb_present_template() -> int:
@@ -485,12 +543,7 @@ def ensure_general_entry_template() -> int:
                 ),
             )
 
-    existing_fields = {
-        field["field_key"]: field for field in get_template_fields(template_id)
-    }
-    for field in GENERAL_ENTRY_FIELDS:
-        if field["field_key"] not in existing_fields:
-            create_template_field(template_id=template_id, allow_system=True, **field)
+    ensure_template_fields(template_id, GENERAL_ENTRY_FIELDS)
 
     return template_id
 
@@ -541,6 +594,7 @@ def get_entry_field_values(entry_id: int) -> dict:
                 field.field_label,
                 field.field_type,
                 field.required,
+                field.speech_language_role,
                 field.display_order,
                 COALESCE(value.field_value, '') AS field_value
             FROM entries AS entry
@@ -788,6 +842,7 @@ def get_template_field(field_id: int) -> dict | None:
                 field_label,
                 field_type,
                 required,
+                speech_language_role,
                 display_order,
                 created_at,
                 updated_at
@@ -837,6 +892,7 @@ def update_template_field(
     field_type: str,
     required: bool | int,
     display_order: int,
+    speech_language_role: str | None = None,
 ) -> None:
     field = get_template_field(field_id)
     if field is None:
@@ -851,6 +907,12 @@ def update_template_field(
         raise ValueError("Template field label is required.")
 
     clean_type = _validate_field_type(field_type)
+    role_value = (
+        field.get("speech_language_role")
+        if speech_language_role is None
+        else speech_language_role
+    )
+    clean_role = normalize_speech_language_role(role_value, required)
     now = _now_iso()
     with get_connection() as connection:
         connection.execute(
@@ -860,6 +922,7 @@ def update_template_field(
                 field_label = ?,
                 field_type = ?,
                 required = ?,
+                speech_language_role = ?,
                 display_order = ?,
                 updated_at = ?
             WHERE id = ?
@@ -868,11 +931,62 @@ def update_template_field(
                 clean_label,
                 clean_type,
                 _normalize_required(required),
+                clean_role,
                 int(display_order),
                 now,
                 field_id,
             ),
         )
+
+
+def set_template_field_speech_language_role(
+    field_id: int,
+    speech_language_role: str,
+) -> None:
+    field = get_template_field(field_id)
+    if field is None:
+        raise ValueError("Template field not found.")
+    template = get_entry_template(int(field["template_id"]))
+    if _is_system_template(template):
+        raise ValueError("System template fields are read-only.")
+    role = normalize_speech_language_role(
+        speech_language_role,
+        bool(field["required"]),
+    )
+    with get_connection() as connection:
+        connection.execute(
+            """
+            UPDATE entry_template_fields
+            SET speech_language_role = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (role, _now_iso(), int(field_id)),
+        )
+
+
+def inspect_template_speech_readiness(template_id: int) -> dict:
+    template = get_entry_template(template_id)
+    if template is None:
+        raise ValueError("Template not found.")
+    fields = get_template_fields(template_id)
+    issues = []
+    for field in fields:
+        role = str(field.get("speech_language_role") or "unresolved")
+        if field["required"] and role not in {"entry", "explanation"}:
+            issues.append(
+                {
+                    "code": "required_field_role_unresolved",
+                    "field_id": int(field["id"]),
+                    "field_key": str(field["field_key"]),
+                    "speech_language_role": role,
+                }
+            )
+    return {
+        "template_id": int(template_id),
+        "template_name": str(template["name"]),
+        "audio_ready": not issues,
+        "issues": issues,
+    }
 
 
 def delete_template_field(field_id: int) -> bool:
@@ -1010,4 +1124,3 @@ def set_entry_template_values(entry_id: int, template_values: dict) -> None:
     for field in fields:
         if field["field_key"] not in template_values:
             set_entry_field_value(entry_id=entry_id, field_id=int(field["id"]), field_value="")
-

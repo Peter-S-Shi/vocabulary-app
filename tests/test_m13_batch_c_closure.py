@@ -376,6 +376,7 @@ class M13BatchCClosureTests(unittest.TestCase):
                     "m11.3_stable_card_identity_and_entry_history",
                     "m11.3_preserve_quiz_logs_after_entry_delete",
                     "m13_linked_append_source",
+                    "m15.1_template_speech_semantics",
                 ],
             )
             self.assertEqual(get_schema_version(connection), CURRENT_SCHEMA_VERSION)

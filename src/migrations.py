@@ -9,9 +9,10 @@ BASELINE_SCHEMA_VERSION = "10.6.0-baseline"
 CARD_HISTORY_SCHEMA_VERSION = "11.3.0-card-history"
 QUIZ_LOG_HISTORY_SCHEMA_VERSION = "11.3.1-quiz-log-history"
 LINKED_APPEND_SOURCE_SCHEMA_VERSION = "13.0.0-linked-append-source"
-CURRENT_SCHEMA_VERSION = LINKED_APPEND_SOURCE_SCHEMA_VERSION
+SPEECH_SEMANTICS_SCHEMA_VERSION = "15.1.0-speech-semantics"
+CURRENT_SCHEMA_VERSION = SPEECH_SEMANTICS_SCHEMA_VERSION
 M11_APP_DATA_VERSION = "11.3"
-APP_DATA_VERSION = "13.0"
+APP_DATA_VERSION = "15.1"
 
 METADATA_KEYS = {
     "schema_version",
@@ -32,6 +33,13 @@ MigrationFunction = Callable[[sqlite3.Connection], None]
 def _table_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
     rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
     return {str(row["name"] if isinstance(row, sqlite3.Row) else row[1]) for row in rows}
+
+
+def _table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
+    return conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (table_name,),
+    ).fetchone() is not None
 
 
 def migrate_to_m11_3_card_history(conn: sqlite3.Connection) -> None:
@@ -200,6 +208,102 @@ def migrate_to_m13_linked_append_source(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    set_metadata(conn, "app_data_version", "13.0")
+
+
+SYSTEM_SPEECH_ROLES = {
+    "General Entry": {
+        "term": "entry",
+        "meaning": "explanation",
+    },
+    "French Verb Present": {
+        "infinitive": "entry",
+        "meaning": "explanation",
+        "je": "entry",
+        "tu": "entry",
+        "il_elle_on": "entry",
+        "nous": "entry",
+        "vous": "entry",
+        "ils_elles": "entry",
+    },
+    "French Adjective Agreement": {
+        "masculine_singular": "entry",
+        "meaning": "explanation",
+        "feminine_singular": "entry",
+        "masculine_plural": "entry",
+        "feminine_plural": "entry",
+    },
+    "French Noun Gender Plural": {
+        "singular": "entry",
+        "meaning": "explanation",
+        "gender": "entry",
+        "plural": "entry",
+        "article": "entry",
+    },
+}
+
+FRENCH_REQUIRED_FIELDS = {
+    "French Verb Present": {
+        "je", "tu", "il_elle_on", "nous", "vous", "ils_elles"
+    },
+    "French Adjective Agreement": {
+        "feminine_singular", "masculine_plural", "feminine_plural"
+    },
+    "French Noun Gender Plural": {"gender", "plural", "article"},
+}
+
+
+def migrate_to_m15_1_speech_semantics(conn: sqlite3.Connection) -> None:
+    if not _table_exists(conn, "entry_template_fields"):
+        set_metadata(conn, "app_data_version", APP_DATA_VERSION)
+        return
+    columns = _table_columns(conn, "entry_template_fields")
+    if "speech_language_role" not in columns:
+        conn.execute(
+            "ALTER TABLE entry_template_fields "
+            "ADD COLUMN speech_language_role TEXT NOT NULL DEFAULT 'unresolved' "
+            "CHECK(speech_language_role IN ('entry', 'explanation', 'none', 'unresolved'))"
+        )
+
+    conn.execute(
+        """
+        UPDATE entry_template_fields
+        SET speech_language_role = CASE
+            WHEN required = 0 THEN 'none'
+            ELSE 'unresolved'
+        END
+        """
+    )
+
+    for template_name, roles in SYSTEM_SPEECH_ROLES.items():
+        for field_key, role in roles.items():
+            conn.execute(
+                """
+                UPDATE entry_template_fields
+                SET speech_language_role = ?
+                WHERE template_id = (
+                    SELECT id FROM entry_templates WHERE name = ? AND is_system = 1
+                )
+                  AND field_key = ?
+                """,
+                (role, template_name, field_key),
+            )
+
+    for template_name, field_keys in FRENCH_REQUIRED_FIELDS.items():
+        placeholders = ",".join("?" for _ in field_keys)
+        conn.execute(
+            f"""
+            UPDATE entry_template_fields
+            SET required = 1,
+                speech_language_role = 'entry'
+            WHERE template_id = (
+                SELECT id FROM entry_templates WHERE name = ? AND is_system = 1
+            )
+              AND field_key IN ({placeholders})
+            """,
+            (template_name, *sorted(field_keys)),
+        )
+
     set_metadata(conn, "app_data_version", APP_DATA_VERSION)
 
 
@@ -221,6 +325,12 @@ MIGRATIONS: list[dict[str, str | MigrationFunction]] = [
         "to": LINKED_APPEND_SOURCE_SCHEMA_VERSION,
         "name": "m13_linked_append_source",
         "function": migrate_to_m13_linked_append_source,
+    },
+    {
+        "from": LINKED_APPEND_SOURCE_SCHEMA_VERSION,
+        "to": SPEECH_SEMANTICS_SCHEMA_VERSION,
+        "name": "m15.1_template_speech_semantics",
+        "function": migrate_to_m15_1_speech_semantics,
     },
 ]
 

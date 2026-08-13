@@ -49,6 +49,10 @@ Streamlit `session_state` is UI state. Durable state and duplicate-action protec
 - `src/learning_workflow.py`: read-only Today workflow queries and recommendations
 - `src/import_export.py`: transfer formats, validation, preview, and confirmed import
 - `src/template_definitions.py`: deterministic, preview-first, atomic portable Template Definition CSV operations
+- `src/speech_semantics.py`: M15 required-field speech planning, persisted
+  language-role resolution, and controlled readiness results
+- `src/tts_providers.py`: canonical language routing, fixed provider/voice
+  selection, preflight, and one-unit synthesis boundary
 - `src/linked_sources.py`: append-only local CSV/XLSX source-link preview, confirmation, refresh, and unlink orchestration
 - `src/backup.py`: database/workbook backup and restore preview
 - `src/text_parser.py`: structured Quick Add parsing

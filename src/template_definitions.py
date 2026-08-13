@@ -13,8 +13,9 @@ from src.entry_templates import (
 from src.import_export import ImportPreviewError, parse_csv_bytes, rows_to_csv_bytes
 
 
-TEMPLATE_DEFINITION_VERSION = "1"
-TEMPLATE_DEFINITION_COLUMNS = [
+TEMPLATE_DEFINITION_V1 = "1"
+TEMPLATE_DEFINITION_VERSION = "2"
+TEMPLATE_DEFINITION_V1_COLUMNS = [
     "definition_version",
     "template_name",
     "template_description",
@@ -25,6 +26,10 @@ TEMPLATE_DEFINITION_COLUMNS = [
     "field_type",
     "required",
     "display_order",
+]
+TEMPLATE_DEFINITION_COLUMNS = [
+    *TEMPLATE_DEFINITION_V1_COLUMNS,
+    "speech_language_role",
 ]
 
 
@@ -64,7 +69,8 @@ def _template_row(connection: Connection, template_id: int) -> dict | None:
 def _template_fields(connection: Connection, template_id: int) -> list[dict]:
     rows = connection.execute(
         """
-        SELECT field_key, field_label, field_type, required, display_order
+        SELECT field_key, field_label, field_type, required, display_order,
+               speech_language_role
         FROM entry_template_fields
         WHERE template_id = ?
         ORDER BY display_order ASC, field_key ASC
@@ -104,6 +110,7 @@ def export_template_definition_rows(
             "field_type": str(field["field_type"]),
             "required": "1" if bool(field["required"]) else "0",
             "display_order": int(field["display_order"]),
+            "speech_language_role": str(field["speech_language_role"]),
         }
         for field in fields
     ]
@@ -155,7 +162,40 @@ def preview_template_definition_csv(
 
     header_map = _normalized_headers(raw_rows[0])
     actual_headers = set(header_map)
-    expected_headers = set(TEMPLATE_DEFINITION_COLUMNS)
+    version_header = header_map.get("definition_version")
+    versions = {
+        str(row.get(version_header, "") or "").strip()
+        for row in raw_rows
+    } if version_header else set()
+    if versions == {TEMPLATE_DEFINITION_V1}:
+        definition_version = TEMPLATE_DEFINITION_V1
+        columns = TEMPLATE_DEFINITION_V1_COLUMNS
+        if "speech_language_role" in actual_headers:
+            role_header = header_map["speech_language_role"]
+            if any(str(row.get(role_header, "") or "").strip() for row in raw_rows):
+                preview["errors"].append(
+                    "Definition version 1 cannot contain speech-language roles."
+                )
+                return preview
+            columns = TEMPLATE_DEFINITION_COLUMNS
+    elif versions == {TEMPLATE_DEFINITION_VERSION}:
+        definition_version = TEMPLATE_DEFINITION_VERSION
+        columns = TEMPLATE_DEFINITION_COLUMNS
+        role_header = header_map.get("speech_language_role")
+        if role_header is None or any(
+            not str(row.get(role_header, "") or "").strip() for row in raw_rows
+        ):
+            preview["errors"].append(
+                "Definition version 2 requires speech_language_role for every field."
+            )
+            return preview
+    else:
+        preview["errors"].append(
+            "Template Definition version must be exactly 1 or 2."
+        )
+        return preview
+
+    expected_headers = set(columns)
     missing = sorted(expected_headers - actual_headers)
     unknown = sorted(actual_headers - expected_headers)
     if missing:
@@ -164,7 +204,8 @@ def preview_template_definition_csv(
         )
     if unknown:
         preview["errors"].append(
-            "Unsupported columns for definition version 1: " + ", ".join(unknown)
+            f"Unsupported columns for definition version {definition_version}: "
+            + ", ".join(unknown)
         )
     if missing or unknown:
         return preview
@@ -172,7 +213,7 @@ def preview_template_definition_csv(
     rows = [
         {
             column: row.get(header_map[column], "")
-            for column in TEMPLATE_DEFINITION_COLUMNS
+            for column in columns
         }
         for row in raw_rows
     ]
@@ -193,13 +234,7 @@ def preview_template_definition_csv(
             }
         )
 
-    versions = {row["definition_version"] for row in normalized_metadata}
-    if versions != {TEMPLATE_DEFINITION_VERSION}:
-        preview["errors"].append(
-            "Template Definition version must be exactly 1."
-        )
-    else:
-        preview["definition_version"] = TEMPLATE_DEFINITION_VERSION
+    preview["definition_version"] = definition_version
 
     first_metadata = normalized_metadata[0]
     for column in metadata_columns[1:]:
@@ -268,6 +303,21 @@ def preview_template_definition_csv(
             f"{prefix}: display_order",
             preview["errors"],
         )
+        if definition_version == TEMPLATE_DEFINITION_V1:
+            speech_language_role = "unresolved" if required else "none"
+        else:
+            speech_language_role = str(
+                row.get("speech_language_role") or ""
+            ).strip().lower()
+            allowed_roles = {"entry", "explanation", "none", "unresolved"}
+            if speech_language_role not in allowed_roles:
+                preview["errors"].append(
+                    f"{prefix}: speech_language_role must be entry, explanation, none, or unresolved."
+                )
+            if required and speech_language_role == "none":
+                preview["errors"].append(
+                    f"{prefix}: a required field cannot use speech_language_role none."
+                )
         fields.append(
             {
                 "field_key": field_key,
@@ -275,6 +325,7 @@ def preview_template_definition_csv(
                 "field_type": field_type,
                 "required": required,
                 "display_order": display_order,
+                "speech_language_role": speech_language_role,
             }
         )
 
@@ -343,9 +394,10 @@ def import_template_definition_csv(
                     """
                     INSERT INTO entry_template_fields (
                         template_id, field_key, field_label, field_type,
-                        required, display_order, created_at, updated_at
+                        required, display_order, speech_language_role,
+                        created_at, updated_at
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         template_id,
@@ -354,6 +406,7 @@ def import_template_definition_csv(
                         field["field_type"],
                         field["required"],
                         field["display_order"],
+                        field["speech_language_role"],
                         now,
                         now,
                     ),

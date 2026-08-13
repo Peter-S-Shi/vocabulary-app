@@ -12,11 +12,44 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 ## Current Phase
 
-**Audio Foundation — M15.0 Selection Gate Closed / M15.1 Next**
+**Audio Foundation — M15.1 Implementation Ready for Independent Review**
 
 ## Current Milestone
 
-**M15.0 Closed — M15.1 Not Started**
+**M15.1 Implemented on Review Branch — M15.2 Not Started**
+
+M15.1 implements the UI-independent speech semantics and selected-provider
+foundation on branch `agent/m15-1-speech-semantics-provider-foundation`, based
+on synchronized `main` at `960b0a29f67d723a656a9030be375849285bfdda`.
+
+The additive migration advances schema version to
+`15.1.0-speech-semantics` and app-data version to `15.1`. It adds persisted
+field-level `speech_language_role`, assigns explicit roles to current system
+Templates, and makes the approved French morphology fields required without
+fabricating missing Entry values. Legacy custom required fields become
+explicitly unresolved; optional fields become non-spoken.
+
+Template Definition CSV v2 preserves speech roles and is now the default
+export. Version 1 remains importable, with required fields unresolved rather
+than guessed. `src/speech_semantics.py` builds deterministic required-field
+plans from persisted roles and Entry/Explanation languages.
+`src/tts_providers.py` preserves the frozen EN/FR/ZH routing, exposes controlled
+preflight/failure results, and never silently falls back from Yaoyao.
+
+Verification on 2026-08-13 passed:
+
+```text
+Focused M15.1 tests: 11/11
+Full repository suite: 131/131
+Real provider smoke: EN Kokoro, FR sherpa-onnx, ZH-CN WinRT Yaoyao passed
+Generated smoke audio: temporary and removed
+```
+
+The frozen contract is recorded in
+`docs/design/M15_1_SPEECH_SEMANTIC_CONTRACT.md`. Card composition, audio cache,
+repetition modes, batch export, audio UI, and spoken Quiz behavior remain
+outside M15.1. Existing Quiz learning semantics are unchanged. M15.1 is not
+complete on `main` until independent review and merge.
 
 M15.0 started from the closed M14 baseline and completed TTS feasibility,
 provider selection, Unicode verification, and license/attribution review. Its
@@ -35,13 +68,10 @@ recorded as `UNRESOLVED`. Reusable runtime/model assets remain external to the
 repository and are represented portably as `<SHARED_TTS_DIR>`.
 
 M15.0 also froze the requirement that the identified French morphology fields
-be corrected to `required=1` through a safe versioned implementation path. The
-schema still lacks explicit field-level `speech_language_role` metadata; M15.1
-must resolve that contract without adopting the audition heuristic as product
-behavior.
-
-No production M15.1 code, schema change, migration, dependency, test, audio UI,
-or learning-state behavior has been implemented.
+be corrected to `required=1` and identified the missing explicit field-level
+`speech_language_role`. M15.1 now implements those decisions without adopting
+the audition heuristic as product behavior. No M15.2 Card-composition or cache
+behavior has been implemented.
 
 M14 began from synchronized `main` at
 `98b6bc6567bc7bb61284344cd6452eb9cde11457` on branch
@@ -190,12 +220,13 @@ required
 display_order
 ```
 
-The reusable core supports deterministic export, read-only preview and full
-validation, explicit existing-name conflict handling, and atomic confirmed
-import of one Template plus all fields. Imported definitions always create a
-user-owned Template (`is_system = 0`). System ownership, internal IDs,
-timestamps, Entry content, Entry field values, database paths, and the
-not-yet-persisted `speech_language_role` are not portable fields.
+At M13 closure, the reusable core supported deterministic export, read-only
+preview and full validation, explicit existing-name conflict handling, and
+atomic confirmed import of one Template plus all fields. Imported definitions
+always create a user-owned Template (`is_system = 0`). System ownership, internal IDs,
+timestamps, Entry content, Entry field values, and database paths were not
+portable fields. M15.1 subsequently adds `speech_language_role` through
+Template Definition v2 while retaining v1 import compatibility.
 
 Portable fields preserve their original non-negative integer `display_order`.
 Ties are valid and use deterministic `(display_order ASC, field_key ASC)`
@@ -1105,11 +1136,10 @@ complete.
 
 ## Next Objective
 
-**Review and explicitly authorize M15.1 — Speech Semantics & TTS Provider Foundation**
+**Independently review and accept M15.1 — Speech Semantics & TTS Provider Foundation**
 
-M15.0 is closed. M15.1 is the next Roadmap engineering stage, but it has not
-started. Review its dedicated scope before authorizing implementation; do not
-infer M15.1 implementation permission from the M15.0 selection-gate closure.
+M15.1 is implemented on its dedicated branch and awaiting independent review.
+Do not mark it complete or begin M15.2 until the review and merge gates close.
 
 ## Repository State
 
@@ -1129,6 +1159,8 @@ infer M15.1 implementation permission from the M15.0 selection-gate closure.
   `880bda5c2bd0e8222af5489a9947469a333689ec`
 - M15.0 closure baseline on `main`:
   `4dac641921701a8cc3b82ff80f507e9c63d5e188`
+- M15.1 implementation branch:
+  `agent/m15-1-speech-semantics-provider-foundation`
 - Completed M13 branch: `agent/m13-import-template-evolution`
 - Merged M12 base commit:
   `6e339ec846f22f14ee454d9ad0d68ba3fb83aee6`
@@ -1170,7 +1202,8 @@ infer M15.1 implementation permission from the M15.0 selection-gate closure.
   - `docs/history/MILESTONE14_CLOSURE.md`
   - `docs/history/M15_0_TTS_PROVIDER_SELECTION_CLOSURE.md`
   - `docs/policies/TTS_LICENSE_AND_ATTRIBUTION.md`
+  - `docs/design/M15_1_SPEECH_SEMANTIC_CONTRACT.md`
 - Current lifecycle state:
-  **Audio Foundation — M15.0 Selection Gate Closed / M15.1 Next**
+  **Audio Foundation — M15.1 Implementation Ready for Independent Review**
 - Exact next objective:
-  **Review and explicitly authorize M15.1 scope before implementation**
+  **Independently review M15.1; do not begin M15.2**
