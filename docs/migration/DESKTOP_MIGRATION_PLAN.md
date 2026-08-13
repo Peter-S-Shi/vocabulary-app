@@ -359,15 +359,23 @@ Do not invest in a full Streamlit analytics redesign.
 
 Establish reusable:
 
-- speech provider abstraction;
-- supported language routing;
-- required-field speech sequencing;
+- a replaceable speech-provider abstraction using the closed M15.0 routing:
+  Kokoro-82M / `af_heart` for English, `sherpa-onnx` /
+  `fr_FR-siwis-medium` for French, and Windows WinRT Yaoyao (`zh-CN`) for
+  Mandarin with no silent fallback;
+- deterministic template-level Entry-language, Explanation-language, and
+  non-spoken field semantics;
+- required-field speech sequencing in template/display order, including the
+  approved versioned French morphology `required=1` corrections;
 - Entry/Field-level cache identity;
 - Card-level audio assembly;
 - repetition modes; and
-- representative local TTS feasibility.
+- representative local TTS feasibility, now verified by the M15.0 selection
+  gate.
 
-Full batch-export UX is deferred to desktop.
+Reusable Card batch-export and failure-safety behavior will be completed before
+desktop migration. The full interactive Audio Export UX remains deferred to
+desktop.
 
 ## 11. Migration Phases
 
@@ -810,7 +818,7 @@ Collection.
 - [x] Template Definition import/export core complete
 - [x] linked Collection append-source core complete
 - [x] Learning Analytics core complete
-- [ ] local TTS feasibility verified
+- [x] local TTS feasibility and provider selection verified
 - [ ] Card audio composition core verified
 
 ### Desktop Architecture
@@ -892,10 +900,10 @@ Packaging and Release Candidate
 
 Do not start by building the desktop UI immediately.
 
-First complete the Milestone 11 trustworthy baseline.
-
-Then reorganize the repository and implement the reusable pre-migration
-foundations.
+The Milestone 11 trustworthy baseline, repository restructure, Import and
+Template Evolution foundation, Learning Analytics core, and M15.0 TTS
+selection gate are complete. Complete the remaining M15.1-M15.3 reusable Audio
+Foundation stages before beginning the desktop architecture milestone.
 
 After those foundations are stable, begin the desktop architecture milestone
 with a deliberately small native shell that opens the existing SQLite database

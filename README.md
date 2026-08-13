@@ -26,9 +26,12 @@ work. **Milestone 11 is complete** and established a **Trustworthy
 Pre-Desktop Baseline**. **Milestone 12 is complete** and established the
 organized repository/documentation structure. **Milestone 13 is complete**
 and established the reusable Import and Template Evolution Core. **Milestone
-14 is complete** and established the Learning Analytics and Insight Core. The
-next Roadmap milestone is **Milestone 15 — Audio Foundation**, which has not
-started.
+14 is complete** and established the Learning Analytics and Insight Core.
+**Milestone 15.0 is closed** and records the selected English, French, and
+Mandarin TTS providers and their license/attribution requirements. Production
+M15 implementation has not started; the next Roadmap stage is **Milestone 15.1
+— Speech Semantics & TTS Provider Foundation**, subject to explicit review and
+authorization.
 
 Streamlit remains the currently runnable compatibility/reference UI, but it is
 no longer the intended Release Candidate target. The active lifecycle now

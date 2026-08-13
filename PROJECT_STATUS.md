@@ -1,6 +1,6 @@
 # Vocabulary App Project Status
 
-Last reviewed: 2026-08-12
+Last reviewed: 2026-08-13
 
 This file is the authoritative evidence-based snapshot of the current project
 state.
@@ -12,11 +12,36 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 ## Current Phase
 
-**Learning Analytics and Insight Core Complete — Audio Foundation Next**
+**Audio Foundation — M15.0 Selection Gate Closed / M15.1 Next**
 
 ## Current Milestone
 
-**Milestone 14 Complete and Merged — Milestone 15 Not Started**
+**M15.0 Closed — M15.1 Not Started**
+
+M15.0 started from the closed M14 baseline and completed TTS feasibility,
+provider selection, Unicode verification, and license/attribution review. Its
+authoritative closure was recorded on `main` at
+`4dac641921701a8cc3b82ff80f507e9c63d5e188`.
+
+Frozen provider routing:
+
+- English: Kokoro-82M / `af_heart`;
+- French: `sherpa-onnx` / `fr_FR-siwis-medium`; and
+- Mandarin: Windows WinRT `SpeechSynthesizer` / Yaoyao (`zh-CN`), with no
+  silent fallback when Yaoyao is unavailable.
+
+The Yaoyao Unicode/mojibake issue is resolved. No license item is currently
+recorded as `UNRESOLVED`. Reusable runtime/model assets remain external to the
+repository and are represented portably as `<SHARED_TTS_DIR>`.
+
+M15.0 also froze the requirement that the identified French morphology fields
+be corrected to `required=1` through a safe versioned implementation path. The
+schema still lacks explicit field-level `speech_language_role` metadata; M15.1
+must resolve that contract without adopting the audition heuristic as product
+behavior.
+
+No production M15.1 code, schema change, migration, dependency, test, audio UI,
+or learning-state behavior has been implemented.
 
 M14 began from synchronized `main` at
 `98b6bc6567bc7bb61284344cd6452eb9cde11457` on branch
@@ -989,7 +1014,9 @@ baseline is established on `main` at
 - Desktop accessibility and interaction model.
 - Linked-source behavior with moved, renamed, unavailable, or malformed files.
 - Final Analytics thresholds and evidence-sufficiency rules.
-- Final TTS provider/model selection.
+- Packaged-runtime performance and operational behavior for the selected TTS
+  providers.
+- Final M15.1 field-level `speech_language_role` contract and migration defaults.
 - Audio-generation performance on representative hardware.
 - Native packaging and clean-machine installation.
 - Existing-data migration and rollback in packaged desktop form.
@@ -1076,11 +1103,11 @@ complete.
 
 ## Next Objective
 
-**Review and authorize Milestone 15 — Audio Foundation scope**
+**Review and explicitly authorize M15.1 — Speech Semantics & TTS Provider Foundation**
 
-M14 is merged and closed. M15 is the next Roadmap milestone, but it has not
+M15.0 is closed. M15.1 is the next Roadmap engineering stage, but it has not
 started. Review its dedicated scope before authorizing implementation; do not
-infer M15 implementation permission from M14 closure.
+infer M15.1 implementation permission from the M15.0 selection-gate closure.
 
 ## Repository State
 
@@ -1098,6 +1125,8 @@ infer M15 implementation permission from M14 closure.
   `#10 — M14: Complete learning analytics and insight core` (merged)
 - M14 merge commit on `main`:
   `880bda5c2bd0e8222af5489a9947469a333689ec`
+- M15.0 closure baseline on `main`:
+  `4dac641921701a8cc3b82ff80f507e9c63d5e188`
 - Completed M13 branch: `agent/m13-import-template-evolution`
 - Merged M12 base commit:
   `6e339ec846f22f14ee454d9ad0d68ba3fb83aee6`
@@ -1137,7 +1166,9 @@ infer M15 implementation permission from M14 closure.
 - Current closure evidence:
   - `docs/history/MILESTONE11_CLOSURE.md`
   - `docs/history/MILESTONE14_CLOSURE.md`
+  - `docs/history/M15_0_TTS_PROVIDER_SELECTION_CLOSURE.md`
+  - `docs/policies/TTS_LICENSE_AND_ATTRIBUTION.md`
 - Current lifecycle state:
-  **Milestone 14 Complete and Merged — Audio Foundation Next**
+  **Audio Foundation — M15.0 Selection Gate Closed / M15.1 Next**
 - Exact next objective:
-  **Review and explicitly authorize M15 scope before implementation**
+  **Review and explicitly authorize M15.1 scope before implementation**

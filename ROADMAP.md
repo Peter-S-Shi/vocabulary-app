@@ -104,12 +104,13 @@ target.
 
 ## Current Phase
 
-**Learning Analytics and Insight Core Complete / Audio Foundation Next**
+**Audio Foundation — M15.0 Selection Gate Closed / M15.1 Next**
 
 The trustworthy data/business-logic baseline, repository restructure, Import
 and Template Evolution foundation, and Learning Analytics and Insight Core are
-complete. The next Roadmap milestone is Milestone 15 — Audio Foundation. M15
-does not begin until its scope is explicitly reviewed and authorized.
+complete. Milestone 15.0 has closed the TTS provider-selection and feasibility
+gate. Milestone 15.1 is the next engineering stage, but it does not begin until
+its dedicated scope is explicitly reviewed and authorized.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -545,95 +546,103 @@ scope boundaries, not M14 closure defects.
 Milestone 15 establishes a reusable local text-to-speech and card-audio
 foundation before building the full desktop workflow.
 
-### 15.1 Audio Scope
+### 15.0 TTS Provider Selection & Feasibility
 
-Version 1 supports audio export.
+**Status: Closed.** The authoritative decision and supporting license record
+are documented in:
 
-Audio-enabled Quiz behavior is deferred.
+- [M15.0 TTS Provider Selection Closure](docs/history/M15_0_TTS_PROVIDER_SELECTION_CLOSURE.md)
+- [TTS License and Attribution Record](docs/policies/TTS_LICENSE_AND_ATTRIBUTION.md)
 
-Each exported audio file represents exactly one current Card.
+The frozen routing is:
 
-Users may select one or multiple Cards, or select a Collection to generate
-multiple Card audio files in one batch.
+- English: Kokoro-82M / `af_heart`;
+- French: `sherpa-onnx` / `fr_FR-siwis-medium`; and
+- Mandarin: Windows WinRT `SpeechSynthesizer` / Yaoyao (`zh-CN`).
 
-A Collection must not be exported as one monolithic audio file.
+Mandarin has a no-silent-fallback policy. The Yaoyao Unicode/mojibake defect
+found during the feasibility work is resolved. Reusable runtime/model assets
+remain machine-local and external to the repository; documentation uses
+`<SHARED_TTS_DIR>` rather than a personal path.
 
-### 15.2 Entry/Field Asset Identity
+M15.0 also established that the French morphology fields listed in the closure
+record must become `required=1` through a safe versioned implementation path.
+It did not resolve the schema's missing explicit field-level
+`speech_language_role`. The audition heuristic is not a product contract.
 
-Speech generation is based on Entry and Field content.
+### 15.1 Speech Semantics & TTS Provider Foundation
 
-Card audio is assembled from the current Card membership and order at export
-time.
+Establish the reusable, UI-independent speech contract and provider boundary.
 
-Reordering Entries or changing their Card membership must not require audio
-assets to be permanently identified by Card number.
+- preserve the frozen English, French, and Mandarin provider routing from
+  M15.0 rather than reopening provider search;
+- keep provider behavior behind a replaceable abstraction instead of embedding
+  it in Streamlit or desktop UI code;
+- define deterministic template-level `speech_language_role` routing and
+  resolve whether each spoken field uses the Entry language, Explanation
+  language, or is non-spoken;
+- apply the approved French `required=1` corrections through an additive,
+  versioned, migration-safe path:
+  - `French Verb Present`: `je`, `tu`, `il_elle_on`, `nous`, `vous`, and
+    `ils_elles`;
+  - `French Adjective Agreement`: `feminine_singular`, `masculine_plural`, and
+    `feminine_plural`; and
+  - `French Noun Gender Plural`: `gender`, `plural`, and `article`;
+- preserve the initial rule that required fields participate in speech and
+  optional fields do not, while making the explicit language/non-spoken role
+  contract deterministic;
+- sequence spoken fields deterministically in template/display order; and
+- retain locally runnable behavior and the documented provider, license, and
+  attribution constraints.
 
-Cached speech assets should be invalidated when relevant source text or voice
-configuration changes.
+No full Streamlit or desktop audio UI is required in M15.1.
 
-### 15.3 Required Field Speech
+### 15.2 Audio Asset & Card Composition Core
 
-For the initial version:
+Build the reusable audio-generation and Card-composition engine.
 
-- required template fields participate in audio generation;
-- optional fields do not;
-- field playback order follows the relevant template/display order; and
-- field speech language must be deterministically resolvable.
+- base speech generation on current Entry/Field content;
+- identify cached assets using relevant content, language, provider, voice, and
+  configuration rather than Card number;
+- invalidate assets safely when source text or relevant voice configuration
+  changes;
+- assemble Card audio from current Card membership and order at export time;
+- provide predictable field boundaries and pauses;
+- support **Repeat Each Field** and **Repeat Whole Card**; and
+- keep generated audio/cache disposable and rebuildable where practical.
 
-Template metadata may distinguish values that use the Entry language from
-values that use the Explanation language.
+Audio generation must not create learning completion, Quiz evidence, analytics
+evidence, or any other learning-state mutation.
 
-### 15.4 Repetition Modes
+### 15.3 Batch Export, Failure Safety & Milestone Closure
 
-Support at least:
+Complete the reusable export workflow and close M15 before desktop UI work.
 
-**Repeat Each Field**
+- export exactly one current Card per audio file;
+- support one Card, multiple Cards, or Collection batch selection semantics;
+- export a Collection as multiple Card files, never one monolithic Collection
+  file;
+- report batch results deterministically;
+- prevent synthesis or file failures from corrupting application data;
+- support safe partial-output cleanup and retry behavior;
+- verify representative English, French, and Mandarin end to end;
+- complete license and third-party-notice readiness;
+- run regression and migration verification; and
+- record final M15 closure evidence.
 
-Each field value is spoken N times before proceeding to the next field.
-
-**Repeat Whole Card**
-
-The complete Card sequence is spoken once and the full sequence is then
-repeated N times.
-
-### 15.5 TTS Provider and License Review
-
-Establish a replaceable speech-provider boundary.
-
-Evaluate locally runnable TTS technology suitable for English, French, and
-Chinese.
-
-Before bundling or distribution, verify:
-
-- runtime license;
-- model/voice license;
-- redistribution requirements;
-- third-party notices; and
-- generated-output constraints where applicable.
-
-Prefer technology that permits the intended public distribution model without
-requiring a separate private fork.
-
-### 15.6 Engineering Feasibility
-
-Prove that the core can:
-
-- synthesize representative English, French, and Chinese values;
-- assemble one Card into one audio file;
-- generate multiple Card files in a batch;
-- apply both repetition modes; and
-- handle synthesis failure without corrupting application data.
-
-Full desktop export interaction is deferred.
+Full desktop export interaction remains deferred to the desktop milestones.
 
 ### Milestone 15 Exit Criteria
 
-- Speech-provider abstraction is defined.
-- At least one viable local TTS path is technically verified.
-- English, French, and Chinese feasibility is documented.
+- Speech-provider abstraction is defined and honors the frozen routing.
+- English, French, and Mandarin feasibility remains documented and verified.
 - Relevant license considerations are documented.
+- Field-level spoken-language semantics are deterministic.
+- Approved French Template validity corrections are migration-safe.
 - Entry/Field-level audio identity and invalidation rules are defined.
 - Card-level composition and repetition behavior are tested.
+- Batch export and failure-safety behavior are verified.
+- Audio generation does not mutate learning state.
 - No full Streamlit audio UI is required.
 
 ---
