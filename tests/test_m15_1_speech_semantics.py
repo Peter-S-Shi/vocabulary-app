@@ -13,10 +13,12 @@ from src.entry_templates import (
     FRENCH_VERB_PRESENT_TEMPLATE_NAME,
     create_entry_template,
     create_template_field,
+    get_template_field,
     get_entry_template_by_name,
     get_template_fields,
     inspect_template_speech_readiness,
     set_template_field_speech_language_role,
+    update_template_field,
 )
 from src.import_export import rows_to_csv_bytes
 from src.migrations import (
@@ -178,20 +180,150 @@ class M151SpeechSemanticsTests(unittest.TestCase):
             current_role = conn.execute("SELECT speech_language_role FROM entry_template_fields WHERE id = ?", (field["id"],)).fetchone()[0]
             self.assertEqual(current_role, field["speech_language_role"])
 
+    def test_real_m13_schema_migrates_additively_and_rolls_back_safely(self) -> None:
+        legacy_path = Path(self.temp_dir.name) / "real-m13.sqlite3"
+        conn = sqlite3.connect(legacy_path)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(
+            """
+            CREATE TABLE app_metadata (
+                key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL
+            );
+            CREATE TABLE entry_templates (
+                id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE,
+                description TEXT, language TEXT, template_type TEXT NOT NULL,
+                is_system INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+            );
+            CREATE TABLE entry_template_fields (
+                id INTEGER PRIMARY KEY, template_id INTEGER NOT NULL,
+                field_key TEXT NOT NULL, field_label TEXT NOT NULL,
+                field_type TEXT NOT NULL DEFAULT 'text', required INTEGER NOT NULL DEFAULT 0,
+                display_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                UNIQUE(template_id, field_key)
+            );
+            CREATE TABLE entries (
+                id INTEGER PRIMARY KEY, template_id INTEGER, language TEXT NOT NULL,
+                explanation_language TEXT NOT NULL, entry_type TEXT NOT NULL,
+                term TEXT NOT NULL, meaning TEXT NOT NULL, created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE entry_field_values (
+                id INTEGER PRIMARY KEY, entry_id INTEGER NOT NULL, field_id INTEGER NOT NULL,
+                field_value TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                UNIQUE(entry_id, field_id)
+            );
+            """
+        )
+        stamp = "2026-01-01T00:00:00+00:00"
+        conn.executemany(
+            "INSERT INTO app_metadata(key, value, updated_at) VALUES (?, ?, ?)",
+            [
+                ("schema_version", LINKED_APPEND_SOURCE_SCHEMA_VERSION, stamp),
+                ("app_data_version", "13.0", stamp),
+                ("last_migration_at", stamp, stamp),
+            ],
+        )
+        conn.executemany(
+            "INSERT INTO entry_templates VALUES (?, ?, '', ?, ?, ?, ?, ?)",
+            [
+                (10, "Legacy Custom", "English", "custom", 0, stamp, stamp),
+                (20, "French Adjective Agreement", "French", "french_adjective", 1, stamp, stamp),
+            ],
+        )
+        legacy_fields = [
+            (101, 10, "prompt", "Prompt", "text", 1, 1, stamp, stamp),
+            (102, 10, "notes", "Notes", "text", 0, 2, stamp, stamp),
+            (201, 20, "masculine_singular", "Masculine Singular", "text", 1, 1, stamp, stamp),
+            (202, 20, "meaning", "Meaning", "text", 1, 2, stamp, stamp),
+            (203, 20, "feminine_singular", "Feminine Singular", "text", 0, 3, stamp, stamp),
+            (204, 20, "masculine_plural", "Masculine Plural", "text", 0, 4, stamp, stamp),
+            (205, 20, "feminine_plural", "Feminine Plural", "text", 0, 5, stamp, stamp),
+        ]
+        conn.executemany("INSERT INTO entry_template_fields VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", legacy_fields)
+        conn.execute(
+            "INSERT INTO entries VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (501, 20, "French", "English", "adjective", "grand", "big", stamp, stamp),
+        )
+        legacy_values = [
+            (601, 501, 201, "grand", stamp, stamp),
+            (602, 501, 202, "big", stamp, stamp),
+            (603, 501, 203, "", stamp, stamp),
+        ]
+        conn.executemany("INSERT INTO entry_field_values VALUES (?, ?, ?, ?, ?, ?)", legacy_values)
+        conn.commit()
+
+        before_fields = [tuple(row) for row in conn.execute("SELECT * FROM entry_template_fields ORDER BY id")]
+        before_entries = [tuple(row) for row in conn.execute("SELECT * FROM entries ORDER BY id")]
+        before_values = [tuple(row) for row in conn.execute("SELECT * FROM entry_field_values ORDER BY id")]
+        self.assertNotIn("speech_language_role", {row[1] for row in conn.execute("PRAGMA table_info(entry_template_fields)")})
+
+        migration = MIGRATIONS[-1]
+        original = migration["function"]
+        def fail_after_real_migration(connection):
+            original(connection)
+            raise RuntimeError("synthetic post-ALTER failure")
+        migration["function"] = fail_after_real_migration
+        try:
+            with self.assertRaisesRegex(RuntimeError, "post-ALTER failure"):
+                run_migrations(conn)
+        finally:
+            migration["function"] = original
+        self.assertNotIn("speech_language_role", {row[1] for row in conn.execute("PRAGMA table_info(entry_template_fields)")})
+        self.assertEqual(get_schema_version(conn), LINKED_APPEND_SOURCE_SCHEMA_VERSION)
+        self.assertEqual([tuple(row) for row in conn.execute("SELECT * FROM entry_template_fields ORDER BY id")], before_fields)
+
+        self.assertEqual(run_migrations(conn), ["m15.1_template_speech_semantics"])
+        self.assertEqual(run_migrations(conn), [])
+        fields = {row["id"]: dict(row) for row in conn.execute("SELECT * FROM entry_template_fields")}
+        self.assertEqual(fields[101]["speech_language_role"], "unresolved")
+        self.assertEqual(fields[102]["speech_language_role"], "none")
+        for field_id in (201, 203, 204, 205):
+            self.assertEqual((fields[field_id]["required"], fields[field_id]["speech_language_role"]), (1, "entry"))
+        self.assertEqual(fields[202]["speech_language_role"], "explanation")
+        after_legacy_columns = [tuple(row) for row in conn.execute(
+            """SELECT id, template_id, field_key, field_label, field_type, required,
+                      display_order, created_at, updated_at
+               FROM entry_template_fields ORDER BY id"""
+        )]
+        expected_legacy_columns = [
+            (*row[:5], fields[row[0]]["required"], *row[6:]) for row in before_fields
+        ]
+        self.assertEqual(after_legacy_columns, expected_legacy_columns)
+        self.assertEqual(sorted(fields), [101, 102, 201, 202, 203, 204, 205])
+        self.assertEqual([tuple(row) for row in conn.execute("SELECT * FROM entries ORDER BY id")], before_entries)
+        self.assertEqual([tuple(row) for row in conn.execute("SELECT * FROM entry_field_values ORDER BY id")], before_values)
+        self.assertEqual(conn.execute("SELECT field_value FROM entry_field_values WHERE id = 603").fetchone()[0], "")
+        conn.close()
+
     def test_custom_required_role_is_unresolved_until_explicitly_configured(self) -> None:
         template_id = create_entry_template("Synthetic Custom", "", "English", "custom")
         field_id = create_template_field(template_id, "prompt", "Prompt", required=True)
         self.assertFalse(inspect_template_speech_readiness(template_id)["audio_ready"])
         set_template_field_speech_language_role(field_id, "entry")
         self.assertTrue(inspect_template_speech_readiness(template_id)["audio_ready"])
-        with self.assertRaisesRegex(ValueError, "cannot use speech language role none"):
-            set_template_field_speech_language_role(field_id, "none")
+        set_template_field_speech_language_role(field_id, "none")
+        self.assertEqual(get_template_field(field_id)["speech_language_role"], "unresolved")
         with db.get_connection() as conn:
             with self.assertRaises(sqlite3.IntegrityError):
                 conn.execute(
                     "UPDATE entry_template_fields SET speech_language_role = 'invalid' WHERE id = ?",
                     (field_id,),
                 )
+
+    def test_existing_template_ui_required_checkbox_canonicalizes_roles(self) -> None:
+        template_id = create_entry_template("Checkbox Compatibility", "", "English", "custom")
+        field_id = create_template_field(template_id, "prompt", "Prompt", required=False)
+        self.assertEqual(get_template_field(field_id)["speech_language_role"], "none")
+
+        # This is the existing Templates UI call shape: it does not submit a role.
+        update_template_field(field_id, "Prompt", "text", True, 1)
+        self.assertEqual(get_template_field(field_id)["speech_language_role"], "unresolved")
+        set_template_field_speech_language_role(field_id, "entry")
+        update_template_field(field_id, "Prompt", "text", False, 1)
+        self.assertEqual(get_template_field(field_id)["speech_language_role"], "none")
+        update_template_field(field_id, "Prompt", "text", True, 1)
+        self.assertEqual(get_template_field(field_id)["speech_language_role"], "unresolved")
 
     def test_english_entry_chinese_explanation_routes_in_template_order(self) -> None:
         entry_id = add_entry("English", "Chinese", "word", "study", "学习", example="optional")
@@ -268,6 +400,32 @@ class M151SpeechSemanticsTests(unittest.TestCase):
         preview = preview_template_definition_csv(rows_to_csv_bytes(v1_rows, TEMPLATE_DEFINITION_V1_COLUMNS))
         self.assertTrue(preview["can_import"])
         self.assertEqual(preview["fields"][0]["speech_language_role"], "unresolved")
+
+        optional_v2 = [{
+            **v1_rows[0], "definition_version": "2", "template_name": "Canonical Optional",
+            "required": "0", "speech_language_role": "entry",
+        }]
+        optional_preview = preview_template_definition_csv(
+            rows_to_csv_bytes(optional_v2, TEMPLATE_DEFINITION_COLUMNS)
+        )
+        self.assertTrue(optional_preview["can_import"])
+        self.assertEqual(optional_preview["fields"][0]["speech_language_role"], "none")
+        imported_optional = import_template_definition_csv(
+            rows_to_csv_bytes(optional_v2, TEMPLATE_DEFINITION_COLUMNS)
+        )
+        self.assertEqual(
+            export_template_definition_rows(imported_optional["template_id"])[0]["speech_language_role"],
+            "none",
+        )
+        required_v2 = [{
+            **optional_v2[0], "template_name": "Canonical Required",
+            "required": "1", "speech_language_role": "none",
+        }]
+        required_preview = preview_template_definition_csv(
+            rows_to_csv_bytes(required_v2, TEMPLATE_DEFINITION_COLUMNS)
+        )
+        self.assertTrue(required_preview["can_import"])
+        self.assertEqual(required_preview["fields"][0]["speech_language_role"], "unresolved")
 
     def test_provider_failure_does_not_mutate_learning_state(self) -> None:
         entry_id = add_entry("English", "English", "word", "safe", "safe")

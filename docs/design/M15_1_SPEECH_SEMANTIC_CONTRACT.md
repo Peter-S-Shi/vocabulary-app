@@ -15,9 +15,11 @@ Every participating field must persist one deterministic role:
 - `explanation`: resolve the Entry's `explanation_language`; or
 - `unresolved`: the field is not audio-ready and synthesis must not begin.
 
-`required = 1` with `speech_language_role = none` is invalid. A required field
-with an unresolved role or blank value produces a controlled unresolved speech
-plan. Field keys and text content are never used to guess language roles.
+The pair is canonicalized at every write/import/export boundary: optional fields
+always use `none`; making an optional field required without selecting a role
+uses `unresolved`; making a required field optional uses `none`. A required
+field with an unresolved role or blank value produces a controlled unresolved
+speech plan. Field keys and text content are never used to guess language roles.
 
 ## System Templates
 

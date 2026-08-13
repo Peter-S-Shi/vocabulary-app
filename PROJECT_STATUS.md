@@ -39,8 +39,8 @@ preflight/failure results, and never silently falls back from Yaoyao.
 Verification on 2026-08-13 passed:
 
 ```text
-Focused M15.1 tests: 11/11
-Full repository suite: 131/131
+Focused M15.1 tests: 13/13
+Full repository suite: 133/133
 Real provider smoke: EN Kokoro, FR sherpa-onnx, ZH-CN WinRT Yaoyao passed
 Generated smoke audio: temporary and removed
 ```

@@ -7,6 +7,7 @@ from typing import Iterator
 
 from src.db import get_connection
 from src.entry_templates import (
+    normalize_speech_language_role,
     normalize_template_field_key,
     validate_template_field_type,
 )
@@ -110,7 +111,9 @@ def export_template_definition_rows(
             "field_type": str(field["field_type"]),
             "required": "1" if bool(field["required"]) else "0",
             "display_order": int(field["display_order"]),
-            "speech_language_role": str(field["speech_language_role"]),
+            "speech_language_role": normalize_speech_language_role(
+                field.get("speech_language_role"), field["required"]
+            ),
         }
         for field in fields
     ]
@@ -314,10 +317,13 @@ def preview_template_definition_csv(
                 preview["errors"].append(
                     f"{prefix}: speech_language_role must be entry, explanation, none, or unresolved."
                 )
-            if required and speech_language_role == "none":
-                preview["errors"].append(
-                    f"{prefix}: a required field cannot use speech_language_role none."
-                )
+            else:
+                try:
+                    speech_language_role = normalize_speech_language_role(
+                        speech_language_role, required
+                    )
+                except ValueError as error:
+                    preview["errors"].append(f"{prefix}: {error}")
         fields.append(
             {
                 "field_key": field_key,

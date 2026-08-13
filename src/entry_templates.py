@@ -150,8 +150,10 @@ def normalize_speech_language_role(role: str | None, required: bool | int) -> st
     clean_role = str(role).strip().lower()
     if clean_role not in ALLOWED_SPEECH_LANGUAGE_ROLES:
         raise ValueError(f"Unsupported speech language role: {clean_role}")
-    if bool(required) and clean_role == "none":
-        raise ValueError("A required Template field cannot use speech language role none.")
+    if not bool(required):
+        return "none"
+    if clean_role == "none":
+        return "unresolved"
     return clean_role
 
 
@@ -907,11 +909,16 @@ def update_template_field(
         raise ValueError("Template field label is required.")
 
     clean_type = _validate_field_type(field_type)
-    role_value = (
-        field.get("speech_language_role")
-        if speech_language_role is None
-        else speech_language_role
-    )
+    if speech_language_role is not None:
+        role_value = speech_language_role
+    elif not bool(required):
+        role_value = "none"
+    elif not bool(field["required"]):
+        # The existing Template UI only submits the Required checkbox. Turning
+        # an optional field on must therefore create a safe unresolved role.
+        role_value = None
+    else:
+        role_value = field.get("speech_language_role")
     clean_role = normalize_speech_language_role(role_value, required)
     now = _now_iso()
     with get_connection() as connection:
