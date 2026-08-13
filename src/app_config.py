@@ -8,6 +8,7 @@ APP_NAME = "Vocabulary App"
 APP_SLUG = "vocabulary_app"
 APP_VERSION = "0.11.3"
 DATABASE_PATH_ENV = "VOCAB_APP_DB_PATH"
+AUDIO_CACHE_PATH_ENV = "VOCAB_APP_AUDIO_CACHE_DIR"
 
 
 def get_project_root() -> Path:
@@ -33,6 +34,16 @@ def get_backup_dir() -> Path:
     return get_project_root() / "backups"
 
 
+def get_audio_cache_dir() -> Path:
+    override = os.environ.get(AUDIO_CACHE_PATH_ENV, "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    local_data = os.environ.get("LOCALAPPDATA", "").strip()
+    if local_data:
+        return (Path(local_data) / APP_SLUG / "audio-cache").resolve()
+    return (Path.home() / ".cache" / APP_SLUG / "audio-cache").resolve()
+
+
 def get_app_storage_summary() -> dict:
     database_path = get_database_path()
     return {
@@ -41,6 +52,12 @@ def get_app_storage_summary() -> dict:
         "database_path": database_path,
         "data_directory": database_path.parent,
         "backup_directory": get_backup_dir().resolve(),
+        "audio_cache_directory": get_audio_cache_dir(),
+        "audio_cache_path_source": (
+            "environment override"
+            if os.environ.get(AUDIO_CACHE_PATH_ENV, "").strip()
+            else "platform local app data"
+        ),
         "path_source": (
             "environment override"
             if os.environ.get(DATABASE_PATH_ENV, "").strip()

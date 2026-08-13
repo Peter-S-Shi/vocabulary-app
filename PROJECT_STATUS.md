@@ -12,11 +12,40 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 ## Current Phase
 
-**Audio Foundation — M15.1 Complete on `main`**
+**Audio Foundation — M15.2 Implementation Ready for Independent Review**
 
 ## Current Milestone
 
-**M15.1 Merged — M15.2 Not Started**
+**M15.2 Implemented on Review Branch — M15.3 Not Started**
+
+M15.2 adds UI-independent content-addressed field audio assets and deterministic
+current-Card composition on branch `agent/m15-2-audio-asset-card-composition`,
+based on synchronized `main` at
+`ce842470cb92ac0eb7fe619df5fbe17ccc49ffde`. It adds no database migration;
+schema remains `15.1.0-speech-semantics` and app-data remains `15.1`.
+
+Unit identity includes exact text, canonical language, frozen provider/voice,
+synthesis configuration, and format/contract versions while excluding Entry,
+Field, Template, Collection, and Card identity. Card render identity includes
+ordered unit keys plus repetition and pause configuration. Generated mono
+24 kHz signed 16-bit PCM WAV assets live in a configurable disposable local
+filesystem cache outside authoritative learning data.
+
+The current stable Card and latest revision define ordered Entry provenance.
+Both Repeat Each Field and Repeat Whole Card are first-class deterministic
+composition modes. Planning or generation does not mutate SQLite learning
+state. M15.3 batch export, audio UI, and spoken Quiz behavior remain unstarted.
+
+Verification on 2026-08-13 passed:
+
+```text
+Focused M15.2 tests: 14/14
+M15.2 + M15.1 compatibility tests: 27/27
+Full repository suite: 147/147
+Real M15.2 Card smoke: EN Kokoro + FR sherpa-onnx + ZH-CN Yaoyao passed
+Canonical Card artifact: readable mono 24 kHz signed 16-bit PCM WAV
+Generated smoke database/cache/audio: temporary and removed
+```
 
 M15.1 implements the UI-independent speech semantics and selected-provider
 foundation. PR #13 merged normally to `main` at
@@ -1205,7 +1234,8 @@ Do not mark it complete or begin M15.2 until the review and merge gates close.
   - `docs/history/M15_0_TTS_PROVIDER_SELECTION_CLOSURE.md`
   - `docs/policies/TTS_LICENSE_AND_ATTRIBUTION.md`
   - `docs/design/M15_1_SPEECH_SEMANTIC_CONTRACT.md`
+  - `docs/design/M15_2_AUDIO_ASSET_COMPOSITION_CONTRACT.md`
 - Current lifecycle state:
-  **Audio Foundation — M15.1 Implementation Ready for Independent Review**
+  **Audio Foundation — M15.2 Implementation Ready for Independent Review**
 - Exact next objective:
-  **Independently review M15.1; do not begin M15.2**
+  **Independently review M15.2; do not begin M15.3**

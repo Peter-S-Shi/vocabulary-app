@@ -29,8 +29,9 @@ and established the reusable Import and Template Evolution Core. **Milestone
 14 is complete** and established the Learning Analytics and Insight Core.
 **Milestone 15.0 is closed** and records the selected English, French, and
 Mandarin TTS providers and their license/attribution requirements. **Milestone
-15.1 — Speech Semantics & TTS Provider Foundation** is implemented on its
-dedicated review branch and awaits independent review; M15.2 has not started.
+15.1 — Speech Semantics & TTS Provider Foundation** is merged on `main`.
+M15.2 Audio Asset and Card Composition Core is implemented on its dedicated
+review branch and awaits independent review; M15.3 has not started.
 
 Streamlit remains the currently runnable compatibility/reference UI, but it is
 no longer the intended Release Candidate target. The active lifecycle now

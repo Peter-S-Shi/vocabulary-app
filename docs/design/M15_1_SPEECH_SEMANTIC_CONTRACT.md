@@ -1,7 +1,6 @@
 # M15.1 Speech Semantic Contract
 
-Status: implemented on the M15.1 review branch; not complete on `main` until
-independent review and merge.
+Status: complete on `main` through PR #13.
 
 ## Participation and roles
 
