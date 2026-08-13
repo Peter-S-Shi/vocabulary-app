@@ -546,6 +546,10 @@ scope boundaries, not M14 closure defects.
 Milestone 15 establishes a reusable local text-to-speech and card-audio
 foundation before building the full desktop workflow.
 
+**Audio-enabled Quiz behavior is deferred beyond M15. M15 provides reusable
+audio-export infrastructure only and must not add spoken Quiz modes or modify
+existing Quiz learning semantics.**
+
 ### 15.0 TTS Provider Selection & Feasibility
 
 **Status: Closed.** The authoritative decision and supporting license record
@@ -643,6 +647,7 @@ Full desktop export interaction remains deferred to the desktop milestones.
 - Card-level composition and repetition behavior are tested.
 - Batch export and failure-safety behavior are verified.
 - Audio generation does not mutate learning state.
+- No spoken Quiz mode or Quiz learning-semantics change is introduced.
 - No full Streamlit audio UI is required.
 
 ---

@@ -677,7 +677,9 @@ Key decisions include:
 - English, French, and Chinese are the initial target languages; and
 - local TTS technology should use a distribution-compatible license strategy.
 
-Audio-enabled Quiz playback is deferred.
+Audio-enabled Quiz behavior is deferred beyond M15. M15 provides reusable
+audio-export infrastructure only and must not add spoken Quiz modes or modify
+existing Quiz learning semantics.
 
 The reusable speech/provider and Card-composition foundation is planned before
 desktop migration.

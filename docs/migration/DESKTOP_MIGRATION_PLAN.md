@@ -375,7 +375,9 @@ Establish reusable:
 
 Reusable Card batch-export and failure-safety behavior will be completed before
 desktop migration. The full interactive Audio Export UX remains deferred to
-desktop.
+desktop. Audio-enabled Quiz behavior is deferred beyond M15: the Audio
+Foundation provides reusable audio-export infrastructure only and must not add
+spoken Quiz modes or modify existing Quiz learning semantics.
 
 ## 11. Migration Phases
 
