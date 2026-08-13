@@ -104,15 +104,15 @@ target.
 
 ## Current Phase
 
-**Audio Foundation — M15.2 Implementation Ready for Independent Review**
+**Audio Foundation — M15.2 Complete on `main`**
 
 The trustworthy data/business-logic baseline, repository restructure, Import
 and Template Evolution foundation, and Learning Analytics and Insight Core are
 complete. Milestone 15.0 closed the TTS provider-selection and feasibility
 gate. Milestone 15.1 merged through PR #13 at
-`ebca2c2c5c6bf11f5e0a54b9782e15f08f51d216`. Milestone 15.2 is implemented
-on its dedicated review branch but remains incomplete on `main` until review
-and merge. Milestone 15.3 has not started.
+`ebca2c2c5c6bf11f5e0a54b9782e15f08f51d216`. Milestone 15.2 merged through
+PR #15 at `c9d7e8d05c968d52af2b77c76454f849706788bc`. Milestone 15.3 has not
+started; development waits for its explicit prompt.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -607,8 +607,7 @@ No full Streamlit or desktop audio UI is required in M15.1.
 
 ### 15.2 Audio Asset & Card Composition Core
 
-**Status: Implementation ready for independent review; not complete on
-`main`.**
+**Status: Complete on `main`.**
 
 Build the reusable audio-generation and Card-composition engine.
 

@@ -30,8 +30,8 @@ and established the reusable Import and Template Evolution Core. **Milestone
 **Milestone 15.0 is closed** and records the selected English, French, and
 Mandarin TTS providers and their license/attribution requirements. **Milestone
 15.1 — Speech Semantics & TTS Provider Foundation** is merged on `main`.
-M15.2 Audio Asset and Card Composition Core is implemented on its dedicated
-review branch and awaits independent review; M15.3 has not started.
+M15.2 Audio Asset and Card Composition Core is merged on `main`. M15.3 has not
+started and awaits its explicit development prompt.
 
 Streamlit remains the currently runnable compatibility/reference UI, but it is
 no longer the intended Release Candidate target. The active lifecycle now
