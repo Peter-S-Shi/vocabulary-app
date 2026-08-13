@@ -53,6 +53,10 @@ Streamlit `session_state` is UI state. Durable state and duplicate-action protec
   language-role resolution, and controlled readiness results
 - `src/tts_providers.py`: canonical language routing, fixed provider/voice
   selection, preflight, and one-unit synthesis boundary
+- `src/audio_assets.py`: M15.2 content-addressed disposable unit cache,
+  canonical PCM WAV normalization, validation, and atomic publication
+- `src/audio_composition.py`: M15.2 current-Card speech planning, render
+  identity, deterministic boundaries/repetition, and one-Card composition
 - `src/linked_sources.py`: append-only local CSV/XLSX source-link preview, confirmation, refresh, and unlink orchestration
 - `src/backup.py`: database/workbook backup and restore preview
 - `src/text_parser.py`: structured Quick Add parsing
