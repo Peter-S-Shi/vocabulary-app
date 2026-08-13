@@ -104,13 +104,14 @@ target.
 
 ## Current Phase
 
-**Audio Foundation — M15.1 Implementation Ready for Independent Review**
+**Audio Foundation — M15.1 Complete on `main`**
 
 The trustworthy data/business-logic baseline, repository restructure, Import
 and Template Evolution foundation, and Learning Analytics and Insight Core are
 complete. Milestone 15.0 closed the TTS provider-selection and feasibility
-gate. Milestone 15.1 implementation is now on its dedicated review branch; it
-is not complete on `main` until independent review and merge.
+gate. Milestone 15.1 merged through PR #13 at
+`ebca2c2c5c6bf11f5e0a54b9782e15f08f51d216`. Milestone 15.2 has not started
+and requires a new explicit prompt.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.

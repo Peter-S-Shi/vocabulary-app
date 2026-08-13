@@ -12,15 +12,17 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 ## Current Phase
 
-**Audio Foundation — M15.1 Implementation Ready for Independent Review**
+**Audio Foundation — M15.1 Complete on `main`**
 
 ## Current Milestone
 
-**M15.1 Implemented on Review Branch — M15.2 Not Started**
+**M15.1 Merged — M15.2 Not Started**
 
 M15.1 implements the UI-independent speech semantics and selected-provider
-foundation on branch `agent/m15-1-speech-semantics-provider-foundation`, based
-on synchronized `main` at `960b0a29f67d723a656a9030be375849285bfdda`.
+foundation. PR #13 merged normally to `main` at
+`ebca2c2c5c6bf11f5e0a54b9782e15f08f51d216` after corrective invariant and
+M13-era migration acceptance coverage at head
+`760f260aebb306f14d8a38f5256a9290a30939e1`.
 
 The additive migration advances schema version to
 `15.1.0-speech-semantics` and app-data version to `15.1`. It adds persisted
@@ -48,8 +50,8 @@ Generated smoke audio: temporary and removed
 The frozen contract is recorded in
 `docs/design/M15_1_SPEECH_SEMANTIC_CONTRACT.md`. Card composition, audio cache,
 repetition modes, batch export, audio UI, and spoken Quiz behavior remain
-outside M15.1. Existing Quiz learning semantics are unchanged. M15.1 is not
-complete on `main` until independent review and merge.
+outside M15.1. Existing Quiz learning semantics are unchanged. M15.1 is
+complete on `main`; M15.2 remains unstarted and requires a new explicit prompt.
 
 M15.0 started from the closed M14 baseline and completed TTS feasibility,
 provider selection, Unicode verification, and license/attribution review. Its
