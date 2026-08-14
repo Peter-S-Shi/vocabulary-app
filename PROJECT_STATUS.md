@@ -12,11 +12,11 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 ## Current Phase
 
-**Audio Foundation — M15.3 Implemented / Milestone 15 Closure Pending Independent Review**
+**Milestone 15 — Audio Foundation Complete on `main`**
 
 ## Current Milestone
 
-**M15.3 Review Candidate — Do Not Begin M16**
+**Milestone 15 Complete — M16 Not Started**
 
 M15.3 adds a UI-independent snapshot-based Audio Export service for a single
 current Card, an ordered Card selection, or all active Cards in a Collection.
@@ -25,9 +25,12 @@ no-overwrite conflicts, per-Card atomic publication, structured partial-success
 reporting, explicit failed/unresolved retry, and progress events. It adds no
 schema or app-data migration and does not alter learning or Quiz semantics.
 
-The actual M15.3 base is the M15.2-complete `main` commit
-`c9d7e8d05c968d52af2b77c76454f849706788bc`. Final verification and review
-head evidence will be recorded when the review branch is published.
+M15.3 PR #17 merged normally to `main` at
+`9448f2e44940e0d426a965823aa66c48f53ec0f1`. Its independently reviewed final
+head was `765c4c5f92c29a5c30cb41b0c2aa3fbbc01df7db`, based on the M15.2-complete
+`main` commit `c9d7e8d05c968d52af2b77c76454f849706788bc`. PR #16 was superseded and its
+lifecycle commit entered `main` through PR #17 ancestry. GitHub consequently
+marks PR #16 merged, but it produced no separate merge commit.
 
 Verification on 2026-08-13 passed:
 
@@ -60,9 +63,9 @@ filesystem cache outside authoritative learning data.
 The current stable Card and latest revision define ordered Entry provenance.
 Both Repeat Each Field and Repeat Whole Card are first-class deterministic
 composition modes. Planning or generation does not mutate SQLite learning
-state. M15.2 is complete on `main`, and M15.3 batch export is implemented on
-this review branch. Substantial audio UI and spoken Quiz behavior remain
-deferred beyond M15; do not begin M16 before the M15.3 review and merge gate.
+state. M15.2 and M15.3 are complete on `main`, formally closing Milestone 15.
+Substantial audio UI and spoken Quiz behavior remain deferred beyond M15.
+Milestone 16 is not started and requires separate authorization.
 
 Verification on 2026-08-13 passed:
 
@@ -1267,6 +1270,6 @@ Do not mark it complete or begin M15.2 until the review and merge gates close.
   - `docs/history/MILESTONE15_CLOSURE.md`
   - `THIRD_PARTY_NOTICES.md`
 - Current lifecycle state:
-  **Audio Foundation — M15.3 Implemented / Milestone 15 Closure Pending Independent Review**
+  **Milestone 15 — Audio Foundation Complete on `main`; M16 Not Started**
 - Exact next objective:
-  **Complete independent M15.3 review and merge; do not begin M16**
+  **Wait for explicit Milestone 16 authorization; do not begin desktop development**

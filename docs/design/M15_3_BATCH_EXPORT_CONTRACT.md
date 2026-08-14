@@ -1,6 +1,7 @@
 # M15.3 Batch Audio Export Contract
 
-Status: closure candidate pending independent review and merge.
+Status: Complete on `main` through PR #17 at
+`9448f2e44940e0d426a965823aa66c48f53ec0f1`.
 
 ## Service and snapshot boundary
 
