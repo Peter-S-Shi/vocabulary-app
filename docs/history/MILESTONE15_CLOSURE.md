@@ -18,8 +18,8 @@ The closure candidate preserves fixed Kokoro `af_heart`, sherpa-onnx
 16-bit PCM WAV; current Card/latest-revision truth; required field semantics;
 and zero learning-state mutation. M15.3 adds no schema/app-data migration.
 
-Review-branch verification passed 11 focused M15.3 tests, 39 integrated
-M15.1-M15.3 audio tests, and the full 159-test repository suite. Compilation
+Review-branch verification passed 13 focused M15.3 tests, 41 integrated
+M15.1-M15.3 audio tests, and the full 161-test repository suite. Compilation
 and architecture checks passed. A real synthetic Collection smoke routed EN to
 Kokoro, FR to sherpa-onnx, and ZH-CN to Windows Yaoyao and published three
 readable canonical WAV files for three Cards before cleaning all temporary

@@ -179,6 +179,44 @@ class M153AudioExportTests(unittest.TestCase):
         self.assertFalse(plan.items[0].destination_path.exists())
         self.assertEqual(list(self.destination.glob(".vocab-audio-export-*")), [])
 
+    def test_corrupted_temporary_after_hook_is_not_published(self) -> None:
+        collection_id, _ = self._collection([("English", "one")])
+        plan = plan_single_card_export(collection_id, 1, self.destination, providers=self.registry)
+
+        def corrupt_temporary(temporary: Path, destination: Path) -> None:
+            temporary.write_bytes(b"corrupt")
+
+        result = execute_audio_export_plan(
+            plan, providers=self.registry, asset_store=self.store,
+            before_publish=corrupt_temporary,
+        )
+        self.assertEqual(result.failed_count, 1)
+        self.assertEqual(result.items[0].error_code, "destination_publication_failed")
+        self.assertFalse(plan.items[0].destination_path.exists())
+        self.assertEqual(list(self.destination.glob(".vocab-audio-export-*")), [])
+
+    def test_corrupted_temporary_does_not_replace_existing_user_file(self) -> None:
+        collection_id, _ = self._collection([("English", "one")])
+        plan = plan_single_card_export(
+            collection_id, 1, self.destination, providers=self.registry,
+            conflict_policy=CONFLICT_OVERWRITE,
+        )
+        self.destination.mkdir()
+        original = b"user-owned"
+        plan.items[0].destination_path.write_bytes(original)
+
+        def corrupt_temporary(temporary: Path, destination: Path) -> None:
+            temporary.write_bytes(b"corrupt")
+
+        result = execute_audio_export_plan(
+            plan, providers=self.registry, asset_store=self.store,
+            before_publish=corrupt_temporary,
+        )
+        self.assertEqual(result.failed_count, 1)
+        self.assertEqual(result.items[0].error_code, "destination_publication_failed")
+        self.assertEqual(plan.items[0].destination_path.read_bytes(), original)
+        self.assertEqual(list(self.destination.glob(".vocab-audio-export-*")), [])
+
     def test_unresolved_card_does_not_block_independent_ready_card(self) -> None:
         collection_id, _ = self._collection([("German", "hallo"), ("English", "two")])
         plan = plan_collection_export(collection_id, self.destination, providers=self.registry)

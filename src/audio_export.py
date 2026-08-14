@@ -280,6 +280,8 @@ def _publish(
             raise ValueError("Temporary exported audio is not a readable canonical WAV.")
         if before_publish is not None:
             before_publish(temporary, destination)
+        if not validate_canonical_wav(temporary):
+            raise ValueError("Temporary exported audio was invalidated before publication.")
         if overwrite:
             os.replace(temporary, destination)
         else:

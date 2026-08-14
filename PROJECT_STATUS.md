@@ -32,9 +32,9 @@ head evidence will be recorded when the review branch is published.
 Verification on 2026-08-13 passed:
 
 ```text
-Focused M15.3 tests: 11/11
-Integrated M15.1 + M15.2 + M15.3 audio tests: 39/39
-Full repository suite: 159/159
+Focused M15.3 tests: 13/13
+Integrated M15.1 + M15.2 + M15.3 audio tests: 41/41
+Full repository suite: 161/161
 Python compile/static check: passed
 Architecture audit: 41 Python files; no violations or warnings
 Packaging readiness: expected local data/vocab.db exclusion warning only
@@ -60,8 +60,9 @@ filesystem cache outside authoritative learning data.
 The current stable Card and latest revision define ordered Entry provenance.
 Both Repeat Each Field and Repeat Whole Card are first-class deterministic
 composition modes. Planning or generation does not mutate SQLite learning
-state. M15.2 is complete on `main`. M15.3 batch export, audio UI, and spoken
-Quiz behavior remain unstarted; wait for the explicit M15.3 Prompt.
+state. M15.2 is complete on `main`, and M15.3 batch export is implemented on
+this review branch. Substantial audio UI and spoken Quiz behavior remain
+deferred beyond M15; do not begin M16 before the M15.3 review and merge gate.
 
 Verification on 2026-08-13 passed:
 
