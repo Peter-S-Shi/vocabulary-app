@@ -30,8 +30,9 @@ and established the reusable Import and Template Evolution Core. **Milestone
 **Milestone 15.0 is closed** and records the selected English, French, and
 Mandarin TTS providers and their license/attribution requirements. **Milestone
 15.1 — Speech Semantics & TTS Provider Foundation** is merged on `main`.
-M15.2 Audio Asset and Card Composition Core is implemented on its dedicated
-review branch and awaits independent review; M15.3 has not started.
+M15.2 Audio Asset and Card Composition Core is merged on `main`. M15.3 Batch
+Export, Failure Safety, and Milestone Closure is implemented on a review branch;
+Milestone 15 closure remains pending independent review and merge.
 
 Streamlit remains the currently runnable compatibility/reference UI, but it is
 no longer the intended Release Candidate target. The active lifecycle now
@@ -43,6 +44,8 @@ a native desktop UI, and hardens/packages the desktop product.
   snapshot.
 - [M15.1 Speech Semantic Contract](docs/design/M15_1_SPEECH_SEMANTIC_CONTRACT.md)
   records the current audio-field and provider-routing invariants.
+- [M15.3 Batch Audio Export Contract](docs/design/M15_3_BATCH_EXPORT_CONTRACT.md)
+  records reusable export, publication, partial-failure, and retry semantics.
 - [Pre-Git history](docs/history/PRE_GIT_HISTORY.md) documents development before the
   initial public Git baseline.
 

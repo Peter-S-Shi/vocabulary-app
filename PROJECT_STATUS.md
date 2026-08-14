@@ -12,17 +12,42 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 ## Current Phase
 
-**Audio Foundation — M15.2 Implementation Ready for Independent Review**
+**Audio Foundation — M15.3 Implemented / Milestone 15 Closure Pending Independent Review**
 
 ## Current Milestone
 
-**M15.2 Implemented on Review Branch — M15.3 Not Started**
+**M15.3 Review Candidate — Do Not Begin M16**
+
+M15.3 adds a UI-independent snapshot-based Audio Export service for a single
+current Card, an ordered Card selection, or all active Cards in a Collection.
+It preserves one Card per canonical WAV, safe deterministic filenames, default
+no-overwrite conflicts, per-Card atomic publication, structured partial-success
+reporting, explicit failed/unresolved retry, and progress events. It adds no
+schema or app-data migration and does not alter learning or Quiz semantics.
+
+The actual M15.3 base is the M15.2-complete `main` commit
+`c9d7e8d05c968d52af2b77c76454f849706788bc`. Final verification and review
+head evidence will be recorded when the review branch is published.
+
+Verification on 2026-08-13 passed:
+
+```text
+Focused M15.3 tests: 13/13
+Integrated M15.1 + M15.2 + M15.3 audio tests: 41/41
+Full repository suite: 161/161
+Python compile/static check: passed
+Architecture audit: 41 Python files; no violations or warnings
+Packaging readiness: expected local data/vocab.db exclusion warning only
+Real M15.3 Collection smoke: EN Kokoro + FR sherpa-onnx + ZH-CN Yaoyao passed
+Real smoke outputs: 3 Cards = 3 readable canonical WAV files; temporary artifacts removed
+```
 
 M15.2 adds UI-independent content-addressed field audio assets and deterministic
-current-Card composition on branch `agent/m15-2-audio-asset-card-composition`,
-based on synchronized `main` at
-`ce842470cb92ac0eb7fe619df5fbe17ccc49ffde`. It adds no database migration;
-schema remains `15.1.0-speech-semantics` and app-data remains `15.1`.
+current-Card composition. PR #15 merged normally to `main` at
+`c9d7e8d05c968d52af2b77c76454f849706788bc` after the segment-sequence render
+identity correction at head `71072e2386e7822f72282e7b2f432d522a6a3125`.
+It adds no database migration; schema remains `15.1.0-speech-semantics` and
+app-data remains `15.1`.
 
 Unit identity includes exact text, canonical language, frozen provider/voice,
 synthesis configuration, and format/contract versions while excluding Entry,
@@ -35,7 +60,9 @@ filesystem cache outside authoritative learning data.
 The current stable Card and latest revision define ordered Entry provenance.
 Both Repeat Each Field and Repeat Whole Card are first-class deterministic
 composition modes. Planning or generation does not mutate SQLite learning
-state. M15.3 batch export, audio UI, and spoken Quiz behavior remain unstarted.
+state. M15.2 is complete on `main`, and M15.3 batch export is implemented on
+this review branch. Substantial audio UI and spoken Quiz behavior remain
+deferred beyond M15; do not begin M16 before the M15.3 review and merge gate.
 
 Verification on 2026-08-13 passed:
 
@@ -1236,7 +1263,10 @@ Do not mark it complete or begin M15.2 until the review and merge gates close.
   - `docs/policies/TTS_LICENSE_AND_ATTRIBUTION.md`
   - `docs/design/M15_1_SPEECH_SEMANTIC_CONTRACT.md`
   - `docs/design/M15_2_AUDIO_ASSET_COMPOSITION_CONTRACT.md`
+  - `docs/design/M15_3_BATCH_EXPORT_CONTRACT.md`
+  - `docs/history/MILESTONE15_CLOSURE.md`
+  - `THIRD_PARTY_NOTICES.md`
 - Current lifecycle state:
-  **Audio Foundation — M15.2 Implementation Ready for Independent Review**
+  **Audio Foundation — M15.3 Implemented / Milestone 15 Closure Pending Independent Review**
 - Exact next objective:
-  **Independently review M15.2; do not begin M15.3**
+  **Complete independent M15.3 review and merge; do not begin M16**

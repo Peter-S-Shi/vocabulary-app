@@ -104,15 +104,16 @@ target.
 
 ## Current Phase
 
-**Audio Foundation — M15.2 Implementation Ready for Independent Review**
+**Audio Foundation — M15.3 Implemented / Milestone 15 Closure Pending Independent Review**
 
 The trustworthy data/business-logic baseline, repository restructure, Import
 and Template Evolution foundation, and Learning Analytics and Insight Core are
 complete. Milestone 15.0 closed the TTS provider-selection and feasibility
 gate. Milestone 15.1 merged through PR #13 at
-`ebca2c2c5c6bf11f5e0a54b9782e15f08f51d216`. Milestone 15.2 is implemented
-on its dedicated review branch but remains incomplete on `main` until review
-and merge. Milestone 15.3 has not started.
+`ebca2c2c5c6bf11f5e0a54b9782e15f08f51d216`. Milestone 15.2 merged through
+PR #15 at `c9d7e8d05c968d52af2b77c76454f849706788bc`. Milestone 15.3 is implemented
+on a review branch; it is not complete on `main` until independent review and
+merge.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -607,8 +608,7 @@ No full Streamlit or desktop audio UI is required in M15.1.
 
 ### 15.2 Audio Asset & Card Composition Core
 
-**Status: Implementation ready for independent review; not complete on
-`main`.**
+**Status: Complete on `main`.**
 
 Build the reusable audio-generation and Card-composition engine.
 
@@ -626,6 +626,8 @@ Audio generation must not create learning completion, Quiz evidence, analytics
 evidence, or any other learning-state mutation.
 
 ### 15.3 Batch Export, Failure Safety & Milestone Closure
+
+**Status: Implemented on review branch; closure pending independent review and merge.**
 
 Complete the reusable export workflow and close M15 before desktop UI work.
 

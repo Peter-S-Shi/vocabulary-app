@@ -1,7 +1,6 @@
 # M15.2 Audio Asset and Card Composition Contract
 
-Status: implemented on the M15.2 review branch; incomplete on `main` until
-independent review and merge.
+Status: complete on `main` through PR #15.
 
 ## Field asset identity
 

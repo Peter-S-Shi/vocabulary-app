@@ -57,6 +57,8 @@ Streamlit `session_state` is UI state. Durable state and duplicate-action protec
   canonical PCM WAV normalization, validation, and atomic publication
 - `src/audio_composition.py`: M15.2 current-Card speech planning, render
   identity, deterministic boundaries/repetition, and one-Card composition
+- `src/audio_export.py`: M15.3 snapshot-based single/selected/Collection audio
+  export planning, atomic publication, partial results, progress, and retry
 - `src/linked_sources.py`: append-only local CSV/XLSX source-link preview, confirmation, refresh, and unlink orchestration
 - `src/backup.py`: database/workbook backup and restore preview
 - `src/text_parser.py`: structured Quick Add parsing
