@@ -6,11 +6,24 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = PROJECT_ROOT / "src"
-UI_DIR = SRC_DIR / "ui_streamlit"
+UI_STREAMLIT_DIR = SRC_DIR / "ui_streamlit"
+UI_DESKTOP_DIR = SRC_DIR / "ui_desktop"
 
 
 def _is_ui_file(path: Path) -> bool:
-    return path == PROJECT_ROOT / "app.py" or UI_DIR in path.parents
+    return (
+        path == PROJECT_ROOT / "app.py"
+        or UI_STREAMLIT_DIR in path.parents
+        or UI_DESKTOP_DIR in path.parents
+    )
+
+
+def _is_desktop_ui_file(path: Path) -> bool:
+    return UI_DESKTOP_DIR in path.parents
+
+
+def _is_streamlit_ui_file(path: Path) -> bool:
+    return path == PROJECT_ROOT / "app.py" or UI_STREAMLIT_DIR in path.parents
 
 
 def _module_name(node: ast.Import | ast.ImportFrom) -> str:
@@ -48,6 +61,8 @@ def audit_file(path: Path) -> tuple[list[str], list[str]]:
         return [f"{relative}: could not parse ({error})"], warnings
 
     is_ui = _is_ui_file(path)
+    is_desktop_ui = _is_desktop_ui_file(path)
+    is_streamlit_ui = _is_streamlit_ui_file(path)
     for node in ast.walk(tree):
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             module = _module_name(node)
@@ -62,6 +77,33 @@ def audit_file(path: Path) -> tuple[list[str], list[str]]:
                 or module.startswith("src.ui_streamlit.")
             ):
                 serious.append(f"{relative}:{node.lineno}: core imports Streamlit UI layer")
+            if not is_ui and (
+                module == "PySide6"
+                or module.startswith("PySide6.")
+                or "PySide6" in module.split(",")
+            ):
+                serious.append(f"{relative}:{node.lineno}: PySide6 import in core module")
+            if not is_ui and (
+                module == "src.ui_desktop"
+                or module.startswith("src.ui_desktop.")
+            ):
+                serious.append(f"{relative}:{node.lineno}: core imports desktop UI layer")
+            if is_desktop_ui and (
+                module == "streamlit"
+                or module.startswith("streamlit.")
+                or "streamlit" in module.split(",")
+                or module == "src.ui_streamlit"
+                or module.startswith("src.ui_streamlit.")
+            ):
+                warnings.append(f"{relative}:{node.lineno}: desktop UI imports Streamlit UI layer")
+            if is_streamlit_ui and (
+                module == "PySide6"
+                or module.startswith("PySide6.")
+                or "PySide6" in module.split(",")
+                or module == "src.ui_desktop"
+                or module.startswith("src.ui_desktop.")
+            ):
+                warnings.append(f"{relative}:{node.lineno}: Streamlit UI imports desktop UI layer")
             if is_ui and module == "sqlite3":
                 warnings.append(f"{relative}:{node.lineno}: UI imports sqlite3 directly")
 

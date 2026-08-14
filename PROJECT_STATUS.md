@@ -20,10 +20,40 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 M16.0 Desktop UI Design Baseline is complete and frozen: [DESIGN.md](DESIGN.md)
 records the approved desktop information architecture, theme architecture, and
-accessibility rules. Milestone 16 as a whole is **not** complete — M16.1
-Desktop Architecture Foundation (framework decision and controller/view-state
-boundaries) is next, and M16.2 Minimal Desktop Vertical Slice & M16 Exit
-follows. See `ROADMAP.md` § Milestone 16 for exit criteria.
+accessibility rules. M16.1 Desktop Architecture Foundation is implemented on
+branch `agent/m16-1-desktop-architecture-foundation`, pending independent
+review and merge. Milestone 16 as a whole is **not** complete — M16.2 Minimal
+Desktop Vertical Slice & M16 Exit follows M16.1's merge. See `ROADMAP.md`
+§ Milestone 16 for exit criteria.
+
+M16.1 selects **PySide6** as the desktop framework and freezes the
+controller/view-state/core boundary, the initial `src/ui_desktop/` package
+structure, the durable-vs-transient state taxonomy, the
+`QThreadPool`/`QRunnable` background-task model, and the `QPalette`/QSS theme-
+token implementation boundary. The full decision, license/distribution
+finding, rejected alternatives, and technical-spike evidence are recorded in
+[M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md).
+A committed headless spike
+(`tests/test_m16_1_architecture_spike.py`, 5 tests) proves PySide6
+install/import, native event-loop start/shutdown, a synthetic dense-table
+model/view surface, opening a temporary synthetic database through the
+existing `src/db.py`/`src/app_config.py` path, calling representative
+reusable core functions without Streamlit, a runtime semantic-token style
+swap without restart, and a `QThreadPool` worker-to-UI-thread signal handoff.
+`requirements-desktop.txt` (new, additive) isolates the PySide6 dependency
+from the Streamlit-only `requirements.txt`. `scripts/audit_architecture.py`
+is extended to enforce the new `src/ui_desktop/` boundary the same way it
+already enforces the Streamlit boundary. M16.1 adds no schema or app-data
+migration, no product desktop UI, and does not alter learning, analytics,
+import, or audio semantics.
+
+Verification on 2026-08-14 passed:
+
+```text
+M16.1 spike tests: 5/5 (headless, QT_QPA_PLATFORM=offscreen)
+Full repository suite including the spike: 166/166
+Architecture audit (extended for src/ui_desktop/): 0 serious, 0 warnings
+```
 
 M15.3 adds a UI-independent snapshot-based Audio Export service for a single
 current Card, an ordered Card selection, or all active Cards in a Collection.
@@ -73,8 +103,9 @@ composition modes. Planning or generation does not mutate SQLite learning
 state. M15.2 and M15.3 are complete on `main`, formally closing Milestone 15.
 Substantial audio UI and spoken Quiz behavior remain deferred beyond M15.
 Milestone 16 has started; its M16.0 UI/Design Baseline is complete and frozen
-in `DESIGN.md`, while M16.1 Desktop Architecture Foundation and M16.2 Minimal
-Desktop Vertical Slice & M16 Exit remain open.
+in `DESIGN.md`. M16.1 Desktop Architecture Foundation is implemented pending
+independent review, and M16.2 Minimal Desktop Vertical Slice & M16 Exit
+remains open until M16.1 merges.
 
 Verification on 2026-08-13 passed:
 
@@ -1264,10 +1295,16 @@ Do not mark it complete or begin M15.2 until the review and merge gates close.
 - M11.4 merge commit on `main`:
   `f0e0d2c06fa4137c07ab2f892df117af2ed3a060`
 - Release tag: none recorded
+- M16.0 macro-reconciliation PR: `#20` (merged), merge commit
+  `c273139ecb6d2dd98600d6e990552c754db9b44e`
+- M16.1 synchronized base commit (verified `main` at prompt time):
+  `c273139ecb6d2dd98600d6e990552c754db9b44e`
+- M16.1 implementation branch: `agent/m16-1-desktop-architecture-foundation`
 - Current lifecycle documents:
   - `ROADMAP.md`
   - `PROJECT_STATUS.md`
   - `docs/migration/DESKTOP_MIGRATION_PLAN.md`
+  - `docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md`
 - Current closure evidence:
   - `docs/history/MILESTONE11_CLOSURE.md`
   - `docs/history/MILESTONE14_CLOSURE.md`
@@ -1282,8 +1319,10 @@ Do not mark it complete or begin M15.2 until the review and merge gates close.
   **Milestone 15 — Audio Foundation Complete on `main`; Milestone 16 —
   Desktop Architecture and UI Design In Progress: M16.0 Desktop UI Design
   Baseline Complete (`DESIGN.md`); M16.1 Desktop Architecture Foundation
-  Next / Not Started; M16.2 Minimal Desktop Vertical Slice & M16 Exit Not
-  Started**
+  Implemented on branch `agent/m16-1-desktop-architecture-foundation`,
+  Pending Independent Review; M16.2 Minimal Desktop Vertical Slice & M16
+  Exit Not Started**
 - Exact next objective:
-  **Start M16.1 Desktop Architecture Foundation. Do not begin M16.2 until
-  the framework/state-boundary decision gate is reviewed.**
+  **Independently review and merge M16.1 Desktop Architecture Foundation.
+  Do not begin M16.2 until the framework/state-boundary decision gate is
+  reviewed and merged.**

@@ -117,10 +117,12 @@ PR #17 at `9448f2e44940e0d426a965823aa66c48f53ec0f1` from independently reviewed
 head `765c4c5f92c29a5c30cb41b0c2aa3fbbc01df7db`, completing Milestone 15.
 Milestone 16 has started. M16.0 Desktop UI Design Baseline — information
 architecture, theme architecture, and accessibility rules — is complete and
-frozen in [DESIGN.md](DESIGN.md). Milestone 16 as a whole is **not** complete:
-M16.1 Desktop Architecture Foundation (framework decision and controller/
-view-state boundaries) is next, and M16.2 Minimal Desktop Vertical Slice &
-M16 Exit follows (see § Milestone 16 below).
+frozen in [DESIGN.md](DESIGN.md). M16.1 Desktop Architecture Foundation
+(framework decision and controller/view-state boundaries) is implemented on
+its review branch, pending independent review and merge; see
+[M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md).
+Milestone 16 as a whole is **not** complete: M16.2 Minimal Desktop Vertical
+Slice & M16 Exit follows M16.1's merge (see § Milestone 16 below).
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -711,8 +713,17 @@ No new branch was required; this work is already on `main`.
 
 ### M16.1 Desktop Architecture Foundation
 
-**Status: Open — Next.** Combines the former Desktop Framework Decision and
-Controller/View State scope into one architecture decision loop.
+**Status: Implemented on branch `agent/m16-1-desktop-architecture-foundation`;
+pending independent review and merge to `main`.** Combines the former Desktop
+Framework Decision and Controller/View State scope into one architecture
+decision loop.
+
+The frozen decision — selected framework (PySide6), evidence, technical
+spike, state taxonomy, package structure, concurrency model, and theme/token
+implementation boundary — is recorded in
+[M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md).
+Do not mark M16.1 complete on `main`, and do not begin M16.2, until
+independent review and merge close this gate.
 
 Scope:
 
@@ -768,8 +779,10 @@ desktop product migration.
 
 - [x] Main navigation, macro interaction model, and UI/design system are
       approved. *(M16.0 complete — `DESIGN.md`)*
-- [ ] Desktop framework decision is documented. *(M16.1 open)*
-- [ ] Core desktop state-management boundaries are defined. *(M16.1 open)*
+- [ ] Desktop framework decision is documented. *(M16.1 implemented on review
+      branch — pending independent review and merge)*
+- [ ] Core desktop state-management boundaries are defined. *(M16.1
+      implemented on review branch — pending independent review and merge)*
 - [ ] Existing SQLite data opens without destructive conversion. *(depends
       on M16.2)*
 - [ ] A minimal vertical slice proves core reuse for at least Today and

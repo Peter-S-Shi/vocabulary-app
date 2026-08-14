@@ -4,9 +4,12 @@ Status: **Frozen UI Design Baseline — Milestone 16 In Progress**
 
 This document freezes the Milestone 16 UI/design baseline. It is not a
 statement that Milestone 16 itself is complete — the desktop framework
-decision, controller/view-state boundaries, and minimal desktop shell remain
-open. See `ROADMAP.md` § Milestone 16 and `PROJECT_STATUS.md` for the
-authoritative current lifecycle state.
+decision and controller/view-state boundaries were decided in M16.1 (pending
+independent review; see
+[M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md)),
+and the minimal desktop shell remains open for M16.2. See `ROADMAP.md`
+§ Milestone 16 and `PROJECT_STATUS.md` for the authoritative current
+lifecycle state.
 
 This document is the authoritative product/UI contract for the native desktop
 migration. It consolidates and freezes the Milestone 16 design decisions:
@@ -801,14 +804,15 @@ unreadable to preserve a preferred palette value.
 Kept open deliberately; do not use this section to weaken an already-approved
 decision above.
 
-- **Desktop framework**: not yet selected (PySide6 remains the strong
-  default candidate per the Desktop Migration Plan, but this remains an open
-  Milestone 16 decision — see § 21). Do not read anything in this document as
-  binding the product to a specific framework.
+- **Desktop framework**: selected in M16.1 — PySide6, pending independent
+  review (see § 21 and
+  [M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md)).
+  Do not read anything in this document as depending on PySide6-specific
+  implementation details; this contract still describes required
+  capabilities, not widget-level construction.
 - **Exact typography metrics** (point sizes, line-height, font family
-  fallback chain) are provisional until validated against the chosen desktop
-  framework's native text rendering; § 15 states the durable structure, not
-  final numbers.
+  fallback chain) are provisional until validated against PySide6's native
+  text rendering; § 15 states the durable structure, not final numbers.
 - **Shadow/elevation values** for dialogs and popovers are conceptually
   frozen as tokens (§ 11.1) but their concrete blur/spread/opacity have not
   been visually validated the way the color tokens have; validate when the
@@ -825,15 +829,15 @@ decision above.
 
 ## 21. Relationship to Framework Decision
 
-This document does not bind the desktop UI to PySide6, PyQt, QFluentWidgets,
-Electron, Toga, Tkinter, or any other framework — the repository does not yet
-contain an approved framework decision (`ROADMAP.md` § M16.1 / Desktop
-Migration Plan § 3 remain open).
-
-It describes required capabilities instead: dense tables, dialogs, file
-pickers, progress/cancel workflows, desktop navigation, theme tokens,
-keyboard focus, and dynamic Light/Dark switching. It does not turn those
-requirements into an unauthorized framework choice.
+M16.1 selected PySide6 as the desktop framework, pending independent review
+(`ROADMAP.md` § M16.1;
+[M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md);
+Desktop Migration Plan § 3). That decision lives in the M16.1 contract, not
+here: this document's normative content remains the same required
+capabilities it described before the framework was chosen — dense tables,
+dialogs, file pickers, progress/cancel workflows, desktop navigation, theme
+tokens, keyboard focus, and dynamic Light/Dark switching — and does not
+itself encode PySide6-specific widget or API details.
 
 `DESIGN.md` is a product/UI contract. It is not a framework implementation
 manual.
