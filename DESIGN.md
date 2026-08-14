@@ -827,7 +827,7 @@ decision above.
 
 This document does not bind the desktop UI to PySide6, PyQt, QFluentWidgets,
 Electron, Toga, Tkinter, or any other framework — the repository does not yet
-contain an approved framework decision (`ROADMAP.md` § 16.1 / Desktop
+contain an approved framework decision (`ROADMAP.md` § M16.1 / Desktop
 Migration Plan § 3 remain open).
 
 It describes required capabilities instead: dense tables, dialogs, file

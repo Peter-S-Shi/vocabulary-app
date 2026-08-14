@@ -903,13 +903,16 @@ Packaging and Release Candidate
 Do not start by building the desktop UI immediately.
 
 The Milestone 11 trustworthy baseline, repository restructure, Import and
-Template Evolution foundation, Learning Analytics core, and M15.0 TTS
-selection gate are complete. Complete the remaining M15.1-M15.3 reusable Audio
-Foundation stages before beginning the desktop architecture milestone.
+Template Evolution foundation, Learning Analytics core, and the complete
+Milestone 15 Audio Foundation (through M15.3) are established on `main`.
+Milestone 16 has started: M16.0 Desktop UI Design Baseline is complete and
+frozen in `DESIGN.md`. The next objective is M16.1 Desktop Architecture
+Foundation — the framework decision (§ 3) and controller/view-state
+boundaries (§ 7) below — before any desktop shell implementation begins.
 
-After those foundations are stable, begin the desktop architecture milestone
-with a deliberately small native shell that opens the existing SQLite database
-and proves reuse of the current learning engine.
+After the M16.1 architecture decision is frozen, M16.2 proves a deliberately
+small native shell that opens the existing SQLite database and proves reuse
+of the current learning engine (§ Phase 2 below).
 
 The migration should remain incremental:
 
