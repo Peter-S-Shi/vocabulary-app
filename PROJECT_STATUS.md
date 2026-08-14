@@ -1,6 +1,6 @@
 # Vocabulary App Project Status
 
-Last reviewed: 2026-08-13
+Last reviewed: 2026-08-14
 
 This file is the authoritative evidence-based snapshot of the current project
 state.
@@ -12,11 +12,17 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 ## Current Phase
 
-**Milestone 15 — Audio Foundation Complete on `main`**
+**Milestone 16 — Desktop Architecture and UI Design (In Progress)**
 
 ## Current Milestone
 
-**Milestone 15 Complete — M16 Not Started**
+**Milestone 15 Complete on `main`; Milestone 16 In Progress**
+
+The Milestone 16 UI/design baseline is complete and frozen: [DESIGN.md](DESIGN.md)
+records the approved desktop information architecture, theme architecture, and
+accessibility rules. Milestone 16 as a whole is **not** complete — the
+framework decision, controller/view-state boundaries, and minimal desktop
+shell remain open. See `ROADMAP.md` § Milestone 16 for exit criteria.
 
 M15.3 adds a UI-independent snapshot-based Audio Export service for a single
 current Card, an ordered Card selection, or all active Cards in a Collection.
@@ -65,7 +71,10 @@ Both Repeat Each Field and Repeat Whole Card are first-class deterministic
 composition modes. Planning or generation does not mutate SQLite learning
 state. M15.2 and M15.3 are complete on `main`, formally closing Milestone 15.
 Substantial audio UI and spoken Quiz behavior remain deferred beyond M15.
-Milestone 16 is not started and requires separate authorization.
+Milestone 16 has started; its UI/Design Baseline is complete and frozen in
+`DESIGN.md`, while the remaining Milestone 16 work (framework decision,
+controller/view-state boundaries, minimal desktop shell, exit verification)
+is open.
 
 Verification on 2026-08-13 passed:
 
@@ -1270,6 +1279,10 @@ Do not mark it complete or begin M15.2 until the review and merge gates close.
   - `docs/history/MILESTONE15_CLOSURE.md`
   - `THIRD_PARTY_NOTICES.md`
 - Current lifecycle state:
-  **Milestone 15 — Audio Foundation Complete on `main`; M16 Not Started**
+  **Milestone 15 — Audio Foundation Complete on `main`; Milestone 16 In
+  Progress — UI/Design Baseline Frozen (`DESIGN.md`), Milestone 16 Not Yet
+  Complete**
 - Exact next objective:
-  **Wait for explicit Milestone 16 authorization; do not begin desktop development**
+  **Complete the remaining Milestone 16 work: 16.1 Desktop Framework
+  Decision, 16.4 Controller/View State boundaries, 16.5 Minimal Desktop
+  Shell, and final Milestone 16 exit-criteria verification**

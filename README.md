@@ -33,7 +33,10 @@ Mandarin TTS providers and their license/attribution requirements. **Milestone
 M15.2 Audio Asset and Card Composition Core is merged on `main`. M15.3 Batch
 Export, Failure Safety, and Milestone Closure merged through PR #17 at
 `9448f2e44940e0d426a965823aa66c48f53ec0f1`. **Milestone 15 — Audio
-Foundation is complete on `main`.** Milestone 16 is not started.
+Foundation is complete on `main`.** **Milestone 16 — Desktop Architecture and
+UI Design is in progress**; its UI/Design Baseline is complete and frozen in
+[DESIGN.md](DESIGN.md), while the desktop framework decision, controller/
+view-state boundaries, and minimal desktop shell remain open.
 
 Streamlit remains the currently runnable compatibility/reference UI, but it is
 no longer the intended Release Candidate target. The active lifecycle now

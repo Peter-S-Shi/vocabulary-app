@@ -104,7 +104,8 @@ target.
 
 ## Current Phase
 
-**Milestone 15 — Audio Foundation Complete on `main`; M16 Not Started**
+**Milestone 15 — Audio Foundation Complete on `main`; Milestone 16 In
+Progress**
 
 The trustworthy data/business-logic baseline, repository restructure, Import
 and Template Evolution foundation, and Learning Analytics and Insight Core are
@@ -114,7 +115,11 @@ gate. Milestone 15.1 merged through PR #13 at
 PR #15 at `c9d7e8d05c968d52af2b77c76454f849706788bc`. Milestone 15.3 merged through
 PR #17 at `9448f2e44940e0d426a965823aa66c48f53ec0f1` from independently reviewed
 head `765c4c5f92c29a5c30cb41b0c2aa3fbbc01df7db`, completing Milestone 15.
-Milestone 16 has not started and requires separate authorization.
+Milestone 16 has started. Its UI/design baseline — information architecture,
+theme architecture, and accessibility rules — is complete and frozen in
+[DESIGN.md](DESIGN.md). Milestone 16 as a whole is **not** complete: the
+desktop framework decision, controller/view-state boundaries, and minimal
+desktop shell remain open (see § Milestone 16 below).
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -669,7 +674,8 @@ Full desktop export interaction remains deferred to the desktop milestones.
 
 ## Milestone 16: Desktop Architecture and UI Design
 
-**Status: Not Started. Requires separate authorization.**
+**Status: In Progress. UI/Design Baseline complete and frozen in
+[DESIGN.md](DESIGN.md); Milestone 16 as a whole is not yet complete.**
 
 Milestone 16 begins the deliberate retirement of Streamlit as the primary UI.
 
@@ -678,6 +684,8 @@ The governing principle is:
 > Replace the UI layer, preserve the learning engine.
 
 ### 16.1 Desktop Framework Decision
+
+**Status: Open.**
 
 Evaluate the most suitable desktop framework against:
 
@@ -694,6 +702,9 @@ Evaluate the most suitable desktop framework against:
 A small technical prototype may be used before the final framework decision.
 
 ### 16.2 Desktop Information Architecture
+
+**Status: Complete.** Frozen master-screen structure, macro interaction
+model, and Utility/Dialog grammar are recorded in [DESIGN.md](DESIGN.md).
 
 Define the main application structure and navigation.
 
@@ -712,6 +723,10 @@ interaction offers a better model.
 
 ### 16.3 UI System
 
+**Status: Complete.** Theme architecture, semantic token tables, contrast/
+accessibility rules, typography/spacing/component principles, and visual
+acceptance criteria are recorded in [DESIGN.md](DESIGN.md).
+
 Define a coherent desktop design system for:
 
 - typography;
@@ -729,6 +744,8 @@ Define a coherent desktop design system for:
 
 ### 16.4 Controller and View State
 
+**Status: Open.**
+
 Desktop controllers or view models should own transient UI state.
 
 Durable learning state remains in SQLite.
@@ -736,6 +753,8 @@ Durable learning state remains in SQLite.
 Do not move former `st.session_state` behavior into reusable core modules.
 
 ### 16.5 Minimal Desktop Shell
+
+**Status: Open.**
 
 Prove that the desktop application can:
 
@@ -747,11 +766,18 @@ Prove that the desktop application can:
 
 ### Milestone 16 Exit Criteria
 
-- Desktop framework decision is documented.
-- Main navigation and workflow mapping are approved.
-- Core desktop state-management boundaries are defined.
-- Existing SQLite data opens without destructive conversion.
-- A minimal shell proves core reuse.
+**Status: Open — final exit verification not yet performed.**
+
+- [ ] Desktop framework decision is documented. *(16.1 open)*
+- [x] Main navigation and workflow mapping are approved. *(16.2 complete —
+      `DESIGN.md`)*
+- [ ] Core desktop state-management boundaries are defined. *(16.4 open)*
+- [ ] Existing SQLite data opens without destructive conversion. *(depends on
+      16.5)*
+- [ ] A minimal shell proves core reuse. *(16.5 open)*
+
+Milestone 16 is not complete until every item above is checked and a final
+exit-criteria verification is recorded.
 
 ---
 

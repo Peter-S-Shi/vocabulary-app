@@ -1,6 +1,12 @@
 # Vocabulary App · Desktop Design Contract (`DESIGN.md`)
 
-Status: **Frozen — Milestone 16 (Desktop Architecture and UI Design)**
+Status: **Frozen UI Design Baseline — Milestone 16 In Progress**
+
+This document freezes the Milestone 16 UI/design baseline. It is not a
+statement that Milestone 16 itself is complete — the desktop framework
+decision, controller/view-state boundaries, and minimal desktop shell remain
+open. See `ROADMAP.md` § Milestone 16 and `PROJECT_STATUS.md` for the
+authoritative current lifecycle state.
 
 This document is the authoritative product/UI contract for the native desktop
 migration. It consolidates and freezes the Milestone 16 design decisions:
@@ -246,8 +252,8 @@ further exploration is required.
 
 ### Destructive actions
 
-- visually and spatially distinct (see `.btn-destructive` in § 11 — outlined
-  danger button, not a filled default-looking button);
+- visually and spatially distinct — an outlined danger treatment, not a
+  filled default-looking button (see § 16, Buttons);
 - do not use vague "Are you sure?" wording — state consequences precisely
   (what is deleted, how many items, whether it is recoverable);
 - destructive action is never the default focus/keyboard target (see § 17).
