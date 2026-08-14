@@ -1,6 +1,8 @@
 # M16.1 — Desktop Architecture Contract
 
-Status: **Implemented on branch `agent/m16-1-desktop-architecture-foundation`; pending independent review.**
+Status: **Complete on `main`.** PR #21 merged at
+`a1dc044721e9017d39842e96e0516a88a36d129f` from independently reviewed head
+`439cc9612578b5dc78eda57e07f054bec8d60d38`.
 
 This document is the frozen M16.1 architecture decision: desktop framework
 selection, and the controller/view-state/core boundary that M16.2 must build
@@ -25,6 +27,15 @@ by The Qt Company.
 **Frozen for M16.2 and the desktop migration**, subject to the same
 reopening standard as any other architecture decision: only on a direct,
 recorded semantic or technical conflict, not preference drift.
+
+Merged to `main` through
+[PR #21](https://github.com/Peter-S-Shi/vocabulary-app/pull/21) at
+`a1dc044721e9017d39842e96e0516a88a36d129f`, from independently reviewed head
+`439cc9612578b5dc78eda57e07f054bec8d60d38` (implementation commit
+`703c7b42541d013f2ece5c453315632d23098ce6` plus a corrective patch commit
+`439cc9612578b5dc78eda57e07f054bec8d60d38` fixing evidence-attribution and
+durable-preference-path wording; no framework, state-taxonomy, package, or
+concurrency/theme decision was reopened by that correction).
 
 ## 3. Alternatives Considered
 

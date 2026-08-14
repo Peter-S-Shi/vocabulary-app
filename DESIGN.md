@@ -4,8 +4,8 @@ Status: **Frozen UI Design Baseline — Milestone 16 In Progress**
 
 This document freezes the Milestone 16 UI/design baseline. It is not a
 statement that Milestone 16 itself is complete — the desktop framework
-decision and controller/view-state boundaries were decided in M16.1 (pending
-independent review; see
+decision and controller/view-state boundaries were decided and are complete
+on `main` through M16.1 (see
 [M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md)),
 and the minimal desktop shell remains open for M16.2. See `ROADMAP.md`
 § Milestone 16 and `PROJECT_STATUS.md` for the authoritative current
@@ -804,8 +804,8 @@ unreadable to preserve a preferred palette value.
 Kept open deliberately; do not use this section to weaken an already-approved
 decision above.
 
-- **Desktop framework**: selected in M16.1 — PySide6, pending independent
-  review (see § 21 and
+- **Desktop framework**: selected and complete on `main` through M16.1 —
+  PySide6 (see § 21 and
   [M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md)).
   Do not read anything in this document as depending on PySide6-specific
   implementation details; this contract still describes required
@@ -829,7 +829,7 @@ decision above.
 
 ## 21. Relationship to Framework Decision
 
-M16.1 selected PySide6 as the desktop framework, pending independent review
+M16.1 selected PySide6 as the desktop framework and is complete on `main`
 (`ROADMAP.md` § M16.1;
 [M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md);
 Desktop Migration Plan § 3). That decision lives in the M16.1 contract, not

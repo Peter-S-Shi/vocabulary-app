@@ -20,11 +20,12 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 M16.0 Desktop UI Design Baseline is complete and frozen: [DESIGN.md](DESIGN.md)
 records the approved desktop information architecture, theme architecture, and
-accessibility rules. M16.1 Desktop Architecture Foundation is implemented on
-branch `agent/m16-1-desktop-architecture-foundation`, pending independent
-review and merge. Milestone 16 as a whole is **not** complete — M16.2 Minimal
-Desktop Vertical Slice & M16 Exit follows M16.1's merge. See `ROADMAP.md`
-§ Milestone 16 for exit criteria.
+accessibility rules. **M16.1 Desktop Architecture Foundation is complete on
+`main`** through PR #21, merged at
+`a1dc044721e9017d39842e96e0516a88a36d129f` from independently reviewed head
+`439cc9612578b5dc78eda57e07f054bec8d60d38`. Milestone 16 as a whole is
+**not** complete — M16.2 Minimal Desktop Vertical Slice & M16 Exit is next.
+See `ROADMAP.md` § Milestone 16 for exit criteria.
 
 M16.1 selects **PySide6** as the desktop framework and freezes the
 controller/view-state/core boundary, the initial `src/ui_desktop/` package
@@ -49,6 +50,16 @@ is extended to enforce the new `src/ui_desktop/` boundary the same way it
 already enforces the Streamlit boundary. M16.1 adds no schema or app-data
 migration, no product desktop UI, and does not alter learning, analytics,
 import, or audio semantics.
+
+PR #21 merged normally to `main` at
+`a1dc044721e9017d39842e96e0516a88a36d129f`. Its independently reviewed final
+head was `439cc9612578b5dc78eda57e07f054bec8d60d38`, which applied a
+corrective patch to the initial implementation commit
+(`703c7b42541d013f2ece5c453315632d23098ce6`) fixing evidence attribution
+(the Toga rejection rationale, PySide6 licensing wording, and spike-claim
+wording) and the durable-preference non-Windows path — no framework, state
+taxonomy, package structure, or concurrency/theme boundary decision was
+reopened by that correction.
 
 Verification on 2026-08-14 passed:
 
@@ -106,9 +117,8 @@ composition modes. Planning or generation does not mutate SQLite learning
 state. M15.2 and M15.3 are complete on `main`, formally closing Milestone 15.
 Substantial audio UI and spoken Quiz behavior remain deferred beyond M15.
 Milestone 16 has started; its M16.0 UI/Design Baseline is complete and frozen
-in `DESIGN.md`. M16.1 Desktop Architecture Foundation is implemented pending
-independent review, and M16.2 Minimal Desktop Vertical Slice & M16 Exit
-remains open until M16.1 merges.
+in `DESIGN.md`. M16.1 Desktop Architecture Foundation is complete on `main`,
+and M16.2 Minimal Desktop Vertical Slice & M16 Exit is next.
 
 Verification on 2026-08-13 passed:
 
@@ -1302,7 +1312,13 @@ Do not mark it complete or begin M15.2 until the review and merge gates close.
   `c273139ecb6d2dd98600d6e990552c754db9b44e`
 - M16.1 synchronized base commit (verified `main` at prompt time):
   `c273139ecb6d2dd98600d6e990552c754db9b44e`
-- M16.1 implementation branch: `agent/m16-1-desktop-architecture-foundation`
+- M16.1 implementation branch (merged, deleted):
+  `agent/m16-1-desktop-architecture-foundation`
+- Verified M16.1 reviewed head (corrective patch applied):
+  `439cc9612578b5dc78eda57e07f054bec8d60d38`
+- Final M16.1 PR: `#21 — M16.1: Desktop Architecture Foundation — select
+  PySide6, freeze state/concurrency/theme boundaries` (merged)
+- M16.1 merge commit on `main`: `a1dc044721e9017d39842e96e0516a88a36d129f`
 - Current lifecycle documents:
   - `ROADMAP.md`
   - `PROJECT_STATUS.md`
@@ -1322,10 +1338,10 @@ Do not mark it complete or begin M15.2 until the review and merge gates close.
   **Milestone 15 — Audio Foundation Complete on `main`; Milestone 16 —
   Desktop Architecture and UI Design In Progress: M16.0 Desktop UI Design
   Baseline Complete (`DESIGN.md`); M16.1 Desktop Architecture Foundation
-  Implemented on branch `agent/m16-1-desktop-architecture-foundation`,
-  Pending Independent Review; M16.2 Minimal Desktop Vertical Slice & M16
-  Exit Not Started**
+  Complete on `main` (PR #21, `a1dc044721e9017d39842e96e0516a88a36d129f`);
+  M16.2 Minimal Desktop Vertical Slice & M16 Exit Not Started**
 - Exact next objective:
-  **Independently review and merge M16.1 Desktop Architecture Foundation.
-  Do not begin M16.2 until the framework/state-boundary decision gate is
-  reviewed and merged.**
+  **Milestone 16.2 — Minimal Desktop Vertical Slice & M16 Exit. Build the
+  minimal native desktop shell against the frozen M16.1 architecture
+  contract without reopening the framework, state-taxonomy, package, or
+  concurrency/theme decisions.**
