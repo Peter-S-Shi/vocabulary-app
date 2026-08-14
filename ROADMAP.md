@@ -104,16 +104,17 @@ target.
 
 ## Current Phase
 
-**Audio Foundation — M15.3 Implemented / Milestone 15 Closure Pending Independent Review**
+**Milestone 15 — Audio Foundation Complete on `main`; M16 Not Started**
 
 The trustworthy data/business-logic baseline, repository restructure, Import
 and Template Evolution foundation, and Learning Analytics and Insight Core are
 complete. Milestone 15.0 closed the TTS provider-selection and feasibility
 gate. Milestone 15.1 merged through PR #13 at
 `ebca2c2c5c6bf11f5e0a54b9782e15f08f51d216`. Milestone 15.2 merged through
-PR #15 at `c9d7e8d05c968d52af2b77c76454f849706788bc`. Milestone 15.3 is implemented
-on a review branch; it is not complete on `main` until independent review and
-merge.
+PR #15 at `c9d7e8d05c968d52af2b77c76454f849706788bc`. Milestone 15.3 merged through
+PR #17 at `9448f2e44940e0d426a965823aa66c48f53ec0f1` from independently reviewed
+head `765c4c5f92c29a5c30cb41b0c2aa3fbbc01df7db`, completing Milestone 15.
+Milestone 16 has not started and requires separate authorization.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -546,6 +547,9 @@ scope boundaries, not M14 closure defects.
 
 ## Milestone 15: Audio Foundation
 
+**Status: Complete on `main` through PR #17 at
+`9448f2e44940e0d426a965823aa66c48f53ec0f1`.**
+
 Milestone 15 establishes a reusable local text-to-speech and card-audio
 foundation before building the full desktop workflow.
 
@@ -627,7 +631,9 @@ evidence, or any other learning-state mutation.
 
 ### 15.3 Batch Export, Failure Safety & Milestone Closure
 
-**Status: Implemented on review branch; closure pending independent review and merge.**
+**Status: Complete on `main`.** PR #17 merged at
+`9448f2e44940e0d426a965823aa66c48f53ec0f1` from final reviewed head
+`765c4c5f92c29a5c30cb41b0c2aa3fbbc01df7db`.
 
 Complete the reusable export workflow and close M15 before desktop UI work.
 
@@ -662,6 +668,8 @@ Full desktop export interaction remains deferred to the desktop milestones.
 ---
 
 ## Milestone 16: Desktop Architecture and UI Design
+
+**Status: Not Started. Requires separate authorization.**
 
 Milestone 16 begins the deliberate retirement of Streamlit as the primary UI.
 

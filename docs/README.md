@@ -24,7 +24,7 @@ Current Audio Foundation decision records:
 - [M15.1 Speech Semantic Contract](design/M15_1_SPEECH_SEMANTIC_CONTRACT.md)
 - [M15.2 Audio Asset and Card Composition Contract](design/M15_2_AUDIO_ASSET_COMPOSITION_CONTRACT.md)
 - [M15.3 Batch Audio Export Contract](design/M15_3_BATCH_EXPORT_CONTRACT.md)
-- [Milestone 15 Closure Candidate](history/MILESTONE15_CLOSURE.md)
+- [Milestone 15 Closure](history/MILESTONE15_CLOSURE.md)
 - [Distribution-facing Third-Party Notices](../THIRD_PARTY_NOTICES.md)
 
 Executable development checks remain in [`scripts/`](../scripts/) and

@@ -31,8 +31,9 @@ and established the reusable Import and Template Evolution Core. **Milestone
 Mandarin TTS providers and their license/attribution requirements. **Milestone
 15.1 — Speech Semantics & TTS Provider Foundation** is merged on `main`.
 M15.2 Audio Asset and Card Composition Core is merged on `main`. M15.3 Batch
-Export, Failure Safety, and Milestone Closure is implemented on a review branch;
-Milestone 15 closure remains pending independent review and merge.
+Export, Failure Safety, and Milestone Closure merged through PR #17 at
+`9448f2e44940e0d426a965823aa66c48f53ec0f1`. **Milestone 15 — Audio
+Foundation is complete on `main`.** Milestone 16 is not started.
 
 Streamlit remains the currently runnable compatibility/reference UI, but it is
 no longer the intended Release Candidate target. The active lifecycle now
