@@ -88,30 +88,27 @@ will be discarded during migration unless the issue affects:
 
 ## 3. Candidate Desktop Frameworks
 
-| Framework | Fit | Main Trade-off |
-|---|---|---|
-| PySide6 | Strong | Official Qt for Python; strong tables, dialogs, desktop workflows, and packaging potential, but adds Qt complexity and a large dependency |
-| PyQt | Strong | Mature Qt ecosystem and similar capability, but distribution/licensing choices require deliberate review |
-| Tkinter | Limited | Built into Python and simple, but less suitable for dense tables, modern workflow design, and larger product growth |
-| Toga / Briefcase | Exploratory | Native-oriented and cross-platform, but smaller ecosystem and higher migration uncertainty |
-| Electron / webview wrapper | Conditional | Powerful UI ecosystem but introduces an additional runtime and moves farther from the existing Python desktop architecture |
+**Status: Decided in M16.1.** The evidence-backed decision, license finding,
+technical spike, and rejected-alternative rationale are recorded in
+[M16.1 Desktop Architecture Contract](../design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md).
+This section keeps the original candidate table for historical context; the
+contract document is now authoritative for the decision itself.
 
-PySide6 remains a strong default candidate because the product requires:
+| Framework | Fit | Main Trade-off | M16.1 outcome |
+|---|---|---|---|
+| PySide6 | Strong | Official Qt for Python; strong tables, dialogs, desktop workflows, and packaging potential, but adds Qt complexity and a large dependency | **Selected** |
+| PyQt | Strong | Mature Qt ecosystem and similar capability, but distribution/licensing choices require deliberate review | Rejected — GPLv3-or-commercial only, no LGPL option |
+| Tkinter | Limited | Built into Python and simple, but less suitable for dense tables, modern workflow design, and larger product growth | Rejected — confirmed still limited for Table-First |
+| Toga / Briefcase | Exploratory | Native-oriented and cross-platform, but smaller ecosystem and higher migration uncertainty | Rejected for now — beta/macOS-only cell-widget support and no primary-source Windows-scale Table evidence |
+| Electron / webview wrapper | Conditional | Powerful UI ecosystem but introduces an additional runtime and moves farther from the existing Python desktop architecture | Rejected — second runtime/toolchain |
 
-- dense data tables;
-- complex forms;
-- dialogs;
-- file pickers;
-- progress/cancel workflows;
-- multiple application states;
-- desktop-native scheduling and management interactions; and
-- future packaging.
+No framework was selected solely because it resembles the current Streamlit
+interface.
 
-No framework should be selected solely because it resembles the current
-Streamlit interface.
-
-A small technical prototype should prove database/core compatibility before the
-framework decision becomes difficult to reverse.
+The small technical prototype required before the framework decision is
+committed at
+[`tests/test_m16_1_architecture_spike.py`](../../tests/test_m16_1_architecture_spike.py)
+and its result is recorded in the M16.1 contract § 4.
 
 ## 4. Desktop Product Design Principle
 
@@ -209,6 +206,13 @@ Add a service only when a real desktop or reusable workflow demonstrates the
 need.
 
 ## 7. Controller and UI State Migration
+
+**Status: Made concrete in M16.1.** This section's principle is unchanged and
+still applies; the concrete package structure, controller responsibilities,
+durable-preference ownership, and the exact translation of the
+`set_page_focus`/`session_state` pattern into typed controller/`AppState`
+state are frozen in
+[M16.1 Desktop Architecture Contract §§ 9-13](../design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md).
 
 `st.session_state` is transient UI state and must not move into core modules.
 
@@ -906,13 +910,16 @@ The Milestone 11 trustworthy baseline, repository restructure, Import and
 Template Evolution foundation, Learning Analytics core, and the complete
 Milestone 15 Audio Foundation (through M15.3) are established on `main`.
 Milestone 16 has started: M16.0 Desktop UI Design Baseline is complete and
-frozen in `DESIGN.md`. The next objective is M16.1 Desktop Architecture
-Foundation — the framework decision (§ 3) and controller/view-state
-boundaries (§ 7) below — before any desktop shell implementation begins.
+frozen in `DESIGN.md`. M16.1 Desktop Architecture Foundation — the framework
+decision (§ 3) and controller/view-state boundaries (§ 7) — is implemented on
+its review branch and recorded in
+[M16.1 Desktop Architecture Contract](../design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md),
+pending independent review and merge to `main`.
 
-After the M16.1 architecture decision is frozen, M16.2 proves a deliberately
+Once M16.1 is independently reviewed and merged, M16.2 proves a deliberately
 small native shell that opens the existing SQLite database and proves reuse
-of the current learning engine (§ Phase 2 below).
+of the current learning engine (§ Phase 2 below), built against the M16.1
+contract without reopening the framework or state-boundary decisions.
 
 The migration should remain incremental:
 

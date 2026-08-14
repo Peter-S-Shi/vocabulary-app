@@ -31,6 +31,23 @@ Reusable modules under `src/` must not import Streamlit. They expose plain Pytho
 
 Streamlit `session_state` is UI state. Durable state and duplicate-action protection belong in core modules and SQLite.
 
+## Desktop UI Boundary Rule
+
+In production application code, PySide6 imports are allowed only in
+`src/ui_desktop/*.py` (selected in M16.1; see
+[M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md)).
+This rule covers `app.py` and `src/`, the files `scripts/audit_architecture.py`
+scans; it does not restrict test code under `tests/`, which the audit script
+does not scan and which may import PySide6 directly for architecture
+verification (see `tests/test_m16_1_architecture_spike.py`).
+
+Reusable modules under `src/` must not import PySide6 or `src.ui_desktop`, the
+same way they must not import Streamlit or `src.ui_streamlit`. The Streamlit
+UI and the desktop UI are two independent presentation layers during
+migration; `src/ui_streamlit/*.py` should not import PySide6 or
+`src.ui_desktop`, and `src/ui_desktop/*.py` should not import Streamlit or
+`src.ui_streamlit`. `scripts/audit_architecture.py` enforces both directions.
+
 ## Core Module Responsibilities
 
 - `src/app_config.py`: application identity and local path resolution
@@ -151,15 +168,31 @@ revision history remains available to historical views.
 
 ## Future Desktop Migration
 
-A desktop migration should preserve the SQLite schema and core modules, then replace `app.py` and `src/ui_streamlit/` with a package such as `src/ui_desktop/`.
+The desktop migration preserves the SQLite schema and core modules, then
+replaces `app.py` and `src/ui_streamlit/` with `src/ui_desktop/`.
 
-The desktop layer should call the same core functions and introduce UI adapters only where Streamlit currently handles uploads, downloads, navigation, or transient widget state.
+M16.1 selected **PySide6** as the desktop framework and froze the
+controller/view-state/core boundary. The full decision, evidence, package
+structure, state taxonomy, concurrency model, and theme/token implementation
+boundary are recorded in
+[M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md);
+this section only summarizes the durable rule.
+
+The desktop layer calls the same core functions Streamlit already calls —
+plain Python arguments in, plain data structures out — and introduces
+desktop-specific adapters (`Qt` table/list models, controllers owning
+transient state) only where Streamlit currently handles uploads, downloads,
+navigation, or transient widget state. A thin `src/ui_desktop/services/`
+orchestration layer is added only when a real desktop workflow demonstrates a
+genuine multi-step/transactional need beyond a direct controller-to-core
+call; it is not created for architectural symmetry.
 
 ## Contributor Guardrails
 
 Do not:
 
 - import Streamlit from core modules
+- import PySide6 or `src.ui_desktop` from core modules
 - place SQL or learning algorithms in `app.py`
 - create parallel quiz, review, import, or persistence systems
 - silently switch or migrate user databases

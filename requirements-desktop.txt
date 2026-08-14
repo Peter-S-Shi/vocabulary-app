@@ -1,0 +1,11 @@
+# Desktop-only dependencies for the M16 native desktop UI (src/ui_desktop/).
+#
+# This file is additive to requirements.txt, not a replacement for it: the
+# reusable core under src/ remains framework-independent, and the Streamlit
+# compatibility UI (app.py, src/ui_streamlit/) does not require anything in
+# this file. Install it only when working on the desktop UI or running the
+# M16.1 architecture-spike tests (tests/test_m16_1_architecture_spike.py).
+#
+# Selected per docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md.
+
+PySide6>=6.11,<7
