@@ -12,11 +12,35 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 ## Current Phase
 
-**Audio Foundation — M15.2 Complete on `main`**
+**Audio Foundation — M15.3 Implemented / Milestone 15 Closure Pending Independent Review**
 
 ## Current Milestone
 
-**M15.2 Merged — Awaiting M15.3 Prompt**
+**M15.3 Review Candidate — Do Not Begin M16**
+
+M15.3 adds a UI-independent snapshot-based Audio Export service for a single
+current Card, an ordered Card selection, or all active Cards in a Collection.
+It preserves one Card per canonical WAV, safe deterministic filenames, default
+no-overwrite conflicts, per-Card atomic publication, structured partial-success
+reporting, explicit failed/unresolved retry, and progress events. It adds no
+schema or app-data migration and does not alter learning or Quiz semantics.
+
+The actual M15.3 base is the M15.2-complete `main` commit
+`c9d7e8d05c968d52af2b77c76454f849706788bc`. Final verification and review
+head evidence will be recorded when the review branch is published.
+
+Verification on 2026-08-13 passed:
+
+```text
+Focused M15.3 tests: 11/11
+Integrated M15.1 + M15.2 + M15.3 audio tests: 39/39
+Full repository suite: 159/159
+Python compile/static check: passed
+Architecture audit: 41 Python files; no violations or warnings
+Packaging readiness: expected local data/vocab.db exclusion warning only
+Real M15.3 Collection smoke: EN Kokoro + FR sherpa-onnx + ZH-CN Yaoyao passed
+Real smoke outputs: 3 Cards = 3 readable canonical WAV files; temporary artifacts removed
+```
 
 M15.2 adds UI-independent content-addressed field audio assets and deterministic
 current-Card composition. PR #15 merged normally to `main` at
@@ -1238,7 +1262,10 @@ Do not mark it complete or begin M15.2 until the review and merge gates close.
   - `docs/policies/TTS_LICENSE_AND_ATTRIBUTION.md`
   - `docs/design/M15_1_SPEECH_SEMANTIC_CONTRACT.md`
   - `docs/design/M15_2_AUDIO_ASSET_COMPOSITION_CONTRACT.md`
+  - `docs/design/M15_3_BATCH_EXPORT_CONTRACT.md`
+  - `docs/history/MILESTONE15_CLOSURE.md`
+  - `THIRD_PARTY_NOTICES.md`
 - Current lifecycle state:
-  **Audio Foundation — M15.2 Complete on `main`**
+  **Audio Foundation — M15.3 Implemented / Milestone 15 Closure Pending Independent Review**
 - Exact next objective:
-  **Wait for the explicit M15.3 Prompt; do not begin M15.3**
+  **Complete independent M15.3 review and merge; do not begin M16**
