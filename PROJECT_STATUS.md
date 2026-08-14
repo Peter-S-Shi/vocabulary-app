@@ -35,11 +35,14 @@ finding, rejected alternatives, and technical-spike evidence are recorded in
 [M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md).
 A committed headless spike
 (`tests/test_m16_1_architecture_spike.py`, 5 tests) proves PySide6
-install/import, native event-loop start/shutdown, a synthetic dense-table
-model/view surface, opening a temporary synthetic database through the
-existing `src/db.py`/`src/app_config.py` path, calling representative
-reusable core functions without Streamlit, a runtime semantic-token style
-swap without restart, and a `QThreadPool` worker-to-UI-thread signal handoff.
+install/import, `QApplication`/window construction with event processing and
+clean close (not a full blocking `QApplication.exec()` run/quit cycle), a
+structurally-correct synthetic dense-table model/view surface (500 rows; not
+a performance/responsiveness measurement), opening a temporary synthetic
+database through the existing `src/db.py`/`src/app_config.py` path, calling
+representative reusable core functions without Streamlit, a runtime
+semantic-token style swap without restart, and a `QThreadPool`
+worker-to-UI-thread signal handoff.
 `requirements-desktop.txt` (new, additive) isolates the PySide6 dependency
 from the Streamlit-only `requirements.txt`. `scripts/audit_architecture.py`
 is extended to enforce the new `src/ui_desktop/` boundary the same way it

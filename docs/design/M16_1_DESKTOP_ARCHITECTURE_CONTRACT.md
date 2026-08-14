@@ -33,7 +33,7 @@ recorded semantic or technical conflict, not preference drift.
 | **PySide6** | **Selected** | Official Qt binding, LGPLv3 available, mature dense-table/dialog/theming primitives, proven by spike. |
 | PyQt6 | Rejected | Functionally near-identical Qt6 binding, but Riverbank Computing dual-licenses it only under GPLv3 or a paid commercial license — no LGPL option. The project's own license is not yet finalized ([README.md](../../README.md) § License); PySide6 gives the same capability without forcing a GPL/commercial choice merely to use the GUI toolkit. |
 | Tkinter | Rejected | Bundled with Python (zero extra dependency), but has no dense model/view table widget comparable to `QTableView`/`QAbstractTableModel`, weak native theming, and no realistic path to DESIGN.md's semantic-token/Dark-Mode contract without extensive custom widget work. Already rated "Limited" in the Desktop Migration Plan §3; current evaluation confirms that rating still holds. |
-| Toga / Briefcase (BeeWare) | Rejected for now | BeeWare is under genuine active development (Windows shortcut/MSI packaging fixes, Linux ARM64 promoted to fully supported, shipped July 2026), and Briefcase's packaging story is improving quickly. However, Toga's `Table` widget has documented current scalability limits (icon rendering not scalable beyond ~1,000 cells, macOS cannot change table fonts, cell-widget support is beta and macOS-only) that conflict with the Entries/Table-First dense-table requirement. Reasonable to re-evaluate in a future milestone if Toga's data-widget maturity changes; not suitable now. |
+| Toga / Briefcase (BeeWare) | Rejected for now | BeeWare is under genuine active development (Windows shortcut/MSI packaging fixes, Linux ARM64 promoted to fully supported, shipped July 2026), and Briefcase's packaging story is improving quickly. However, current primary-source evidence shows real desktop-relevant gaps in Toga's `Table` widget for this product's primary target platform (Windows): cell-widget support is a beta API currently available only on macOS, and macOS itself cannot customize table fonts — an unevenly-supported desktop feature set. No primary-source evidence was found of `Table` performance validated at a scale comparable to this product's realistic Entries-table size specifically on Windows/WinForms, unlike PySide6's directly documented `QTableView`/`QAbstractTableModel` behavior (§ 6). Rejected on that evidence gap plus the beta/macOS-only cell-widget limitation, not on a proven scalability defect — reasonable to re-evaluate if Toga's desktop data-widget maturity or published Windows-scale evidence changes. |
 | Electron / webview wrapper | Rejected | Introduces a second runtime and toolchain (Node/Chromium) orthogonal to the existing Python/SQLite core, working against "replace the UI layer, preserve the learning engine" and the product's local-first single-runtime posture. Already rated "Conditional" in the Desktop Migration Plan §3; no new evidence changes that. |
 
 No candidate was chosen or rejected because it resembles Streamlit, has the
@@ -57,7 +57,7 @@ Ran 5 tests in 3.111s — OK
 | Claim | Spike test | Result |
 |---|---|---|
 | PySide6 installs/imports in this repo's environment (Python 3.11.9 venv, Windows) | install + `import PySide6` (6.11.1) | PASS |
-| Native app/event-loop starts and shuts down cleanly | `test_native_window_starts_and_closes_cleanly` | PASS |
+| `QApplication`/window construction, event processing, and clean close succeed without error | `test_native_window_starts_and_closes_cleanly` (`QApplication.instance()`/construction, `QMainWindow` show, `processEvents()`, close) — this proves object lifecycle and event-queue processing, **not** a full blocking `QApplication.exec()` run/quit cycle, which the spike does not exercise | PASS |
 | Existing `src/db.py` + `src/app_config.py` open a temporary synthetic database unmodified | `setUp`/`tearDown` (`db.DB_PATH` swap + `db.init_db()`, same pattern as `tests/test_m15_3_audio_export.py`) | PASS |
 | Representative reusable core functions callable without Streamlit | `test_core_functions_are_reusable_without_streamlit` (`src.entries.add_entry`, `src.collections.create_collection`/`add_entries_to_collection`/`get_collections`, `src.learning_workflow.get_today_overview`) | PASS |
 | A synthetic dense-table model/view surface works | `test_dense_table_model_view_surface` (`QAbstractTableModel` + `QTableView`, 500 synthetic rows) | PASS |
@@ -75,16 +75,22 @@ uses synthetic data only and a temporary database that is discarded per test.
 
 ## 5. License / Distribution Finding
 
-Primary-source evidence, gathered 2026-08 (see also PyPI metadata reproduced
-below):
+Primary-source evidence, gathered 2026-08:
 
-- **PySide6 6.11.1** (latest at decision time) is licensed under **LGPLv3,
-  GPLv2, or GPLv3** (open-source options) **or a commercial Qt license**. The
-  LGPLv3 option does not require this project to adopt GPL or purchase a
-  commercial license merely to link against Qt, which matters because
-  `README.md` § License currently states *"A final open-source license has
-  not yet been selected."* PySide6 keeps that decision open; PyQt6 would have
-  forced it (GPLv3-or-commercial only, no LGPL — Riverbank Computing).
+- **PySide6 6.11.1** (latest at decision time) is licensed, per the official
+  Qt for Python documentation (`doc.qt.io/qtforpython-6/licenses.html` and
+  the Qt for Python Community Edition licensing pages), under the
+  **LGPLv3 or GPLv3** open-source Community Edition, **or a commercial Qt
+  license**. This is the authoritative statement used for this decision.
+  (PySide6's PyPI package metadata additionally carries a `GPL-2.0-only`
+  trove classifier alongside `LGPL-3.0-only`/`GPL-3.0-only`; that classifier
+  list is package metadata, not the product's licensing documentation, and is
+  not relied on here as the primary source.) The LGPLv3 option does not
+  require this project to adopt GPL or purchase a commercial license merely
+  to link against Qt, which matters because `README.md` § License currently
+  states *"A final open-source license has not yet been selected."* PySide6
+  keeps that decision open; PyQt6 would have forced it (GPLv3-or-commercial
+  only, no LGPL — Riverbank Computing).
 - **Python support:** PySide6 6.11.1 declares support for Python 3.10–3.14
   (`Requires-Python <3.15,>=3.10`), which covers this repository's `.venv`
   (Python 3.11.9).
@@ -106,8 +112,15 @@ below):
   no structural bias toward one persistent chrome the way some cross-platform
   toolkits do.
 - **Table-First** (§ 4.2): `QTableView` + `QAbstractTableModel` is the
-  standard dense-data desktop pattern, verified responsive well past this
-  product's realistic Entries-table row counts.
+  standard Qt dense-data desktop pattern. The spike proves the pattern is
+  *structurally* usable — correct row/column counts and cell-data resolution
+  over 500 synthetic rows (§ 4) — not a measured performance/responsiveness
+  benchmark. Community documentation/discussion (pythonguis.com, qtcentre.org;
+  not official Qt documentation, and not independently re-measured in this
+  repository) reports `QAbstractTableModel` remaining responsive to roughly
+  100,000 rows via Qt's lazy row-fetching, well past this product's realistic
+  Entries-table size; that figure is third-party reported evidence, not an
+  M16.1 spike result and not an official Qt performance guarantee.
 - **Utility/Dialog grammar** (§ 5): native `QDialog`, `QFileDialog`,
   `QMessageBox`, and custom dialogs cover Add/Edit, destructive confirmation,
   Import preview/commit, and progress/cancellation without fighting the
@@ -283,11 +296,19 @@ via a new schema migration — consistent with the M16.1 prompt's explicit
 instruction not to add a migration for presentation state.
 
 Ownership location (decision, not yet implemented — see § 19): extend
-`src/app_config.py` with `get_app_preferences_path()`, following the exact
-pattern already used by `get_audio_cache_dir()` (an env-var override, then
-`LOCALAPPDATA`-based platform path, falling back to
-`~/.cache/vocabulary_app/` off Windows). `src/ui_desktop/state/preferences.py`
-owns reading/writing that file; `src/` core modules never touch it.
+`src/app_config.py` with `get_app_preferences_path()`. Appearance/Accent are
+**durable, persistent** preferences, not disposable/rebuildable data like the
+audio cache — so this function must resolve to an OS-appropriate **persistent
+configuration** location, not `get_audio_cache_dir()`'s cache-directory
+pattern. It reuses the same *shape* (env-var override, then a
+`LOCALAPPDATA`-based Windows path), but the non-Windows fallback must be an
+XDG-style **config** directory (`$XDG_CONFIG_HOME` if set, else
+`~/.config/vocabulary_app/preferences.json`) — never `~/.cache`, which a user
+or the OS may clear at any time and would silently discard the user's saved
+theme preference. `src/ui_desktop/state/preferences.py` owns reading/writing
+that file; `src/` core modules never touch it. The exact resolver
+implementation is an M16.2 task (§ 19); this section freezes only the
+location *class* (persistent config, not cache) and the ownership boundary.
 
 ### C. Transient desktop/controller state — owned by controllers/state, not core
 
@@ -326,13 +347,14 @@ with the M16.1 prompt § 5's explicit prohibition.
 
 ## 12. Application-Preference Ownership
 
-Summarized from § 11.B: `src/app_config.py` (path resolution, mirroring
-`get_audio_cache_dir()`) + `src/ui_desktop/state/preferences.py` (read/write
-of Appearance/Accent, and any other genuinely durable *presentation*
-preference such as last window geometry). Explicitly **not** SQLite, **not**
-a schema migration, **not** `app_data_version`-tracked state — it carries no
-learning semantics and must never be conflated with `src/migrations.py`'s
-registry.
+Summarized from § 11.B: `src/app_config.py` (`get_app_preferences_path()`,
+using an env-var-override + platform-path shape analogous to
+`get_audio_cache_dir()` but resolving to a **persistent config** location,
+not a cache location) + `src/ui_desktop/state/preferences.py` (read/write of
+Appearance/Accent, and any other genuinely durable *presentation* preference
+such as last window geometry). Explicitly **not** SQLite, **not** a schema
+migration, **not** `app_data_version`-tracked state — it carries no learning
+semantics and must never be conflated with `src/migrations.py`'s registry.
 
 ## 13. Background Task / Progress / Cancellation Model
 

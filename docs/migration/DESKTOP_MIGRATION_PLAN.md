@@ -99,7 +99,7 @@ contract document is now authoritative for the decision itself.
 | PySide6 | Strong | Official Qt for Python; strong tables, dialogs, desktop workflows, and packaging potential, but adds Qt complexity and a large dependency | **Selected** |
 | PyQt | Strong | Mature Qt ecosystem and similar capability, but distribution/licensing choices require deliberate review | Rejected — GPLv3-or-commercial only, no LGPL option |
 | Tkinter | Limited | Built into Python and simple, but less suitable for dense tables, modern workflow design, and larger product growth | Rejected — confirmed still limited for Table-First |
-| Toga / Briefcase | Exploratory | Native-oriented and cross-platform, but smaller ecosystem and higher migration uncertainty | Rejected for now — Table widget dense-data limits documented |
+| Toga / Briefcase | Exploratory | Native-oriented and cross-platform, but smaller ecosystem and higher migration uncertainty | Rejected for now — beta/macOS-only cell-widget support and no primary-source Windows-scale Table evidence |
 | Electron / webview wrapper | Conditional | Powerful UI ecosystem but introduces an additional runtime and moves farther from the existing Python desktop architecture | Rejected — second runtime/toolchain |
 
 No framework was selected solely because it resembles the current Streamlit

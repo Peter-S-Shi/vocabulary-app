@@ -33,8 +33,13 @@ Streamlit `session_state` is UI state. Durable state and duplicate-action protec
 
 ## Desktop UI Boundary Rule
 
-PySide6 imports are allowed only in `src/ui_desktop/*.py` (selected in M16.1;
-see [M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md)).
+In production application code, PySide6 imports are allowed only in
+`src/ui_desktop/*.py` (selected in M16.1; see
+[M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md)).
+This rule covers `app.py` and `src/`, the files `scripts/audit_architecture.py`
+scans; it does not restrict test code under `tests/`, which the audit script
+does not scan and which may import PySide6 directly for architecture
+verification (see `tests/test_m16_1_architecture_spike.py`).
 
 Reusable modules under `src/` must not import PySide6 or `src.ui_desktop`, the
 same way they must not import Streamlit or `src.ui_streamlit`. The Streamlit
