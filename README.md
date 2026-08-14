@@ -35,12 +35,11 @@ Export, Failure Safety, and Milestone Closure merged through PR #17 at
 `9448f2e44940e0d426a965823aa66c48f53ec0f1`. **Milestone 15 — Audio
 Foundation is complete on `main`.** **Milestone 16 — Desktop Architecture and
 UI Design is in progress**; M16.0 Desktop UI Design Baseline is complete and
-frozen in [DESIGN.md](DESIGN.md). M16.1 Desktop Architecture Foundation
-selects PySide6 as the desktop framework and freezes the controller/
-view-state/core boundary (see
-[M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md)),
-implemented pending independent review. M16.2 Minimal Desktop Vertical Slice
-& M16 Exit remains open until M16.1 merges.
+frozen in [DESIGN.md](DESIGN.md). **M16.1 Desktop Architecture Foundation is
+complete on `main`**, selecting PySide6 as the desktop framework and
+freezing the controller/view-state/core boundary (see
+[M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md)).
+M16.2 Minimal Desktop Vertical Slice & M16 Exit is next.
 
 Streamlit remains the currently runnable compatibility/reference UI, but it is
 no longer the intended Release Candidate target. The active lifecycle now

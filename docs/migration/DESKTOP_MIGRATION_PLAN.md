@@ -88,7 +88,7 @@ will be discarded during migration unless the issue affects:
 
 ## 3. Candidate Desktop Frameworks
 
-**Status: Decided in M16.1.** The evidence-backed decision, license finding,
+**Status: Decided in M16.1 — complete on `main`.** The evidence-backed decision, license finding,
 technical spike, and rejected-alternative rationale are recorded in
 [M16.1 Desktop Architecture Contract](../design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md).
 This section keeps the original candidate table for historical context; the
@@ -829,10 +829,10 @@ Collection.
 
 ### Desktop Architecture
 
-- [ ] desktop framework approved
+- [x] desktop framework approved *(M16.1, PR #21)*
 - [ ] information architecture approved
 - [ ] UI design system established
-- [ ] controller/view-model boundaries established
+- [x] controller/view-model boundaries established *(M16.1, PR #21)*
 - [ ] minimal desktop shell opens existing database
 - [ ] basic Today/Entries prototype works
 
@@ -910,16 +910,16 @@ The Milestone 11 trustworthy baseline, repository restructure, Import and
 Template Evolution foundation, Learning Analytics core, and the complete
 Milestone 15 Audio Foundation (through M15.3) are established on `main`.
 Milestone 16 has started: M16.0 Desktop UI Design Baseline is complete and
-frozen in `DESIGN.md`. M16.1 Desktop Architecture Foundation — the framework
-decision (§ 3) and controller/view-state boundaries (§ 7) — is implemented on
-its review branch and recorded in
-[M16.1 Desktop Architecture Contract](../design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md),
-pending independent review and merge to `main`.
+frozen in `DESIGN.md`. **M16.1 Desktop Architecture Foundation — the
+framework decision (§ 3) and controller/view-state boundaries (§ 7) — is
+complete on `main`** through PR #21 at
+`a1dc044721e9017d39842e96e0516a88a36d129f`, recorded in
+[M16.1 Desktop Architecture Contract](../design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md).
 
-Once M16.1 is independently reviewed and merged, M16.2 proves a deliberately
-small native shell that opens the existing SQLite database and proves reuse
-of the current learning engine (§ Phase 2 below), built against the M16.1
-contract without reopening the framework or state-boundary decisions.
+M16.2 is next: it proves a deliberately small native shell that opens the
+existing SQLite database and proves reuse of the current learning engine
+(§ Phase 2 below), built against the M16.1 contract without reopening the
+framework or state-boundary decisions.
 
 The migration should remain incremental:
 
