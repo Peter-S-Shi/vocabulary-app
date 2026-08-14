@@ -115,11 +115,12 @@ gate. Milestone 15.1 merged through PR #13 at
 PR #15 at `c9d7e8d05c968d52af2b77c76454f849706788bc`. Milestone 15.3 merged through
 PR #17 at `9448f2e44940e0d426a965823aa66c48f53ec0f1` from independently reviewed
 head `765c4c5f92c29a5c30cb41b0c2aa3fbbc01df7db`, completing Milestone 15.
-Milestone 16 has started. Its UI/design baseline — information architecture,
-theme architecture, and accessibility rules — is complete and frozen in
-[DESIGN.md](DESIGN.md). Milestone 16 as a whole is **not** complete: the
-desktop framework decision, controller/view-state boundaries, and minimal
-desktop shell remain open (see § Milestone 16 below).
+Milestone 16 has started. M16.0 Desktop UI Design Baseline — information
+architecture, theme architecture, and accessibility rules — is complete and
+frozen in [DESIGN.md](DESIGN.md). Milestone 16 as a whole is **not** complete:
+M16.1 Desktop Architecture Foundation (framework decision and controller/
+view-state boundaries) is next, and M16.2 Minimal Desktop Vertical Slice &
+M16 Exit follows (see § Milestone 16 below).
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -683,98 +684,96 @@ The governing principle is:
 
 > Replace the UI layer, preserve the learning engine.
 
-### 16.1 Desktop Framework Decision
+Milestone 16 is organized into three coherent, independently understandable,
+implementable, and verifiable engineering loops rather than by every
+architectural layer or checklist item.
 
-**Status: Open.**
+### M16.0 Desktop UI Design Baseline
 
-Evaluate the most suitable desktop framework against:
+**Status: Complete.** Absorbs the former Desktop Information Architecture and
+UI System scope.
 
-- compatibility with the existing Python core;
-- SQLite integration;
-- complex tables and forms;
-- dialogs and popup workflows;
-- background/batch tasks;
-- packaging;
-- licensing;
-- maintainability; and
-- future product requirements.
+Authority: [DESIGN.md](DESIGN.md).
 
-A small technical prototype may be used before the final framework decision.
+Completed:
 
-### 16.2 Desktop Information Architecture
+- desktop information architecture;
+- Management Mode / Study Mode;
+- master-screen archetypes;
+- Utility/Dialog grammar;
+- theme architecture;
+- semantic tokens;
+- contrast/accessibility;
+- interaction/component rules; and
+- visual acceptance criteria.
 
-**Status: Complete.** Frozen master-screen structure, macro interaction
-model, and Utility/Dialog grammar are recorded in [DESIGN.md](DESIGN.md).
+No new branch was required; this work is already on `main`.
 
-Define the main application structure and navigation.
+### M16.1 Desktop Architecture Foundation
 
-Map existing workflows into appropriate desktop surfaces such as:
+**Status: Open — Next.** Combines the former Desktop Framework Decision and
+Controller/View State scope into one architecture decision loop.
 
-- main pages;
-- dialogs;
-- modal confirmation;
-- popup detail windows;
-- side panels;
-- progress windows; and
-- settings windows.
+Scope:
 
-Do not mechanically reproduce Streamlit page structure where desktop-native
-interaction offers a better model.
+- evaluate and select the desktop framework against compatibility with the
+  existing Python core, SQLite integration, complex tables and forms,
+  dialogs and popup workflows, background/batch tasks, packaging, licensing,
+  maintainability, and future product requirements;
+- use a small technical spike only if needed for evidence;
+- document why the selected framework fits the existing Python/SQLite core
+  and frozen `DESIGN.md` requirements;
+- define controller/view-model ownership of transient UI state;
+- define the boundary between transient desktop state and durable
+  SQLite/core state;
+- define how desktop code calls reusable core/services without duplicating
+  business logic;
+- identify only genuinely necessary thin orchestration/service boundaries;
+- define the initial desktop module/package structure; and
+- preserve existing database compatibility.
 
-### 16.3 UI System
+Do not build the full desktop shell in M16.1.
 
-**Status: Complete.** Theme architecture, semantic token tables, contrast/
-accessibility rules, typography/spacing/component principles, and visual
-acceptance criteria are recorded in [DESIGN.md](DESIGN.md).
+Exit: framework and state/architecture boundaries are frozen enough that
+minimal-shell implementation no longer depends on unresolved architecture
+choices.
 
-Define a coherent desktop design system for:
+### M16.2 Minimal Desktop Vertical Slice & M16 Exit
 
-- typography;
-- spacing;
-- navigation;
-- tables;
-- forms;
-- buttons;
-- statuses;
-- dialogs;
-- warnings;
-- progress;
-- empty states; and
-- destructive actions.
+**Status: Open — After M16.1.** Combines the former Minimal Desktop Shell
+scope with final Milestone 16 exit verification.
 
-### 16.4 Controller and View State
+Scope:
 
-**Status: Open.**
+- create the minimal native desktop shell using the M16.1 architecture;
+- prove the app starts successfully;
+- prove it opens an existing compatible SQLite database without destructive
+  conversion;
+- prove basic desktop shell/navigation works;
+- prove at least Today/Home summary and Entries/Table-First listing through
+  reusable core calls;
+- establish the minimum `DESIGN.md` theme/token plumbing needed to prove the
+  frozen UI contract in the chosen framework;
+- prove transient controller/view state stays outside reusable
+  core/business modules; and
+- run final Milestone 16 exit verification and record evidence.
 
-Desktop controllers or view models should own transient UI state.
-
-Durable learning state remains in SQLite.
-
-Do not move former `st.session_state` behavior into reusable core modules.
-
-### 16.5 Minimal Desktop Shell
-
-**Status: Open.**
-
-Prove that the desktop application can:
-
-- start successfully;
-- resolve and open an existing database;
-- display a basic Today summary;
-- list existing entries; and
-- call reusable core modules without Streamlit.
+Do not mechanically clone Streamlit. Do not migrate every page in M16.2 — it
+is a vertical-slice proof of architecture and core reuse, not the full
+desktop product migration.
 
 ### Milestone 16 Exit Criteria
 
 **Status: Open — final exit verification not yet performed.**
 
-- [ ] Desktop framework decision is documented. *(16.1 open)*
-- [x] Main navigation and workflow mapping are approved. *(16.2 complete —
-      `DESIGN.md`)*
-- [ ] Core desktop state-management boundaries are defined. *(16.4 open)*
-- [ ] Existing SQLite data opens without destructive conversion. *(depends on
-      16.5)*
-- [ ] A minimal shell proves core reuse. *(16.5 open)*
+- [x] Main navigation, macro interaction model, and UI/design system are
+      approved. *(M16.0 complete — `DESIGN.md`)*
+- [ ] Desktop framework decision is documented. *(M16.1 open)*
+- [ ] Core desktop state-management boundaries are defined. *(M16.1 open)*
+- [ ] Existing SQLite data opens without destructive conversion. *(depends
+      on M16.2)*
+- [ ] A minimal vertical slice proves core reuse for at least Today and
+      Entries. *(M16.2 open)*
 
 Milestone 16 is not complete until every item above is checked and a final
 exit-criteria verification is recorded.
