@@ -830,13 +830,13 @@ Collection.
 ### Desktop Architecture
 
 - [x] desktop framework approved *(M16.1, PR #21)*
-- [ ] information architecture approved
-- [ ] UI design system established
+- [x] information architecture approved *(M16.0, `DESIGN.md`)*
+- [x] UI design system established *(M16.0, `DESIGN.md`)*
 - [x] controller/view-model boundaries established *(M16.1, PR #21)*
-- [x] minimal desktop shell opens existing database *(M16.2, review branch
-      `agent/m16-2-desktop-vertical-slice` — pending independent review)*
-- [x] basic Today/Entries prototype works *(M16.2, review branch
-      `agent/m16-2-desktop-vertical-slice` — pending independent review)*
+- [x] minimal desktop shell opens existing database *(M16.2, PR #23,
+      `2e900d243950ca93aedf5cbde5b836dc6e378f25`)*
+- [x] basic Today/Entries prototype works *(M16.2, PR #23,
+      `2e900d243950ca93aedf5cbde5b836dc6e378f25`)*
 
 ### Workflow Migration
 
@@ -918,18 +918,28 @@ complete on `main`** through PR #21 at
 `a1dc044721e9017d39842e96e0516a88a36d129f`, recorded in
 [M16.1 Desktop Architecture Contract](../design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md).
 
-**M16.2 Minimal Desktop Vertical Slice & M16 Exit is implemented** on branch
-`agent/m16-2-desktop-vertical-slice`, pending independent review: a
-deliberately small native shell (`python -m src.ui_desktop`, per
-[README.md § Desktop Preview](../../README.md#desktop-preview-m162-exit-candidate--not-yet-complete-on-main))
+**M16.2 Minimal Desktop Vertical Slice & M16 Exit is complete on `main`**
+through PR #23 at `2e900d243950ca93aedf5cbde5b836dc6e378f25`: a deliberately
+small native shell (`python -m src.ui_desktop`, per
+[README.md § Desktop Preview](../../README.md#desktop-preview-m162-complete-on-main))
 that opens the existing SQLite database and proves reuse of the current
 learning engine (§ Phase 2 above), built against the M16.1 contract without
 reopening the framework or state-boundary decisions. Full evidence is
 recorded in
-[Milestone 16 Closure — Exit Candidate](../history/MILESTONE16_CLOSURE.md).
-Milestone 16 as a whole remains an exit candidate, not complete on `main`,
-until that PR is independently reviewed and merged; Milestone 17 (Phase 3)
-does not begin until then.
+[Milestone 16 Closure](../history/MILESTONE16_CLOSURE.md). **Milestone 16 is
+complete on `main`.**
+
+**Milestone 17 — Desktop Core Workflow Migration (Phase 3 above) is the next
+objective and has not started.** It remains one milestone: one long-lived
+branch (expected `agent/m17-desktop-core-workflow-migration`), one Draft PR,
+and an ordered feature migration sequence (Today, Review, Quiz, Entries,
+minimum Collection integration, then parity/exit verification) rather than
+independent sub-milestone branches or PRs. From M17 onward, functional
+workflow migration and that workflow's approved `DESIGN.md` archetype
+implementation are one feature-level engineering closure — see
+[ROADMAP.md § Milestone 17](../../ROADMAP.md#milestone-17-desktop-core-workflow-migration)
+for the full operating model, frozen semantic boundaries, and verification
+model.
 
 The migration should remain incremental:
 

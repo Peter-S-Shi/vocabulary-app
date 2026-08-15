@@ -1,6 +1,6 @@
 # Vocabulary App Project Status
 
-Last reviewed: 2026-08-14
+Last reviewed: 2026-08-15
 
 This file is the authoritative evidence-based snapshot of the current project
 state.
@@ -12,11 +12,12 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 ## Current Phase
 
-**Milestone 16 — Desktop Architecture and UI Design (In Progress)**
+**Milestone 16 — Desktop Architecture and UI Design (Complete on `main`);
+Milestone 17 — Desktop Core Workflow Migration (Next)**
 
 ## Current Milestone
 
-**Milestone 15 Complete on `main`; Milestone 16 In Progress**
+**Milestone 16 Complete on `main`; Milestone 17 Not Started**
 
 M16.0 Desktop UI Design Baseline is complete and frozen: [DESIGN.md](DESIGN.md)
 records the approved desktop information architecture, theme architecture, and
@@ -24,12 +25,26 @@ accessibility rules. **M16.1 Desktop Architecture Foundation is complete on
 `main`** through PR #21, merged at
 `a1dc044721e9017d39842e96e0516a88a36d129f` from independently reviewed head
 `439cc9612578b5dc78eda57e07f054bec8d60d38`. **M16.2 Minimal Desktop Vertical
-Slice & M16 Exit is implemented** on branch
-`agent/m16-2-desktop-vertical-slice`, pending independent review. Milestone
-16 as a whole is **not** complete on `main` — it is an exit candidate
-pending that review. See `ROADMAP.md` § Milestone 16 for exit criteria and
-[Milestone 16 Closure — Exit Candidate](docs/history/MILESTONE16_CLOSURE.md)
-for full evidence.
+Slice & M16 Exit is complete on `main`** through PR #23, merged at
+`2e900d243950ca93aedf5cbde5b836dc6e378f25` from final reviewed head
+`0e78e6f9c1892846e7b63d9696d2312dfcaa6b9a`. **Milestone 16 as a whole is
+Complete on `main`**, closed after engineering review, SQLite-compatibility
+review, AppState/state-boundary review, human native-window visual
+acceptance, navigation-contrast acceptance, and desktop-launcher/icon
+acceptance. See `ROADMAP.md` § Milestone 16 for exit criteria and
+[Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md) for full
+evidence.
+
+Milestone 17 — Desktop Core Workflow Migration is the next objective. It
+remains one milestone: one long-lived branch, one Draft PR (expected
+`agent/m17-desktop-core-workflow-migration`), and an ordered feature
+migration sequence (Today, Review, Quiz, Entries, minimum Collection
+integration, then parity/exit verification) rather than independent
+sub-milestone branches or PRs. From M17 onward, functional workflow
+migration and that workflow's approved `DESIGN.md` archetype implementation
+are one feature-level engineering closure — see `ROADMAP.md` § Milestone 17
+for the full operating model, frozen semantic boundaries, and verification
+model. M17 implementation has not started; no branch or PR exists yet.
 
 M16.1 selects **PySide6** as the desktop framework and freezes the
 controller/view-state/core boundary, the initial `src/ui_desktop/` package
@@ -96,9 +111,9 @@ real desktop bootstrap (`build_application()`, including its own
 the real `VOCAB_APP_DB_PATH`/`get_database_path()` resolution, not just the
 controllers in isolation. M16.2 adds no schema or app-data migration and
 does not alter learning, analytics, import, or audio semantics. Full
-evidence, including the SQLite compatibility proof and the human
+evidence, including the SQLite compatibility proof and the completed human
 visual-check list, is recorded in
-[Milestone 16 Closure — Exit Candidate](docs/history/MILESTONE16_CLOSURE.md).
+[Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md).
 
 A human visual-acceptance pass found the Management-mode Today/Entries
 navigation actions rendering with extremely low contrast, resembling
@@ -135,8 +150,11 @@ and shut down cleanly with exit code 0. This proves the app does not crash
 on the real platform; it does not substitute for visual inspection. A
 screenshot-based visual-verification attempt was aborted after it captured
 the operator's live desktop instead of the application window and was
-deleted immediately without being used as evidence — see the Milestone 16
-Closure document for the resulting human visual-check requirement.
+deleted immediately without being used as evidence. The subsequent human
+visual-acceptance pass against the Milestone 16 Closure checklist passed,
+including the navigation-contrast fix, the desktop launcher, and the
+application icon, closing Milestone 16 on `main` through PR #23 at
+`2e900d243950ca93aedf5cbde5b836dc6e378f25`.
 
 M15.3 adds a UI-independent snapshot-based Audio Export service for a single
 current Card, an ordered Card selection, or all active Cards in a Collection.
@@ -185,11 +203,11 @@ Both Repeat Each Field and Repeat Whole Card are first-class deterministic
 composition modes. Planning or generation does not mutate SQLite learning
 state. M15.2 and M15.3 are complete on `main`, formally closing Milestone 15.
 Substantial audio UI and spoken Quiz behavior remain deferred beyond M15.
-Milestone 16 has started; its M16.0 UI/Design Baseline is complete and frozen
-in `DESIGN.md`. M16.1 Desktop Architecture Foundation is complete on `main`.
-M16.2 Minimal Desktop Vertical Slice & M16 Exit is implemented pending
-independent review; Milestone 16 is an exit candidate, not yet complete on
-`main`.
+Milestone 16 is complete on `main`; its M16.0 UI/Design Baseline is complete
+and frozen in `DESIGN.md`. M16.1 Desktop Architecture Foundation is complete
+on `main` (PR #21). M16.2 Minimal Desktop Vertical Slice & M16 Exit is
+complete on `main` (PR #23, `2e900d243950ca93aedf5cbde5b836dc6e378f25`).
+Milestone 17 — Desktop Core Workflow Migration is the next objective.
 
 Verification on 2026-08-13 passed:
 
@@ -1322,10 +1340,18 @@ complete.
 
 ## Next Objective
 
-**Independently review and accept M15.1 — Speech Semantics & TTS Provider Foundation**
+**Begin Milestone 17 — Desktop Core Workflow Migration, starting with the
+Today feature.**
 
-M15.1 is implemented on its dedicated branch and awaiting independent review.
-Do not mark it complete or begin M15.2 until the review and merge gates close.
+Milestone 16 is complete on `main` (PR #23,
+`2e900d243950ca93aedf5cbde5b836dc6e378f25`). M17 is one milestone: one
+long-lived branch, one Draft PR (expected
+`agent/m17-desktop-core-workflow-migration`), and an ordered feature
+migration sequence — Today, Review, Quiz, Entries, minimum Collection
+integration, then parity/exit verification — rather than independent
+sub-milestone branches or PRs. See `ROADMAP.md` § Milestone 17 for the full
+operating model, frozen semantic boundaries, and verification model. No M17
+branch or implementation exists yet.
 
 ## Repository State
 
@@ -1392,16 +1418,18 @@ Do not mark it complete or begin M15.2 until the review and merge gates close.
 - M16.1 merge commit on `main`: `a1dc044721e9017d39842e96e0516a88a36d129f`
 - M16.2 synchronized base commit (verified `main` at prompt time):
   `f2c139f758962b0684271e11df55770675cc8cbb`
-- M16.2 implementation branch: `agent/m16-2-desktop-vertical-slice`
-- M16.2 head (pending independent review): see PR for exact reviewed head
-  SHA; not pinned here to avoid a stale self-reference across any
-  pre-merge amendment
+- M16.2 implementation branch (merged): `agent/m16-2-desktop-vertical-slice`
+- M16.2 final reviewed head: `0e78e6f9c1892846e7b63d9696d2312dfcaa6b9a`
+- Final M16.2 PR: `#23 — M16.2 Minimal Desktop Vertical Slice & M16 Exit`
+  (merged)
+- M16.2 / Milestone 16 merge commit on `main`:
+  `2e900d243950ca93aedf5cbde5b836dc6e378f25`
 - Current lifecycle documents:
   - `ROADMAP.md`
   - `PROJECT_STATUS.md`
   - `docs/migration/DESKTOP_MIGRATION_PLAN.md`
   - `docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md`
-  - `docs/history/MILESTONE16_CLOSURE.md` (exit candidate; not yet closure)
+  - `docs/history/MILESTONE16_CLOSURE.md` (final closure record)
 - Current closure evidence:
   - `docs/history/MILESTONE11_CLOSURE.md`
   - `docs/history/MILESTONE14_CLOSURE.md`
@@ -1411,16 +1439,20 @@ Do not mark it complete or begin M15.2 until the review and merge gates close.
   - `docs/design/M15_2_AUDIO_ASSET_COMPOSITION_CONTRACT.md`
   - `docs/design/M15_3_BATCH_EXPORT_CONTRACT.md`
   - `docs/history/MILESTONE15_CLOSURE.md`
+  - `docs/history/MILESTONE16_CLOSURE.md`
   - `THIRD_PARTY_NOTICES.md`
 - Current lifecycle state:
   **Milestone 15 — Audio Foundation Complete on `main`; Milestone 16 —
-  Desktop Architecture and UI Design: exit candidate, not yet Complete on
-  `main`. M16.0 Desktop UI Design Baseline Complete (`DESIGN.md`); M16.1
-  Desktop Architecture Foundation Complete on `main` (PR #21,
+  Desktop Architecture and UI Design Complete on `main`. M16.0 Desktop UI
+  Design Baseline Complete (`DESIGN.md`); M16.1 Desktop Architecture
+  Foundation Complete on `main` (PR #21,
   `a1dc044721e9017d39842e96e0516a88a36d129f`); M16.2 Minimal Desktop
-  Vertical Slice & M16 Exit Implemented on branch
-  `agent/m16-2-desktop-vertical-slice`, Pending Independent Review**
+  Vertical Slice & M16 Exit Complete on `main` (PR #23,
+  `2e900d243950ca93aedf5cbde5b836dc6e378f25`). Milestone 17 — Desktop Core
+  Workflow Migration Not Started.**
 - Exact next objective:
-  **Independently review and merge M16.2 Minimal Desktop Vertical Slice &
-  M16 Exit. Do not begin M17 until that review closes and Milestone 16 is
-  confirmed Complete on `main`.**
+  **Begin Milestone 17 — Desktop Core Workflow Migration on one long-lived
+  branch (`agent/m17-desktop-core-workflow-migration`) through one Draft PR,
+  starting with the Today feature (functional migration + Command Center
+  DESIGN.md implementation as one closure). See `ROADMAP.md` § Milestone 17
+  for the full operating model.**

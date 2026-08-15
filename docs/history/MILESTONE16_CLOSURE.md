@@ -1,11 +1,13 @@
-# Milestone 16 Closure — Exit Candidate
+# Milestone 16 Closure
 
-Status: **Exit candidate / pending independent review and merge. Milestone
-16 is NOT yet Complete on `main`.**
+Status: **Complete on `main`.**
 
-This document records the evidence for Milestone 16 exit review. It is a
-closure candidate, not a closure record: nothing here is authoritative until
-the M16.2 PR is independently reviewed and merged.
+This document records the final evidence for Milestone 16. PR #23 merged
+normally to `main` at `2e900d243950ca93aedf5cbde5b836dc6e378f25` from final
+reviewed head `0e78e6f9c1892846e7b63d9696d2312dfcaa6b9a`. Milestone 16 closed
+after engineering review, SQLite-compatibility review, AppState/state-
+boundary review, human native-window visual acceptance, navigation-contrast
+acceptance, and desktop-launcher/icon acceptance.
 
 ## Milestone Summary
 
@@ -13,14 +15,14 @@ the M16.2 PR is independently reviewed and merged.
 |---|---|---|
 | M16.0 — Desktop UI Design Baseline | Complete on `main` | [`DESIGN.md`](../../DESIGN.md) |
 | M16.1 — Desktop Architecture Foundation | Complete on `main` (PR #21, `a1dc044721e9017d39842e96e0516a88a36d129f`) | [`docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md`](../design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md) |
-| M16.2 — Minimal Desktop Vertical Slice & M16 Exit | **Implemented / pending independent review** | this document + PR (see below) |
-| **Milestone 16 overall** | **Exit candidate, not Complete on `main`** | — |
+| M16.2 — Minimal Desktop Vertical Slice & M16 Exit | **Complete on `main`** (PR #23, `2e900d243950ca93aedf5cbde5b836dc6e378f25`) | this document |
+| **Milestone 16 overall** | **Complete on `main`** | — |
 
 M16.2 base: synchronized `main` at
 `f2c139f758962b0684271e11df55770675cc8cbb` (PR #22 merge commit).
-Branch: `agent/m16-2-desktop-vertical-slice` (see the PR for the exact
-reviewed head SHA; not pinned here to avoid a stale self-reference across
-any pre-merge amendment).
+Branch: `agent/m16-2-desktop-vertical-slice` (merged, deleted). Final
+reviewed head: `0e78e6f9c1892846e7b63d9696d2312dfcaa6b9a`. Merge commit on
+`main`: `2e900d243950ca93aedf5cbde5b836dc6e378f25`.
 
 ## Vertical-Slice Capabilities Proven
 
@@ -205,9 +207,8 @@ further screenshot attempt was made.
 A prior human visual-acceptance pass against this document's checklist
 found one real defect — the Management-mode Today/Entries navigation
 actions rendering with extremely low contrast — recorded and fixed above
-under Capability 10. That fix has **not** been re-confirmed by a new human
-visual pass; the checklist below must be re-run in full, not assumed to
-pass because the known defect was addressed in code.
+under Capability 10. A subsequent human visual-acceptance pass re-ran the
+full checklist below, including that specific contrast fix, and passed.
 
 The Windows desktop launcher (Capability 11) was separately verified
 end to end on the development machine, without a human visual pass, by
@@ -228,30 +229,35 @@ The test-generated shortcut was deleted immediately after verification; no
 shortcut was left on the development machine's Desktop, and none was
 committed (`.lnk` is gitignored — see § Deferred / Known Limitations).
 
-Per the M16.2 prompt § 13, `DESIGN.md` § 19 visual acceptance is **not**
-claimed from this evidence. A human visual-check pass is required before
-final Milestone 16 sign-off:
+Per the M16.2 prompt § 13, `DESIGN.md` § 19 visual acceptance was not
+claimed from the automated/structural evidence above. The human
+visual-check pass required before Milestone 16 sign-off has now run and
+passed:
 
-- [ ] `python tools/setup_desktop_launcher.py` creates a Desktop shortcut
+- [x] `python tools/setup_desktop_launcher.py` creates a Desktop shortcut
       named "Vocabulary App" with the repository's icon (not a generic
       Python/terminal icon);
-- [ ] double-clicking that shortcut opens a visible native window without
+- [x] double-clicking that shortcut opens a visible native window without
       requiring PowerShell or manual typing, and without leaving a console
       window open;
-- [ ] the same icon appears on the application window/taskbar entry;
-- [ ] Today and Entries are both reachable from the navigation toolbar;
-- [ ] the Today/Entries navigation actions are clearly readable at rest,
+- [x] the same icon appears on the application window/taskbar entry;
+- [x] Today and Entries are both reachable from the navigation toolbar;
+- [x] the Today/Entries navigation actions are clearly readable at rest,
       and visibly (not just structurally) change on hover/press — this is
-      the specific defect Capability 10 fixes; confirm it in both Light and
+      the specific defect Capability 10 fixes; confirmed in both Light and
       Dark;
-- [ ] the Entries table is usable at normal desktop window size (readable
+- [x] the Entries table is usable at normal desktop window size (readable
       rows, functioning selection, search box works);
-- [ ] switching between Light and Dark (e.g. by editing the preferences
+- [x] switching between Light and Dark (e.g. by editing the preferences
       file's `appearance` value and relaunching) is visibly coherent and
       matches the Calm Blue palette in `DESIGN.md` § 11;
-- [ ] navigation/chrome does not obviously violate the frozen Management
+- [x] navigation/chrome does not obviously violate the frozen Management
       Mode direction (§ 3, § 4.2 of `DESIGN.md`);
-- [ ] no raw traceback or local file path is visible anywhere in the UI.
+- [x] no raw traceback or local file path is visible anywhere in the UI.
+
+This human acceptance pass, together with the engineering, SQLite-
+compatibility, and AppState/state-boundary reviews recorded above, is the
+basis for closing Milestone 16 on `main`.
 
 ## Deferred to M17 / M18 / M20
 
@@ -277,14 +283,22 @@ limitation. M20 remains fully open.
 
 ## Explicit Non-Claims
 
-This document does not claim:
+Milestone 16 is Complete on `main`. This document does not claim:
 
-- Milestone 16 is Complete on `main`;
 - full desktop migration is complete;
+- Today, Review, Quiz, Entries, or Collections are fully migrated (that is
+  Milestone 17 scope);
 - Streamlit is retired;
 - Feature Freeze;
 - Desktop Ready;
 - Release Ready.
 
-Milestone 16 remains an **exit candidate pending independent review and
-merge** of the M16.2 PR. M17 is blocked until that review closes.
+## Closure
+
+Milestone 16 is **Complete on `main`** through PR #23, merged at
+`2e900d243950ca93aedf5cbde5b836dc6e378f25` from final reviewed head
+`0e78e6f9c1892846e7b63d9696d2312dfcaa6b9a`. All exit criteria in
+`ROADMAP.md` § Milestone 16 are verified against `main`. Milestone 17 —
+Desktop Core Workflow Migration is the next objective; see `ROADMAP.md` §
+Milestone 17 for its operating model, feature migration sequence, frozen
+semantic boundaries, and verification model.
