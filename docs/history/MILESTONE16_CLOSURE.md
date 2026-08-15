@@ -1,11 +1,16 @@
-# Milestone 16 Closure — Exit Candidate
+# Milestone 16 Closure
 
-Status: **Exit candidate / pending independent review and merge. Milestone
-16 is NOT yet Complete on `main`.**
+Status: **Complete on `main`.**
 
-This document records the evidence for Milestone 16 exit review. It is a
-closure candidate, not a closure record: nothing here is authoritative until
-the M16.2 PR is independently reviewed and merged.
+This document records the final evidence for Milestone 16. PR #23 merged
+normally to `main` at `2e900d243950ca93aedf5cbde5b836dc6e378f25` from final
+reviewed head `0e78e6f9c1892846e7b63d9696d2312dfcaa6b9a`. Milestone 16 closed
+after engineering review, SQLite-compatibility review, AppState/state-
+boundary review, a real-window smoke pass confirming no crash on the native
+platform, and a final targeted human acceptance pass confirming the desktop
+launcher, the application icon, and the corrected navigation contrast — see
+§ Human Acceptance Evidence below for the exact scope of that pass and what
+broader UI acceptance work remains open.
 
 ## Milestone Summary
 
@@ -13,14 +18,14 @@ the M16.2 PR is independently reviewed and merged.
 |---|---|---|
 | M16.0 — Desktop UI Design Baseline | Complete on `main` | [`DESIGN.md`](../../DESIGN.md) |
 | M16.1 — Desktop Architecture Foundation | Complete on `main` (PR #21, `a1dc044721e9017d39842e96e0516a88a36d129f`) | [`docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md`](../design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md) |
-| M16.2 — Minimal Desktop Vertical Slice & M16 Exit | **Implemented / pending independent review** | this document + PR (see below) |
-| **Milestone 16 overall** | **Exit candidate, not Complete on `main`** | — |
+| M16.2 — Minimal Desktop Vertical Slice & M16 Exit | **Complete on `main`** (PR #23, `2e900d243950ca93aedf5cbde5b836dc6e378f25`) | this document |
+| **Milestone 16 overall** | **Complete on `main`** | — |
 
 M16.2 base: synchronized `main` at
 `f2c139f758962b0684271e11df55770675cc8cbb` (PR #22 merge commit).
-Branch: `agent/m16-2-desktop-vertical-slice` (see the PR for the exact
-reviewed head SHA; not pinned here to avoid a stale self-reference across
-any pre-merge amendment).
+Branch: `agent/m16-2-desktop-vertical-slice` (merged, deleted). Final
+reviewed head: `0e78e6f9c1892846e7b63d9696d2312dfcaa6b9a`. Merge commit on
+`main`: `2e900d243950ca93aedf5cbde5b836dc6e378f25`.
 
 ## Vertical-Slice Capabilities Proven
 
@@ -205,9 +210,7 @@ further screenshot attempt was made.
 A prior human visual-acceptance pass against this document's checklist
 found one real defect — the Management-mode Today/Entries navigation
 actions rendering with extremely low contrast — recorded and fixed above
-under Capability 10. That fix has **not** been re-confirmed by a new human
-visual pass; the checklist below must be re-run in full, not assumed to
-pass because the known defect was addressed in code.
+under Capability 10.
 
 The Windows desktop launcher (Capability 11) was separately verified
 end to end on the development machine, without a human visual pass, by
@@ -228,9 +231,61 @@ The test-generated shortcut was deleted immediately after verification; no
 shortcut was left on the development machine's Desktop, and none was
 committed (`.lnk` is gitignored — see § Deferred / Known Limitations).
 
-Per the M16.2 prompt § 13, `DESIGN.md` § 19 visual acceptance is **not**
-claimed from this evidence. A human visual-check pass is required before
-final Milestone 16 sign-off:
+## Human Acceptance Evidence
+
+`DESIGN.md` § 19 visual acceptance is a human judgment, not something an
+automated test can certify. This closure record therefore distinguishes
+four separate kinds of evidence rather than treating them as one blanket
+"visual acceptance passed" claim:
+
+1. **Automated/structural evidence** — the focused/regression/full-suite
+   results in § Test / Verification Results above, including
+   `M162ToolbarContrastRegressionTests`, which proves the stylesheet
+   explicitly targets every `QToolButton` state and that the resolved
+   token pairs meet `DESIGN.md` § 12's WCAG contrast minimums for both
+   Light and Dark. This is structural proof over the theme tokens/QSS, not
+   a human looking at a rendered screen.
+2. **Earlier real-window smoke evidence** — the non-offscreen launch
+   recorded above under § Real-Window Smoke Status: the native `windows`
+   Qt platform plugin was confirmed active and the application started,
+   navigated, and shut down cleanly with exit code 0. This proves the app
+   does not crash on the real platform; it is not a visual-correctness
+   check.
+3. **Final targeted human acceptance (what was actually performed)** — a
+   human operator, on the development machine, confirmed:
+   - [x] the generated "Vocabulary App" Desktop shortcut (created by
+         `python tools/setup_desktop_launcher.py`) launches the native
+         PySide6 application by double-click, without requiring manual
+         PowerShell interaction;
+   - [x] the repository-owned `assets/icons/vocabulary_app.ico` icon
+         appears correctly for the launcher shortcut, the application
+         window, and the taskbar entry;
+   - [x] the corrected Today/Entries Management-mode navigation actions
+         (the Capability 10 contrast fix) are visibly readable, resolving
+         the specific low-contrast defect the earlier pass found.
+
+   This targeted pass did not re-run the full checklist below. It does
+   **not** include, and this document does not claim as observed human
+   evidence: a manual re-verification of both Light and Dark, a manual
+   retest of Entries search/selection, or a re-run of every `DESIGN.md`
+   § 19 visual-acceptance item.
+4. **Broader UI polish / accessibility acceptance** — the remainder of the
+   checklist below (full Light/Dark visual coherence, Entries table
+   usability at normal window size, absence of any raw traceback/local
+   path anywhere in the UI, and a complete `DESIGN.md` § 19 pass) was
+   performed once, earlier, against the pre-fix build — that is how the
+   Capability 10 defect was originally found — but has **not** been
+   independently re-run against the fixed build. This is open acceptance
+   work that belongs to later workflow implementation and hardening (M17
+   feature-level acceptance and M19 Desktop Product Hardening; see
+   § Deferred to M17 / M18 / M20 below), not a reopened Milestone 16 gate:
+   none of Milestone 16's own exit criteria (`ROADMAP.md` § Milestone 16)
+   depend on this broader pass having been re-run.
+
+Full `DESIGN.md` § 19 visual-acceptance checklist, as first written during
+M16.2 implementation (unchecked here because it has not been re-confirmed
+against the fixed build — see category 4 above; the three items actually
+confirmed are listed under category 3):
 
 - [ ] `python tools/setup_desktop_launcher.py` creates a Desktop shortcut
       named "Vocabulary App" with the repository's icon (not a generic
@@ -252,6 +307,12 @@ final Milestone 16 sign-off:
 - [ ] navigation/chrome does not obviously violate the frozen Management
       Mode direction (§ 3, § 4.2 of `DESIGN.md`);
 - [ ] no raw traceback or local file path is visible anywhere in the UI.
+
+The final targeted human acceptance pass (category 3), together with the
+engineering, SQLite-compatibility, and AppState/state-boundary reviews
+recorded above, is the basis for closing Milestone 16 on `main`. The
+remaining broader visual/accessibility acceptance (category 4) is carried
+forward as open work under M17/M19, not as an unresolved Milestone 16 gate.
 
 ## Deferred to M17 / M18 / M20
 
@@ -277,14 +338,26 @@ limitation. M20 remains fully open.
 
 ## Explicit Non-Claims
 
-This document does not claim:
+Milestone 16 is Complete on `main`. This document does not claim:
 
-- Milestone 16 is Complete on `main`;
 - full desktop migration is complete;
+- Today, Review, Quiz, Entries, or Collections are fully migrated (that is
+  Milestone 17 scope);
 - Streamlit is retired;
 - Feature Freeze;
 - Desktop Ready;
-- Release Ready.
+- Release Ready;
+- a full re-run of the `DESIGN.md` § 19 visual-acceptance checklist against
+  the fixed build, or a manual re-verification of both Light and Dark, or a
+  manual retest of Entries search/selection — see § Human Acceptance
+  Evidence for the exact scope of what was and was not re-confirmed.
 
-Milestone 16 remains an **exit candidate pending independent review and
-merge** of the M16.2 PR. M17 is blocked until that review closes.
+## Closure
+
+Milestone 16 is **Complete on `main`** through PR #23, merged at
+`2e900d243950ca93aedf5cbde5b836dc6e378f25` from final reviewed head
+`0e78e6f9c1892846e7b63d9696d2312dfcaa6b9a`. All exit criteria in
+`ROADMAP.md` § Milestone 16 are verified against `main`. Milestone 17 —
+Desktop Core Workflow Migration is the next objective; see `ROADMAP.md` §
+Milestone 17 for its operating model, feature migration sequence, frozen
+semantic boundaries, and verification model.

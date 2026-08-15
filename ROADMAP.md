@@ -104,8 +104,8 @@ target.
 
 ## Current Phase
 
-**Milestone 15 — Audio Foundation Complete on `main`; Milestone 16 In
-Progress**
+**Milestone 16 — Desktop Architecture and UI Design Complete on `main`;
+Milestone 17 Next**
 
 The trustworthy data/business-logic baseline, repository restructure, Import
 and Template Evolution foundation, and Learning Analytics and Insight Core are
@@ -115,19 +115,20 @@ gate. Milestone 15.1 merged through PR #13 at
 PR #15 at `c9d7e8d05c968d52af2b77c76454f849706788bc`. Milestone 15.3 merged through
 PR #17 at `9448f2e44940e0d426a965823aa66c48f53ec0f1` from independently reviewed
 head `765c4c5f92c29a5c30cb41b0c2aa3fbbc01df7db`, completing Milestone 15.
-Milestone 16 has started. M16.0 Desktop UI Design Baseline — information
-architecture, theme architecture, and accessibility rules — is complete and
-frozen in [DESIGN.md](DESIGN.md). M16.1 Desktop Architecture Foundation
-(framework decision and controller/view-state boundaries) is **complete on
-`main`** through PR #21, merged at
-`a1dc044721e9017d39842e96e0516a88a36d129f` from independently reviewed head
-`439cc9612578b5dc78eda57e07f054bec8d60d38`; see
+Milestone 16 is now **complete on `main`**. M16.0 Desktop UI Design Baseline —
+information architecture, theme architecture, and accessibility rules — is
+complete and frozen in [DESIGN.md](DESIGN.md). M16.1 Desktop Architecture
+Foundation (framework decision and controller/view-state boundaries) merged
+through PR #21 at `a1dc044721e9017d39842e96e0516a88a36d129f` from
+independently reviewed head `439cc9612578b5dc78eda57e07f054bec8d60d38`; see
 [M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md).
-M16.2 Minimal Desktop Vertical Slice & M16 Exit is implemented on branch
-`agent/m16-2-desktop-vertical-slice`, pending independent review; see
-[Milestone 16 Closure — Exit Candidate](docs/history/MILESTONE16_CLOSURE.md).
-Milestone 16 as a whole is **not** complete on `main` — it is an exit
-candidate pending that review (see § Milestone 16 below).
+M16.2 Minimal Desktop Vertical Slice & M16 Exit merged through PR #23 at
+`2e900d243950ca93aedf5cbde5b836dc6e378f25`, closing Milestone 16 after
+engineering review, SQLite-compatibility review, AppState/state-boundary
+review, human native-window visual acceptance, navigation-contrast
+acceptance, and desktop-launcher/icon acceptance; see
+[Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md) for full
+evidence (see § Milestone 16 below).
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -682,8 +683,9 @@ Full desktop export interaction remains deferred to the desktop milestones.
 
 ## Milestone 16: Desktop Architecture and UI Design
 
-**Status: In Progress. UI/Design Baseline complete and frozen in
-[DESIGN.md](DESIGN.md); Milestone 16 as a whole is not yet complete.**
+**Status: Complete on `main`.** M16.0, M16.1, and M16.2 are all complete;
+final closure is recorded in
+[Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md).
 
 Milestone 16 begins the deliberate retirement of Streamlit as the primary UI.
 
@@ -755,16 +757,15 @@ choices.
 
 ### M16.2 Minimal Desktop Vertical Slice & M16 Exit
 
-**Status: Implemented on branch `agent/m16-2-desktop-vertical-slice`;
-pending independent review and merge to `main`.** Combines the former
-Minimal Desktop Shell scope with final Milestone 16 exit verification,
-built against the frozen M16.1 architecture contract without reopening it.
+**Status: Complete on `main`.** PR #23 merged at
+`2e900d243950ca93aedf5cbde5b836dc6e378f25`, from final reviewed head
+`0e78e6f9c1892846e7b63d9696d2312dfcaa6b9a`. Combines the former Minimal
+Desktop Shell scope with final Milestone 16 exit verification, built against
+the frozen M16.1 architecture contract without reopening it.
 
-Evidence, proven capabilities, test results, and the required human
+Evidence, proven capabilities, test results, and the completed human
 visual-check list are recorded in
-[Milestone 16 Closure — Exit Candidate](docs/history/MILESTONE16_CLOSURE.md).
-Do not mark M16.2 or Milestone 16 complete on `main`, and do not begin M17,
-until independent review and merge close this gate.
+[Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md).
 
 Scope:
 
@@ -787,8 +788,7 @@ desktop product migration.
 
 ### Milestone 16 Exit Criteria
 
-**Status: Exit candidate — evidence recorded, pending independent review and
-merge. Not yet Complete on `main`.**
+**Status: Complete on `main`.**
 
 - [x] Main navigation, macro interaction model, and UI/design system are
       approved. *(M16.0 complete — `DESIGN.md`)*
@@ -797,54 +797,110 @@ merge. Not yet Complete on `main`.**
 - [x] Core desktop state-management boundaries are defined. *(M16.1 complete
       on `main` — PR #21, `a1dc044721e9017d39842e96e0516a88a36d129f`)*
 - [x] Existing SQLite data opens without destructive conversion. *(M16.2
-      implemented on review branch — proven via synthetic-database test;
-      see [Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md);
-      pending independent review and merge)*
+      complete on `main` — proven via synthetic-database test against the
+      real desktop bootstrap; see
+      [Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md))*
 - [x] A minimal vertical slice proves core reuse for at least Today and
-      Entries. *(M16.2 implemented on review branch — pending independent
-      review and merge)*
+      Entries. *(M16.2 complete on `main` — PR #23,
+      `2e900d243950ca93aedf5cbde5b836dc6e378f25`)*
 
-Every item above is checked on the M16.2 review branch, but Milestone 16 is
-not complete on `main` until the M16.2 PR is independently reviewed, merged,
-and this checklist is re-verified against `main`.
+Every item above is verified against `main`. Milestone 16 is Complete on
+`main`.
 
 ---
 
 ## Milestone 17: Desktop Core Workflow Migration
 
-Milestone 17 ports the high-frequency learning loop incrementally.
+Milestone 17 ports the high-frequency learning loop incrementally, built
+against the frozen M16 architecture without reopening it: PySide6; the
+`src/ui_desktop/` layer boundary; `AppState`/controller ownership of
+transient state; SQLite/core as durable domain truth; presentation
+preferences outside SQLite; the `QPalette` + QSS theme boundary; the
+controller-calls-reusable-core architecture; and `DESIGN.md` as the desktop
+UI authority.
 
-Recommended migration order:
+### Operating Model
+
+Milestone 17 is **one milestone**, developed on **one long-lived branch**
+through **one Draft PR** — expected
+`agent/m17-desktop-core-workflow-migration` — not a set of independent
+lifecycle units. The former `17.1`-`17.5` sub-milestone numbering is retired
+in favor of an ordered **feature migration sequence** within this single
+milestone. Do not create a new branch or PR per feature; do not treat Today,
+Review, Quiz, or Entries as separate milestones, sub-milestones, branches, or
+PRs.
+
+Within the one M17 branch/PR, each feature below follows the same loop:
+
+```text
+implement -> focused verification -> commit/checkpoint -> independent review -> continue
+```
+
+The final feature checkpoint (Collection Integration) is followed by one M17
+parity/exit verification pass and one final review before the single PR
+merges.
+
+### Product/UI Principle
+
+From M17 onward, functional workflow migration and that workflow's approved
+`DESIGN.md` archetype implementation are **one feature-level engineering
+closure**, not two separate passes:
+
+> Port the workflow into the native desktop architecture while implementing
+> that workflow's approved `DESIGN.md` archetype in the same feature.
+
+Do not interpret M17 as "first port the Streamlit functionality into generic
+Qt widgets, polish the UI later." Do not mechanically clone Streamlit page
+layouts. Streamlit remains a behavioral/reference surface where useful, not
+the desktop design authority; `DESIGN.md` is the UI authority and existing
+reusable core behavior is the domain/learning authority. M16 proved the
+architecture — M17 begins building the actual desktop product.
+
+### Feature Migration Sequence
+
+Recommended order, each verified before proceeding to the next:
 
 1. Today
 2. Review
 3. Quiz
 4. Entries
-5. minimum Collection navigation required by those workflows
+5. minimum Collection navigation/integration required by those workflows
+6. M17 parity + exit verification
 
-Each workflow must be verified before proceeding to the next.
+#### Today
 
-### 17.1 Today
+Functional workflow migration = daily workload, due-review visibility, and
+workflow handoffs.
+Plus DESIGN.md archetype = the real Command Center implementation.
 
-Port daily workload, due-review visibility, and workflow handoffs.
+#### Review
 
-### 17.2 Review
+Functional workflow migration = Card browse/study/preparation, historical
+learning context, and the Quick Quiz / Choose Quiz Type routes. Browsing
+alone must not create completion.
+Plus DESIGN.md archetype = the Immersive Focus / Study Mode implementation.
 
-Port Card browse/study/preparation, historical learning context, and the Quick
-Quiz / Choose Quiz Type routes. Browsing alone must not create completion.
+#### Quiz
 
-### 17.3 Quiz
+Functional workflow migration = session creation, answer submission,
+duplicate protection, recovery, authoritative Card-scoped completion,
+Card/revision history context, Mistake Book, Proficient Pool, and other
+current core behavior.
+Plus DESIGN.md archetype = the Immersive Focus feedback/session
+implementation.
 
-Port session creation, answer submission, duplicate protection, recovery,
-authoritative Card-scoped completion, Card/revision history context, Mistake
-Book, Proficient Pool, and other current core behavior.
+#### Entries
 
-### 17.4 Entries
+Functional workflow migration = entry browsing, filtering, add/edit
+behavior, template-aware fields, and safe editing.
+Plus DESIGN.md archetype = the real Table-First implementation.
 
-Port entry browsing, filtering, add/edit behavior, template-aware fields, and
-safe editing.
+#### Collection Integration
 
-### 17.5 Parity Verification
+Port only the minimum Collection navigation/integration required by the four
+workflows above. Full Collection/Card management remains M18 scope.
+
+#### M17 Parity + Exit Verification
 
 For each migrated workflow:
 
@@ -853,6 +909,36 @@ For each migrated workflow:
 - exercise restart and repeated-action behavior;
 - run relevant automated tests; and
 - record known parity gaps.
+
+### Verification Model
+
+Avoid ritual repetition. At each feature checkpoint, normally run focused
+tests for that feature, relevant existing regression tests, an architecture
+audit, and targeted persistence/parity checks where the feature mutates
+data. Run the full repository suite when risk justifies it and at meaningful
+integration checkpoints, not mechanically after every change. At final M17
+exit, perform complete verification: full repository suite, architecture
+audit, equivalent-action persistence/parity verification, restart/repeated-
+action behavior, existing-database safety, manual native desktop acceptance,
+`DESIGN.md` adherence, and lifecycle documentation reconciliation. Testing
+must remain risk-based, not mechanically minimized.
+
+### Frozen Semantic Boundaries
+
+M17 must not reopen or silently change:
+
+- reviewing/browsing a Card does not complete learning;
+- completed Card-scoped Quiz remains the authoritative Card completion
+  event;
+- Again/Hard/Good/Easy legacy SRS semantics are not revived;
+- Quiz history and Review exposure remain distinct evidence;
+- stable Card / Card-revision semantics remain intact;
+- existing SQLite user databases remain protected assets;
+- desktop UI calls reusable core; no duplicated SQL/business rules;
+- no raw SQL in desktop views/controllers;
+- core modules do not import PySide6; and
+- no new global mastery score or opaque learner grade — analytics, import,
+  audio, and learning semantics are not silently changed by M17.
 
 ### Milestone 17 Exit Criteria
 

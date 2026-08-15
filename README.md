@@ -34,15 +34,15 @@ M15.2 Audio Asset and Card Composition Core is merged on `main`. M15.3 Batch
 Export, Failure Safety, and Milestone Closure merged through PR #17 at
 `9448f2e44940e0d426a965823aa66c48f53ec0f1`. **Milestone 15 — Audio
 Foundation is complete on `main`.** **Milestone 16 — Desktop Architecture and
-UI Design is in progress**; M16.0 Desktop UI Design Baseline is complete and
-frozen in [DESIGN.md](DESIGN.md). **M16.1 Desktop Architecture Foundation is
-complete on `main`**, selecting PySide6 as the desktop framework and
+UI Design is complete on `main`**; M16.0 Desktop UI Design Baseline is complete
+and frozen in [DESIGN.md](DESIGN.md). **M16.1 Desktop Architecture Foundation
+is complete on `main`**, selecting PySide6 as the desktop framework and
 freezing the controller/view-state/core boundary (see
 [M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md)).
-**M16.2 Minimal Desktop Vertical Slice & M16 Exit is implemented** on branch
-`agent/m16-2-desktop-vertical-slice`, pending independent review — see
-[Milestone 16 Closure — Exit Candidate](docs/history/MILESTONE16_CLOSURE.md).
-Milestone 16 as a whole is **not** complete on `main`.
+**M16.2 Minimal Desktop Vertical Slice & M16 Exit is complete on `main`**
+through PR #23 at `2e900d243950ca93aedf5cbde5b836dc6e378f25` — see
+[Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md). **Milestone 17 —
+Desktop Core Workflow Migration** is the next objective and has not started.
 
 Streamlit remains the currently runnable compatibility/reference UI, but it is
 no longer the intended Release Candidate target. The active lifecycle now
@@ -175,7 +175,8 @@ This project does not include:
 - account login or authentication
 - mobile app packaging
 - a feature-complete desktop GUI (a minimal M16.2 vertical slice exists —
-  see [Desktop Preview](#desktop-preview-m162-exit-candidate--not-yet-complete-on-main) above)
+  see [Desktop Preview](#desktop-preview-m162-complete-on-main) above; full
+  workflow migration is Milestone 17 scope)
 - full destructive database restore
 
 These statements describe the current implementation. The active roadmap now
@@ -285,14 +286,15 @@ http://localhost:8501
 
 Run the command from the directory containing `app.py`.
 
-### Desktop Preview (M16.2, exit candidate — not yet complete on `main`)
+### Desktop Preview (M16.2, Complete on `main`)
 
 A minimal native desktop vertical slice exists under `src/ui_desktop/`,
 proving the M16.1 architecture end to end (Today and Entries as native
 workspaces, Management/Study chrome swap, runtime Light/Dark theming,
 durable Appearance/Accent preferences). It is not a feature-complete
-desktop application; see
-[Milestone 16 Closure — Exit Candidate](docs/history/MILESTONE16_CLOSURE.md)
+desktop application — full Today/Review/Quiz/Entries migration is
+Milestone 17 scope; see
+[Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md)
 for exact scope. Install the additional desktop dependency, then launch:
 
 ```powershell
