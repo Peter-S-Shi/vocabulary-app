@@ -123,8 +123,11 @@ frozen in [DESIGN.md](DESIGN.md). M16.1 Desktop Architecture Foundation
 `a1dc044721e9017d39842e96e0516a88a36d129f` from independently reviewed head
 `439cc9612578b5dc78eda57e07f054bec8d60d38`; see
 [M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md).
-Milestone 16 as a whole is **not** complete: M16.2 Minimal Desktop Vertical
-Slice & M16 Exit is next (see § Milestone 16 below).
+M16.2 Minimal Desktop Vertical Slice & M16 Exit is implemented on branch
+`agent/m16-2-desktop-vertical-slice`, pending independent review; see
+[Milestone 16 Closure — Exit Candidate](docs/history/MILESTONE16_CLOSURE.md).
+Milestone 16 as a whole is **not** complete on `main` — it is an exit
+candidate pending that review (see § Milestone 16 below).
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -752,9 +755,16 @@ choices.
 
 ### M16.2 Minimal Desktop Vertical Slice & M16 Exit
 
-**Status: Open — Next.** Combines the former Minimal Desktop Shell scope
-with final Milestone 16 exit verification. Not yet started; must build
-against the frozen M16.1 architecture contract without reopening it.
+**Status: Implemented on branch `agent/m16-2-desktop-vertical-slice`;
+pending independent review and merge to `main`.** Combines the former
+Minimal Desktop Shell scope with final Milestone 16 exit verification,
+built against the frozen M16.1 architecture contract without reopening it.
+
+Evidence, proven capabilities, test results, and the required human
+visual-check list are recorded in
+[Milestone 16 Closure — Exit Candidate](docs/history/MILESTONE16_CLOSURE.md).
+Do not mark M16.2 or Milestone 16 complete on `main`, and do not begin M17,
+until independent review and merge close this gate.
 
 Scope:
 
@@ -777,7 +787,8 @@ desktop product migration.
 
 ### Milestone 16 Exit Criteria
 
-**Status: Open — final exit verification not yet performed.**
+**Status: Exit candidate — evidence recorded, pending independent review and
+merge. Not yet Complete on `main`.**
 
 - [x] Main navigation, macro interaction model, and UI/design system are
       approved. *(M16.0 complete — `DESIGN.md`)*
@@ -785,13 +796,17 @@ desktop product migration.
       PR #21, `a1dc044721e9017d39842e96e0516a88a36d129f`)*
 - [x] Core desktop state-management boundaries are defined. *(M16.1 complete
       on `main` — PR #21, `a1dc044721e9017d39842e96e0516a88a36d129f`)*
-- [ ] Existing SQLite data opens without destructive conversion. *(depends
-      on M16.2)*
-- [ ] A minimal vertical slice proves core reuse for at least Today and
-      Entries. *(M16.2 open)*
+- [x] Existing SQLite data opens without destructive conversion. *(M16.2
+      implemented on review branch — proven via synthetic-database test;
+      see [Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md);
+      pending independent review and merge)*
+- [x] A minimal vertical slice proves core reuse for at least Today and
+      Entries. *(M16.2 implemented on review branch — pending independent
+      review and merge)*
 
-Milestone 16 is not complete until every item above is checked and a final
-exit-criteria verification is recorded.
+Every item above is checked on the M16.2 review branch, but Milestone 16 is
+not complete on `main` until the M16.2 PR is independently reviewed, merged,
+and this checklist is re-verified against `main`.
 
 ---
 

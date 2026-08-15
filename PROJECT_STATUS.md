@@ -23,9 +23,13 @@ records the approved desktop information architecture, theme architecture, and
 accessibility rules. **M16.1 Desktop Architecture Foundation is complete on
 `main`** through PR #21, merged at
 `a1dc044721e9017d39842e96e0516a88a36d129f` from independently reviewed head
-`439cc9612578b5dc78eda57e07f054bec8d60d38`. Milestone 16 as a whole is
-**not** complete — M16.2 Minimal Desktop Vertical Slice & M16 Exit is next.
-See `ROADMAP.md` § Milestone 16 for exit criteria.
+`439cc9612578b5dc78eda57e07f054bec8d60d38`. **M16.2 Minimal Desktop Vertical
+Slice & M16 Exit is implemented** on branch
+`agent/m16-2-desktop-vertical-slice`, pending independent review. Milestone
+16 as a whole is **not** complete on `main` — it is an exit candidate
+pending that review. See `ROADMAP.md` § Milestone 16 for exit criteria and
+[Milestone 16 Closure — Exit Candidate](docs/history/MILESTONE16_CLOSURE.md)
+for full evidence.
 
 M16.1 selects **PySide6** as the desktop framework and freezes the
 controller/view-state/core boundary, the initial `src/ui_desktop/` package
@@ -68,6 +72,71 @@ M16.1 spike tests: 5/5 (headless, QT_QPA_PLATFORM=offscreen)
 Full repository suite including the spike: 166/166
 Architecture audit (extended for src/ui_desktop/): 0 serious, 0 warnings
 ```
+
+M16.2 builds the production `src/ui_desktop/` vertical slice against the
+M16.1 contract without reopening it: a real bootstrap/shell
+(`python -m src.ui_desktop`) with Today and Entries as native workspaces;
+the Management ↔ Study chrome swap proven through `AppState`; a Today
+controller consuming `get_today_overview()` unmodified; an Entries
+controller/`QAbstractTableModel`/`QTableView` path over
+`src.entries.search_entries()`; a Calm Blue Light/Dark theme pipeline
+applying `QPalette` + QSS at runtime without restart; and durable
+Appearance/Accent preferences persisted outside `vocab.db` via
+`src/app_config.py:get_app_preferences_path()` (persistent config location,
+never a cache directory, per the M16.1 contract). Background-task
+infrastructure (`tasks/worker.py`) was deliberately not added: the
+Today/Entries slice has no long-running operation that needs it. `AppState`
+is structurally the single source of truth for active workspace and shell
+mode: `MainWindow` renders whatever `AppState` holds at construction
+(including an injected non-default workspace/mode) rather than hardcoding
+Today/Management, and every transition path is proven to leave `AppState`
+and the visible UI aligned. The SQLite compatibility proof exercises the
+real desktop bootstrap (`build_application()`, including its own
+`init_db()` call) reopening an already-populated synthetic database through
+the real `VOCAB_APP_DB_PATH`/`get_database_path()` resolution, not just the
+controllers in isolation. M16.2 adds no schema or app-data migration and
+does not alter learning, analytics, import, or audio semantics. Full
+evidence, including the SQLite compatibility proof and the human
+visual-check list, is recorded in
+[Milestone 16 Closure — Exit Candidate](docs/history/MILESTONE16_CLOSURE.md).
+
+A human visual-acceptance pass found the Management-mode Today/Entries
+navigation actions rendering with extremely low contrast, resembling
+disabled controls — caused by `QApplication.setStyleSheet()` taking over
+painting for every widget once set at all, leaving the unstyled
+`QToolButton` without an explicit foreground. Fixed entirely through the
+centralized `theming/theme_manager.py` QSS layer with explicit
+`QToolButton`/`:hover`/`:pressed`/`:disabled` rules resolving paired
+semantic tokens; no hardcoded one-off colors. `tools/setup_desktop_launcher.py`
+(Windows-only, no new pip dependency) now creates a Desktop shortcut named
+"Vocabulary App" that double-click-launches `python -m src.ui_desktop`
+using `pythonw.exe` where available (no console window), with the
+repository-owned `assets/icons/vocabulary_app.ico` as its icon and the
+`QApplication`/`MainWindow` window icon. This is a development launcher,
+not M20 packaging — no installer, no Nuitka/PyInstaller decision, no
+standalone executable; the generated `.lnk` is machine/checkout-specific,
+gitignored, and never committed.
+
+Verification on 2026-08-15 passed:
+
+```text
+Focused M16.2 desktop tests: 38/38 (33 vertical-slice + 5 launcher)
+M16.1 architecture-spike regression: 5/5
+Full repository suite: 204/204 (161 existing + 5 M16.1 spike + 33 M16.2 slice + 5 M16.2 launcher)
+Architecture audit: 59 Python files scanned, 0 serious, 0 warnings
+Quiz randomization check: passed
+Packaging readiness: expected local data/vocab.db exclusion warning only
+```
+
+A real (non-offscreen) launch was also attempted: the native `windows` Qt
+platform plugin was confirmed active with one real screen detected, and the
+application started, navigated to Entries with a synthetic entry loaded,
+and shut down cleanly with exit code 0. This proves the app does not crash
+on the real platform; it does not substitute for visual inspection. A
+screenshot-based visual-verification attempt was aborted after it captured
+the operator's live desktop instead of the application window and was
+deleted immediately without being used as evidence — see the Milestone 16
+Closure document for the resulting human visual-check requirement.
 
 M15.3 adds a UI-independent snapshot-based Audio Export service for a single
 current Card, an ordered Card selection, or all active Cards in a Collection.
@@ -117,8 +186,10 @@ composition modes. Planning or generation does not mutate SQLite learning
 state. M15.2 and M15.3 are complete on `main`, formally closing Milestone 15.
 Substantial audio UI and spoken Quiz behavior remain deferred beyond M15.
 Milestone 16 has started; its M16.0 UI/Design Baseline is complete and frozen
-in `DESIGN.md`. M16.1 Desktop Architecture Foundation is complete on `main`,
-and M16.2 Minimal Desktop Vertical Slice & M16 Exit is next.
+in `DESIGN.md`. M16.1 Desktop Architecture Foundation is complete on `main`.
+M16.2 Minimal Desktop Vertical Slice & M16 Exit is implemented pending
+independent review; Milestone 16 is an exit candidate, not yet complete on
+`main`.
 
 Verification on 2026-08-13 passed:
 
@@ -1319,11 +1390,18 @@ Do not mark it complete or begin M15.2 until the review and merge gates close.
 - Final M16.1 PR: `#21 — M16.1: Desktop Architecture Foundation — select
   PySide6, freeze state/concurrency/theme boundaries` (merged)
 - M16.1 merge commit on `main`: `a1dc044721e9017d39842e96e0516a88a36d129f`
+- M16.2 synchronized base commit (verified `main` at prompt time):
+  `f2c139f758962b0684271e11df55770675cc8cbb`
+- M16.2 implementation branch: `agent/m16-2-desktop-vertical-slice`
+- M16.2 head (pending independent review): see PR for exact reviewed head
+  SHA; not pinned here to avoid a stale self-reference across any
+  pre-merge amendment
 - Current lifecycle documents:
   - `ROADMAP.md`
   - `PROJECT_STATUS.md`
   - `docs/migration/DESKTOP_MIGRATION_PLAN.md`
   - `docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md`
+  - `docs/history/MILESTONE16_CLOSURE.md` (exit candidate; not yet closure)
 - Current closure evidence:
   - `docs/history/MILESTONE11_CLOSURE.md`
   - `docs/history/MILESTONE14_CLOSURE.md`
@@ -1336,12 +1414,13 @@ Do not mark it complete or begin M15.2 until the review and merge gates close.
   - `THIRD_PARTY_NOTICES.md`
 - Current lifecycle state:
   **Milestone 15 — Audio Foundation Complete on `main`; Milestone 16 —
-  Desktop Architecture and UI Design In Progress: M16.0 Desktop UI Design
-  Baseline Complete (`DESIGN.md`); M16.1 Desktop Architecture Foundation
-  Complete on `main` (PR #21, `a1dc044721e9017d39842e96e0516a88a36d129f`);
-  M16.2 Minimal Desktop Vertical Slice & M16 Exit Not Started**
+  Desktop Architecture and UI Design: exit candidate, not yet Complete on
+  `main`. M16.0 Desktop UI Design Baseline Complete (`DESIGN.md`); M16.1
+  Desktop Architecture Foundation Complete on `main` (PR #21,
+  `a1dc044721e9017d39842e96e0516a88a36d129f`); M16.2 Minimal Desktop
+  Vertical Slice & M16 Exit Implemented on branch
+  `agent/m16-2-desktop-vertical-slice`, Pending Independent Review**
 - Exact next objective:
-  **Milestone 16.2 — Minimal Desktop Vertical Slice & M16 Exit. Build the
-  minimal native desktop shell against the frozen M16.1 architecture
-  contract without reopening the framework, state-taxonomy, package, or
-  concurrency/theme decisions.**
+  **Independently review and merge M16.2 Minimal Desktop Vertical Slice &
+  M16 Exit. Do not begin M17 until that review closes and Milestone 16 is
+  confirmed Complete on `main`.**
