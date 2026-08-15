@@ -833,8 +833,10 @@ Collection.
 - [ ] information architecture approved
 - [ ] UI design system established
 - [x] controller/view-model boundaries established *(M16.1, PR #21)*
-- [ ] minimal desktop shell opens existing database
-- [ ] basic Today/Entries prototype works
+- [x] minimal desktop shell opens existing database *(M16.2, review branch
+      `agent/m16-2-desktop-vertical-slice` — pending independent review)*
+- [x] basic Today/Entries prototype works *(M16.2, review branch
+      `agent/m16-2-desktop-vertical-slice` — pending independent review)*
 
 ### Workflow Migration
 
@@ -916,10 +918,18 @@ complete on `main`** through PR #21 at
 `a1dc044721e9017d39842e96e0516a88a36d129f`, recorded in
 [M16.1 Desktop Architecture Contract](../design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md).
 
-M16.2 is next: it proves a deliberately small native shell that opens the
-existing SQLite database and proves reuse of the current learning engine
-(§ Phase 2 below), built against the M16.1 contract without reopening the
-framework or state-boundary decisions.
+**M16.2 Minimal Desktop Vertical Slice & M16 Exit is implemented** on branch
+`agent/m16-2-desktop-vertical-slice`, pending independent review: a
+deliberately small native shell (`python -m src.ui_desktop`, per
+[README.md § Desktop Preview](../../README.md#desktop-preview-m162-exit-candidate--not-yet-complete-on-main))
+that opens the existing SQLite database and proves reuse of the current
+learning engine (§ Phase 2 above), built against the M16.1 contract without
+reopening the framework or state-boundary decisions. Full evidence is
+recorded in
+[Milestone 16 Closure — Exit Candidate](../history/MILESTONE16_CLOSURE.md).
+Milestone 16 as a whole remains an exit candidate, not complete on `main`,
+until that PR is independently reviewed and merged; Milestone 17 (Phase 3)
+does not begin until then.
 
 The migration should remain incremental:
 

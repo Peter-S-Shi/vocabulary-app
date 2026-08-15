@@ -39,7 +39,10 @@ frozen in [DESIGN.md](DESIGN.md). **M16.1 Desktop Architecture Foundation is
 complete on `main`**, selecting PySide6 as the desktop framework and
 freezing the controller/view-state/core boundary (see
 [M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md)).
-M16.2 Minimal Desktop Vertical Slice & M16 Exit is next.
+**M16.2 Minimal Desktop Vertical Slice & M16 Exit is implemented** on branch
+`agent/m16-2-desktop-vertical-slice`, pending independent review — see
+[Milestone 16 Closure — Exit Candidate](docs/history/MILESTONE16_CLOSURE.md).
+Milestone 16 as a whole is **not** complete on `main`.
 
 Streamlit remains the currently runnable compatibility/reference UI, but it is
 no longer the intended Release Candidate target. The active lifecycle now
@@ -171,7 +174,8 @@ This project does not include:
 - cloud sync
 - account login or authentication
 - mobile app packaging
-- an implemented desktop GUI in the current repository state
+- a feature-complete desktop GUI (a minimal M16.2 vertical slice exists —
+  see [Desktop Preview](#desktop-preview-m162-exit-candidate--not-yet-complete-on-main) above)
 - full destructive database restore
 
 These statements describe the current implementation. The active roadmap now
@@ -280,6 +284,30 @@ http://localhost:8501
 ```
 
 Run the command from the directory containing `app.py`.
+
+### Desktop Preview (M16.2, exit candidate — not yet complete on `main`)
+
+A minimal native desktop vertical slice exists under `src/ui_desktop/`,
+proving the M16.1 architecture end to end (Today and Entries as native
+workspaces, Management/Study chrome swap, runtime Light/Dark theming,
+durable Appearance/Accent preferences). It is not a feature-complete
+desktop application; see
+[Milestone 16 Closure — Exit Candidate](docs/history/MILESTONE16_CLOSURE.md)
+for exact scope. Install the additional desktop dependency, then launch:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-desktop.txt
+.\.venv\Scripts\python.exe -m src.ui_desktop
+```
+
+```bash
+./.venv/bin/python -m pip install -r requirements-desktop.txt
+./.venv/bin/python -m src.ui_desktop
+```
+
+Run from the directory containing `app.py`. This does not replace the
+Streamlit application above; both remain independently runnable during the
+migration.
 
 ## Local Data and Privacy
 

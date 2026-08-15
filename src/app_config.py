@@ -9,6 +9,7 @@ APP_SLUG = "vocabulary_app"
 APP_VERSION = "0.11.3"
 DATABASE_PATH_ENV = "VOCAB_APP_DB_PATH"
 AUDIO_CACHE_PATH_ENV = "VOCAB_APP_AUDIO_CACHE_DIR"
+APP_PREFERENCES_PATH_ENV = "VOCAB_APP_PREFERENCES_PATH"
 
 
 def get_project_root() -> Path:
@@ -42,6 +43,27 @@ def get_audio_cache_dir() -> Path:
     if local_data:
         return (Path(local_data) / APP_SLUG / "audio-cache").resolve()
     return (Path.home() / ".cache" / APP_SLUG / "audio-cache").resolve()
+
+
+def get_app_preferences_path() -> Path:
+    """Persistent per-user desktop preference location (Appearance, Accent).
+
+    Unlike ``get_audio_cache_dir()``, this must survive routine cache
+    cleanup: preferences are durable presentation state, not rebuildable
+    data. The non-Windows fallback therefore uses XDG *config* semantics
+    (``$XDG_CONFIG_HOME`` or ``~/.config``), never a cache directory. See
+    docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md §§ 11-12.
+    """
+    override = os.environ.get(APP_PREFERENCES_PATH_ENV, "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    local_data = os.environ.get("LOCALAPPDATA", "").strip()
+    if local_data:
+        return (Path(local_data) / APP_SLUG / "preferences.json").resolve()
+    xdg_config = os.environ.get("XDG_CONFIG_HOME", "").strip()
+    if xdg_config:
+        return (Path(xdg_config) / APP_SLUG / "preferences.json").resolve()
+    return (Path.home() / ".config" / APP_SLUG / "preferences.json").resolve()
 
 
 def get_app_storage_summary() -> dict:
