@@ -110,10 +110,25 @@ def build_palette(tokens: ThemeTokens) -> QPalette:
 def build_stylesheet(tokens: ThemeTokens) -> str:
     """Application-level QSS for custom-drawn components (§ 14).
 
-    Covers only what the M16.2 vertical slice draws beyond native
+    Covers what the M16.2 vertical slice draws beyond native
     QPalette-resolved chrome: selected-row emphasis in the Entries table
-    (accent-soft background/foreground, per DESIGN.md § 16 selection rule)
-    and outlined-danger buttons per DESIGN.md § 16.
+    (accent-soft background/foreground, per DESIGN.md § 16 selection rule),
+    outlined-danger buttons per DESIGN.md § 16, and explicit toolbar-action
+    (``QToolButton``) colors.
+
+    The ``QToolButton`` rule exists specifically because, once
+    ``QApplication.setStyleSheet()`` is set at all, Qt's style-sheet engine
+    takes over painting for every widget application-wide; any widget left
+    without an explicit color in the sheet can silently lose its
+    QPalette-resolved foreground and render as low-contrast/disabled-
+    looking instead of falling back to the palette. This was found during
+    the M16.2 human visual-acceptance pass: the Management-mode Today/
+    Entries navigation actions (``QToolButton``s inside ``QToolBar``)
+    rendered with extremely low contrast. Every ``QToolButton`` state below
+    resolves an explicit, paired foreground token, mirroring DESIGN.md § 9's
+    foreground-pair rule and § 11.4's "always resolve an explicit
+    foreground" requirement -- the same class of bug DESIGN.md § 11.4
+    already documents for unstyled table rows and status pills.
     """
     neutral = tokens.neutral
     accent = tokens.accent
@@ -138,6 +153,29 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         background-color: {neutral.surface_secondary};
         border-bottom: 1px solid {neutral.border_default};
         spacing: 6px;
+        padding: 4px;
+    }}
+    QToolButton {{
+        background-color: transparent;
+        color: {neutral.text_primary};
+        border: 1px solid transparent;
+        border-radius: 4px;
+        padding: 4px 10px;
+    }}
+    QToolButton:hover {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QToolButton:pressed {{
+        background-color: {accent.pressed.background};
+        color: {accent.pressed.foreground};
+        border: 1px solid {accent.pressed.background};
+    }}
+    QToolButton:disabled {{
+        background-color: transparent;
+        color: {neutral.text_disabled};
+        border: 1px solid transparent;
     }}
     QPushButton[destructive="true"] {{
         color: {danger.background};

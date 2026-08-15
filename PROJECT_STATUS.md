@@ -100,12 +100,29 @@ evidence, including the SQLite compatibility proof and the human
 visual-check list, is recorded in
 [Milestone 16 Closure — Exit Candidate](docs/history/MILESTONE16_CLOSURE.md).
 
-Verification on 2026-08-14 passed:
+A human visual-acceptance pass found the Management-mode Today/Entries
+navigation actions rendering with extremely low contrast, resembling
+disabled controls — caused by `QApplication.setStyleSheet()` taking over
+painting for every widget once set at all, leaving the unstyled
+`QToolButton` without an explicit foreground. Fixed entirely through the
+centralized `theming/theme_manager.py` QSS layer with explicit
+`QToolButton`/`:hover`/`:pressed`/`:disabled` rules resolving paired
+semantic tokens; no hardcoded one-off colors. `tools/setup_desktop_launcher.py`
+(Windows-only, no new pip dependency) now creates a Desktop shortcut named
+"Vocabulary App" that double-click-launches `python -m src.ui_desktop`
+using `pythonw.exe` where available (no console window), with the
+repository-owned `assets/icons/vocabulary_app.ico` as its icon and the
+`QApplication`/`MainWindow` window icon. This is a development launcher,
+not M20 packaging — no installer, no Nuitka/PyInstaller decision, no
+standalone executable; the generated `.lnk` is machine/checkout-specific,
+gitignored, and never committed.
+
+Verification on 2026-08-15 passed:
 
 ```text
-Focused M16.2 desktop tests: 29/29
+Focused M16.2 desktop tests: 38/38 (33 vertical-slice + 5 launcher)
 M16.1 architecture-spike regression: 5/5
-Full repository suite: 195/195 (161 existing + 5 M16.1 spike + 29 M16.2)
+Full repository suite: 204/204 (161 existing + 5 M16.1 spike + 33 M16.2 slice + 5 M16.2 launcher)
 Architecture audit: 59 Python files scanned, 0 serious, 0 warnings
 Quiz randomization check: passed
 Packaging readiness: expected local data/vocab.db exclusion warning only

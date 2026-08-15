@@ -309,6 +309,33 @@ Run from the directory containing `app.py`. This does not replace the
 Streamlit application above; both remain independently runnable during the
 migration.
 
+#### Windows desktop launcher (optional, development convenience)
+
+To avoid opening PowerShell every time, generate a Windows Desktop
+shortcut named **Vocabulary App** that double-click-launches the app with
+its own icon:
+
+```powershell
+.\.venv\Scripts\python.exe tools\setup_desktop_launcher.py
+```
+
+Run this once per machine/checkout, and again any time the checkout path
+or Python environment changes (the shortcut records the exact interpreter
+and folder at the time it was created). It uses `pythonw.exe` when
+available so a normal launch does not leave a console window open.
+
+This is a **development launcher, not packaging**: it does not build an
+installer or a standalone executable, and it does not choose or freeze a
+Nuitka/PyInstaller packaging decision (that remains Milestone 20 scope).
+The generated `.lnk` is specific to your machine and checkout path and is
+never committed to the repository — `git` ignores `*.lnk` files, and the
+script only ever writes to your own Desktop folder, never into the
+repository.
+
+The shortcut's icon comes from the repository-owned
+`assets/icons/vocabulary_app.ico`; regenerate it with
+`python tools/generate_app_icon.py` if the icon design ever changes.
+
 ## Local Data and Privacy
 
 The development database is stored at:

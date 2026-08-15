@@ -44,9 +44,11 @@ if PYSIDE6_AVAILABLE:
         Accent,
         Appearance,
         ThemeManager,
+        build_stylesheet,
         parse_accent,
         parse_appearance,
         resolve_effective_appearance,
+        resolve_tokens,
     )
 
     def _qt_app() -> QApplication:
@@ -74,6 +76,24 @@ def _isolated_environ(**overrides):
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
+
+
+def _relative_luminance(hex_color: str) -> float:
+    """WCAG relative luminance, matching the formula DESIGN.md § 12's own
+    contrast audit is computed with (not a pixel-rendered measurement)."""
+    hex_color = hex_color.lstrip("#")
+    channels = []
+    for i in (0, 2, 4):
+        value = int(hex_color[i : i + 2], 16) / 255.0
+        channels.append(value / 12.92 if value <= 0.03928 else ((value + 0.055) / 1.055) ** 2.4)
+    r, g, b = channels
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _contrast_ratio(hex_a: str, hex_b: str) -> float:
+    lum_a = _relative_luminance(hex_a) + 0.05
+    lum_b = _relative_luminance(hex_b) + 0.05
+    return max(lum_a, lum_b) / min(lum_a, lum_b)
 
 
 class _SyntheticDatabaseTestCase(unittest.TestCase):
@@ -452,6 +472,66 @@ class M162ThemeManagerTests(unittest.TestCase):
         tokens = manager.apply(Appearance.LIGHT, Accent.CALM_BLUE)
         self.assertEqual(tokens.accent.primary.background, "#3E6690")
         self.assertEqual(tokens.accent.primary.foreground, "#FFFFFF")
+
+
+class M162ToolbarContrastRegressionTests(unittest.TestCase):
+    """
+    Regression coverage for the M16.2 human-visual-acceptance finding: the
+    Management-mode Today/Entries navigation actions (QToolButtons inside
+    QToolBar) rendered with extremely low contrast, because
+    QApplication.setStyleSheet() takes over painting for every widget
+    application-wide and any widget left unstyled can silently lose its
+    QPalette-resolved foreground (the exact class of bug DESIGN.md § 11.4
+    already documents for unstyled table rows/status pills).
+
+    Two checks, deliberately not pixel-grabbing a rendered widget (fragile
+    across styles/DPI/antialiasing): (1) the generated stylesheet actually
+    contains explicit QToolButton rules -- proving the fix is structurally
+    present, not just that the token *values* happen to be safe; and (2)
+    the token pairs those rules resolve to meet DESIGN.md § 12's hard
+    contrast minimums, computed with the same WCAG relative-luminance
+    formula DESIGN.md's own audit uses.
+    """
+
+    def test_stylesheet_explicitly_styles_toolbutton_states(self) -> None:
+        for appearance in (Appearance.LIGHT, Appearance.DARK):
+            tokens = resolve_tokens(appearance, Accent.CALM_BLUE)
+            stylesheet = build_stylesheet(tokens)
+            with self.subTest(appearance=appearance):
+                self.assertIn("QToolButton {", stylesheet)
+                self.assertIn("QToolButton:hover {", stylesheet)
+                self.assertIn("QToolButton:pressed {", stylesheet)
+                self.assertIn("QToolButton:disabled {", stylesheet)
+                # the default (non-hover) rule must resolve text_primary,
+                # not be left to fall through to an unstyled default.
+                self.assertIn(f"color: {tokens.neutral.text_primary};", stylesheet)
+
+    def test_toolbutton_default_state_meets_normal_text_contrast_minimum(self) -> None:
+        for appearance in (Appearance.LIGHT, Appearance.DARK):
+            tokens = resolve_tokens(appearance, Accent.CALM_BLUE)
+            ratio = _contrast_ratio(tokens.neutral.text_primary, tokens.neutral.surface_secondary)
+            with self.subTest(appearance=appearance, state="default"):
+                self.assertGreaterEqual(ratio, 4.5, f"{appearance}: {ratio:.2f}:1")
+
+    def test_toolbutton_hover_and_pressed_states_meet_contrast_minimum(self) -> None:
+        for appearance in (Appearance.LIGHT, Appearance.DARK):
+            tokens = resolve_tokens(appearance, Accent.CALM_BLUE)
+            hover_ratio = _contrast_ratio(tokens.accent.soft.foreground, tokens.accent.soft.background)
+            pressed_ratio = _contrast_ratio(tokens.accent.pressed.foreground, tokens.accent.pressed.background)
+            with self.subTest(appearance=appearance, state="hover"):
+                self.assertGreaterEqual(hover_ratio, 4.5, f"{appearance}: {hover_ratio:.2f}:1")
+            with self.subTest(appearance=appearance, state="pressed"):
+                self.assertGreaterEqual(pressed_ratio, 4.5, f"{appearance}: {pressed_ratio:.2f}:1")
+
+    def test_toolbutton_disabled_state_meets_disabled_contrast_target(self) -> None:
+        # Disabled text is intentionally weaker than normal/hover text
+        # (DESIGN.md "Muted vs. Disabled": disabled targets ~3:1, not 4.5:1)
+        # but must remain identifiable, never invisible.
+        for appearance in (Appearance.LIGHT, Appearance.DARK):
+            tokens = resolve_tokens(appearance, Accent.CALM_BLUE)
+            ratio = _contrast_ratio(tokens.neutral.text_disabled, tokens.neutral.surface_secondary)
+            with self.subTest(appearance=appearance):
+                self.assertGreaterEqual(ratio, 2.5, f"{appearance}: {ratio:.2f}:1")
 
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")

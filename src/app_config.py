@@ -66,6 +66,14 @@ def get_app_preferences_path() -> Path:
     return (Path.home() / ".config" / APP_SLUG / "preferences.json").resolve()
 
 
+def get_app_icon_path() -> Path:
+    """Repository-owned application icon (used by the desktop launcher
+    shortcut and the PySide6 application/window icon). Not a per-user
+    path -- this is a tracked repository asset, resolved relative to the
+    project root like any other bundled resource."""
+    return get_project_root() / "assets" / "icons" / "vocabulary_app.ico"
+
+
 def get_app_storage_summary() -> dict:
     database_path = get_database_path()
     return {

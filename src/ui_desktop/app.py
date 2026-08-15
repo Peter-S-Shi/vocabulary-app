@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import sys
 
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
+from src.app_config import get_app_icon_path
 from src.db import init_db
 from src.ui_desktop.main_window import MainWindow
 from src.ui_desktop.state.preferences import load_preferences
@@ -20,8 +22,23 @@ independently during the migration.
 """
 
 
+def _load_app_icon() -> QIcon | None:
+    """The repository-owned icon (assets/icons/vocabulary_app.ico), used
+    for both the application/window icon and the desktop launcher
+    shortcut (tools/setup_desktop_launcher.py). Missing gracefully -- a
+    missing icon file must never block launching the app."""
+    icon_path = get_app_icon_path()
+    if not icon_path.is_file():
+        return None
+    return QIcon(str(icon_path))
+
+
 def build_application(argv: list[str] | None = None) -> tuple[QApplication, MainWindow, ThemeManager]:
     application = QApplication.instance() or QApplication(argv if argv is not None else sys.argv)
+
+    icon = _load_app_icon()
+    if icon is not None:
+        application.setWindowIcon(icon)
 
     init_db()
 
@@ -30,6 +47,8 @@ def build_application(argv: list[str] | None = None) -> tuple[QApplication, Main
     theme_manager.apply(parse_appearance(preferences.appearance), parse_accent(preferences.accent))
 
     window = MainWindow()
+    if icon is not None:
+        window.setWindowIcon(icon)
     return application, window, theme_manager
 
 

@@ -60,6 +60,9 @@ build/
 dist/
 *.spec
 
+# Machine-specific desktop launcher shortcuts (tools/setup_desktop_launcher.py)
+*.lnk
+
 # Logs and temporary files
 *.log
 .tmp/
