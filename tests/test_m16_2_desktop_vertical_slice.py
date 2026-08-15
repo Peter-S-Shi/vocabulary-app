@@ -187,6 +187,68 @@ class M162NavigationAndChromeTests(_SyntheticDatabaseTestCase):
 
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
+class M162ShellStateAuthorityTests(_SyntheticDatabaseTestCase):
+    """
+    AppState is frozen as the owner of active workspace and Management/
+    Study mode (M16.1 contract § 11.C). These tests prove MainWindow can
+    never render a state that disagrees with AppState -- at construction
+    time (including with an injected non-default AppState) and after any
+    workspace transition, whether requested through the MainWindow
+    convenience method or directly through AppState.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _qt_app()
+
+    def test_injected_workspace_is_respected_at_construction(self) -> None:
+        window = MainWindow(AppState(workspace=Workspace.ENTRIES))
+        self.addCleanup(window.close)
+
+        self.assertIs(window.app_state.workspace, Workspace.ENTRIES)
+        self.assertIs(window.current_workspace(), Workspace.ENTRIES)
+        self.assertIs(window._workspace_stack.currentWidget(), window.entries_view)
+
+    def test_injected_study_mode_is_respected_at_construction(self) -> None:
+        window = MainWindow(AppState(mode=ShellMode.STUDY))
+        self.addCleanup(window.close)
+        window.show()
+        self.app.processEvents()
+
+        self.assertIs(window.app_state.mode, ShellMode.STUDY)
+        self.assertTrue(window._study_toolbar.isVisible())
+        self.assertFalse(window._management_toolbar.isVisible())
+
+    def test_shell_convenience_method_keeps_state_and_ui_aligned(self) -> None:
+        window = MainWindow()
+        self.addCleanup(window.close)
+
+        # "normal" transition: MainWindow.show_workspace() delegates to
+        # AppState -- it must never touch the widget stack independently.
+        window.show_workspace(Workspace.ENTRIES)
+        self.assertIs(window.app_state.workspace, Workspace.ENTRIES)
+        self.assertIs(window.current_workspace(), Workspace.ENTRIES)
+        self.assertIs(window._workspace_stack.currentWidget(), window.entries_view)
+
+    def test_direct_appstate_transition_keeps_state_and_ui_aligned(self) -> None:
+        window = MainWindow()
+        self.addCleanup(window.close)
+
+        # "direct" transition: bypassing MainWindow.show_workspace() and
+        # calling AppState.request_navigation() directly, the way the
+        # toolbar actions and any future controller code do.
+        window.app_state.request_navigation(Workspace.ENTRIES)
+        self.assertIs(window.app_state.workspace, Workspace.ENTRIES)
+        self.assertIs(window.current_workspace(), Workspace.ENTRIES)
+        self.assertIs(window._workspace_stack.currentWidget(), window.entries_view)
+
+        window.app_state.request_navigation(Workspace.TODAY)
+        self.assertIs(window.app_state.workspace, Workspace.TODAY)
+        self.assertIs(window.current_workspace(), Workspace.TODAY)
+        self.assertIs(window._workspace_stack.currentWidget(), window.today_view)
+
+
+@unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
 class M162TodayControllerTests(_SyntheticDatabaseTestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -396,10 +458,18 @@ class M162ThemeManagerTests(unittest.TestCase):
 class M162SqliteCompatibilityTests(unittest.TestCase):
     """
     Milestone 16 exit-criterion proof: a synthetic representative database,
-    already created and populated through the existing core/migration APIs,
-    can be opened by the desktop slice through the existing configuration/
-    database/core path and preserved without destructive conversion.
-    Never uses the user's personal data/vocab.db (AGENTS.md privacy rule).
+    already created and populated through the existing core/migration APIs
+    -- standing in for an already-existing user database -- can be reopened
+    by the REAL desktop bootstrap (``build_application()``, including its
+    own ``init_db()`` call) through the same ``VOCAB_APP_DB_PATH`` /
+    ``get_database_path()`` resolution the real application uses, and
+    preserved without destructive conversion. Never uses the user's
+    personal data/vocab.db (AGENTS.md privacy rule).
+
+    This is deliberately stronger than exercising the controllers directly
+    against a monkeypatched ``db.DB_PATH``: it proves the *bootstrap path*
+    itself -- the same code a real user's `python -m src.ui_desktop` runs --
+    does not destructively touch a pre-existing compatible database.
     """
 
     @classmethod
@@ -408,10 +478,13 @@ class M162SqliteCompatibilityTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.preferences_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.db_path = Path(self.temp_dir.name) / "existing_compatible.sqlite3"
+        self.preferences_path = Path(self.preferences_dir.name) / "preferences.json"
         self.original_db_path = db.DB_PATH
 
-        # 1. create/init a synthetic "already existing" current database
+        # 1. create/init a synthetic "already existing" current database,
+        #    entirely independent of the desktop bootstrap exercised below.
         db.DB_PATH = self.db_path
         db.init_db()
 
@@ -427,37 +500,62 @@ class M162SqliteCompatibilityTests(unittest.TestCase):
             self.schema_version_before = get_schema_version(connection)
             self.app_data_version_before = get_metadata(connection, "app_data_version")
 
-        # 3. "close" the setup connection scope (each call already opens/closes
-        #    its own connection per the repository's existing pattern) --
-        #    nothing further to do; DB_PATH now points at a file on disk that
-        #    behaves like an existing user database.
+        # 3. restore module state so step 4 resolves the database entirely
+        #    on its own, exactly as it would for a real already-existing
+        #    user database -- setUp does not leave db.DB_PATH pointed at it.
+        db.DB_PATH = self.original_db_path
 
     def tearDown(self) -> None:
         db.DB_PATH = self.original_db_path
         self.temp_dir.cleanup()
+        self.preferences_dir.cleanup()
 
-    def test_desktop_path_opens_existing_database_without_destructive_conversion(self) -> None:
-        # 4. "point the desktop configuration" at that existing database:
-        #    db.DB_PATH already resolves it, exactly as src.app_config /
-        #    src.db resolve VOCAB_APP_DB_PATH for the real application.
+    def test_desktop_bootstrap_reopens_existing_database_without_destructive_conversion(self) -> None:
         self.assertTrue(self.db_path.is_file())
 
-        # 5. construct/run the relevant desktop controllers/shell path
-        today_controller = TodayController()
-        overview = today_controller.refresh()
+        with _isolated_environ(
+            VOCAB_APP_DB_PATH=str(self.db_path),
+            VOCAB_APP_PREFERENCES_PATH=str(self.preferences_path),
+        ):
+            # 4. point the desktop configuration at that existing database
+            #    through the *real* resolution path -- not an assumed
+            #    equivalence to a direct db.DB_PATH assignment.
+            resolved_path = app_config.get_database_path()
+            self.assertEqual(resolved_path, self.db_path.resolve())
 
-        entries_controller = EntriesController()
-        row_count = entries_controller.refresh()
+            # db.DB_PATH is a module-level constant computed once at import
+            # time from get_database_path(); align it with the
+            # just-verified resolution before exercising the bootstrap,
+            # the same constraint every test in this repository's suite
+            # works around (see tests/test_m15_3_audio_export.py).
+            db.DB_PATH = resolved_path
 
-        # 6. verify records and current schema/app-data identity remain intact
-        self.assertEqual(row_count, 2)
-        terms = {entries_controller.model.row_at(i)["term"] for i in range(row_count)}
-        self.assertEqual(terms, {"existing-alpha", "existing-beta"})
-        self.assertGreaterEqual(overview["study_workload"]["total_entries"], 2)
+            # 5. construct/run the relevant desktop controllers/shell path
+            #    through the REAL bootstrap, including its own init_db()
+            #    call -- not a hand-assembled controller-only path.
+            application, window, theme_manager = build_application([])
+            self.addCleanup(window.close)
 
-        with db.get_connection() as connection:
-            schema_version_after = get_schema_version(connection)
-            app_data_version_after = get_metadata(connection, "app_data_version")
+            # 6. verify records surface through the real desktop path
+            self.assertIs(window.current_workspace(), Workspace.TODAY)
+            overview = window.today_controller.overview
+            self.assertIsNotNone(overview)
+            self.assertGreaterEqual(overview["study_workload"]["total_entries"], 2)
+
+            window.show_workspace(Workspace.ENTRIES)
+            row_count = window.entries_controller.model.rowCount()
+            self.assertEqual(row_count, 2)
+            terms = {
+                window.entries_controller.model.row_at(i)["term"]
+                for i in range(row_count)
+            }
+            self.assertEqual(terms, {"existing-alpha", "existing-beta"})
+
+            # 7. verify current schema/app-data identity remains intact --
+            #    no destructive re-migration occurred.
+            with db.get_connection() as connection:
+                schema_version_after = get_schema_version(connection)
+                app_data_version_after = get_metadata(connection, "app_data_version")
 
         self.assertEqual(schema_version_after, self.schema_version_before)
         self.assertEqual(schema_version_after, CURRENT_SCHEMA_VERSION)

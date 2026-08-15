@@ -85,18 +85,27 @@ Appearance/Accent preferences persisted outside `vocab.db` via
 `src/app_config.py:get_app_preferences_path()` (persistent config location,
 never a cache directory, per the M16.1 contract). Background-task
 infrastructure (`tasks/worker.py`) was deliberately not added: the
-Today/Entries slice has no long-running operation that needs it. M16.2 adds
-no schema or app-data migration and does not alter learning, analytics,
-import, or audio semantics. Full evidence, including the SQLite
-compatibility proof and the human visual-check list, is recorded in
+Today/Entries slice has no long-running operation that needs it. `AppState`
+is structurally the single source of truth for active workspace and shell
+mode: `MainWindow` renders whatever `AppState` holds at construction
+(including an injected non-default workspace/mode) rather than hardcoding
+Today/Management, and every transition path is proven to leave `AppState`
+and the visible UI aligned. The SQLite compatibility proof exercises the
+real desktop bootstrap (`build_application()`, including its own
+`init_db()` call) reopening an already-populated synthetic database through
+the real `VOCAB_APP_DB_PATH`/`get_database_path()` resolution, not just the
+controllers in isolation. M16.2 adds no schema or app-data migration and
+does not alter learning, analytics, import, or audio semantics. Full
+evidence, including the SQLite compatibility proof and the human
+visual-check list, is recorded in
 [Milestone 16 Closure — Exit Candidate](docs/history/MILESTONE16_CLOSURE.md).
 
 Verification on 2026-08-14 passed:
 
 ```text
-Focused M16.2 desktop tests: 25/25
+Focused M16.2 desktop tests: 29/29
 M16.1 architecture-spike regression: 5/5
-Full repository suite: 191/191 (161 existing + 5 M16.1 spike + 25 M16.2)
+Full repository suite: 195/195 (161 existing + 5 M16.1 spike + 29 M16.2)
 Architecture audit: 59 Python files scanned, 0 serious, 0 warnings
 Quiz randomization check: passed
 Packaging readiness: expected local data/vocab.db exclusion warning only

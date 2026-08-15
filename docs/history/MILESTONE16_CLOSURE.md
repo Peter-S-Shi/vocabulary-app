@@ -37,7 +37,13 @@ decisions:
 2. **Native shell and navigation** — `MainWindow` hosts Today and Entries as
    real native workspaces behind a `QStackedWidget`, switched through
    `AppState.request_navigation()` (the typed replacement for Streamlit's
-   `set_page_focus`/`session_state` pattern).
+   `set_page_focus`/`session_state` pattern). `AppState` is structurally the
+   single source of truth for active workspace and shell mode: `MainWindow`
+   renders whatever `AppState` already holds at construction (including an
+   injected non-default workspace/mode), and every transition — whether
+   requested through `MainWindow.show_workspace()` or directly through
+   `AppState.request_navigation()` — is proven to leave `AppState` and the
+   visible UI aligned (`M162ShellStateAuthorityTests`).
 3. **Management ↔ Study chrome swap** — `AppState.enter_study_mode()` /
    `enter_management_mode()` toggle the management navigation toolbar and a
    minimal Study session-bar toolbar. Proven structurally through
@@ -85,30 +91,46 @@ decisions:
 
 `tests/test_m16_2_desktop_vertical_slice.py::M162SqliteCompatibilityTests`
 uses a **temporary synthetic database**, never the user's personal
-`data/vocab.db`:
+`data/vocab.db`, and exercises the **real desktop bootstrap path** — not
+just the controllers in isolation:
 
 1. creates/initializes a synthetic current database through
-   `src.db.init_db()`;
+   `src.db.init_db()`, entirely independent of the bootstrap exercised
+   below;
 2. populates two representative Entries and a Collection through
    `src.entries.add_entry()` / `src.collections.create_collection()` /
    `add_entries_to_collection()`;
-3. records `schema_version` / `app_data_version` before any desktop code
-   runs;
-4. points the desktop configuration at that database (`db.DB_PATH`, the
-   same resolution path `src.app_config`/`src.db` use for
-   `VOCAB_APP_DB_PATH` in the real application);
-5. constructs and runs `TodayController` and `EntriesController` against it;
-6. verifies both Entries remain present and correctly surfaced through the
-   desktop path, and that `schema_version`/`app_data_version` are byte-for-byte
-   unchanged (`CURRENT_SCHEMA_VERSION` / `APP_DATA_VERSION` from
-   `src/migrations.py`) — no destructive re-migration occurred.
+3. records `schema_version` / `app_data_version` before any desktop
+   bootstrap code runs;
+4. sets `VOCAB_APP_DB_PATH` to that database's path and calls the real
+   `src.app_config.get_database_path()` — asserting it resolves to exactly
+   that file — the same resolution the real application performs, not an
+   assumed equivalence to a direct `db.DB_PATH` assignment;
+5. constructs the desktop application through the real bootstrap,
+   `src.ui_desktop.app.build_application()`, which performs its own
+   `src.db.init_db()` call against the already-existing database exactly as
+   `python -m src.ui_desktop` would;
+6. verifies both Entries remain present and correctly surfaced through
+   `MainWindow.today_controller`/`entries_controller` after that real
+   bootstrap; and
+7. verifies `schema_version`/`app_data_version` are byte-for-byte unchanged
+   (`CURRENT_SCHEMA_VERSION` / `APP_DATA_VERSION` from `src/migrations.py`)
+   — no destructive re-migration occurred.
+
+`db.DB_PATH` is still assigned once, to the value `get_database_path()`
+itself resolved in step 4 — required because it is a module-level constant
+computed once at import time (the same constraint every test in this
+repository's suite already works around; see
+`tests/test_m15_3_audio_export.py`) — but the resolution value is no longer
+asserted-by-construction; it is independently verified against the real
+`VOCAB_APP_DB_PATH`-driven resolution path first.
 
 ## Test / Verification Results
 
 ```text
-Focused M16.2 desktop tests: 25/25 (tests/test_m16_2_desktop_vertical_slice.py)
+Focused M16.2 desktop tests: 29/29 (tests/test_m16_2_desktop_vertical_slice.py)
 M16.1 architecture-spike regression: 5/5 (tests/test_m16_1_architecture_spike.py)
-Full repository suite: 191/191 (161 existing + 5 M16.1 spike + 25 M16.2)
+Full repository suite: 195/195 (161 existing + 5 M16.1 spike + 29 M16.2)
 Python compile/static check (all tracked .py): passed
 scripts/audit_architecture.py: 59 Python files scanned; 0 serious violations; 0 warnings
 scripts/check_quiz_randomization.py: passed
