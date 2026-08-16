@@ -192,6 +192,8 @@ class M17MotionSourceScanTests(unittest.TestCase):
         PROJECT_ROOT / "src" / "ui_desktop" / "app.py",
         PROJECT_ROOT / "src" / "ui_desktop" / "controllers" / "today_controller.py",
         PROJECT_ROOT / "src" / "ui_desktop" / "controllers" / "entries_controller.py",
+        PROJECT_ROOT / "src" / "ui_desktop" / "widgets" / "navigation_rail.py",
+        PROJECT_ROOT / "src" / "ui_desktop" / "widgets" / "panels.py",
     )
 
     def test_only_motion_module_constructs_animations(self) -> None:

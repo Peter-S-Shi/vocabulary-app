@@ -133,15 +133,16 @@ evidence (see § Milestone 16 below).
 Milestone 17 — Desktop Core Workflow Migration is now **in progress** on
 the single long-lived branch `agent/m17-desktop-core-workflow-migration`.
 The **Motion / Transition Foundation** and Today's non-visual
-controller/handoff groundwork are implemented and retained. **Today's
-presentation is not yet implemented**: two attempted visual
-implementations were rejected at human visual review, and the rejected
-presentation was controlled-reset to the M16.2 placeholder. A replacement
-[DESIGN.md](DESIGN.md) has since been supplied and committed, and is now
-the authoritative canonical visual-reference and spatial-composition
-authority for M17+; Today is ready for a fresh implementation derived from
-that authority. Review is the next feature in the sequence and must not
-begin before Today is freshly implemented and accepted. Milestone 17
+controller/handoff groundwork are implemented and retained. Two earlier
+Today presentations were rejected at human visual review and
+controlled-reset to the M16.2 placeholder; the replacement
+[DESIGN.md](DESIGN.md) (`c19b686`) was then supplied and committed as the
+authoritative canonical visual-reference and spatial-composition
+authority for M17+. **A third, fresh Today presentation — a Command
+Center built from that authority, with a shared Management Navigation
+Rail — is now implemented and structurally conformant; native human
+visual acceptance is PENDING.** Review is the next feature in the
+sequence and must not begin before Today is accepted. Milestone 17
 overall is not complete. See § Milestone 17 below for the operating model,
 the reset history, and the current feature-sequence position.
 
@@ -875,11 +876,11 @@ architecture — M17 begins building the actual desktop product.
 
 Recommended order, each verified before proceeding to the next:
 
-1. Today — **not yet implemented: presentation reset after human visual
-   rejection; ready for a fresh implementation from the now-supplied
-   replacement `DESIGN.md`** (Motion Foundation and non-visual
-   controller/handoff groundwork retained)
-2. Review — next, not started
+1. Today — **implemented (third presentation) from the replacement
+   `DESIGN.md`; structurally conformant, native human visual acceptance
+   PENDING** (Motion Foundation and non-visual controller/handoff
+   groundwork retained; two earlier presentations were rejected)
+2. Review — next, not started; must not begin before Today is accepted
 3. Quiz — not started
 4. Entries — not started (beyond the M16.2 vertical slice)
 5. minimum Collection navigation/integration required by those workflows — not started
@@ -891,20 +892,24 @@ Functional workflow migration = daily workload, due-review visibility, and
 workflow handoffs.
 Plus DESIGN.md archetype = the real Command Center implementation.
 
-**Status: not yet implemented — presentation reset; ready for a fresh
-implementation from the replacement `DESIGN.md`.** On
+**Status: implemented — a third, fresh Command Center presentation built
+from the replacement `DESIGN.md`; structurally conformant and
+automated-conformance PASS; native human visual acceptance PENDING.** On
 `agent/m17-desktop-core-workflow-migration`, the Motion / Transition
 Foundation (DESIGN.md § 25, a cross-cutting extension originally
 established at the initial Today checkpoint) and Today's non-visual
-controller/handoff groundwork are implemented and retained. Two Today
-presentations were built and **both were rejected at human visual
+controller/handoff groundwork are implemented and retained. Two earlier
+Today presentations were built and **both were rejected at human visual
 review**; a controlled reset returned the presentation to the M16.2
-placeholder. The replacement `DESIGN.md` (final design authority,
-committed at `c19b686`) has since been supplied and is now the
-authoritative canonical visual-reference and spatial-composition
-authority for M17+. A fresh Today implementation must be derived from
-that authority, not from the rejected work. Do not mark Today or
-Milestone 17 complete.
+placeholder before the replacement `DESIGN.md` (final design authority,
+committed at `c19b686`) was supplied as the authoritative canonical
+visual-reference and spatial-composition authority for M17+. The current
+presentation — a shared vertical left Management Navigation Rail plus a
+three-region Today Command Center (compact summary, dominant Learning
+Queue, Suggested Next Actions, right Context Rail) — was derived fresh
+from that authority, not from either rejected attempt. Do not mark Today
+or Milestone 17 complete until a human has reviewed the real native
+window and accepted it.
 
 #### Review
 

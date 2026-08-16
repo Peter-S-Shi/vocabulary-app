@@ -177,15 +177,15 @@ class M162NavigationAndChromeTests(_SyntheticDatabaseTestCase):
         self.assertIs(self.window.current_workspace(), Workspace.TODAY)
 
     def test_study_mode_suppresses_management_chrome_and_restores_it(self) -> None:
-        self.assertTrue(self.window._management_toolbar.isVisible())
+        self.assertTrue(self.window._navigation_rail.isVisible())
         self.assertFalse(self.window._study_toolbar.isVisible())
 
         self.window.app_state.enter_study_mode()
-        self.assertFalse(self.window._management_toolbar.isVisible())
+        self.assertFalse(self.window._navigation_rail.isVisible())
         self.assertTrue(self.window._study_toolbar.isVisible())
 
         self.window.app_state.enter_management_mode()
-        self.assertTrue(self.window._management_toolbar.isVisible())
+        self.assertTrue(self.window._navigation_rail.isVisible())
         self.assertFalse(self.window._study_toolbar.isVisible())
 
     def test_mode_changed_signal_only_fires_on_actual_transition(self) -> None:
@@ -237,7 +237,7 @@ class M162ShellStateAuthorityTests(_SyntheticDatabaseTestCase):
 
         self.assertIs(window.app_state.mode, ShellMode.STUDY)
         self.assertTrue(window._study_toolbar.isVisible())
-        self.assertFalse(window._management_toolbar.isVisible())
+        self.assertFalse(window._navigation_rail.isVisible())
 
     def test_shell_convenience_method_keeps_state_and_ui_aligned(self) -> None:
         window = MainWindow()

@@ -5,6 +5,7 @@ from enum import Enum
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 
+from src.ui_desktop.theming.metrics import RADIUS_DEFAULT, SPACING
 from src.ui_desktop.theming.tokens import (
     THEME_CALM_BLUE_DARK,
     THEME_CALM_BLUE_LIGHT,
@@ -129,10 +130,19 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     foreground-pair rule and § 11.4's "always resolve an explicit
     foreground" requirement -- the same class of bug DESIGN.md § 11.4
     already documents for unstyled table rows and status pills.
+
+    The M17 Today Command Center / shared Management Rail rules below
+    (``#nav-rail-item``, ``#today-*``) follow the same explicit-
+    foreground-pair discipline for the same reason: any of these
+    custom-drawn widgets left unstyled would silently fall through to an
+    unstyled default under the same style-sheet-engine takeover.
     """
     neutral = tokens.neutral
     accent = tokens.accent
+    semantic = tokens.semantic
     danger = tokens.semantic.danger
+    radius = RADIUS_DEFAULT
+    sp = SPACING
 
     return f"""
     QTableView {{
@@ -183,6 +193,134 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         border: 1px solid {danger.background};
         border-radius: 4px;
         padding: 4px 10px;
+    }}
+    #nav-rail {{
+        background-color: {neutral.surface_secondary};
+        border-right: 1px solid {neutral.border_default};
+    }}
+    QPushButton#nav-rail-item {{
+        text-align: left;
+        background-color: transparent;
+        color: {neutral.text_primary};
+        border: none;
+        border-left: 3px solid transparent;
+        border-radius: 0px;
+        padding: {sp.sm}px {sp.lg}px;
+    }}
+    QPushButton#nav-rail-item:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+    }}
+    QPushButton#nav-rail-item:checked {{
+        background-color: {accent.selected_background};
+        color: {accent.soft.foreground};
+        border-left: 3px solid {accent.primary.background};
+        font-weight: 600;
+    }}
+    QPushButton#nav-rail-item:disabled {{
+        color: {neutral.text_disabled};
+        background-color: transparent;
+    }}
+    QLabel#today-page-title {{
+        color: {neutral.text_primary};
+        font-size: 20px;
+        font-weight: 700;
+    }}
+    QLabel#today-date {{
+        color: {neutral.text_secondary};
+    }}
+    QLabel#today-section-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#today-context-heading {{
+        color: {neutral.text_secondary};
+        font-size: 12px;
+        font-weight: 600;
+    }}
+    QWidget#today-summary-card {{
+        background-color: {neutral.surface_secondary};
+        border: 1px solid {neutral.border_subtle};
+        border-radius: {radius}px;
+    }}
+    QLabel#today-summary-caption {{
+        color: {neutral.text_muted};
+        font-size: 11px;
+    }}
+    QLabel#today-summary-value {{
+        color: {neutral.text_primary};
+        font-size: 18px;
+        font-weight: 700;
+    }}
+    QWidget#today-queue-card, QWidget#today-suggested-card {{
+        background-color: {neutral.surface_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+    }}
+    QLabel#today-action-title {{
+        color: {neutral.text_primary};
+        font-weight: 600;
+    }}
+    QLabel#today-action-subtitle {{
+        color: {neutral.text_secondary};
+        font-size: 12px;
+    }}
+    QPushButton#today-action-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#today-action-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#today-action-button:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QWidget#today-context-rail {{
+        border-left: 1px solid {neutral.border_subtle};
+    }}
+    QLabel#today-activity-title {{
+        color: {neutral.text_primary};
+        font-weight: 600;
+        font-size: 12px;
+    }}
+    QLabel#today-activity-subtitle {{
+        color: {neutral.text_muted};
+        font-size: 11px;
+    }}
+    QLabel#today-attention-chip {{
+        background-color: {semantic.warning_soft};
+        color: {semantic.warning.background};
+        border-radius: {radius}px;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 600;
+    }}
+    QPushButton#today-quick-action {{
+        background-color: transparent;
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 10px;
+    }}
+    QPushButton#today-quick-action:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QPushButton#today-quick-action:disabled {{
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QLabel#today-empty-state {{
+        color: {neutral.text_muted};
+        font-style: italic;
     }}
     """.strip()
 

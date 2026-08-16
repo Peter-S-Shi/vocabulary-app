@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QMainWindow, QStackedWidget, QToolBar
+from PySide6.QtWidgets import QHBoxLayout, QMainWindow, QStackedWidget, QToolBar, QWidget
 
 from src.ui_desktop.controllers.entries_controller import EntriesController
 from src.ui_desktop.controllers.today_controller import TodayController
@@ -8,14 +8,16 @@ from src.ui_desktop.motion.transitions import TransitionManager
 from src.ui_desktop.state.app_state import AppState, ShellMode, Workspace
 from src.ui_desktop.views.entries_view import EntriesView
 from src.ui_desktop.views.today_view import TodayView
+from src.ui_desktop.widgets.navigation_rail import NavigationRail
 
 """
-QMainWindow shell proving native navigation and the Management Mode <->
-Study Mode chrome swap structurally (DESIGN.md § 3, M16.1 contract § 8).
-Full Study Mode (Review/Quiz) content is M17 work; only the chrome-swap
-mechanism is proven here via AppState.enter_study_mode()/
-enter_management_mode(), exercised through controller/shell APIs and
-tests rather than a fake production Study workflow.
+QMainWindow shell: the shared vertical left Management Navigation Rail
+(DESIGN.md § 5, `VR-SHELL-001`) plus the Management Mode <-> Study Mode
+chrome swap (M16.1 contract § 8). Full Study Mode (Review/Quiz) content
+remains out of scope; only the chrome-swap mechanism is proven here via
+AppState.enter_study_mode()/enter_management_mode(). Study Mode's own
+composition is governed separately and is not redesigned by this
+checkpoint.
 
 `AppState` is the single source of truth for the active workspace and
 shell mode (M16.1 contract § 11.C). `MainWindow` never keeps an
@@ -29,14 +31,17 @@ Today/Management on startup.
 ``TransitionManager`` (motion/transitions.py) is shared desktop-shell
 infrastructure and is design-neutral: it decorates workspace switches and
 the Management/Study chrome swap with the centrally-configured transition,
-whatever shell composition a later design specifies. It is never consulted
+whatever shell composition the design specifies. It is never consulted
 for correctness -- every render below performs the actual state change
 synchronously first, then optionally animates the result.
 
-The shell's visual composition is deliberately the M16.2 baseline: the
-M17 visual interpretation of it was rejected at human visual review and
-reset. Do not reintroduce a shell composition here until the replacement
-DESIGN.md and its canonical visual reference define one.
+The Management-mode shell composition (this checkpoint's fresh
+implementation) is now frozen at product level by the replacement
+DESIGN.md's Global Management Shell Contract (§ 5) and Today Command
+Center contract (§ 6.1) -- not agent-derived. The rail is shared shell
+infrastructure: any future Management Mode screen reuses the same
+``NavigationRail`` instance/class rather than inventing its own
+first-level navigation.
 """
 
 
@@ -48,7 +53,7 @@ class MainWindow(QMainWindow):
     ) -> None:
         super().__init__()
         self.setWindowTitle("Vocabulary App (Desktop Preview)")
-        self.resize(1024, 720)
+        self.resize(1280, 800)
 
         self.app_state = app_state or AppState()
         self._motion = motion or TransitionManager()
@@ -57,15 +62,26 @@ class MainWindow(QMainWindow):
         self.entries_controller = EntriesController()
 
         self.today_view = TodayView(self.today_controller)
+        self.today_view.navigate_to_entries_requested.connect(
+            lambda: self.app_state.request_navigation(Workspace.ENTRIES)
+        )
         self.entries_view = EntriesView(self.entries_controller)
 
         self._workspace_stack = QStackedWidget(self)
         self._workspace_stack.addWidget(self.today_view)
         self._workspace_stack.addWidget(self.entries_view)
-        self.setCentralWidget(self._workspace_stack)
 
-        self._management_toolbar = self._build_management_toolbar()
-        self.addToolBar(self._management_toolbar)
+        self._navigation_rail = NavigationRail(self)
+        self._navigation_rail.destination_activated.connect(self._on_rail_destination_activated)
+        self._navigation_rail.set_active(self.app_state.workspace.value)
+
+        shell_root = QWidget(self)
+        shell_layout = QHBoxLayout(shell_root)
+        shell_layout.setContentsMargins(0, 0, 0, 0)
+        shell_layout.setSpacing(0)
+        shell_layout.addWidget(self._navigation_rail, 0)
+        shell_layout.addWidget(self._workspace_stack, 1)
+        self.setCentralWidget(shell_root)
 
         self._study_toolbar = self._build_study_toolbar()
         self.addToolBar(self._study_toolbar)
@@ -85,17 +101,11 @@ class MainWindow(QMainWindow):
         self._render_workspace(self.app_state.workspace, animate=False)
         self._render_mode(self.app_state.mode, animate=False)
 
-    def _build_management_toolbar(self) -> QToolBar:
-        toolbar = QToolBar("Navigation", self)
-        toolbar.setObjectName("management-toolbar")
-
-        today_action = toolbar.addAction("Today")
-        today_action.triggered.connect(lambda: self.app_state.request_navigation(Workspace.TODAY))
-
-        entries_action = toolbar.addAction("Entries")
-        entries_action.triggered.connect(lambda: self.app_state.request_navigation(Workspace.ENTRIES))
-
-        return toolbar
+    def _on_rail_destination_activated(self, destination_key: str) -> None:
+        if destination_key == "today":
+            self.app_state.request_navigation(Workspace.TODAY)
+        elif destination_key == "entries":
+            self.app_state.request_navigation(Workspace.ENTRIES)
 
     def _build_study_toolbar(self) -> QToolBar:
         toolbar = QToolBar("Study Session", self)
@@ -132,6 +142,8 @@ class MainWindow(QMainWindow):
             self._workspace_stack.setCurrentWidget(widget)
             self.entries_controller.refresh()
 
+        self._navigation_rail.set_active(workspace.value)
+
         # The workspace switch above is already complete and correct by
         # this point; the transition below is a purely decorative reveal of
         # that already-correct state, never a precondition for it.
@@ -140,12 +152,12 @@ class MainWindow(QMainWindow):
 
     def _render_mode(self, mode: ShellMode, *, animate: bool = True) -> None:
         is_study = mode is ShellMode.STUDY
-        self._management_toolbar.setVisible(not is_study)
+        self._navigation_rail.setVisible(not is_study)
         self._study_toolbar.setVisible(is_study)
 
         if animate:
-            visible_toolbar = self._study_toolbar if is_study else self._management_toolbar
-            self._motion.fade_in(visible_toolbar)
+            visible_widget = self._study_toolbar if is_study else self._navigation_rail
+            self._motion.fade_in(visible_widget)
 
     def _on_navigation_requested(self, workspace_value: str, _payload: object) -> None:
         self._render_workspace(Workspace(workspace_value))
