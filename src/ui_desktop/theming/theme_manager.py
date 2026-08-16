@@ -129,6 +129,15 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     foreground-pair rule and § 11.4's "always resolve an explicit
     foreground" requirement -- the same class of bug DESIGN.md § 11.4
     already documents for unstyled table rows and status pills.
+
+    The M17 Today feature is this application's first real use of
+    ``QPushButton``; its rules (including the ``disabled`` state and the
+    ``primary="true"`` filled-accent variant per DESIGN.md § 16 Buttons)
+    are added here proactively, applying that same lesson before a first
+    use rather than after a second contrast defect is found. The
+    ``today-panel`` / ``today-page-title`` / label ``role`` rules give
+    Today's Command Center panels and secondary/muted text explicit,
+    paired foregrounds for the same reason.
     """
     neutral = tokens.neutral
     accent = tokens.accent
@@ -183,6 +192,63 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         border: 1px solid {danger.background};
         border-radius: 4px;
         padding: 4px 10px;
+    }}
+    QPushButton {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: 4px;
+        padding: 4px 12px;
+    }}
+    QPushButton:hover {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QPushButton:pressed {{
+        background-color: {accent.pressed.background};
+        color: {accent.pressed.foreground};
+        border: 1px solid {accent.pressed.background};
+    }}
+    QPushButton:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QPushButton[primary="true"] {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: 1px solid {accent.primary.background};
+    }}
+    QPushButton[primary="true"]:hover {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+        border: 1px solid {accent.hover.background};
+    }}
+    QPushButton[primary="true"]:pressed {{
+        background-color: {accent.pressed.background};
+        color: {accent.pressed.foreground};
+        border: 1px solid {accent.pressed.background};
+    }}
+    QPushButton[primary="true"]:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QFrame#today-panel {{
+        background-color: {neutral.surface_secondary};
+        border: 1px solid {neutral.border_default};
+        border-radius: 6px;
+    }}
+    QLabel#today-page-title {{
+        color: {neutral.text_primary};
+        font-weight: 600;
+    }}
+    QLabel[role="secondary"] {{
+        color: {neutral.text_secondary};
+    }}
+    QLabel[role="muted"] {{
+        color: {neutral.text_muted};
     }}
     """.strip()
 

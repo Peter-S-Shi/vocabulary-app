@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QApplication
 from src.app_config import get_app_icon_path
 from src.db import init_db
 from src.ui_desktop.main_window import MainWindow
+from src.ui_desktop.motion.transitions import TransitionManager, parse_motion_policy
 from src.ui_desktop.state.preferences import load_preferences
 from src.ui_desktop.theming.theme_manager import ThemeManager, parse_accent, parse_appearance
 
@@ -46,7 +47,8 @@ def build_application(argv: list[str] | None = None) -> tuple[QApplication, Main
     preferences = load_preferences()
     theme_manager.apply(parse_appearance(preferences.appearance), parse_accent(preferences.accent))
 
-    window = MainWindow()
+    motion = TransitionManager(policy=parse_motion_policy(preferences.motion))
+    window = MainWindow(motion=motion)
     if icon is not None:
         window.setWindowIcon(icon)
     return application, window, theme_manager

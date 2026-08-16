@@ -8,22 +8,24 @@ from pathlib import Path
 from src.app_config import get_app_preferences_path
 
 """
-Durable application-preference storage (Appearance, Accent), per the M16.1
-contract § 11.B / § 12. This is UI/application preference state, not
-learning data: it is never written to ``vocab.db`` and never touched by
-``src/`` core modules.
+Durable application-preference storage (Appearance, Accent, Motion), per the
+M16.1 contract § 11.B / § 12 and DESIGN.md § 23 (Motion / Transition
+System). This is UI/application preference state, not learning data: it is
+never written to ``vocab.db`` and never touched by ``src/`` core modules.
 """
 
 LOGGER = logging.getLogger("vocabulary_app.ui")
 
 DEFAULT_APPEARANCE = "System"
 DEFAULT_ACCENT = "Calm Blue"
+DEFAULT_MOTION = "Normal"
 
 
 @dataclass
 class Preferences:
     appearance: str = DEFAULT_APPEARANCE
     accent: str = DEFAULT_ACCENT
+    motion: str = DEFAULT_MOTION
 
 
 def load_preferences(path: Path | None = None) -> Preferences:
@@ -49,7 +51,8 @@ def load_preferences(path: Path | None = None) -> Preferences:
 
     appearance = str(raw.get("appearance") or DEFAULT_APPEARANCE)
     accent = str(raw.get("accent") or DEFAULT_ACCENT)
-    return Preferences(appearance=appearance, accent=accent)
+    motion = str(raw.get("motion") or DEFAULT_MOTION)
+    return Preferences(appearance=appearance, accent=accent, motion=motion)
 
 
 def save_preferences(preferences: Preferences, path: Path | None = None) -> Path:

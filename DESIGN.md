@@ -1,14 +1,13 @@
 # Vocabulary App · Desktop Design Contract (`DESIGN.md`)
 
-Status: **Frozen UI Design Baseline — Milestone 16 In Progress**
+Status: **Frozen UI Design Baseline — Milestone 16 Complete on `main`;
+Milestone 17 In Progress**
 
-This document freezes the Milestone 16 UI/design baseline. It is not a
-statement that Milestone 16 itself is complete — the desktop framework
-decision and controller/view-state boundaries were decided and are complete
-on `main` through M16.1 (see
-[M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md)),
-and the minimal desktop shell remains open for M16.2. See `ROADMAP.md`
-§ Milestone 16 and `PROJECT_STATUS.md` for the authoritative current
+This document freezes the Milestone 16 UI/design baseline; Milestone 16 is
+complete on `main` (see [Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md)).
+§ 23 (Motion / Transition System) is an M17-authorized additive extension
+to that baseline, not a reopening of it. See `ROADMAP.md` § Milestone 16 /
+§ Milestone 17 and `PROJECT_STATUS.md` for the authoritative current
 lifecycle state.
 
 This document is the authoritative product/UI contract for the native desktop
@@ -858,3 +857,83 @@ Consolidated from the Milestone 16 design-exploration sequence, in order:
 Where the hardening pass (5) revised a numeric value set by the earlier
 validation pass (4), this document uses the hardening pass's value, per the
 explicit precedence rule stated at the top of § 11.
+
+## 23. Motion / Transition System
+
+**Status: authorized additive extension, added during M17 Feature 1 (Today
+/ Command Center). This section adds a new cross-cutting requirement; it
+does not reopen or reinterpret §§ 1–22.**
+
+### 23.1 Why
+
+Milestone 16 established the visual system; it said nothing about how the
+product moves between screens and modes. Navigation between major screens
+and modes should feel fluid, comfortable, calm, and native rather than
+abruptly swapping content.
+
+### 23.2 Design Intent
+
+Motion must feel:
+
+- subtle;
+- responsive;
+- calm;
+- purposeful;
+- visually comfortable;
+- subordinate to the content.
+
+Motion must **not** feel flashy, game-like, slow, or decorative for its own
+sake. If a transition draws attention to itself instead of the content it
+reveals, it has failed this rule.
+
+### 23.3 Where Motion Applies
+
+- workspace/page transitions (e.g. Today ↔ Entries);
+- Management-shell navigation;
+- the Management ↔ Study Mode chrome swap (§ 3);
+- lightweight reveal/change transitions where they materially improve
+  orientation.
+
+Motion is a shared desktop-shell concern, not feature-owned business logic:
+one centralized mechanism decorates transitions across every workspace and
+mode, rather than each feature inventing its own timers or animation code.
+
+Do not animate everything. Avoid unnecessary row-by-row table animation,
+gratuitous number counting, bouncing, large movement, or any motion that
+delays the user's ability to act.
+
+### 23.4 Behavioral Guarantees
+
+Motion must:
+
+- never mutate learning/domain state;
+- remain entirely outside reusable core/business modules;
+- never make a view or controller depend on animation completion for
+  correctness — the actual state change (e.g. which workspace is current)
+  always completes synchronously, before any transition decorates it;
+- preserve navigation state and focus semantics;
+- tolerate repeated/rapid navigation without leaving stale widgets, stale
+  opacity, incorrect state, or queued obsolete transitions;
+- be interruptible/replaced safely;
+- degrade cleanly when motion is reduced or disabled;
+- never block user input longer than necessary.
+
+### 23.5 Reduced Motion
+
+Motion policy is a single centrally controllable setting with three
+values — Normal, Reduced, Disabled — not a per-widget toggle. It is stored
+as a durable desktop preference alongside Appearance and Accent (§ 7),
+outside `vocab.db`, so it can be adjusted without a full Settings surface
+being required by this section. A future Settings UI may expose it; that
+is implementation scope, not a design requirement added here.
+
+### 23.6 Anti-Patterns
+
+- large sliding/bouncing page transitions;
+- per-row list/table animation on ordinary data refresh;
+- animated counters or gamified number reveals;
+- motion that must finish before the user can act;
+- a Today-only, Entries-only, or otherwise feature-specific animation
+  language;
+- accent-saturated or glowing transition effects (this would also violate
+  § 14's Study Mode color restraint once Study Mode motion is implemented).

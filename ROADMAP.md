@@ -105,7 +105,7 @@ target.
 ## Current Phase
 
 **Milestone 16 — Desktop Architecture and UI Design Complete on `main`;
-Milestone 17 Next**
+Milestone 17 In Progress**
 
 The trustworthy data/business-logic baseline, repository restructure, Import
 and Template Evolution foundation, and Learning Analytics and Insight Core are
@@ -129,6 +129,14 @@ review, human native-window visual acceptance, navigation-contrast
 acceptance, and desktop-launcher/icon acceptance; see
 [Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md) for full
 evidence (see § Milestone 16 below).
+
+Milestone 17 — Desktop Core Workflow Migration is now **in progress** on
+the single long-lived branch `agent/m17-desktop-core-workflow-migration`.
+Its first feature checkpoint, **Today / Command Center + Motion
+Foundation**, is implemented and pending independent review; Review is the
+next feature in the sequence and has not started. Milestone 17 overall is
+not complete. See § Milestone 17 below for the operating model and the
+current feature-sequence position.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -860,18 +868,24 @@ architecture — M17 begins building the actual desktop product.
 
 Recommended order, each verified before proceeding to the next:
 
-1. Today
-2. Review
-3. Quiz
-4. Entries
-5. minimum Collection navigation/integration required by those workflows
-6. M17 parity + exit verification
+1. Today — **implemented, pending independent review**
+2. Review — next, not started
+3. Quiz — not started
+4. Entries — not started (beyond the M16.2 vertical slice)
+5. minimum Collection navigation/integration required by those workflows — not started
+6. M17 parity + exit verification — not started
 
 #### Today
 
 Functional workflow migration = daily workload, due-review visibility, and
 workflow handoffs.
 Plus DESIGN.md archetype = the real Command Center implementation.
+
+**Status: implemented on `agent/m17-desktop-core-workflow-migration`,
+pending independent review**, together with the Motion / Transition
+Foundation (DESIGN.md § 23), a cross-cutting extension established at this
+checkpoint. Do not mark Today or Milestone 17 complete until that review
+closes.
 
 #### Review
 

@@ -1,6 +1,6 @@
 # Vocabulary App Project Status
 
-Last reviewed: 2026-08-15
+Last reviewed: 2026-08-16
 
 This file is the authoritative evidence-based snapshot of the current project
 state.
@@ -13,11 +13,11 @@ Desktop-specific migration principles and workflow mapping are defined in
 ## Current Phase
 
 **Milestone 16 — Desktop Architecture and UI Design (Complete on `main`);
-Milestone 17 — Desktop Core Workflow Migration (Next)**
+Milestone 17 — Desktop Core Workflow Migration (In Progress)**
 
 ## Current Milestone
 
-**Milestone 16 Complete on `main`; Milestone 17 Not Started**
+**Milestone 16 Complete on `main`; Milestone 17 In Progress**
 
 M16.0 Desktop UI Design Baseline is complete and frozen: [DESIGN.md](DESIGN.md)
 records the approved desktop information architecture, theme architecture, and
@@ -35,16 +35,67 @@ acceptance. See `ROADMAP.md` § Milestone 16 for exit criteria and
 [Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md) for full
 evidence.
 
-Milestone 17 — Desktop Core Workflow Migration is the next objective. It
-remains one milestone: one long-lived branch, one Draft PR (expected
-`agent/m17-desktop-core-workflow-migration`), and an ordered feature
+Milestone 17 — Desktop Core Workflow Migration is **in progress** on the
+single long-lived branch `agent/m17-desktop-core-workflow-migration`. It
+remains one milestone: one branch, one Draft PR, and an ordered feature
 migration sequence (Today, Review, Quiz, Entries, minimum Collection
 integration, then parity/exit verification) rather than independent
 sub-milestone branches or PRs. From M17 onward, functional workflow
 migration and that workflow's approved `DESIGN.md` archetype implementation
 are one feature-level engineering closure — see `ROADMAP.md` § Milestone 17
 for the full operating model, frozen semantic boundaries, and verification
-model. M17 implementation has not started; no branch or PR exists yet.
+model.
+
+**Today / Command Center + Motion Foundation** (feature 1 of the sequence)
+is implemented and pending independent review. It turns the M16.2 Today
+vertical slice into a real Command Center: `TodayController` adds
+read-only projections (`queue_items()`, `primary_recommendation()`,
+`recent_activity()`, `collections_needing_attention()`) over the same
+unmodified `src.learning_workflow.get_today_overview()`; `TodayView`
+renders the DESIGN.md § 4.1 hierarchy with the Learning Queue
+(`LearningQueueTableModel` over `daily_quiz_recommendations`) as the
+dominant area by layout stretch factor. Review/Quiz destinations are not
+implemented yet, so every action that would target them is intentionally
+disabled with an explanatory tooltip rather than a dead button; only the
+Entries handoff is real, wired through a `entries_requested` signal so
+Today never imports `EntriesView` or `AppState` directly. A minimal typed
+handoff shape, `LearningActionIntent` (`state/handoff.py`), lets a
+selected Learning Queue item's intent be constructed and inspected without
+Today fabricating a Review/Quiz session.
+
+This checkpoint also establishes the authorized **Motion / Transition
+Foundation** (DESIGN.md § 23): a single centralized
+`TransitionManager` (`motion/transitions.py`) decorates workspace switches
+and the Management/Study chrome swap with a subtle opacity fade, with a
+`Normal`/`Reduced`/`Disabled` policy stored as a new `motion` desktop
+preference (`state/preferences.py`) alongside Appearance/Accent. Every
+state change (which workspace is current, which toolbar is visible)
+completes synchronously before any fade starts, so correctness never
+depends on animation completion; rapid/repeated navigation cancels and
+resets any in-flight fade rather than leaving stale opacity.
+
+M17 implementation began from the verified `main` post-M16-closure commit
+`c8842e0f77199ed9d3d0a2e3c48701d4289f137e` (PR #24 merge commit). Do not
+mark Today, Motion, or Milestone 17 complete until independent review
+closes this checkpoint.
+
+Verification on 2026-08-16 passed:
+
+```text
+Focused M17 Today Command Center tests: 22/22 (tests/test_m17_today_command_center.py)
+Focused M17 Motion Foundation tests: 14/14 (tests/test_m17_motion_foundation.py)
+M16.1 + M16.2 desktop regression: 43/43
+Full repository suite: 240/240 (204 existing + 22 Today + 14 Motion)
+Python compile check (all tracked .py): passed
+scripts/audit_architecture.py: 63 Python files scanned, 0 serious, 0 warnings
+scripts/check_quiz_randomization.py: passed
+tools/check_packaging_readiness.py: passed, only the expected local data/vocab.db exclusion warning
+Real (non-offscreen) native-window smoke: windows Qt platform confirmed, Today -> Entries -> rapid re-navigation, exit code 0
+```
+
+No reusable core or schema/app-data version changed. `src/learning_workflow.py`
+is unmodified; every number and recommendation Today displays comes from
+its existing, unmodified functions.
 
 M16.1 selects **PySide6** as the desktop framework and freezes the
 controller/view-state/core boundary, the initial `src/ui_desktop/` package
@@ -1340,18 +1391,21 @@ complete.
 
 ## Next Objective
 
-**Begin Milestone 17 — Desktop Core Workflow Migration, starting with the
-Today feature.**
+**Independently review the Today / Command Center + Motion Foundation
+checkpoint on the M17 Draft PR. Do not begin Review until that review
+closes.**
 
 Milestone 16 is complete on `main` (PR #23,
-`2e900d243950ca93aedf5cbde5b836dc6e378f25`). M17 is one milestone: one
-long-lived branch, one Draft PR (expected
-`agent/m17-desktop-core-workflow-migration`), and an ordered feature
-migration sequence — Today, Review, Quiz, Entries, minimum Collection
-integration, then parity/exit verification — rather than independent
-sub-milestone branches or PRs. See `ROADMAP.md` § Milestone 17 for the full
-operating model, frozen semantic boundaries, and verification model. No M17
-branch or implementation exists yet.
+`2e900d243950ca93aedf5cbde5b836dc6e378f25`). Post-M16 lifecycle
+reconciliation merged through PR #24 at
+`c8842e0f77199ed9d3d0a2e3c48701d4289f137e`. M17 is one milestone: one
+long-lived branch (`agent/m17-desktop-core-workflow-migration`), one Draft
+PR, and an ordered feature migration sequence — Today, Review, Quiz,
+Entries, minimum Collection integration, then parity/exit verification —
+rather than independent sub-milestone branches or PRs. See `ROADMAP.md`
+§ Milestone 17 for the full operating model, frozen semantic boundaries,
+and verification model. Today (feature 1) is implemented pending review;
+Review (feature 2) has not started.
 
 ## Repository State
 
@@ -1424,9 +1478,20 @@ branch or implementation exists yet.
   (merged)
 - M16.2 / Milestone 16 merge commit on `main`:
   `2e900d243950ca93aedf5cbde5b836dc6e378f25`
+- Post-M16-closure lifecycle-reconciliation PR: `#24` (merged), merge
+  commit `c8842e0f77199ed9d3d0a2e3c48701d4289f137e`
+- M17 synchronized base commit (verified `main` at prompt time):
+  `c8842e0f77199ed9d3d0a2e3c48701d4289f137e`
+- M17 implementation branch (single long-lived branch for the whole
+  milestone): `agent/m17-desktop-core-workflow-migration`
+- M17 feature 1 (Today / Command Center + Motion Foundation): implemented
+  on that branch, pending independent review; see the M17 Draft PR for the
+  exact reviewed head SHA
 - Current lifecycle documents:
   - `ROADMAP.md`
   - `PROJECT_STATUS.md`
+  - `DESIGN.md` (§ 23 Motion / Transition System added as an M17-authorized
+    additive extension)
   - `docs/migration/DESKTOP_MIGRATION_PLAN.md`
   - `docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md`
   - `docs/history/MILESTONE16_CLOSURE.md` (final closure record)
@@ -1448,11 +1513,14 @@ branch or implementation exists yet.
   Foundation Complete on `main` (PR #21,
   `a1dc044721e9017d39842e96e0516a88a36d129f`); M16.2 Minimal Desktop
   Vertical Slice & M16 Exit Complete on `main` (PR #23,
-  `2e900d243950ca93aedf5cbde5b836dc6e378f25`). Milestone 17 — Desktop Core
-  Workflow Migration Not Started.**
+  `2e900d243950ca93aedf5cbde5b836dc6e378f25`). Post-M16 lifecycle
+  reconciliation Complete on `main` (PR #24,
+  `c8842e0f77199ed9d3d0a2e3c48701d4289f137e`). Milestone 17 — Desktop Core
+  Workflow Migration In Progress: Today / Command Center + Motion
+  Foundation implemented, pending independent review; Review not started.**
 - Exact next objective:
-  **Begin Milestone 17 — Desktop Core Workflow Migration on one long-lived
-  branch (`agent/m17-desktop-core-workflow-migration`) through one Draft PR,
-  starting with the Today feature (functional migration + Command Center
-  DESIGN.md implementation as one closure). See `ROADMAP.md` § Milestone 17
-  for the full operating model.**
+  **Independently review the Today / Command Center + Motion Foundation
+  checkpoint on the M17 Draft PR (branch
+  `agent/m17-desktop-core-workflow-migration`). Do not mark Today or
+  Milestone 17 complete, and do not begin Review, until that review
+  closes.**
