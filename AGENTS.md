@@ -36,6 +36,40 @@ default.
 Be concise. Provide conclusions, essential rationale, and actions without
 chain-of-thought, greetings, or routine apologies.
 
+## Human UI Acceptance Delivery Pattern
+
+Applies to every UI checkpoint from Milestone 17 onward (M17/M18/M19).
+
+Automated tests cannot establish visual quality. The M17 Today checkpoint
+passed engineering and architecture review, and every structural test was
+green, while the product still visually read as default Qt widgets — the
+failure was only caught by a human looking at a real window. Human visual
+acceptance is therefore a required gate, and reaching that gate is the
+agent's job, not the reviewer's.
+
+When implementation, verification, commit, and push for a UI checkpoint
+are complete, do **not** finish by asking the reviewer to launch the app
+themselves. Before handing off the human-acceptance gate:
+
+1. remain on the checkpoint's development branch — do not switch back to
+   `main` before launching;
+2. verify local `HEAD` matches the just-pushed checkpoint SHA (and the
+   remote branch);
+3. launch the real native application from that branch using the
+   repository's desktop runtime (`.venv`, `python -m src.ui_desktop`);
+4. leave the application window open for inspection;
+5. confirm a visible top-level window actually exists rather than assuming
+   the process started successfully;
+6. report the branch and the exact head SHA being displayed; then
+7. stop and wait for an explicit human PASS / FAIL.
+
+Do not substitute screenshots, headless/offscreen runs, or instructions
+telling the reviewer to run CLI commands. If the launch fails, diagnose
+and fix the launch/environment problem before handing off the gate — a
+failed launch is the agent's defect to resolve, not the reviewer's.
+
+Never capture the operator's screen to produce this evidence.
+
 ## Local Prompt Drafts
 
 For every new project, create a `.prompt-drafts/` directory for detailed
