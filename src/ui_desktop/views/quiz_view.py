@@ -84,8 +84,8 @@ Collection/random Quiz remains Entry-level evidence only; nothing here
 fabricates a Card completion for one.
 """
 
-MAIN_COLUMN_MAX_WIDTH = 560
-MATCHING_COLUMN_MAX_WIDTH = 820
+MAIN_COLUMN_MAX_WIDTH = 640
+MATCHING_COLUMN_MAX_WIDTH = 880
 
 
 class QuizView(QWidget):
@@ -112,7 +112,7 @@ class QuizView(QWidget):
 
         self._column = QWidget(self._surface)
         self._column_layout = QVBoxLayout(self._column)
-        self._column_layout.setSpacing(SPACING.md)
+        self._column_layout.setSpacing(SPACING.lg)
         self._column_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         outer.addStretch(1)
@@ -265,6 +265,10 @@ class QuizView(QWidget):
         term.setAlignment(Qt.AlignmentFlag.AlignCenter)
         term.setWordWrap(True)
         layout.addWidget(term)
+        # Extra separation on top of the uniform inter-item spacing above --
+        # the prompt is its own group; the answer surface below it is a
+        # distinct group (visual-calibration corrective pass § 15).
+        layout.addSpacing(SPACING.lg)
 
         answer_input = QLineEdit(block)
         answer_input.setObjectName("quiz-answer-input")
@@ -321,6 +325,7 @@ class QuizView(QWidget):
         term.setAlignment(Qt.AlignmentFlag.AlignCenter)
         term.setWordWrap(True)
         layout.addWidget(term)
+        layout.addSpacing(SPACING.lg)
 
         feedback = controller.feedback
         if feedback is None:

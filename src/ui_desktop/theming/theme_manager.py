@@ -377,7 +377,17 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         font-style: italic;
     }}
 
-    /* Study Mode / Review -- Immersive Focus (DESIGN.md § 6.3, `VR-STUDY-001`) */
+    /* Study Mode / Review -- Immersive Focus (DESIGN.md § 6.3, `VR-STUDY-001`).
+    Visual-calibration corrective pass: font-family set once here on the two
+    Study root containers so every descendant Label/Button/LineEdit/
+    RadioButton/ComboBox inherits it via Qt's normal font-inheritance chain
+    (the QSS rule below never needs repeating per-widget) -- a robust
+    Windows-native pairing (no bundled font dependency) chosen so English and
+    CJK text read as one coherent Study typeface rather than two visually
+    disconnected fallbacks. */
+    QWidget#review-root, QWidget#quiz-root {{
+        font-family: "Segoe UI", "Segoe UI Variable", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+    }}
     QWidget#review-session-bar {{
         background-color: {neutral.surface_secondary};
         border-bottom: 1px solid {neutral.border_default};
@@ -386,6 +396,7 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         background-color: transparent;
         border: none;
         color: {neutral.text_secondary};
+        font-size: 13px;
         padding: 4px 8px;
     }}
     QPushButton#review-exit-button:hover {{
@@ -393,11 +404,12 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     }}
     QLabel#review-context-label {{
         color: {neutral.text_primary};
+        font-size: 14px;
         font-weight: 600;
     }}
     QLabel#review-progress-label {{
         color: {neutral.text_secondary};
-        font-size: 12px;
+        font-size: 13px;
     }}
     QPushButton#review-drawer-toggle {{
         background-color: {neutral.surface_primary};
@@ -417,22 +429,23 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     }}
     QLabel#review-term-label {{
         color: {neutral.text_primary};
-        font-size: 26px;
+        font-size: 42px;
         font-weight: 700;
     }}
     QLabel#review-field-caption {{
         color: {neutral.text_muted};
-        font-size: 11px;
+        font-size: 13px;
         font-weight: 600;
     }}
     QLabel#review-field-text {{
         color: {neutral.text_secondary};
-        font-size: 14px;
+        font-size: 19px;
     }}
     QPushButton#review-nav-previous {{
         background-color: transparent;
         border: none;
         color: {neutral.text_secondary};
+        font-size: 14px;
         padding: 6px 12px;
     }}
     QPushButton#review-nav-previous:hover:enabled {{
@@ -446,7 +459,8 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {accent.primary.foreground};
         border: none;
         border-radius: {radius}px;
-        padding: 8px 22px;
+        padding: 9px 24px;
+        font-size: 15px;
         font-weight: 600;
     }}
     QPushButton#review-nav-next:hover:enabled {{
@@ -463,7 +477,13 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {accent.primary.foreground};
         border: none;
         border-radius: {radius}px;
-        padding: 6px 16px;
+        padding: 7px 18px;
+        font-size: 14px;
+        font-weight: 600;
+    }}
+    QPushButton#review-quick-quiz-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
     }}
     QPushButton#review-quick-quiz-button:disabled {{
         background-color: {neutral.surface_secondary};
@@ -474,13 +494,14 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         background-color: transparent;
         border: none;
         color: {accent.primary.background};
+        font-size: 14px;
     }}
     QPushButton#review-choose-quiz-type-button:hover {{
         color: {accent.hover.background};
     }}
     QLabel#review-safety-caption {{
         color: {neutral.text_muted};
-        font-size: 11px;
+        font-size: 12px;
         font-style: italic;
     }}
     QLabel#review-empty-state {{
@@ -506,12 +527,13 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     QLabel#review-drawer-header {{
         color: {neutral.text_primary};
         font-weight: 600;
-        font-size: 13px;
+        font-size: 16px;
     }}
     QPushButton#review-drawer-close {{
         background-color: transparent;
         border: none;
         color: {neutral.text_secondary};
+        font-size: 15px;
         font-weight: 700;
     }}
     QPushButton#review-drawer-close:hover {{
@@ -522,7 +544,8 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         border: none;
         text-align: left;
         color: {neutral.text_secondary};
-        padding: 4px 6px;
+        font-size: 14px;
+        padding: 6px 8px;
     }}
     QPushButton#review-drawer-entry:hover {{
         background-color: {accent.soft.background};
@@ -532,10 +555,12 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         background-color: {accent.soft.background};
         color: {accent.soft.foreground};
         border: none;
+        border-left: 3px solid {accent.primary.background};
         border-radius: {radius}px;
         text-align: left;
-        padding: 4px 6px;
-        font-weight: 600;
+        font-size: 14px;
+        padding: 6px 8px;
+        font-weight: 700;
     }}
     QWidget#review-drawer-divider {{
         background-color: {neutral.border_subtle};
@@ -543,11 +568,11 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     QLabel#review-drawer-history-heading {{
         color: {neutral.text_secondary};
         font-weight: 600;
-        font-size: 12px;
+        font-size: 13px;
     }}
     QLabel#review-drawer-history-row {{
         color: {neutral.text_muted};
-        font-size: 11px;
+        font-size: 12px;
     }}
     QPushButton#review-drawer-browse-button {{
         background-color: {neutral.surface_primary};
@@ -639,6 +664,7 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         background-color: transparent;
         border: none;
         color: {neutral.text_secondary};
+        font-size: 13px;
         padding: 4px 8px;
     }}
     QPushButton#quiz-exit-button:hover {{
@@ -646,15 +672,16 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     }}
     QLabel#quiz-context-label {{
         color: {neutral.text_primary};
+        font-size: 14px;
         font-weight: 600;
     }}
     QLabel#quiz-progress-label {{
         color: {neutral.text_secondary};
-        font-size: 12px;
+        font-size: 13px;
     }}
     QLabel#quiz-term-label {{
         color: {neutral.text_primary};
-        font-size: 26px;
+        font-size: 42px;
         font-weight: 700;
     }}
     QLineEdit#quiz-answer-input {{
@@ -662,8 +689,12 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_primary};
         border: 1px solid {neutral.border_default};
         border-radius: {radius}px;
-        padding: 8px 10px;
-        font-size: 14px;
+        padding: 12px 16px;
+        font-size: 20px;
+        min-height: 24px;
+    }}
+    QLineEdit#quiz-answer-input:focus {{
+        border: 1px solid {accent.border};
     }}
     QLineEdit#quiz-answer-input:disabled {{
         background-color: {neutral.surface_secondary};
@@ -671,12 +702,12 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     }}
     QLabel#quiz-field-caption {{
         color: {neutral.text_muted};
-        font-size: 11px;
+        font-size: 13px;
         font-weight: 600;
     }}
     QLabel#quiz-field-text {{
         color: {neutral.text_secondary};
-        font-size: 14px;
+        font-size: 19px;
     }}
     QPushButton#quiz-show-answer-button,
     QPushButton#quiz-mcq-submit-button,
@@ -686,7 +717,8 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {accent.primary.foreground};
         border: none;
         border-radius: {radius}px;
-        padding: 8px 20px;
+        padding: 10px 26px;
+        font-size: 15px;
         font-weight: 600;
     }}
     QPushButton#quiz-show-answer-button:hover:enabled,
@@ -702,38 +734,55 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         border: 1px solid {neutral.border_subtle};
     }}
     QPushButton#quiz-grade-correct-button {{
-        background-color: {semantic.quiz_correct.background};
-        color: {semantic.quiz_correct.foreground};
-        border: none;
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 2px solid {neutral.text_primary};
         border-radius: {radius}px;
-        padding: 8px 20px;
-        font-weight: 600;
+        padding: 8px 24px;
+        font-size: 15px;
+        font-weight: 700;
+    }}
+    QPushButton#quiz-grade-correct-button:hover {{
+        background-color: {semantic.quiz_correct_soft};
+        border-color: {semantic.quiz_correct.background};
+        color: {semantic.quiz_correct.background};
     }}
     QPushButton#quiz-grade-wrong-button {{
-        background-color: {semantic.quiz_wrong.background};
-        color: {semantic.quiz_wrong.foreground};
-        border: none;
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_secondary};
+        border: 1px solid {neutral.border_default};
         border-radius: {radius}px;
-        padding: 8px 20px;
+        padding: 9px 25px;
+        font-size: 15px;
         font-weight: 600;
+    }}
+    QPushButton#quiz-grade-wrong-button:hover {{
+        background-color: {semantic.quiz_wrong_soft};
+        border-color: {semantic.quiz_wrong.background};
+        color: {semantic.quiz_wrong.background};
     }}
     QRadioButton#quiz-mcq-option {{
         color: {neutral.text_primary};
-        padding: 4px 2px;
+        font-size: 16px;
+        padding: 8px 4px;
+    }}
+    QRadioButton#quiz-mcq-option::indicator {{
+        width: 18px;
+        height: 18px;
     }}
     QLabel#quiz-feedback-correct {{
         color: {semantic.quiz_correct.background};
-        font-size: 16px;
+        font-size: 20px;
         font-weight: 700;
     }}
     QLabel#quiz-feedback-wrong {{
         color: {semantic.quiz_wrong.background};
-        font-size: 16px;
+        font-size: 20px;
         font-weight: 700;
     }}
     QLabel#quiz-matching-heading {{
         color: {neutral.text_secondary};
-        font-size: 13px;
+        font-size: 14px;
         font-weight: 600;
     }}
     QWidget#quiz-matching-row {{
@@ -743,41 +792,43 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     }}
     QLabel#quiz-matching-term-label {{
         color: {neutral.text_primary};
+        font-size: 15px;
         font-weight: 600;
-        padding: 6px 8px;
+        padding: 8px 10px;
     }}
     QComboBox#quiz-matching-combo {{
         background-color: {neutral.surface_primary};
         color: {neutral.text_primary};
         border: 1px solid {neutral.border_default};
         border-radius: {radius}px;
-        padding: 4px 8px;
+        padding: 6px 10px;
+        font-size: 14px;
     }}
     QLabel#quiz-completion-title {{
         color: {neutral.text_primary};
-        font-size: 20px;
+        font-size: 26px;
         font-weight: 700;
     }}
     QLabel#quiz-completion-stat-value {{
         color: {neutral.text_primary};
-        font-size: 22px;
+        font-size: 36px;
         font-weight: 700;
     }}
     QLabel#quiz-completion-stat-label {{
         color: {neutral.text_muted};
-        font-size: 11px;
+        font-size: 12px;
     }}
     QWidget#quiz-completion-divider {{
         background-color: {neutral.border_subtle};
     }}
     QLabel#quiz-completion-mistakes-heading {{
         color: {neutral.text_secondary};
-        font-size: 12px;
+        font-size: 13px;
         font-weight: 600;
     }}
     QLabel#quiz-completion-mistakes-list {{
         color: {neutral.text_primary};
-        font-size: 13px;
+        font-size: 15px;
     }}
     QPushButton#quiz-completion-return-today-button,
     QPushButton#quiz-completion-next-card-button {{
@@ -785,7 +836,8 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_primary};
         border: 1px solid {neutral.border_default};
         border-radius: {radius}px;
-        padding: 6px 14px;
+        padding: 8px 16px;
+        font-size: 14px;
     }}
     QPushButton#quiz-completion-return-today-button:hover,
     QPushButton#quiz-completion-next-card-button:hover {{
@@ -798,7 +850,9 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {accent.primary.foreground};
         border: none;
         border-radius: {radius}px;
-        padding: 6px 14px;
+        padding: 8px 16px;
+        font-size: 14px;
+        font-weight: 600;
     }}
     QPushButton#quiz-completion-review-mistakes-button:hover {{
         background-color: {accent.hover.background};
@@ -806,21 +860,22 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     }}
     QLabel#quiz-blocked-message, QLabel#quiz-error-message, QLabel#quiz-empty-state {{
         color: {neutral.text_secondary};
-        font-size: 13px;
+        font-size: 14px;
     }}
     QPushButton#quiz-blocked-cancel-button {{
         background-color: {neutral.surface_primary};
         color: {danger.background};
         border: 1px solid {danger.background};
         border-radius: {radius}px;
-        padding: 6px 14px;
+        padding: 8px 16px;
+        font-size: 14px;
     }}
     QPushButton#quiz-blocked-cancel-button:hover {{
         background-color: {semantic.danger_soft};
     }}
     QLabel#quiz-exit-confirm-message {{
         color: {neutral.text_secondary};
-        font-size: 13px;
+        font-size: 14px;
     }}
     """.strip()
 

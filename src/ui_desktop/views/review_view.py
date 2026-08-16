@@ -113,7 +113,7 @@ Deliberate semantic differences from the literal p4 mockup, and why:
   only its meaning is kept honest and it is never persisted.
 """
 
-MAIN_COLUMN_MAX_WIDTH = 560
+MAIN_COLUMN_MAX_WIDTH = 640
 DRAWER_WIDTH = 260
 
 
@@ -200,7 +200,12 @@ class ReviewView(QWidget):
         column = QWidget(surface)
         column.setMaximumWidth(MAIN_COLUMN_MAX_WIDTH)
         self._column_layout = QVBoxLayout(column)
-        self._column_layout.setSpacing(SPACING.md)
+        # Looser than any one group's *internal* spacing (e.g.
+        # _build_entry_content's term/Meaning/Example) so the canvas reads
+        # as deliberate groups -- prompt block, then nav, then Quiz
+        # actions, then the safety caption -- rather than a uniform stack
+        # of equally-spaced rows (visual-calibration corrective pass).
+        self._column_layout.setSpacing(SPACING.lg)
         self._column_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         outer.addStretch(1)
@@ -244,7 +249,11 @@ class ReviewView(QWidget):
     def _build_entry_content(self, entry: dict) -> QWidget:
         block = QWidget()
         layout = QVBoxLayout(block)
-        layout.setSpacing(SPACING.sm)
+        # Deliberately looser than review-field-caption's own tight 2px
+        # caption-to-value pairing (_field_block) -- the term is the
+        # dominant learning object and needs visible separation from the
+        # supporting Meaning/Example group below it, not a uniform gap.
+        layout.setSpacing(SPACING.md)
         layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
 
         term = QLabel(str(entry.get("term") or ""), block)
