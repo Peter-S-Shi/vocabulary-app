@@ -264,11 +264,17 @@ class M17TodayViewStructureTests(_SyntheticDatabaseTestCase):
     def test_learning_queue_has_greater_layout_weight_than_other_sections(self) -> None:
         """DESIGN.md § 4.1: "the Learning Queue must have greater visual
         weight than statistics" / § 19 Today PASS criterion. Proven via
-        the actual QVBoxLayout stretch factors driving that dominance."""
+        the actual QVBoxLayout stretch factors driving that dominance.
+
+        This is a *structural* guard on relative weight only. It does not
+        prove the page visually reads as the approved Command Center --
+        the first human visual-acceptance pass failed while this same
+        assertion passed, which is precisely why visual acceptance is a
+        human gate and this test does not claim to replace it."""
         view = self._built_view()
         layout = view.layout()
 
-        queue_index = layout.indexOf(view._queue_table)
+        queue_index = layout.indexOf(view._queue_section)
         self.assertGreaterEqual(queue_index, 0)
         queue_stretch = layout.stretch(queue_index)
 
@@ -277,13 +283,42 @@ class M17TodayViewStructureTests(_SyntheticDatabaseTestCase):
         ]
         self.assertTrue(all(queue_stretch > stretch for stretch in other_stretches))
 
-    def test_summary_reflects_workload_and_never_turns_into_a_chart_dashboard(self) -> None:
+    def test_summary_is_compact_metric_tiles_not_a_chart_dashboard(self) -> None:
         add_entry("English", "Chinese", "word", "vocab", "a word")
         view = self._built_view()
-        self.assertIn("Available Cards:", view._summary_label.text())
-        self.assertIn("Never Quizzed:", view._summary_label.text())
+
+        # The summary is a small fixed set of factual figures, each a
+        # labelled tile -- not a growing metric gallery.
+        self.assertEqual(
+            sorted(view._tiles),
+            ["available_cards", "card_learning_today", "never_quizzed", "quiz_items_today"],
+        )
+        self.assertEqual(view._tiles["available_cards"].label_label.text(), "Available Cards")
+        self.assertEqual(view._tiles["never_quizzed"].label_label.text(), "Never Quizzed")
+        # Values render from the real overview, not placeholders.
+        self.assertNotEqual(view._tiles["available_cards"].value_label.text(), "--")
         # DESIGN.md § 18 Today anti-pattern: no chart/plot widget exists.
         self.assertFalse(hasattr(view, "_chart"))
+
+    def test_empty_queue_shows_an_explanatory_empty_state_not_a_blank_table(self) -> None:
+        """DESIGN.md § 16: an empty state explains what would appear here,
+        "never a bare blank area"."""
+        view = self._built_view()  # empty database -> no queue items
+
+        self.assertEqual(view._queue_model.rowCount(), 0)
+        self.assertIs(view._queue_stack.currentWidget(), view._queue_empty_state)
+        self.assertIn("Nothing is queued", view._queue_empty_state.message_label.text())
+
+    def test_populated_queue_shows_the_table_rather_than_the_empty_state(self) -> None:
+        entry_a = add_entry("French", "English", "word", "chat", "cat")
+        entry_b = add_entry("French", "English", "word", "chien", "dog")
+        collection_id = create_collection("French Basics", card_size=2)
+        add_entries_to_collection([entry_a, entry_b], collection_id)
+
+        view = self._built_view()
+
+        self.assertGreater(view._queue_model.rowCount(), 0)
+        self.assertIs(view._queue_stack.currentWidget(), view._queue_table)
 
     def test_queue_start_button_is_never_a_dead_functional_button(self) -> None:
         """No current Learning Queue item has a migrated desktop

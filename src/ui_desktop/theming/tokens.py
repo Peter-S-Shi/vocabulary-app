@@ -93,10 +93,76 @@ class SemanticTokens:
 
 
 @dataclass(frozen=True)
+class TypographyTokens:
+    """Concrete type scale realizing DESIGN.md § 15's *structure*.
+
+    § 15 freezes the durable structure -- "a small number of weight/size
+    steps (page title, section header, body, secondary/metadata) is
+    sufficient; avoid inventing a large type scale" -- and § 20 explicitly
+    defers the exact metrics until they can be validated against the
+    chosen framework's native text rendering rather than a browser mockup.
+    These are those PySide6-validated values; the *names and steps* remain
+    the contract, not the pixel numbers.
+
+    Deliberately five steps, not a general-purpose scale. Sizes are px
+    (Qt style-sheet units); weights are CSS-style numeric weights.
+    """
+
+    page_title_size: int = 21
+    page_title_weight: int = 600
+
+    section_heading_size: int = 12
+    section_heading_weight: int = 600
+    section_heading_letter_spacing: str = "0.6px"
+
+    body_size: int = 13
+    body_weight: int = 400
+
+    metric_value_size: int = 21
+    metric_value_weight: int = 600
+
+    meta_size: int = 12
+    meta_weight: int = 400
+
+
+@dataclass(frozen=True)
+class MetricsTokens:
+    """Spacing rhythm, radius, and control sizing (DESIGN.md § 15).
+
+    § 15 requires "a small consistent step scale (e.g. 4/8/12/16/24px-class
+    increments) applied uniformly rather than ad hoc per-component
+    spacing", "a single small-to-moderate radius used consistently", and
+    "consistent control height across buttons/inputs within a density
+    mode". These tokens make that enforceable instead of leaving each
+    widget to invent its own numbers.
+    """
+
+    space_xs: int = 4
+    space_sm: int = 8
+    space_md: int = 12
+    space_lg: int = 16
+    space_xl: int = 24
+
+    radius: int = 6
+    control_height: int = 30
+    table_row_height: int = 32
+    page_margin: int = 24
+
+
+TYPOGRAPHY = TypographyTokens()
+METRICS = MetricsTokens()
+
+
+@dataclass(frozen=True)
 class ThemeTokens:
     neutral: NeutralTokens
     accent: AccentTokens
     semantic: SemanticTokens
+    # Typography and metrics are Appearance/Accent-independent: switching
+    # Light <-> Dark or changing accent family must never reflow the page
+    # or resize text (DESIGN.md § 6.1/§ 15).
+    typography: TypographyTokens = TYPOGRAPHY
+    metrics: MetricsTokens = METRICS
 
 
 # --- Neutral Base (DESIGN.md § 11.1) ---------------------------------------

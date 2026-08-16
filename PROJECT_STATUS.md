@@ -74,25 +74,64 @@ completes synchronously before any fade starts, so correctness never
 depends on animation completion; rapid/repeated navigation cancels and
 resets any in-flight fade rather than leaving stale opacity.
 
+**Today engineering/architecture review passed; the first human
+visual-acceptance pass failed.** Real native-window screenshots showed the
+information hierarchy was structurally present but the product still read
+as default Qt widgets with token coloring rather than the approved design:
+near-default application chrome, weak typography hierarchy and spacing
+rhythm, a structurally dominant but visually plain Learning Queue, panels
+that looked like prototype frames, and a "Desktop Preview" title that
+communicated prototype status. That the structural tests were green
+throughout is the point: layout-weight assertions are not evidence of
+`DESIGN.md` realization, and visual acceptance remains a human gate.
+
+A **visual realization pass** followed, implementing the existing design
+language rather than redesigning it. It adds the missing shared layer, not
+Today-specific decoration: `theming/tokens.py` gains the typography scale
+and spacing/radius/control metrics `DESIGN.md` § 15 defines structurally
+and § 20 defers the exact values of; `theming/theme_manager.py` grows from
+a color-only sheet into the shared component grammar (typography steps,
+panel/tile surfaces, management table grammar with header treatment, row
+density and a shape-plus-color selection marker, navigation active state,
+and the primary/secondary/subtle/destructive button hierarchy), keyed on
+semantic properties so every future M17 workspace inherits it; and a new
+`widgets/primitives.py` provides `PageHeader`, `SectionHeading`, `Panel`,
+`MetricTile`, `EmptyState`, and `StatusPill`. The shared shell was
+improved for the same reason — navigation is now exclusive and checkable
+with a real current-location treatment, and the window is titled
+"Vocabulary App". Today is rebuilt on those primitives and hardcodes no
+color and no font size. Entries deliberately keeps its M16.2 content
+depth; only the shared grammar it sits in improved.
+
 M17 implementation began from the verified `main` post-M16-closure commit
-`c8842e0f77199ed9d3d0a2e3c48701d4289f137e` (PR #24 merge commit). Do not
-mark Today, Motion, or Milestone 17 complete until independent review
-closes this checkpoint.
+`c8842e0f77199ed9d3d0a2e3c48701d4289f137e` (PR #24 merge commit). **A
+second human visual-acceptance pass is pending.** Do not mark Today,
+Motion, or Milestone 17 complete until it and independent review close
+this checkpoint.
 
 Verification on 2026-08-16 passed:
 
 ```text
-Focused M17 Today Command Center tests: 22/22 (tests/test_m17_today_command_center.py)
+Focused M17 Today Command Center tests: 24/24 (tests/test_m17_today_command_center.py)
+Focused M17 visual-system tests: 18/18 (tests/test_m17_visual_system.py)
 Focused M17 Motion Foundation tests: 17/17 (tests/test_m17_motion_foundation.py)
 M16.1 + M16.2 desktop regression: 43/43
-Full repository suite: 243/243 (204 existing + 22 Today + 17 Motion),
+Full repository suite: 263/263 (204 existing + 24 Today + 18 visual + 17 Motion),
   confirmed in both M16-then-M17 and M17-then-M16 process orderings
 Python compile check (all tracked .py): passed
-scripts/audit_architecture.py: 63 Python files scanned, 0 serious, 0 warnings
+scripts/audit_architecture.py: 65 Python files scanned, 0 serious, 0 warnings
 scripts/check_quiz_randomization.py: passed
 tools/check_packaging_readiness.py: passed, only the expected local data/vocab.db exclusion warning
 Real (non-offscreen) native-window smoke: windows Qt platform confirmed, Today -> Entries -> rapid re-navigation, exit code 0
 ```
+
+The visual-system tests guard that the grammar stays shared (no view or
+primitive hardcodes a hex color or font size; only `theme_manager.py`
+calls `setStyleSheet()`), that every text-bearing control state resolves
+an explicit paired foreground, and that the new token pairs meet
+`DESIGN.md` § 12 contrast in both Light and Dark. **They do not claim to
+prove visual quality** — the first human pass failed while the structural
+suite was fully green.
 
 Corrective testing while adding the Today/handoff regression coverage
 surfaced and fixed a real native crash: `TransitionManager` parented each
