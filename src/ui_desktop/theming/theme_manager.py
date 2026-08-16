@@ -376,6 +376,240 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_muted};
         font-style: italic;
     }}
+
+    /* Study Mode / Review -- Immersive Focus (DESIGN.md § 6.3, `VR-STUDY-001`) */
+    QWidget#review-session-bar {{
+        background-color: {neutral.surface_secondary};
+        border-bottom: 1px solid {neutral.border_default};
+    }}
+    QPushButton#review-exit-button {{
+        background-color: transparent;
+        border: none;
+        color: {neutral.text_secondary};
+        padding: 4px 8px;
+    }}
+    QPushButton#review-exit-button:hover {{
+        color: {neutral.text_primary};
+    }}
+    QLabel#review-context-label {{
+        color: {neutral.text_primary};
+        font-weight: 600;
+    }}
+    QLabel#review-progress-label {{
+        color: {neutral.text_secondary};
+        font-size: 12px;
+    }}
+    QPushButton#review-drawer-toggle {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: 12px;
+        padding: 4px 14px;
+    }}
+    QPushButton#review-drawer-toggle:checked {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QPushButton#review-drawer-toggle:disabled {{
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QLabel#review-term-label {{
+        color: {neutral.text_primary};
+        font-size: 26px;
+        font-weight: 700;
+    }}
+    QLabel#review-field-caption {{
+        color: {neutral.text_muted};
+        font-size: 11px;
+        font-weight: 600;
+    }}
+    QLabel#review-field-text {{
+        color: {neutral.text_secondary};
+        font-size: 14px;
+    }}
+    QPushButton#review-nav-previous {{
+        background-color: transparent;
+        border: none;
+        color: {neutral.text_secondary};
+        padding: 6px 12px;
+    }}
+    QPushButton#review-nav-previous:hover:enabled {{
+        color: {neutral.text_primary};
+    }}
+    QPushButton#review-nav-previous:disabled {{
+        color: {neutral.text_disabled};
+    }}
+    QPushButton#review-nav-next {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 8px 22px;
+        font-weight: 600;
+    }}
+    QPushButton#review-nav-next:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#review-nav-next:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QPushButton#review-quick-quiz-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 16px;
+    }}
+    QPushButton#review-quick-quiz-button:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QPushButton#review-choose-quiz-type-button {{
+        background-color: transparent;
+        border: none;
+        color: {accent.primary.background};
+    }}
+    QPushButton#review-choose-quiz-type-button:hover {{
+        color: {accent.hover.background};
+    }}
+    QLabel#review-safety-caption {{
+        color: {neutral.text_muted};
+        font-size: 11px;
+        font-style: italic;
+    }}
+    QLabel#review-empty-state {{
+        color: {neutral.text_muted};
+        font-style: italic;
+    }}
+    QPushButton#review-empty-open-entries {{
+        background-color: transparent;
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#review-empty-open-entries:hover {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QWidget#review-drawer {{
+        background-color: {neutral.surface_secondary};
+        border-left: 1px solid {neutral.border_default};
+    }}
+    QLabel#review-drawer-header {{
+        color: {neutral.text_primary};
+        font-weight: 600;
+        font-size: 13px;
+    }}
+    QPushButton#review-drawer-close {{
+        background-color: transparent;
+        border: none;
+        color: {neutral.text_secondary};
+        font-weight: 700;
+    }}
+    QPushButton#review-drawer-close:hover {{
+        color: {neutral.text_primary};
+    }}
+    QPushButton#review-drawer-entry {{
+        background-color: transparent;
+        border: none;
+        text-align: left;
+        color: {neutral.text_secondary};
+        padding: 4px 6px;
+    }}
+    QPushButton#review-drawer-entry:hover {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+    }}
+    QPushButton#review-drawer-entry-current {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: none;
+        border-radius: {radius}px;
+        text-align: left;
+        padding: 4px 6px;
+        font-weight: 600;
+    }}
+    QWidget#review-drawer-divider {{
+        background-color: {neutral.border_subtle};
+    }}
+    QLabel#review-drawer-history-heading {{
+        color: {neutral.text_secondary};
+        font-weight: 600;
+        font-size: 12px;
+    }}
+    QLabel#review-drawer-history-row {{
+        color: {neutral.text_muted};
+        font-size: 11px;
+    }}
+    QPushButton#review-drawer-browse-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px;
+    }}
+    QPushButton#review-drawer-browse-button:hover {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QLabel#review-selector-warning {{
+        color: {danger.background};
+        font-size: 11px;
+    }}
+
+    /* P6 Utility / Dialog baseline (`VR-UTILITY-001`) -- the first QDialogs
+    in the desktop app; styled explicitly for the same reason every other
+    custom-drawn widget above is (module docstring: an unstyled widget
+    under a global QApplication stylesheet silently loses its
+    QPalette-resolved foreground rather than falling back to it). */
+    QDialog {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+    }}
+    QDialog QLabel {{
+        color: {neutral.text_primary};
+    }}
+    QDialog QComboBox {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 4px 8px;
+    }}
+    QDialog QPushButton {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QDialog QPushButton:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QDialog QPushButton:disabled {{
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QPushButton#review-selector-select-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+    }}
+    QPushButton#review-selector-select-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
     """.strip()
 
 

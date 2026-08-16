@@ -1514,11 +1514,13 @@ complete.
 
 ## Next Objective
 
-**Begin Review (feature 2)**, now that Today (feature 1) has native human
-visual acceptance — PASS recorded 2026-08-16 against `fdd9cc0`, closing
-Today at DESIGN.md § 2 Level 4 (Human Accepted). Review has not started;
-this status file records the acceptance and lifecycle closure only, and
-does not itself begin Review implementation work.
+**Independently review and obtain native human visual acceptance for
+Review (feature 2)**, now implemented on the same branch against
+`VR-STUDY-001` (`Review - Quiz.pdf` p4 Variant C, parent pattern P3 --
+Immersive Study). Structural conformance and automated design guards are
+PASS; native visual acceptance is PENDING. Do not mark Review or Milestone
+17 complete, and do not begin Quiz (feature 3), until that review and
+acceptance both close.
 
 Milestone 16 is complete on `main` (PR #23,
 `2e900d243950ca93aedf5cbde5b836dc6e378f25`). Post-M16 lifecycle
@@ -1538,7 +1540,19 @@ a shared Management Rail are all in place, structurally conformant, and
 **native human visual acceptance PASSED** on 2026-08-16 against `fdd9cc0`
 — after two earlier presentations were rejected pre-reset and this third
 presentation itself went through two visual-calibration passes and one
-rendering-bug fix before acceptance. Review (feature 2) has not started.
+rendering-bug fix before acceptance.
+
+Review (feature 2) is **implemented, pending independent review and
+native human visual acceptance**: `ReviewController` projects the current
+Card roster, Entry composition, and factual completed-Quiz history
+entirely through existing `src.learning_workflow`/`src.collections` reads;
+`ReviewView` implements the frozen Immersive Focus composition (Management
+Rail hidden, one minimal session bar, one dominant learning surface, a
+transient right Card Contents/History drawer reusing the shared
+`TransitionManager`). Quick Quiz and Choose Quiz Type both build a real,
+typed `QuizLaunchIntent` but stay honestly disabled/inert since Quiz is
+the next, not-yet-built feature. Browsing a Card creates no Quiz session
+and touches no legacy `src/review.py` scheduling state (regression-tested).
 Milestone 17 is not complete.
 
 ## Repository State
@@ -1628,6 +1642,20 @@ Milestone 17 is not complete.
   and Human Accepted (DESIGN.md § 2 Level 4). See the M17 Draft PR for the
   exact head SHA and the full reject/reset/fresh-implementation/
   acceptance history.
+- M17 feature 2 (Review): `ReviewController` + `ReviewView` implement the
+  Card browse/study-preparation workflow against `VR-STUDY-001`
+  (`Review - Quiz.pdf` p4 Variant C, parent pattern P3 -- Immersive
+  Study/DESIGN.md § 6.3): Management Rail hidden, one minimal session bar,
+  one dominant learning surface, a transient right Card Contents/History
+  drawer. Reads only existing reusable core
+  (`src.learning_workflow.get_study_cards`/`get_card_learning_history`,
+  `src.collections.get_card_groups_for_collection`); never calls the
+  legacy `src/review.py` SRS scheduler. Quick Quiz and Choose Quiz Type
+  both build a real, typed `QuizLaunchIntent` (`state/handoff.py`) but
+  stay honestly disabled/inert because Quiz is not implemented yet.
+  **Implemented on `agent/m17-desktop-core-workflow-migration`, pending
+  independent review and native human visual acceptance.** See the M17
+  Draft PR for the exact reviewed head SHA.
 - Current lifecycle documents:
   - `ROADMAP.md`
   - `PROJECT_STATUS.md`
@@ -1656,17 +1684,14 @@ Milestone 17 is not complete.
   `2e900d243950ca93aedf5cbde5b836dc6e378f25`). Post-M16 lifecycle
   reconciliation Complete on `main` (PR #24,
   `c8842e0f77199ed9d3d0a2e3c48701d4289f137e`). Milestone 17 — Desktop Core
-  Workflow Migration In Progress: Motion Foundation implemented and
-  retained; Today's non-visual controller/handoff groundwork retained;
-  **both attempted Today presentations rejected at human visual review and
-  reset**; replacement `DESIGN.md` supplied and committed (`c19b686`) and
-  now the authoritative canonical visual-reference and spatial-composition
-  authority for M17+; Today ready for fresh implementation from that
-  authority; Review not started; M17 not complete.**
+  Workflow Migration In Progress: Today (feature 1) is **complete and
+  Human Accepted** (native visual acceptance PASSED 2026-08-16 against
+  `fdd9cc0`); Review (feature 2) is **implemented, pending independent
+  review and native human visual acceptance**; Quiz (feature 3) has not
+  started; M17 not complete.**
 - Exact next objective:
-  **Implement Today fresh from the replacement `DESIGN.md` and its
-  canonical visual reference, on the same branch
-  (`agent/m17-desktop-core-workflow-migration`) and Draft PR #25. Do not
-  restart Today from the rejected implementation, do not mark Today or
-  Milestone 17 complete, and do not begin Review before Today is freshly
-  implemented and accepted.**
+  **Independently review the Review / Immersive Focus checkpoint on the
+  M17 Draft PR (branch `agent/m17-desktop-core-workflow-migration`), then
+  obtain native human visual acceptance against `VR-STUDY-001`
+  (`Review - Quiz.pdf` p4 Variant C). Do not mark Review or Milestone 17
+  complete, and do not begin Quiz, until both close.**

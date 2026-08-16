@@ -53,6 +53,39 @@ class LearningActionIntent:
     entry_count: int
 
 
+# Shared across every feature whose UI points at Quiz before Quiz itself is
+# implemented (Today's queue/tile actions; Review's Quick Quiz / Choose Quiz
+# Type routes). One wording, centrally owned, so the honest-unavailable
+# message can never drift between features that all describe the same real
+# product state.
+QUIZ_UNAVAILABLE_TOOLTIP = "Quiz is not implemented yet in the desktop app."
+
+
+@dataclass(frozen=True)
+class QuizLaunchIntent:
+    """Typed handoff describing a Card-scoped Quiz a user asked to start,
+    for a future Quiz checkpoint to consume (M17 Feature 2 prompt §
+    "Quick Quiz" / "Choose Quiz Type"). Built by ``ReviewController`` and
+    never acted on by Review itself -- Quiz does not exist yet in the
+    desktop app, so this is inert data, not a live session request, the
+    same non-fabrication discipline ``LearningActionIntent`` already
+    follows for Today.
+
+    ``quiz_type`` is ``None`` only for a Quick Quiz request where the
+    caller intends the product's own deterministic default type rather
+    than a user-chosen one; Review does not invent or hardcode that
+    default itself.
+    """
+
+    source: str  # "review_quick_quiz" | "review_choose_quiz_type"
+    collection_id: int
+    collection_name: str
+    card_number: int
+    card_id: int | None
+    quiz_type: str | None
+    reason: str
+
+
 def learning_action_intent_from_recommendation(recommendation: dict) -> LearningActionIntent:
     """Build a ``LearningActionIntent`` from one item of
     ``src.learning_workflow.get_daily_quiz_candidates()`` (the Today

@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.ui_desktop.controllers.today_controller import TodayController
-from src.ui_desktop.state.handoff import LearningActionIntent
+from src.ui_desktop.state.handoff import QUIZ_UNAVAILABLE_TOOLTIP, LearningActionIntent
 from src.ui_desktop.theming.metrics import CONTEXT_RAIL_WIDTH, SPACING
 from src.ui_desktop.widgets.panels import ActionRowCard, SuggestedActionTile, SummaryStatCard
 
@@ -47,14 +47,17 @@ metrics (available/never-quizzed/quizzed-today/learned-today) rather than
 the canonical reference's "Due today" framing, which would imply a
 Review-scheduling due-date concept this product does not have.
 
-Any action that would launch Review/Quiz is rendered honestly disabled --
-neither is implemented in the desktop app yet (M17 Feature 1
-fresh-implementation prompt § 9). The real ``LearningActionIntent`` is
-still built for every queue item so a later checkpoint can wire it in
-without redesigning this view, but the button never pretends to work.
+Any action that would launch Quiz is rendered honestly disabled -- Quiz
+is not implemented in the desktop app yet (M17 Feature 1
+fresh-implementation prompt § 9; still true after M17 Feature 2, which
+implements Review's browse/preparation surface but not Quiz itself). The
+real ``LearningActionIntent`` is still built for every queue item so a
+later checkpoint can wire it in without redesigning this view, but the
+button never pretends to work. ``QUIZ_UNAVAILABLE_TOOLTIP`` now lives in
+``state/handoff.py`` (re-exported here for existing importers) so Today
+and Review share one honest-unavailable wording instead of two strings
+that could drift apart.
 """
-
-QUIZ_UNAVAILABLE_TOOLTIP = "Review/Quiz is not implemented yet in the desktop app."
 
 
 class TodayView(QWidget):

@@ -78,14 +78,18 @@ class NavigationRailStructureTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.app = _qt_app()
 
-    def test_only_today_and_entries_are_enabled(self) -> None:
+    def test_only_today_entries_and_study_are_enabled(self) -> None:
+        """Updated for M17 Feature 2 (Review): "study" is the rail's real
+        entry point into Study Mode / Review now that real Study content
+        exists, per the M17 Feature 2 prompt's "smallest shared-shell
+        wiring genuinely required to make Review reachable"."""
         rail = NavigationRail()
         self.addCleanup(rail.deleteLater)
 
         enabled = {d.key for d in PRIMARY_DESTINATIONS if d.enabled}
         disabled = {d.key for d in PRIMARY_DESTINATIONS if not d.enabled} | {SETTINGS_DESTINATION.key}
 
-        self.assertEqual(enabled, {"today", "entries"})
+        self.assertEqual(enabled, {"today", "entries", "study"})
         for key in enabled:
             self.assertTrue(rail.is_enabled_destination(key), key)
         for key in disabled:
@@ -130,8 +134,10 @@ class NavigationRailStructureTests(unittest.TestCase):
         rail.destination_activated.connect(received.append)
 
         # Qt does not deliver clicked() to a disabled QPushButton; this
-        # documents that guarantee rather than assuming it.
-        rail._buttons["study"].click()
+        # documents that guarantee rather than assuming it. "collections"
+        # remains disabled/not-implemented after M17 Feature 2 (Review is
+        # "study", a different destination).
+        rail._buttons["collections"].click()
 
         self.assertEqual(received, [])
 
