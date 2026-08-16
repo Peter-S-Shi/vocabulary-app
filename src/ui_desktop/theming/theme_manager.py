@@ -392,6 +392,11 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         background-color: {neutral.surface_secondary};
         border-bottom: 1px solid {neutral.border_default};
     }}
+    QScrollArea#review-main-scroll, QScrollArea#review-main-scroll > QWidget#qt_scrollarea_viewport,
+    QScrollArea#quiz-main-scroll, QScrollArea#quiz-main-scroll > QWidget#qt_scrollarea_viewport {{
+        background-color: transparent;
+        border: none;
+    }}
     QPushButton#review-exit-button {{
         background-color: transparent;
         border: none;
@@ -857,6 +862,59 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     QPushButton#quiz-completion-review-mistakes-button:hover {{
         background-color: {accent.hover.background};
         color: {accent.hover.foreground};
+    }}
+    QLabel#quiz-mistake-position-label {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#quiz-mistake-context-label {{
+        color: {neutral.text_muted};
+        font-size: 13px;
+    }}
+    QPushButton#quiz-mistake-previous-button {{
+        background-color: transparent;
+        border: none;
+        color: {neutral.text_secondary};
+        font-size: 14px;
+        padding: 6px 12px;
+    }}
+    QPushButton#quiz-mistake-previous-button:hover:enabled {{
+        color: {neutral.text_primary};
+    }}
+    QPushButton#quiz-mistake-previous-button:disabled {{
+        color: {neutral.text_disabled};
+    }}
+    QPushButton#quiz-mistake-next-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 8px 20px;
+        font-size: 14px;
+        font-weight: 600;
+    }}
+    QPushButton#quiz-mistake-next-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#quiz-mistake-next-button:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QPushButton#quiz-mistake-back-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 8px 16px;
+        font-size: 14px;
+    }}
+    QPushButton#quiz-mistake-back-button:hover {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
     }}
     QLabel#quiz-blocked-message, QLabel#quiz-error-message, QLabel#quiz-empty-state {{
         color: {neutral.text_secondary};

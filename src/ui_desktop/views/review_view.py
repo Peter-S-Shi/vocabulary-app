@@ -117,6 +117,26 @@ MAIN_COLUMN_MAX_WIDTH = 640
 DRAWER_WIDTH = 260
 
 
+class _WrappingLabel(QLabel):
+    """A word-wrapped QLabel whose ``resizeEvent`` pins its own
+    ``minimumHeight`` to ``heightForWidth(width())`` (VR-STUDY-001
+    corrective pass § 1). Plain ``setWordWrap(True)`` is not sufficient
+    inside these nested Study layouts: a QScrollArea's own resizable-
+    widget height negotiation for a ``hasHeightForWidth()`` subtree
+    converges on a height a few pixels short of the wrapped text's actual
+    needs (confirmed empirically -- a Qt box-layout/QScrollArea sizeHint-
+    search imprecision, not a missing word-wrap flag). Explicitly pinning
+    ``minimumHeight`` here is what actually stops the final line from
+    being clipped, regardless of how the ambient container's own
+    heightForWidth search resolves."""
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        super().resizeEvent(event)
+        needed = self.heightForWidth(self.width())
+        if needed >= 0 and self.minimumHeight() != needed:
+            self.setMinimumHeight(needed)
+
+
 class ReviewView(QWidget):
     exit_requested = Signal()
     navigate_to_entries_requested = Signal()
@@ -192,12 +212,34 @@ class ReviewView(QWidget):
         return bar
 
     def _build_main_surface(self) -> QWidget:
+        # Long wrapped Meaning/Example text must receive its natural
+        # vertical height rather than being squeezed toward a QLabel's
+        # much-shorter minimumSizeHint whenever the column's sizeHint
+        # exceeds the window's available height (VR-STUDY-001 corrective
+        # pass § 1: this is what actually clipped the final line, not
+        # missing setWordWrap(True)). Wrapping the centered column in a
+        # QScrollArea guarantees the column is never asked to shrink below
+        # its natural height -- short content still centers via the
+        # stretches below, tall content scrolls instead of overlapping the
+        # nav/Quiz actions that follow it.
         surface = QWidget(self)
         surface.setObjectName("review-main-surface")
         outer = QVBoxLayout(surface)
-        outer.setContentsMargins(SPACING.xl, SPACING.xl, SPACING.xl, SPACING.xl)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
 
-        column = QWidget(surface)
+        scroll = QScrollArea(surface)
+        scroll.setObjectName("review-main-scroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(SPACING.xl, SPACING.xl, SPACING.xl, SPACING.xl)
+        content_layout.setSpacing(0)
+
+        column = QWidget(content)
         column.setMaximumWidth(MAIN_COLUMN_MAX_WIDTH)
         self._column_layout = QVBoxLayout(column)
         # Looser than any one group's *internal* spacing (e.g.
@@ -208,9 +250,12 @@ class ReviewView(QWidget):
         self._column_layout.setSpacing(SPACING.lg)
         self._column_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        outer.addStretch(1)
-        outer.addWidget(column, 0, Qt.AlignmentFlag.AlignHCenter)
-        outer.addStretch(1)
+        content_layout.addStretch(1)
+        content_layout.addWidget(column, 0, Qt.AlignmentFlag.AlignHCenter)
+        content_layout.addStretch(1)
+
+        scroll.setWidget(content)
+        outer.addWidget(scroll)
 
         return surface
 
@@ -256,7 +301,7 @@ class ReviewView(QWidget):
         layout.setSpacing(SPACING.md)
         layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
 
-        term = QLabel(str(entry.get("term") or ""), block)
+        term = _WrappingLabel(str(entry.get("term") or ""), block)
         term.setObjectName("review-term-label")
         term.setAlignment(Qt.AlignmentFlag.AlignCenter)
         term.setWordWrap(True)
@@ -313,7 +358,7 @@ class ReviewView(QWidget):
         return row
 
     def _build_safety_caption(self) -> QWidget:
-        caption = QLabel(
+        caption = _WrappingLabel(
             "Browsing prepares this Card. Completing a Quiz records the learning event.",
             self,
         )
@@ -693,7 +738,7 @@ def _field_block(caption_text: str, value_text: str, parent: QWidget) -> QWidget
     caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
     layout.addWidget(caption)
 
-    value = QLabel(value_text, block)
+    value = _WrappingLabel(value_text, block)
     value.setObjectName("review-field-text")
     value.setAlignment(Qt.AlignmentFlag.AlignCenter)
     value.setWordWrap(True)

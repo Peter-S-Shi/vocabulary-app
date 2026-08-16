@@ -66,15 +66,28 @@ Design → Implementation trace:
                                silent abandon; already-logged answers stay
                                recorded either way (frozen semantics).
   completion                -> compact Total/Correct/Wrong + a factual
-                               mistakes list + three next actions, staying
+                               mistakes list + next actions, staying
                                inside Immersive Focus (DESIGN.md § 6.3:
-                               never a KPI dashboard).
+                               never a KPI dashboard). Review Mistakes is
+                               omitted (not disabled) when there are zero
+                               mistakes.
+  mistake review             -> VR-STUDY-001 corrective pass § 3: a
+                               read-only in-place state reached from
+                               completion's Review Mistakes action --
+                               position, original prompt/context, the
+                               submitted vs. expected answer, and
+                               Previous/Next -- entirely inside
+                               QuizController/QuizView (no MainWindow
+                               involvement, no navigation away, no
+                               mutation). "Back to summary" returns to the
+                               completion state without clearing
+                               ``completed_session``.
   exit/return                -> Return to Today exits Study Mode entirely;
-                               Next Card / Review Mistakes both return to
-                               Review (Study Mode stays active) rather than
-                               auto-starting another Quiz -- MainWindow
-                               orchestrates through AppState like every
-                               other transition.
+                               Next Card returns to Review (Study Mode
+                               stays active) rather than auto-starting
+                               another Quiz -- MainWindow orchestrates
+                               through AppState like every other
+                               transition.
 
 Frozen learning semantics (unchanged from Review, now load-bearing here):
 starting Quiz, answering some items, or cancelling are never themselves a
@@ -88,10 +101,38 @@ MAIN_COLUMN_MAX_WIDTH = 640
 MATCHING_COLUMN_MAX_WIDTH = 880
 
 
+class _WrappingLabel(QLabel):
+    """A word-wrapped QLabel whose ``resizeEvent`` pins its own
+    ``minimumHeight`` to ``heightForWidth(width())`` (VR-STUDY-001
+    corrective pass § 1) -- same fix as Review's identical class, applied
+    here so long term/answer/expected text is never clipped inside this
+    Study surface either. See ``review_view.py``'s ``_WrappingLabel`` for
+    the full root-cause note (a QScrollArea/box-layout heightForWidth
+    negotiation imprecision, not a missing word-wrap flag)."""
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        super().resizeEvent(event)
+        needed = self.heightForWidth(self.width())
+        if needed >= 0 and self.minimumHeight() != needed:
+            self.setMinimumHeight(needed)
+
+
+class _MatchingComboBox(QComboBox):
+    """Wheel events over a closed Matching combo must scroll the
+    surrounding Matching list, never silently change the selected answer
+    (VR-STUDY-001 corrective pass § 2A). Ignoring (never accepting) the
+    event is the native Qt way to hand it to the enclosing QScrollArea
+    instead -- no second interaction model, and the open dropdown popup
+    (a separate widget) still scrolls/selects normally on deliberate
+    click-to-open interaction."""
+
+    def wheelEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        event.ignore()
+
+
 class QuizView(QWidget):
     exit_requested = Signal()
     return_to_today_requested = Signal()
-    review_mistakes_requested = Signal()
     next_card_requested = Signal()
 
     def __init__(self, controller: QuizController, parent: QWidget | None = None) -> None:
@@ -105,23 +146,46 @@ class QuizView(QWidget):
 
         root.addWidget(self._build_session_bar())
 
+        # Same robustness principle as Review's main surface (VR-STUDY-001
+        # corrective pass § 1): the centered column must never be squeezed
+        # below its natural height. A QScrollArea keeps short tasks
+        # centered via the stretches below while tall ones (long wrapped
+        # term/answer/expected text) scroll instead of clipping or
+        # overlapping the grading/submit controls that follow.
         self._surface = QWidget(self)
         self._surface.setObjectName("quiz-main-surface")
         outer = QVBoxLayout(self._surface)
-        outer.setContentsMargins(SPACING.xl, SPACING.xl, SPACING.xl, SPACING.xl)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
 
-        self._column = QWidget(self._surface)
+        self._scroll = QScrollArea(self._surface)
+        self._scroll.setObjectName("quiz-main-scroll")
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(SPACING.xl, SPACING.xl, SPACING.xl, SPACING.xl)
+        content_layout.setSpacing(0)
+
+        self._column = QWidget(content)
         self._column_layout = QVBoxLayout(self._column)
         self._column_layout.setSpacing(SPACING.lg)
         self._column_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        outer.addStretch(1)
-        outer.addWidget(self._column, 0, Qt.AlignmentFlag.AlignHCenter)
-        outer.addStretch(1)
+        content_layout.addStretch(1)
+        content_layout.addWidget(self._column, 0, Qt.AlignmentFlag.AlignHCenter)
+        content_layout.addStretch(1)
+
+        self._scroll.setWidget(content)
+        outer.addWidget(self._scroll)
 
         root.addWidget(self._surface, 1)
 
+        self._matching_submit_button: QPushButton | None = None
         controller.state_changed.connect(self._render)
+        controller.matching_selection_changed.connect(self._on_matching_selection_changed)
 
     # -- construction ------------------------------------------------------
 
@@ -156,6 +220,11 @@ class QuizView(QWidget):
     def _render(self) -> None:
         _clear_layout(self._column_layout)
         self._column.setMaximumWidth(16777215)
+        # Only _build_matching_task() below re-populates this -- every other
+        # branch renders a widget tree with no live Matching submit button,
+        # so a stale reference must never survive into a later selection-
+        # only refresh (_on_matching_selection_changed).
+        self._matching_submit_button = None
 
         controller = self._controller
 
@@ -175,7 +244,10 @@ class QuizView(QWidget):
         if controller.completed_session is not None:
             self._render_context(controller.completed_session, complete=True)
             self._column.setMaximumWidth(MAIN_COLUMN_MAX_WIDTH)
-            self._column_layout.addWidget(self._build_completion_state())
+            if controller.reviewing_mistakes:
+                self._column_layout.addWidget(self._build_mistake_review_state())
+            else:
+                self._column_layout.addWidget(self._build_completion_state())
             return
 
         if controller.intent is None:
@@ -223,6 +295,21 @@ class QuizView(QWidget):
         position, total = controller.progress()
         self._progress_label.setText(f"Quiz {position}/{total}" if total else "Quiz")
 
+    def _on_matching_selection_changed(self) -> None:
+        """A Matching answer selection is transient item state, not a
+        reason to rebuild the whole task surface (VR-STUDY-001 corrective
+        pass § 2B) -- rebuilding on every selection is exactly what reset
+        the user's scroll position and made completing lower rows
+        frustrating. Only the session-bar progress count and the Submit
+        Matching button's enabled state actually change; every QComboBox
+        keeps its own widget-owned value untouched, so already-selected
+        answers stay visible and stable without any extra bookkeeping."""
+        if self._controller.quiz_family() != MATCHING_FAMILY:
+            return
+        self._render_context(None, complete=False)
+        if self._matching_submit_button is not None:
+            self._matching_submit_button.setEnabled(self._controller.can_submit_matching())
+
     # -- blocked / recovery --------------------------------------------------
 
     def _build_blocked_state(self) -> QWidget:
@@ -260,7 +347,7 @@ class QuizView(QWidget):
             layout.addWidget(_message_label("This Quiz has no items.", "quiz-empty-state"))
             return block
 
-        term = QLabel(str(item.get("prompt") or ""), block)
+        term = _WrappingLabel(str(item.get("prompt") or ""), block)
         term.setObjectName("quiz-term-label")
         term.setAlignment(Qt.AlignmentFlag.AlignCenter)
         term.setWordWrap(True)
@@ -320,7 +407,7 @@ class QuizView(QWidget):
             layout.addWidget(_message_label("This Quiz has no items.", "quiz-empty-state"))
             return block
 
-        term = QLabel(str(item.get("prompt") or ""), block)
+        term = _WrappingLabel(str(item.get("prompt") or ""), block)
         term.setObjectName("quiz-term-label")
         term.setAlignment(Qt.AlignmentFlag.AlignCenter)
         term.setWordWrap(True)
@@ -401,6 +488,7 @@ class QuizView(QWidget):
         submit_button.setEnabled(controller.can_submit_matching())
         submit_button.clicked.connect(controller.submit_matching)
         layout.addWidget(submit_button, 0, Qt.AlignmentFlag.AlignHCenter)
+        self._matching_submit_button = submit_button
 
         return block
 
@@ -416,7 +504,7 @@ class QuizView(QWidget):
         term_label.setObjectName("quiz-matching-term-label")
         layout.addWidget(term_label, 1)
 
-        combo = QComboBox(row)
+        combo = _MatchingComboBox(row)
         combo.setObjectName("quiz-matching-combo")
         combo.addItem("", "")
         for choice in choices:
@@ -465,7 +553,7 @@ class QuizView(QWidget):
 
         mistake_terms = [str(row.get("term") or "") for row in controller.mistakes]
         mistakes_text = ", ".join(term for term in mistake_terms if term) or "None"
-        mistakes_label = QLabel(mistakes_text, block)
+        mistakes_label = _WrappingLabel(mistakes_text, block)
         mistakes_label.setObjectName("quiz-completion-mistakes-list")
         mistakes_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         mistakes_label.setWordWrap(True)
@@ -486,12 +574,97 @@ class QuizView(QWidget):
         next_card_button.clicked.connect(self._on_next_card)
         actions_layout.addWidget(next_card_button)
 
-        review_mistakes_button = QPushButton("Review Mistakes", actions_row)
-        review_mistakes_button.setObjectName("quiz-completion-review-mistakes-button")
-        review_mistakes_button.clicked.connect(self._on_review_mistakes)
-        actions_layout.addWidget(review_mistakes_button)
+        # Honest omission, not a disabled dead control (VR-STUDY-001
+        # corrective pass § 3): with zero mistakes there is nothing to
+        # review, so the action simply is not offered.
+        if controller.mistakes:
+            review_mistakes_button = QPushButton("Review Mistakes", actions_row)
+            review_mistakes_button.setObjectName("quiz-completion-review-mistakes-button")
+            review_mistakes_button.clicked.connect(self._on_review_mistakes)
+            actions_layout.addWidget(review_mistakes_button)
 
         layout.addWidget(actions_row)
+
+        return block
+
+    def _build_mistake_review_state(self) -> QWidget:
+        """Read-only inspection of the Quiz that just completed (DESIGN.md
+        § 6.3 `VR-STUDY-001`, VR-STUDY-001 corrective pass § 3) -- stays
+        inside this same Quiz/Immersive Focus surface rather than routing
+        back to Review, and performs no re-grading, no new
+        ``quiz_item_log``, and no new session/completion event: it only
+        reads ``QuizController.mistakes``, the log rows ``_complete()``
+        already fetched for the completion summary's own mistakes list."""
+        controller = self._controller
+        mistake = controller.current_mistake()
+        block = QWidget()
+        layout = QVBoxLayout(block)
+        layout.setSpacing(SPACING.md)
+        layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+
+        if mistake is None:
+            layout.addWidget(_message_label("No mistakes to review.", "quiz-empty-state"))
+            back_button = QPushButton("Back to summary", block)
+            back_button.setObjectName("quiz-mistake-back-button")
+            back_button.clicked.connect(controller.exit_mistake_review)
+            layout.addWidget(back_button, 0, Qt.AlignmentFlag.AlignHCenter)
+            return block
+
+        position, total = controller.mistake_progress()
+        position_label = QLabel(f"Mistake {position}/{total}", block)
+        position_label.setObjectName("quiz-mistake-position-label")
+        position_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(position_label)
+
+        term_text = str(mistake.get("term") or "")
+        quiz_type_label = QUIZ_TYPE_LABELS.get(mistake.get("quiz_type"), mistake.get("quiz_type") or "")
+        context_bits = [bit for bit in (quiz_type_label, term_text) if bit]
+        if context_bits:
+            context_label = QLabel(" · ".join(context_bits), block)
+            context_label.setObjectName("quiz-mistake-context-label")
+            context_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(context_label)
+
+        prompt = _WrappingLabel(str(mistake.get("prompt") or ""), block)
+        prompt.setObjectName("quiz-term-label")
+        prompt.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        prompt.setWordWrap(True)
+        layout.addWidget(prompt)
+        layout.addSpacing(SPACING.lg)
+
+        is_correct = bool(mistake.get("is_correct"))
+        status_label = QLabel("Correct" if is_correct else "Wrong", block)
+        status_label.setObjectName("quiz-feedback-correct" if is_correct else "quiz-feedback-wrong")
+        status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(status_label)
+
+        layout.addWidget(_field_block("Submitted answer", str(mistake.get("user_answer") or "(blank)"), block))
+        layout.addWidget(_field_block("Expected", str(mistake.get("expected_answer") or ""), block))
+
+        nav_row = QWidget(block)
+        nav_layout = QHBoxLayout(nav_row)
+        nav_layout.setSpacing(SPACING.md)
+        nav_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+
+        previous_button = QPushButton("← Previous", nav_row)
+        previous_button.setObjectName("quiz-mistake-previous-button")
+        previous_button.setFlat(True)
+        previous_button.setEnabled(controller.can_go_previous_mistake())
+        previous_button.clicked.connect(controller.go_previous_mistake)
+        nav_layout.addWidget(previous_button)
+
+        next_button = QPushButton("Next →", nav_row)
+        next_button.setObjectName("quiz-mistake-next-button")
+        next_button.setEnabled(controller.can_go_next_mistake())
+        next_button.clicked.connect(controller.go_next_mistake)
+        nav_layout.addWidget(next_button)
+
+        layout.addWidget(nav_row)
+
+        back_button = QPushButton("Back to summary", block)
+        back_button.setObjectName("quiz-mistake-back-button")
+        back_button.clicked.connect(controller.exit_mistake_review)
+        layout.addWidget(back_button, 0, Qt.AlignmentFlag.AlignHCenter)
 
         return block
 
@@ -505,7 +678,10 @@ class QuizView(QWidget):
         self.next_card_requested.emit()
 
     def _on_review_mistakes(self) -> None:
-        self.review_mistakes_requested.emit()
+        # Stays inside QuizController/QuizView -- unlike Return to Today /
+        # Next Card, this is not a workspace transition, so MainWindow is
+        # never involved (VR-STUDY-001 corrective pass § 3).
+        self._controller.review_mistakes()
 
     # -- exit / cancel / restart --------------------------------------------
 
@@ -618,7 +794,7 @@ def _field_block(caption_text: str, value_text: str, parent: QWidget) -> QWidget
     caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
     layout.addWidget(caption)
 
-    value = QLabel(value_text, block)
+    value = _WrappingLabel(value_text, block)
     value.setObjectName("quiz-field-text")
     value.setAlignment(Qt.AlignmentFlag.AlignCenter)
     value.setWordWrap(True)
@@ -628,7 +804,7 @@ def _field_block(caption_text: str, value_text: str, parent: QWidget) -> QWidget
 
 
 def _message_label(text: str, object_name: str) -> QLabel:
-    label = QLabel(text)
+    label = _WrappingLabel(text)
     label.setObjectName(object_name)
     label.setAlignment(Qt.AlignmentFlag.AlignCenter)
     label.setWordWrap(True)

@@ -58,6 +58,12 @@ NOT_ENOUGH_ENTRIES_ERROR = "Not enough entries to build this quiz."
 
 class QuizController(QObject):
     state_changed = Signal()
+    # A Matching answer pick is transient item state, not a reason to
+    # rebuild the whole task surface (VR-STUDY-001 corrective pass § 2B) --
+    # QuizView listens for this separately from state_changed so it can
+    # refresh only the progress count / Submit button instead of losing the
+    # user's scroll position and already-selected answers on every pick.
+    matching_selection_changed = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -76,6 +82,8 @@ class QuizController(QObject):
         self.start_error: str | None = None
         self.blocked_session: dict | None = None
         self.pending_intent: QuizLaunchIntent | None = None
+        self.reviewing_mistakes: bool = False
+        self.mistake_index: int = 0
 
     # -- family classification --------------------------------------------
 
@@ -285,7 +293,7 @@ class QuizController(QObject):
 
     def set_matching_selection(self, item: dict, meaning: str) -> None:
         self.matching_selection[self._matching_key(item)] = meaning
-        self.state_changed.emit()
+        self.matching_selection_changed.emit()
 
     def matching_selection_for(self, item: dict) -> str:
         return self.matching_selection.get(self._matching_key(item), "")
@@ -315,7 +323,54 @@ class QuizController(QObject):
         self.current_index = 0
         self.feedback = None
         self.matching_selection = {}
+        self.reviewing_mistakes = False
+        self.mistake_index = 0
         self.state_changed.emit()
+
+    # -- post-Quiz mistake review --------------------------------------------
+
+    def review_mistakes(self) -> None:
+        """Enter a read-only mistake-review state inside this same Quiz
+        surface (VR-STUDY-001 corrective pass § 3) -- never a navigation
+        back to Review, and never a mutation: it only inspects the
+        already-recorded ``mistakes`` from ``_complete()``'s
+        ``get_quiz_item_log_view`` call, the same data the completion
+        summary's mistakes list already shows."""
+        if not self.mistakes:
+            return
+        self.reviewing_mistakes = True
+        self.mistake_index = 0
+        self.state_changed.emit()
+
+    def exit_mistake_review(self) -> None:
+        self.reviewing_mistakes = False
+        self.state_changed.emit()
+
+    def current_mistake(self) -> dict | None:
+        if not self.mistakes or self.mistake_index >= len(self.mistakes):
+            return None
+        return self.mistakes[self.mistake_index]
+
+    def mistake_progress(self) -> tuple[int, int]:
+        if not self.mistakes:
+            return (0, 0)
+        return (self.mistake_index + 1, len(self.mistakes))
+
+    def can_go_previous_mistake(self) -> bool:
+        return self.mistake_index > 0
+
+    def can_go_next_mistake(self) -> bool:
+        return self.mistake_index < len(self.mistakes) - 1
+
+    def go_previous_mistake(self) -> None:
+        if self.can_go_previous_mistake():
+            self.mistake_index -= 1
+            self.state_changed.emit()
+
+    def go_next_mistake(self) -> None:
+        if self.can_go_next_mistake():
+            self.mistake_index += 1
+            self.state_changed.emit()
 
     def cancel_active(self) -> None:
         if self.session_id is not None and self.completed_session is None:
@@ -372,5 +427,7 @@ class QuizController(QObject):
         self.completed_session = None
         self.mistakes = []
         self.start_error = None
+        self.reviewing_mistakes = False
+        self.mistake_index = 0
         if not silent:
             self.state_changed.emit()

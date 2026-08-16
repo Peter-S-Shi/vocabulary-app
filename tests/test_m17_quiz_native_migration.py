@@ -8,7 +8,7 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
-    from PySide6.QtWidgets import QApplication, QWidget
+    from PySide6.QtWidgets import QApplication, QComboBox, QWidget
 
     PYSIDE6_AVAILABLE = True
 except ImportError:  # pragma: no cover - exercised only when PySide6 is absent
@@ -662,6 +662,259 @@ class QuizViewStructureTests(_SyntheticDatabaseTestCase):
             if getattr(w, "objectName", lambda: "")() == "quiz-blocked-cancel-button"
         ]
         self.assertEqual(len(cancel_buttons), 1)
+
+
+@unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
+class QuizMatchingStabilityTests(_SyntheticDatabaseTestCase):
+    """VR-STUDY-001 corrective pass § 2: a Matching answer selection must
+    not reset the task surface/scroll position, and wheel scrolling over a
+    closed combo must not silently change its selection."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _qt_app()
+
+    def _matching_collection(self):
+        return self._make_card([("un", "one"), ("deux", "two"), ("trois", "three"), ("quatre", "four")])
+
+    def test_set_matching_selection_emits_the_lightweight_signal_not_state_changed(self) -> None:
+        collection_id, _ = self._matching_collection()
+        controller = QuizController()
+        controller.start(self._quick_intent(collection_id, 0, None, 4, "matching"))
+
+        state_changed_calls: list[None] = []
+        selection_changed_calls: list[None] = []
+        controller.state_changed.connect(lambda: state_changed_calls.append(None))
+        controller.matching_selection_changed.connect(lambda: selection_changed_calls.append(None))
+
+        items = controller.matching_items()
+        controller.set_matching_selection(items[0], controller.matching_choices()[0])
+
+        self.assertEqual(len(selection_changed_calls), 1)
+        self.assertEqual(len(state_changed_calls), 0)
+
+    def test_all_selections_are_stored_before_submit_and_none_are_lost(self) -> None:
+        collection_id, _ = self._matching_collection()
+        controller = QuizController()
+        controller.start(self._quick_intent(collection_id, 0, None, 4, "matching"))
+
+        items = controller.matching_items()
+        for item in items:
+            controller.set_matching_selection(item, controller.matching_choices()[0])
+
+        for item in items:
+            self.assertEqual(controller.matching_selection_for(item), controller.matching_choices()[0])
+        self.assertTrue(controller.can_submit_matching())
+
+    def test_matching_selection_does_not_rebuild_the_task_surface_or_reset_scroll(self) -> None:
+        collection_id, _ = self._matching_collection()
+        controller = QuizController()
+        view = QuizView(controller)
+        self.addCleanup(view.deleteLater)
+        controller.start(self._quick_intent(collection_id, 0, None, 4, "matching"))
+
+        combos_before = [w for w in view.findChildren(QComboBox) if w.objectName() == "quiz-matching-combo"]
+        self.assertEqual(len(combos_before), 4)
+        submit_button = next(
+            w for w in view.findChildren(QWidget) if getattr(w, "objectName", lambda: "")() == "quiz-matching-submit-button"
+        )
+        self.assertFalse(submit_button.isEnabled())
+
+        items = controller.matching_items()
+        controller.set_matching_selection(items[0], controller.matching_choices()[0])
+
+        combos_after = [w for w in view.findChildren(QComboBox) if w.objectName() == "quiz-matching-combo"]
+        # Same widget instances -- proof the Matching rows were never torn
+        # down and rebuilt for a single selection (the actual bug: doing so
+        # lost the user's scroll position and any prior selections).
+        self.assertEqual([id(c) for c in combos_before], [id(c) for c in combos_after])
+        self.assertIs(submit_button, view._matching_submit_button)
+
+        for item in items[1:]:
+            controller.set_matching_selection(item, controller.matching_choices()[0])
+        self.assertTrue(submit_button.isEnabled())
+
+    def test_matching_combo_ignores_wheel_events_so_the_list_can_scroll_instead(self) -> None:
+        from PySide6.QtCore import QPoint, QPointF
+        from PySide6.QtCore import Qt as QtCore_Qt
+        from PySide6.QtGui import QWheelEvent
+
+        collection_id, _ = self._matching_collection()
+        controller = QuizController()
+        view = QuizView(controller)
+        self.addCleanup(view.deleteLater)
+        controller.start(self._quick_intent(collection_id, 0, None, 4, "matching"))
+
+        combo = next(w for w in view.findChildren(QComboBox) if w.objectName() == "quiz-matching-combo")
+        before_index = combo.currentIndex()
+
+        event = QWheelEvent(
+            QPointF(5, 5),
+            QPointF(5, 5),
+            QPoint(0, 0),
+            QPoint(0, 120),
+            QtCore_Qt.MouseButton.NoButton,
+            QtCore_Qt.KeyboardModifier.NoModifier,
+            QtCore_Qt.ScrollPhase.NoScrollPhase,
+            False,
+        )
+        combo.wheelEvent(event)
+
+        self.assertFalse(event.isAccepted())
+        self.assertEqual(combo.currentIndex(), before_index)
+
+
+@unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
+class QuizMistakeReviewTests(_SyntheticDatabaseTestCase):
+    """VR-STUDY-001 corrective pass § 3: Review Mistakes must inspect the
+    just-completed Quiz's own wrong answers, stay inside the Quiz surface
+    (no navigation to Review, no clearing of ``completed_session``), and
+    perform no mutation."""
+
+    def _completed_session_with_one_mistake(self):
+        collection_id, entry_ids = self._make_card([("chat", "cat"), ("chien", "dog")])
+        controller = QuizController()
+        controller.start(self._quick_intent(collection_id, 1, None, 2))
+        controller.reveal_answer()
+        controller.submit_self_graded(True)  # first item: correct
+        wrong_item = controller.current_item()
+        controller.reveal_answer()
+        controller.submit_self_graded(False)  # second item: wrong
+        return controller, collection_id, entry_ids, wrong_item
+
+    def test_review_mistakes_shows_this_quizs_wrong_log_without_new_writes(self) -> None:
+        controller, _, _, wrong_item = self._completed_session_with_one_mistake()
+        session_id = controller.completed_session["id"]
+        with db.get_connection() as connection:
+            logs_before = connection.execute("SELECT COUNT(*) AS n FROM quiz_item_logs").fetchone()["n"]
+            sessions_before = connection.execute("SELECT COUNT(*) AS n FROM quiz_sessions").fetchone()["n"]
+
+        controller.review_mistakes()
+
+        self.assertTrue(controller.reviewing_mistakes)
+        self.assertIsNotNone(controller.completed_session)  # context preserved, not cleared
+        mistake = controller.current_mistake()
+        self.assertIsNotNone(mistake)
+        self.assertEqual(mistake["session_id"], session_id)
+        self.assertEqual(mistake["entry_id"], wrong_item["entry_id"])
+        self.assertEqual(mistake["expected_answer"], wrong_item["expected_answer"])
+        self.assertFalse(mistake["is_correct"])
+        self.assertEqual(controller.mistake_progress(), (1, 1))
+
+        with db.get_connection() as connection:
+            logs_after = connection.execute("SELECT COUNT(*) AS n FROM quiz_item_logs").fetchone()["n"]
+            sessions_after = connection.execute("SELECT COUNT(*) AS n FROM quiz_sessions").fetchone()["n"]
+        self.assertEqual(logs_before, logs_after)
+        self.assertEqual(sessions_before, sessions_after)
+
+    def test_mistake_navigation_respects_bounds_and_does_not_mutate(self) -> None:
+        collection_id, _ = self._make_card([("un", "one"), ("deux", "two"), ("trois", "three")])
+        controller = QuizController()
+        controller.start(self._quick_intent(collection_id, 1, None, 3))
+        for _ in range(3):
+            controller.reveal_answer()
+            controller.submit_self_graded(False)  # all three wrong
+
+        controller.review_mistakes()
+        self.assertEqual(controller.mistake_progress(), (1, 3))
+        self.assertFalse(controller.can_go_previous_mistake())
+        self.assertTrue(controller.can_go_next_mistake())
+
+        controller.go_next_mistake()
+        self.assertEqual(controller.mistake_progress(), (2, 3))
+        controller.go_next_mistake()
+        self.assertEqual(controller.mistake_progress(), (3, 3))
+        self.assertFalse(controller.can_go_next_mistake())
+
+        # Past-the-end navigation is a no-op, not an out-of-range crash.
+        controller.go_next_mistake()
+        self.assertEqual(controller.mistake_progress(), (3, 3))
+
+        controller.go_previous_mistake()
+        self.assertEqual(controller.mistake_progress(), (2, 3))
+
+    def test_exit_mistake_review_returns_to_summary_without_clearing_context(self) -> None:
+        controller, _, _, _ = self._completed_session_with_one_mistake()
+        controller.review_mistakes()
+
+        controller.exit_mistake_review()
+
+        self.assertFalse(controller.reviewing_mistakes)
+        self.assertIsNotNone(controller.completed_session)
+
+    def test_review_mistakes_is_a_no_op_with_zero_mistakes(self) -> None:
+        collection_id, _ = self._make_card([("chat", "cat")])
+        controller = QuizController()
+        controller.start(self._quick_intent(collection_id, 1, None, 1))
+        controller.reveal_answer()
+        controller.submit_self_graded(True)  # no mistakes
+
+        controller.review_mistakes()
+
+        self.assertFalse(controller.reviewing_mistakes)
+        self.assertEqual(controller.mistakes, [])
+
+
+@unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
+class QuizMistakeReviewViewTests(_SyntheticDatabaseTestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _qt_app()
+
+    def test_review_mistakes_button_omitted_when_there_are_zero_mistakes(self) -> None:
+        collection_id, _ = self._make_card([("chat", "cat")])
+        controller = QuizController()
+        view = QuizView(controller)
+        self.addCleanup(view.deleteLater)
+        controller.start(self._quick_intent(collection_id, 1, None, 1))
+        controller.reveal_answer()
+        controller.submit_self_graded(True)
+
+        buttons = [
+            w
+            for w in view.findChildren(QWidget)
+            if getattr(w, "objectName", lambda: "")() == "quiz-completion-review-mistakes-button"
+        ]
+        self.assertEqual(len(buttons), 0)
+
+    def test_review_mistakes_button_present_and_enters_read_only_state(self) -> None:
+        collection_id, _ = self._make_card([("chat", "cat"), ("chien", "dog")])
+        controller = QuizController()
+        view = QuizView(controller)
+        self.addCleanup(view.deleteLater)
+        controller.start(self._quick_intent(collection_id, 1, None, 2))
+        controller.reveal_answer()
+        controller.submit_self_graded(True)
+        controller.reveal_answer()
+        controller.submit_self_graded(False)
+
+        review_button = next(
+            w
+            for w in view.findChildren(QWidget)
+            if getattr(w, "objectName", lambda: "")() == "quiz-completion-review-mistakes-button"
+        )
+        review_button.click()
+
+        self.assertTrue(controller.reviewing_mistakes)
+        # Still inside the Quiz workspace/surface -- no navigation signal.
+        position_labels = [
+            w
+            for w in view.findChildren(QWidget)
+            if getattr(w, "objectName", lambda: "")() == "quiz-mistake-position-label"
+        ]
+        self.assertEqual(len(position_labels), 1)
+        self.assertEqual(position_labels[0].text(), "Mistake 1/1")
+
+        back_button = next(
+            w for w in view.findChildren(QWidget) if getattr(w, "objectName", lambda: "")() == "quiz-mistake-back-button"
+        )
+        back_button.click()
+
+        self.assertFalse(controller.reviewing_mistakes)
+        title = next(
+            w for w in view.findChildren(QWidget) if getattr(w, "objectName", lambda: "")() == "quiz-completion-title"
+        )
+        self.assertIn("complete", title.text().lower())
 
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")

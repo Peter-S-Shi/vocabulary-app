@@ -98,7 +98,6 @@ class MainWindow(QMainWindow):
         self.quiz_view.exit_requested.connect(self._exit_study_mode)
         self.quiz_view.return_to_today_requested.connect(self._on_quiz_return_to_today)
         self.quiz_view.next_card_requested.connect(self._on_quiz_next_card)
-        self.quiz_view.review_mistakes_requested.connect(self._on_quiz_review_mistakes)
 
         self._workspace_stack = QStackedWidget(self)
         self._workspace_stack.addWidget(self.today_view)
@@ -168,19 +167,6 @@ class MainWindow(QMainWindow):
         self.quiz_controller.acknowledge_completion()
         self.app_state.request_navigation(Workspace.REVIEW)
         self.review_controller.open_default()
-
-    def _on_quiz_review_mistakes(self) -> None:
-        # Read the completed session's Card context before resetting it --
-        # acknowledge_completion() clears completed_session.
-        session = self.quiz_controller.completed_session
-        collection_id = session.get("collection_id") if session else None
-        card_number = session.get("card_number") if session else None
-        self.quiz_controller.acknowledge_completion()
-        self.app_state.request_navigation(Workspace.REVIEW)
-        if collection_id and card_number:
-            self.review_controller.open_card(collection_id, card_number)
-        else:
-            self.review_controller.open_default()
 
     def _build_study_toolbar(self) -> QToolBar:
         toolbar = QToolBar("Study Session", self)

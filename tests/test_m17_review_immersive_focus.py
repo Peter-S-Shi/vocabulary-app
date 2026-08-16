@@ -32,6 +32,7 @@ is a separate, required gate (see AGENTS.md).
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 if PYSIDE6_AVAILABLE:
+    import src.ui_desktop.views.review_view as review_view_module
     from src.ui_desktop.controllers.review_controller import (
         QUICK_QUIZ_DEFAULT_TYPE,
         QUIZ_TYPE_LABELS,
@@ -501,6 +502,78 @@ class ReviewViewStructureTests(_SyntheticDatabaseTestCase):
         view._drawer_toggle.click()
         view._drawer_toggle.click()
         self.assertTrue(view._drawer.isVisible())
+
+
+@unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
+class ReviewLongContentGeometryTests(_SyntheticDatabaseTestCase):
+    """VR-STUDY-001 corrective pass § 1: long wrapped Example/Meaning text
+    must receive its natural vertical height instead of being squeezed
+    toward a QLabel's much-smaller minimumSizeHint whenever the column's
+    natural height exceeds the window's available height -- the actual root
+    cause of the reported clipping (not a missing setWordWrap(True))."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _qt_app()
+
+    def test_long_example_receives_full_height_and_nav_flows_below_it(self) -> None:
+        long_example = (
+            "She decided to take up a profession in health care, spending "
+            "long hours studying anatomy, physiology, and patient care "
+            "before finally earning her certification after several years "
+            "of demanding, disciplined coursework."
+        )
+        entry_id = add_entry("French", "English", "word", "profession", "a job or career", long_example)
+        collection_id = create_collection("Long Example Collection", card_size=1)
+        add_entries_to_collection([entry_id], collection_id)
+
+        controller = ReviewController()
+        view = ReviewView(controller)
+        self.addCleanup(view.close)
+        controller.open_default()
+
+        # A short window forces the column's natural content height past
+        # the available viewport -- exactly the scenario that previously
+        # let the final wrapped line hide behind the nav/Quiz controls.
+        view.resize(700, 320)
+        view.show()
+        self.app.processEvents()
+
+        example_label = next(
+            w
+            for w in view.findChildren(QWidget)
+            if getattr(w, "objectName", lambda: "")() == "review-field-text" and w.text() == long_example
+        )
+        full_height = example_label.heightForWidth(example_label.width())
+        self.assertGreater(full_height, 0)
+        # A clipped label's actual allocated height would be smaller than
+        # the height its own wrapped text needs at this width.
+        self.assertGreaterEqual(example_label.height(), full_height)
+
+        nav_next_button = next(
+            w for w in view.findChildren(QWidget) if getattr(w, "objectName", lambda: "")() == "review-nav-next"
+        )
+        example_bottom = example_label.mapTo(view, example_label.rect().bottomLeft()).y()
+        nav_top = nav_next_button.mapTo(view, nav_next_button.rect().topLeft()).y()
+        self.assertGreaterEqual(nav_top, example_bottom)
+
+    def test_short_content_still_uses_the_bounded_centered_column(self) -> None:
+        """The QScrollArea fix must not regress the short-content case:
+        the column stays bounded to MAIN_COLUMN_MAX_WIDTH and centered,
+        not stretched full-bleed."""
+        self._make_card([("chat", "cat")])
+        controller = ReviewController()
+        view = ReviewView(controller)
+        self.addCleanup(view.close)
+        controller.open_default()
+        view.resize(1280, 800)
+        view.show()
+        self.app.processEvents()
+
+        column = next(
+            w for w in view.findChildren(QWidget) if w.maximumWidth() == review_view_module.MAIN_COLUMN_MAX_WIDTH
+        )
+        self.assertLessEqual(column.width(), review_view_module.MAIN_COLUMN_MAX_WIDTH)
 
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
