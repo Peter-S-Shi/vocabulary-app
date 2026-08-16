@@ -12,7 +12,22 @@ without fabricating a Review/Quiz session, a fake AppState navigation
 target, or a second session-state system: it is plain, inert data, not a
 live request. A later M17 checkpoint that implements Review/Quiz can accept
 this same shape without Today's architecture changing.
+
+Not every Learning Queue item is a Review/Quiz candidate.
+``src.learning_workflow.get_daily_quiz_candidates()`` also emits a
+``recommendation_type = "recent_entries_suggestion"`` item
+(``quiz_mode = "suggestion"``) whose actual next step is organizing recent
+Entries into a Collection, not reviewing or quizzing anything -- mapping it
+to ``action="review"`` would be a false claim about what the item is for.
+That case maps to ``action="organize"`` instead. Collection management
+itself is not implemented by this contract or by Today; ``"organize"`` is
+recorded so a later checkpoint can route it correctly, the same way
+``"quiz"`` is recorded for a future Review/Quiz checkpoint.
 """
+
+# The two quiz_mode values get_daily_quiz_candidates() uses for an actual
+# launchable Quiz (a specific Card, or a random special-pool audit).
+_QUIZ_MODES = ("card", "random")
 
 
 @dataclass(frozen=True)
@@ -33,7 +48,15 @@ def learning_action_intent_from_recommendation(recommendation: dict) -> Learning
     ``src.learning_workflow.get_daily_quiz_candidates()`` (the Today
     Learning Queue's underlying data)."""
     quiz_mode = recommendation.get("quiz_mode")
-    action = "quiz" if quiz_mode in ("card", "random") else "review"
+    if quiz_mode in _QUIZ_MODES:
+        action = "quiz"
+    elif quiz_mode == "suggestion":
+        action = "organize"
+    else:
+        # No current get_daily_quiz_candidates() item reaches this branch;
+        # kept as a safe, explicit default for an unrecognized future
+        # quiz_mode rather than silently mislabeling it as "quiz".
+        action = "review"
     return LearningActionIntent(
         action=action,
         collection_id=recommendation.get("collection_id"),

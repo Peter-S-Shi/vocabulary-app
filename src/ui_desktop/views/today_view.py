@@ -30,10 +30,22 @@ intentionally disabled with an explanatory tooltip rather than a dead
 button pretending they exist. Only the Entries handoff is real, wired
 through ``entries_requested`` so this view never imports EntriesView or
 AppState directly (M17 Feature 1 prompt § 5, no view-to-view coupling).
+
+Not every Learning Queue item is a Review/Quiz candidate: a
+``recommendation_type = "recent_entries_suggestion"`` item's real next
+step is organizing recently added Entries into a Collection
+(``state/handoff.py``'s ``action="organize"``), which desktop Collection
+management does not implement yet either -- it gets its own distinct
+pending tooltip rather than reusing the Review/Quiz wording, which would
+misstate why it can't be started.
 """
 
 PENDING_MIGRATION_TOOLTIP = (
     "Review/Quiz isn't available in the desktop app yet -- coming in a later M17 checkpoint."
+)
+PENDING_ORGANIZE_TOOLTIP = (
+    "Organizing entries into a Collection isn't available in the desktop app yet -- "
+    "open Entries to review them individually in the meantime."
 )
 
 
@@ -245,13 +257,18 @@ class TodayView(QWidget):
 
         intent = self._controller.build_learning_action_intent(item)
         self._queue_detail_label.setText(f"{item.get('title', '')} -- {item.get('description', '')}")
-        # Every current Learning Queue item targets Review/Quiz, which is
-        # not yet implemented in the desktop app; the typed intent above
-        # is built to prove the handoff shape, not to fake a working
-        # action (M17 Feature 1 prompt § 6/§ 7). If a future checkpoint
-        # adds a queue item whose action is already migrated, this is the
-        # one place that needs to branch on ``intent.action``.
+        # No current Learning Queue item has a migrated desktop
+        # destination yet, so Start always stays disabled -- but *why* it
+        # is disabled differs by intent.action, and must say so accurately
+        # rather than blaming Review/Quiz for an item that was never
+        # headed there (M17 Feature 1 prompt § 6/§ 7 and its corrective
+        # patch). If a future checkpoint migrates one of these
+        # destinations, this is the one place that needs to branch on
+        # ``intent.action`` to actually enable Start.
         self._queue_start_button.setEnabled(False)
-        self._queue_start_button.setToolTip(
-            f"{PENDING_MIGRATION_TOOLTIP} (would start: {intent.action} / {intent.reason})"
-        )
+        if intent.action == "organize":
+            self._queue_start_button.setToolTip(PENDING_ORGANIZE_TOOLTIP)
+        else:
+            self._queue_start_button.setToolTip(
+                f"{PENDING_MIGRATION_TOOLTIP} (would start: {intent.action} / {intent.reason})"
+            )

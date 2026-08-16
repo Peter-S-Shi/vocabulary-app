@@ -162,8 +162,8 @@ real desktop bootstrap (`build_application()`, including its own
 the real `VOCAB_APP_DB_PATH`/`get_database_path()` resolution, not just the
 controllers in isolation. M16.2 adds no schema or app-data migration and
 does not alter learning, analytics, import, or audio semantics. Full
-evidence, including the SQLite compatibility proof and the completed human
-visual-check list, is recorded in
+evidence, including the SQLite compatibility proof and the human
+acceptance evidence, is recorded in
 [Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md).
 
 A human visual-acceptance pass found the Management-mode Today/Entries
@@ -201,11 +201,20 @@ and shut down cleanly with exit code 0. This proves the app does not crash
 on the real platform; it does not substitute for visual inspection. A
 screenshot-based visual-verification attempt was aborted after it captured
 the operator's live desktop instead of the application window and was
-deleted immediately without being used as evidence. The subsequent human
-visual-acceptance pass against the Milestone 16 Closure checklist passed,
-including the navigation-contrast fix, the desktop launcher, and the
-application icon, closing Milestone 16 on `main` through PR #23 at
-`2e900d243950ca93aedf5cbde5b836dc6e378f25`.
+deleted immediately without being used as evidence. A final **targeted**
+human acceptance pass confirmed three specific things: the desktop
+shortcut launches the app without manual PowerShell interaction, the
+repository icon appears correctly on the shortcut/application window/
+taskbar, and the corrected Today/Entries navigation is visibly readable
+after the contrast fix. The full `DESIGN.md` visual-acceptance checklist
+was **not** re-run against the fixed build; broader Light/Dark, Entries
+table usability, and full visual acceptance remain later M17/M19 work —
+see
+[Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md) § Human
+Acceptance Evidence for the exact scope of what was and was not
+re-confirmed. Milestone 16 remains **Complete on `main`** through PR #23
+at `2e900d243950ca93aedf5cbde5b836dc6e378f25`; none of its exit criteria
+depend on the broader checklist having been re-run.
 
 M15.3 adds a UI-independent snapshot-based Audio Export service for a single
 current Card, an ordered Card selection, or all active Cards in a Collection.

@@ -34,7 +34,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if PYSIDE6_AVAILABLE:
     from src.ui_desktop.controllers.today_controller import TodayController
     from src.ui_desktop.state.handoff import LearningActionIntent
-    from src.ui_desktop.views.today_view import PENDING_MIGRATION_TOOLTIP, TodayView
+    from src.ui_desktop.views.today_view import (
+        PENDING_MIGRATION_TOOLTIP,
+        PENDING_ORGANIZE_TOOLTIP,
+        TodayView,
+    )
 
     def _qt_app() -> QApplication:
         app = QApplication.instance()
@@ -123,7 +127,7 @@ class M17TodayControllerProjectionTests(unittest.TestCase):
         self.assertEqual(attention[0]["label"], "Mistake Book")
         self.assertEqual(attention[0]["entry_count"], 3)
 
-    def test_build_learning_action_intent_from_queue_item(self) -> None:
+    def test_build_learning_action_intent_from_card_queue_item(self) -> None:
         controller = TodayController()
         item = {
             "collection_id": 5,
@@ -143,9 +147,36 @@ class M17TodayControllerProjectionTests(unittest.TestCase):
         self.assertEqual(intent.quiz_type, "mixed_mcq")
         self.assertEqual(intent.entry_count, 4)
 
-    def test_build_learning_action_intent_for_suggestion_item_is_review_not_quiz(self) -> None:
+    def test_build_learning_action_intent_from_random_queue_item_is_also_quiz(self) -> None:
         controller = TodayController()
-        item = {"quiz_mode": "suggestion", "reason": "recent_entries_need_collection"}
+        item = {"quiz_mode": "random", "reason": "proficient_pool_has_entries"}
+        intent = controller.build_learning_action_intent(item)
+        self.assertEqual(intent.action, "quiz")
+
+    def test_build_learning_action_intent_for_recent_entries_suggestion_is_organize_not_review(
+        self,
+    ) -> None:
+        """The real core item this represents
+        (recommendation_type="recent_entries_suggestion") means "add these
+        Entries to a Collection before quizzing" -- it is not a Review or
+        Quiz candidate, and must not be mislabeled as one."""
+        controller = TodayController()
+        item = {
+            "recommendation_type": "recent_entries_suggestion",
+            "quiz_mode": "suggestion",
+            "reason": "recent_entries_need_collection",
+            "entry_count": 3,
+        }
+        intent = controller.build_learning_action_intent(item)
+        self.assertEqual(intent.action, "organize")
+        self.assertNotEqual(intent.action, "review")
+        self.assertNotEqual(intent.action, "quiz")
+        self.assertEqual(intent.reason, "recent_entries_need_collection")
+        self.assertEqual(intent.entry_count, 3)
+
+    def test_build_learning_action_intent_unrecognized_quiz_mode_falls_back_to_review(self) -> None:
+        controller = TodayController()
+        item = {"quiz_mode": "some-future-mode-not-yet-known"}
         intent = controller.build_learning_action_intent(item)
         self.assertEqual(intent.action, "review")
 
@@ -249,10 +280,11 @@ class M17TodayViewStructureTests(_SyntheticDatabaseTestCase):
         self.assertFalse(hasattr(view, "_chart"))
 
     def test_queue_start_button_is_never_a_dead_functional_button(self) -> None:
-        """Every current Learning Queue item targets Review/Quiz, which
-        does not exist in the desktop app yet; selecting a row must
-        disable Start with an explanatory tooltip, never leave it looking
-        clickable-but-broken (M17 Feature 1 prompt § 6)."""
+        """No current Learning Queue item has a migrated desktop
+        destination yet; selecting a row must disable Start with an
+        explanatory tooltip, never leave it looking clickable-but-broken
+        (M17 Feature 1 prompt § 6). This entry is a never-quizzed Card, a
+        real Quiz candidate, so it uses the Review/Quiz pending wording."""
         entry_a = add_entry("French", "English", "word", "chat", "cat")
         entry_b = add_entry("French", "English", "word", "chien", "dog")
         collection_id = create_collection("French Basics", card_size=2)
@@ -262,13 +294,45 @@ class M17TodayViewStructureTests(_SyntheticDatabaseTestCase):
         self.assertGreater(view._queue_model.rowCount(), 0)
 
         selection_model = view._queue_table.selectionModel()
-        index = view._queue_model.index(0, 0)
+        never_quizzed_row = next(
+            row
+            for row in range(view._queue_model.rowCount())
+            if view._queue_model.row_at(row)["recommendation_type"] == "never_quizzed_card"
+        )
+        index = view._queue_model.index(never_quizzed_row, 0)
         selection_model.setCurrentIndex(
             index, selection_model.SelectionFlag.ClearAndSelect | selection_model.SelectionFlag.Rows
         )
 
         self.assertFalse(view._queue_start_button.isEnabled())
         self.assertIn("coming in a later M17 checkpoint", view._queue_start_button.toolTip())
+        self.assertEqual(view._queue_start_button.toolTip().split(" (would start:")[0], PENDING_MIGRATION_TOOLTIP)
+
+    def test_recent_entries_suggestion_row_uses_organize_pending_treatment_not_review_quiz(
+        self,
+    ) -> None:
+        """A recent_entries_suggestion row's real next step is organizing
+        Entries into a Collection, not Review/Quiz -- it must get its own
+        accurate pending explanation, never the Review/Quiz tooltip, and
+        must still never look clickable (no falsely functional button)."""
+        add_entry("French", "English", "word", "chat", "cat")
+
+        view = self._built_view()
+        suggestion_row = next(
+            row
+            for row in range(view._queue_model.rowCount())
+            if view._queue_model.row_at(row)["recommendation_type"] == "recent_entries_suggestion"
+        )
+
+        selection_model = view._queue_table.selectionModel()
+        index = view._queue_model.index(suggestion_row, 0)
+        selection_model.setCurrentIndex(
+            index, selection_model.SelectionFlag.ClearAndSelect | selection_model.SelectionFlag.Rows
+        )
+
+        self.assertFalse(view._queue_start_button.isEnabled())
+        self.assertEqual(view._queue_start_button.toolTip(), PENDING_ORGANIZE_TOOLTIP)
+        self.assertNotIn("Review/Quiz", view._queue_start_button.toolTip())
 
     def test_pending_quick_actions_are_disabled_with_explanatory_tooltip(self) -> None:
         view = self._built_view()

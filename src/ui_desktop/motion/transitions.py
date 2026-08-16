@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from PySide6.QtCore import QAbstractAnimation, QEasingCurve, QObject, QPropertyAnimation
+from PySide6.QtCore import QEasingCurve, QObject, QPropertyAnimation
 from PySide6.QtWidgets import QGraphicsOpacityEffect, QWidget
 
 """
@@ -56,7 +56,13 @@ class TransitionManager(QObject):
     def __init__(self, policy: MotionPolicy = DEFAULT_MOTION_POLICY) -> None:
         super().__init__()
         self._policy = policy
-        self._animations: dict[int, QPropertyAnimation] = {}
+        # Keyed by the widget object itself, not id(widget): a bare id()
+        # is a memory address that Python can and does reuse once an
+        # unrelated object is garbage-collected, which would let a stale
+        # dict entry silently apply to a different, later widget. Keying
+        # by the widget keeps it referenced for exactly as long as it has
+        # a tracked animation, which also cannot outlive this manager.
+        self._animations: dict[QWidget, QPropertyAnimation] = {}
 
     @property
     def policy(self) -> MotionPolicy:
@@ -66,7 +72,7 @@ class TransitionManager(QObject):
         self._policy = policy
 
     def is_animating(self, widget: QWidget) -> bool:
-        return id(widget) in self._animations
+        return widget in self._animations
 
     def fade_in(self, widget: QWidget) -> QPropertyAnimation | None:
         """Reveal ``widget`` with a subtle opacity fade, or none at all.
@@ -92,28 +98,49 @@ class TransitionManager(QObject):
         duration = (
             REDUCED_DURATION_MS if self._policy is MotionPolicy.REDUCED else NORMAL_DURATION_MS
         )
-        animation = QPropertyAnimation(effect, b"opacity", self)
+        # Parented to ``effect``, not to this long-lived manager: ``effect``
+        # is owned by ``widget`` (QWidget.setGraphicsEffect() takes
+        # ownership), so if the widget is ever destroyed while this
+        # animation is still running -- something this manager cannot
+        # prevent, since it does not own widget lifetimes -- Qt's normal
+        # parent-child cascade destroys the animation along with its
+        # target instead of leaving its timer ticking against a target
+        # that no longer exists.
+        animation = QPropertyAnimation(effect, b"opacity", effect)
         animation.setDuration(duration)
         animation.setStartValue(start_opacity)
         animation.setEndValue(1.0)
         animation.setEasingCurve(QEasingCurve.Type.OutCubic)
         animation.finished.connect(lambda: self._finalize(widget))
 
-        self._animations[id(widget)] = animation
-        animation.start(QAbstractAnimation.DeletionPolicy.DeleteWhenStopped)
+        self._animations[widget] = animation
+        # Deliberately *not* QAbstractAnimation.DeletionPolicy.DeleteWhenStopped:
+        # that policy schedules its own deferred deleteLater() the moment
+        # the animation stops for any reason (including our own .stop()
+        # calls below), independent of our bookkeeping. If this
+        # TransitionManager (the animation's C++ parent) were ever torn
+        # down before that deferred deletion is processed, Qt would try to
+        # delete an animation whose parent had already cascade-deleted it
+        # -- a double delete. Deletion is instead requested explicitly,
+        # exactly once, in _cancel()/_finalize() below, whichever happens
+        # first and only once.
+        animation.start()
         return animation
 
     def _cancel(self, widget: QWidget) -> None:
-        existing = self._animations.pop(id(widget), None)
+        existing = self._animations.pop(widget, None)
         if existing is not None:
             existing.finished.disconnect()
             existing.stop()
+            existing.deleteLater()
         effect = widget.graphicsEffect()
         if isinstance(effect, QGraphicsOpacityEffect):
             effect.setOpacity(1.0)
 
     def _finalize(self, widget: QWidget) -> None:
-        self._animations.pop(id(widget), None)
+        animation = self._animations.pop(widget, None)
+        if animation is not None:
+            animation.deleteLater()
         effect = widget.graphicsEffect()
         if isinstance(effect, QGraphicsOpacityEffect):
             effect.setOpacity(1.0)
