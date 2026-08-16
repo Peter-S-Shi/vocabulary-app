@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtGui import QAction, QActionGroup
-from PySide6.QtWidgets import QLabel, QMainWindow, QStackedWidget, QToolBar
+from PySide6.QtWidgets import QMainWindow, QStackedWidget, QToolBar
 
 from src.ui_desktop.controllers.entries_controller import EntriesController
 from src.ui_desktop.controllers.today_controller import TodayController
@@ -28,11 +27,16 @@ feature) is rendered as-is, rather than the shell silently resetting to
 Today/Management on startup.
 
 ``TransitionManager`` (motion/transitions.py) is shared desktop-shell
-infrastructure, not Today-owned: it decorates workspace switches and the
-Management/Study chrome swap with the same centralized fade, per the M17
-Feature 1 Motion / Transition Foundation (DESIGN.md § 23). It is never
-consulted for correctness -- every render below performs the actual state
-change synchronously first, then optionally fades the result in.
+infrastructure and is design-neutral: it decorates workspace switches and
+the Management/Study chrome swap with the centrally-configured transition,
+whatever shell composition a later design specifies. It is never consulted
+for correctness -- every render below performs the actual state change
+synchronously first, then optionally animates the result.
+
+The shell's visual composition is deliberately the M16.2 baseline: the
+M17 visual interpretation of it was rejected at human visual review and
+reset. Do not reintroduce a shell composition here until the replacement
+DESIGN.md and its canonical visual reference define one.
 """
 
 
@@ -43,9 +47,8 @@ class MainWindow(QMainWindow):
         motion: TransitionManager | None = None,
     ) -> None:
         super().__init__()
-        self.setWindowTitle("Vocabulary App")
-        self.resize(1180, 780)
-        self.setMinimumSize(940, 620)
+        self.setWindowTitle("Vocabulary App (Desktop Preview)")
+        self.resize(1024, 720)
 
         self.app_state = app_state or AppState()
         self._motion = motion or TransitionManager()
@@ -55,15 +58,8 @@ class MainWindow(QMainWindow):
 
         self.today_view = TodayView(self.today_controller)
         self.entries_view = EntriesView(self.entries_controller)
-        self.today_view.entries_requested.connect(
-            lambda: self.app_state.request_navigation(Workspace.ENTRIES)
-        )
 
         self._workspace_stack = QStackedWidget(self)
-        # Named so the shared stylesheet can paint the workspace host with
-        # app-background, keeping a visible separation between the shell
-        # chrome and page content surfaces (DESIGN.md § 13).
-        self._workspace_stack.setObjectName("workspace-host")
         self._workspace_stack.addWidget(self.today_view)
         self._workspace_stack.addWidget(self.entries_view)
         self.setCentralWidget(self._workspace_stack)
@@ -92,57 +88,23 @@ class MainWindow(QMainWindow):
     def _build_management_toolbar(self) -> QToolBar:
         toolbar = QToolBar("Navigation", self)
         toolbar.setObjectName("management-toolbar")
-        toolbar.setMovable(False)
-        toolbar.setFloatable(False)
 
-        brand = QLabel("Vocabulary App", toolbar)
-        brand.setProperty("typography", "nav-brand")
-        brand.setObjectName("nav-brand")
-        toolbar.addWidget(brand)
-        toolbar.addSeparator()
+        today_action = toolbar.addAction("Today")
+        today_action.triggered.connect(lambda: self.app_state.request_navigation(Workspace.TODAY))
 
-        # Checkable + exclusive so the current location is a real, visually
-        # distinct state rather than a momentary press, per DESIGN.md § 16
-        # Navigation ("current location always visually distinct"; hover and
-        # selected must not collapse into one treatment). The stylesheet
-        # gives :checked the accent-soft selection language shared with
-        # table-row selection, so the app has one selection grammar.
-        self._nav_group = QActionGroup(self)
-        self._nav_group.setExclusive(True)
-
-        self._nav_actions: dict[Workspace, QAction] = {}
-        for workspace, label in ((Workspace.TODAY, "Today"), (Workspace.ENTRIES, "Entries")):
-            action = toolbar.addAction(label)
-            action.setCheckable(True)
-            self._nav_group.addAction(action)
-            action.triggered.connect(
-                lambda _checked=False, target=workspace: self.app_state.request_navigation(target)
-            )
-            self._nav_actions[workspace] = action
+        entries_action = toolbar.addAction("Entries")
+        entries_action.triggered.connect(lambda: self.app_state.request_navigation(Workspace.ENTRIES))
 
         return toolbar
 
     def _build_study_toolbar(self) -> QToolBar:
         toolbar = QToolBar("Study Session", self)
         toolbar.setObjectName("study-toolbar")
-        toolbar.setMovable(False)
-        toolbar.setFloatable(False)
 
         exit_action = toolbar.addAction("Exit Study Mode")
         exit_action.triggered.connect(self.app_state.enter_management_mode)
 
         return toolbar
-
-    def _sync_navigation_state(self, workspace: Workspace) -> None:
-        """Mirror AppState's workspace onto the navigation's checked state.
-
-        Driven from the render path, not from the click handler, so the
-        highlighted nav item always reflects ``AppState`` -- including a
-        navigation requested programmatically (e.g. Today's "Open Entries"
-        handoff) or an injected non-default startup workspace.
-        """
-        for candidate, action in self._nav_actions.items():
-            action.setChecked(candidate is workspace)
 
     def show_workspace(self, workspace: Workspace) -> None:
         """Request a workspace change.
@@ -170,11 +132,9 @@ class MainWindow(QMainWindow):
             self._workspace_stack.setCurrentWidget(widget)
             self.entries_controller.refresh()
 
-        self._sync_navigation_state(workspace)
-
         # The workspace switch above is already complete and correct by
-        # this point; the fade below is a purely decorative reveal of that
-        # already-correct state, never a precondition for it.
+        # this point; the transition below is a purely decorative reveal of
+        # that already-correct state, never a precondition for it.
         if animate and widget is not None:
             self._motion.fade_in(widget)
 

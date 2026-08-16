@@ -108,158 +108,64 @@ def build_palette(tokens: ThemeTokens) -> QPalette:
 
 
 def build_stylesheet(tokens: ThemeTokens) -> str:
-    """Application-level QSS: the shared desktop component grammar (§ 14).
+    """Application-level QSS for custom-drawn components (§ 14).
 
-    This is the single place the product's visual language is realized.
-    It deliberately styles *component roles*, not individual screens, so
-    every M17 workspace inherits one coherent grammar instead of
-    re-styling itself: typography steps, panel/tile surfaces, the
-    management table grammar, navigation state, and the button hierarchy
-    are all defined once here and selected by semantic properties
-    (``typography``, ``surface``, ``variant``) rather than per-screen
-    object names.
+    Covers what the M16.2 vertical slice draws beyond native
+    QPalette-resolved chrome: selected-row emphasis in the Entries table
+    (accent-soft background/foreground, per DESIGN.md § 16 selection rule),
+    outlined-danger buttons per DESIGN.md § 16, and explicit toolbar-action
+    (``QToolButton``) colors.
 
-    Every rule resolves explicit, paired tokens. Once
+    The ``QToolButton`` rule exists specifically because, once
     ``QApplication.setStyleSheet()`` is set at all, Qt's style-sheet engine
     takes over painting for every widget application-wide; any widget left
-    without an explicit color can silently lose its QPalette-resolved
-    foreground and render as low-contrast/disabled-looking rather than
-    falling back to the palette. That is exactly the defect the M16.2
-    human visual-acceptance pass found in the navigation ``QToolButton``s,
-    and the same class of bug DESIGN.md § 11.4 documents for unstyled
-    table rows and status pills. Hence DESIGN.md § 9's foreground-pair
-    rule is applied to every state below, including ``:disabled``.
-
-    Sizing/spacing come from ``tokens.typography`` / ``tokens.metrics``
-    (DESIGN.md § 15) rather than per-widget magic numbers, so density and
-    rhythm stay consistent and adjustable in one place.
+    without an explicit color in the sheet can silently lose its
+    QPalette-resolved foreground and render as low-contrast/disabled-
+    looking instead of falling back to the palette. This was found during
+    the M16.2 human visual-acceptance pass: the Management-mode Today/
+    Entries navigation actions (``QToolButton``s inside ``QToolBar``)
+    rendered with extremely low contrast. Every ``QToolButton`` state below
+    resolves an explicit, paired foreground token, mirroring DESIGN.md § 9's
+    foreground-pair rule and § 11.4's "always resolve an explicit
+    foreground" requirement -- the same class of bug DESIGN.md § 11.4
+    already documents for unstyled table rows and status pills.
     """
     neutral = tokens.neutral
     accent = tokens.accent
-    semantic = tokens.semantic
-    danger = semantic.danger
-    type_ = tokens.typography
-    metrics = tokens.metrics
+    danger = tokens.semantic.danger
 
     return f"""
-    /* --- Base ------------------------------------------------------- */
-    QWidget {{
-        color: {neutral.text_primary};
-        font-size: {type_.body_size}px;
-        font-weight: {type_.body_weight};
-    }}
-    QMainWindow, QWidget#workspace-host {{
-        background-color: {neutral.app_background};
-    }}
-
-    /* --- Typography steps (DESIGN.md § 15) -------------------------- */
-    QLabel[typography="page-title"] {{
-        color: {neutral.text_primary};
-        font-size: {type_.page_title_size}px;
-        font-weight: {type_.page_title_weight};
-    }}
-    QLabel[typography="page-subtitle"] {{
-        color: {neutral.text_secondary};
-        font-size: {type_.meta_size}px;
-    }}
-    QLabel[typography="nav-brand"] {{
-        color: {neutral.text_primary};
-        font-size: {type_.body_size + 1}px;
-        font-weight: 600;
-        padding-right: {metrics.space_sm}px;
-    }}
-    QLabel[typography="section-heading"] {{
-        color: {neutral.text_secondary};
-        font-size: {type_.section_heading_size}px;
-        font-weight: {type_.section_heading_weight};
-        letter-spacing: {type_.section_heading_letter_spacing};
-    }}
-    QLabel[typography="body"] {{
-        color: {neutral.text_primary};
-        font-size: {type_.body_size}px;
-    }}
-    QLabel[typography="meta"] {{
-        color: {neutral.text_muted};
-        font-size: {type_.meta_size}px;
-    }}
-    QLabel[typography="metric-value"] {{
-        color: {neutral.text_primary};
-        font-size: {type_.metric_value_size}px;
-        font-weight: {type_.metric_value_weight};
-    }}
-    QLabel[typography="metric-label"] {{
-        color: {neutral.text_secondary};
-        font-size: {type_.meta_size}px;
-    }}
-    QLabel[typography="empty-state"] {{
-        color: {neutral.text_muted};
-        font-size: {type_.body_size}px;
-    }}
-    QLabel:disabled {{
-        color: {neutral.text_disabled};
-    }}
-
-    /* --- Surfaces (DESIGN.md § 11.1 surface hierarchy) -------------- */
-    QFrame[surface="panel"] {{
+    QTableView {{
         background-color: {neutral.surface_primary};
-        border: 1px solid {neutral.border_subtle};
-        border-radius: {metrics.radius}px;
+        color: {neutral.text_primary};
+        gridline-color: {neutral.border_subtle};
+        selection-background-color: {accent.soft.background};
+        selection-color: {accent.soft.foreground};
+        border: 1px solid {neutral.border_default};
     }}
-    QFrame[surface="tile"] {{
-        background-color: {neutral.surface_primary};
-        border: 1px solid {neutral.border_subtle};
-        border-radius: {metrics.radius}px;
+    QHeaderView::section {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_secondary};
+        border: 1px solid {neutral.border_default};
+        padding: 4px;
     }}
-    QFrame[surface="accent-tile"] {{
-        background-color: {accent.soft.background};
-        border: 1px solid {accent.border};
-        border-radius: {metrics.radius}px;
-    }}
-    QFrame[surface="accent-tile"] QLabel[typography="metric-value"],
-    QFrame[surface="accent-tile"] QLabel[typography="metric-label"] {{
-        color: {accent.soft.foreground};
-    }}
-    QFrame[surface="divider"] {{
-        background-color: {neutral.border_subtle};
-        border: none;
-        max-height: 1px;
-        min-height: 1px;
-    }}
-
-    /* --- Application shell / navigation ----------------------------- */
     QToolBar {{
-        background-color: {neutral.surface_primary};
-        border: none;
+        background-color: {neutral.surface_secondary};
         border-bottom: 1px solid {neutral.border_default};
-        spacing: {metrics.space_xs}px;
-        padding: {metrics.space_sm}px {metrics.space_lg}px;
-    }}
-    QToolBar::separator {{
-        background-color: {neutral.border_subtle};
-        width: 1px;
-        margin: {metrics.space_xs}px {metrics.space_sm}px;
+        spacing: 6px;
+        padding: 4px;
     }}
     QToolButton {{
         background-color: transparent;
-        color: {neutral.text_secondary};
+        color: {neutral.text_primary};
         border: 1px solid transparent;
-        border-radius: {metrics.radius}px;
-        padding: {metrics.space_xs}px {metrics.space_md}px;
-        min-height: {metrics.control_height - 10}px;
-        font-weight: 500;
+        border-radius: 4px;
+        padding: 4px 10px;
     }}
     QToolButton:hover {{
-        background-color: {neutral.surface_secondary};
-        color: {neutral.text_primary};
-        border: 1px solid {neutral.border_subtle};
-    }}
-    /* Current location is visually distinct from hover, never collapsed
-       into the same treatment (DESIGN.md § 16 Navigation). */
-    QToolButton:checked {{
         background-color: {accent.soft.background};
         color: {accent.soft.foreground};
         border: 1px solid {accent.border};
-        font-weight: 600;
     }}
     QToolButton:pressed {{
         background-color: {accent.pressed.background};
@@ -271,196 +177,12 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_disabled};
         border: 1px solid transparent;
     }}
-
-    /* --- Management table grammar (DESIGN.md § 16 Tables) ----------- */
-    QTableView {{
-        background-color: {neutral.surface_primary};
-        alternate-background-color: {neutral.surface_primary};
-        color: {neutral.text_primary};
-        gridline-color: transparent;
-        border: 1px solid {neutral.border_subtle};
-        border-radius: {metrics.radius}px;
-        selection-background-color: {accent.soft.background};
-        selection-color: {accent.soft.foreground};
-    }}
-    QTableView::item {{
-        padding: {metrics.space_sm}px {metrics.space_md}px;
-        border: none;
-        border-bottom: 1px solid {neutral.border_subtle};
-        /* Reserve the selection marker's width on every row so selecting
-           a row shifts nothing horizontally. */
-        border-left: 3px solid transparent;
-    }}
-    QTableView::item:hover {{
-        background-color: {neutral.surface_secondary};
-        color: {neutral.text_primary};
-    }}
-    /* Selection reads as shape + color, not color alone, so it stays
-       legible for colorblind users (DESIGN.md § 16 Tables). */
-    QTableView::item:selected {{
-        background-color: {accent.soft.background};
-        color: {accent.soft.foreground};
-        border-left: 3px solid {accent.primary.background};
-    }}
-    QHeaderView {{
-        background-color: {neutral.surface_secondary};
-        border: none;
-    }}
-    QHeaderView::section {{
-        background-color: {neutral.surface_secondary};
-        color: {neutral.text_secondary};
-        border: none;
-        border-bottom: 1px solid {neutral.border_default};
-        padding: {metrics.space_sm}px {metrics.space_md}px;
-        font-size: {type_.section_heading_size}px;
-        font-weight: {type_.section_heading_weight};
-    }}
-    QTableView QTableCornerButton::section {{
-        background-color: {neutral.surface_secondary};
-        border: none;
-    }}
-    QScrollBar:vertical {{
-        background: transparent;
-        width: 10px;
-        margin: 0px;
-    }}
-    QScrollBar::handle:vertical {{
-        background: {neutral.border_default};
-        border-radius: 5px;
-        min-height: 24px;
-    }}
-    QScrollBar::handle:vertical:hover {{
-        background: {neutral.border_strong};
-    }}
-    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
-        height: 0px;
-    }}
-    QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
-        background: transparent;
-    }}
-
-    /* --- Buttons (DESIGN.md § 16 Buttons) --------------------------- */
-    /* Secondary/default: outlined neutral. */
-    QPushButton {{
-        background-color: {neutral.surface_primary};
-        color: {neutral.text_primary};
-        border: 1px solid {neutral.border_default};
-        border-radius: {metrics.radius}px;
-        padding: 0px {metrics.space_lg}px;
-        min-height: {metrics.control_height}px;
-        font-weight: 500;
-    }}
-    QPushButton:hover {{
-        background-color: {neutral.surface_secondary};
-        color: {neutral.text_primary};
-        border: 1px solid {neutral.border_strong};
-    }}
-    QPushButton:pressed {{
-        background-color: {accent.pressed.background};
-        color: {accent.pressed.foreground};
-        border: 1px solid {accent.pressed.background};
-    }}
-    QPushButton:disabled {{
-        background-color: {neutral.surface_secondary};
-        color: {neutral.text_disabled};
-        border: 1px solid {neutral.border_subtle};
-    }}
-    /* Primary: filled accent -- one per surface, restrained (§ 14). */
-    QPushButton[variant="primary"] {{
-        background-color: {accent.primary.background};
-        color: {accent.primary.foreground};
-        border: 1px solid {accent.primary.background};
-        font-weight: 600;
-    }}
-    QPushButton[variant="primary"]:hover {{
-        background-color: {accent.hover.background};
-        color: {accent.hover.foreground};
-        border: 1px solid {accent.hover.background};
-    }}
-    QPushButton[variant="primary"]:pressed {{
-        background-color: {accent.pressed.background};
-        color: {accent.pressed.foreground};
-        border: 1px solid {accent.pressed.background};
-    }}
-    QPushButton[variant="primary"]:disabled {{
-        background-color: {neutral.surface_secondary};
-        color: {neutral.text_disabled};
-        border: 1px solid {neutral.border_subtle};
-    }}
-    /* Subtle: text-only, for tertiary actions. */
-    QPushButton[variant="subtle"] {{
-        background-color: transparent;
-        color: {accent.primary.background};
-        border: 1px solid transparent;
-        font-weight: 500;
-    }}
-    QPushButton[variant="subtle"]:hover {{
-        background-color: {accent.soft.background};
-        color: {accent.soft.foreground};
-        border: 1px solid transparent;
-    }}
-    QPushButton[variant="subtle"]:disabled {{
-        background-color: transparent;
-        color: {neutral.text_disabled};
-        border: 1px solid transparent;
-    }}
-    /* Destructive stays outlined, never the loudest control (§ 5). */
-    QPushButton[variant="destructive"], QPushButton[destructive="true"] {{
+    QPushButton[destructive="true"] {{
         color: {danger.background};
         background-color: {neutral.surface_primary};
         border: 1px solid {danger.background};
-    }}
-
-    /* --- Inputs ----------------------------------------------------- */
-    QLineEdit {{
-        background-color: {neutral.surface_primary};
-        color: {neutral.text_primary};
-        border: 1px solid {neutral.border_default};
-        border-radius: {metrics.radius}px;
-        padding: 0px {metrics.space_md}px;
-        min-height: {metrics.control_height}px;
-        selection-background-color: {accent.primary.background};
-        selection-color: {accent.primary.foreground};
-    }}
-    QLineEdit:focus {{
-        border: 1px solid {accent.border};
-    }}
-    QLineEdit:disabled {{
-        background-color: {neutral.surface_secondary};
-        color: {neutral.text_disabled};
-        border: 1px solid {neutral.border_subtle};
-    }}
-
-    /* --- Status pills ----------------------------------------------- */
-    QLabel[pill="neutral"] {{
-        background-color: {neutral.surface_secondary};
-        color: {neutral.text_secondary};
-        border: 1px solid {neutral.border_subtle};
-        border-radius: {metrics.radius}px;
-        padding: {metrics.space_xs}px {metrics.space_sm}px;
-        font-size: {type_.meta_size}px;
-    }}
-    QLabel[pill="accent"] {{
-        background-color: {accent.soft.background};
-        color: {accent.soft.foreground};
-        border: 1px solid {accent.border};
-        border-radius: {metrics.radius}px;
-        padding: {metrics.space_xs}px {metrics.space_sm}px;
-        font-size: {type_.meta_size}px;
-    }}
-    QLabel[pill="warning"] {{
-        background-color: {semantic.warning_soft};
-        color: {semantic.warning.background};
-        border: 1px solid {semantic.warning.background};
-        border-radius: {metrics.radius}px;
-        padding: {metrics.space_xs}px {metrics.space_sm}px;
-        font-size: {type_.meta_size}px;
-    }}
-    QToolTip {{
-        background-color: {neutral.surface_primary};
-        color: {neutral.text_primary};
-        border: 1px solid {neutral.border_default};
-        padding: {metrics.space_xs}px {metrics.space_sm}px;
+        border-radius: 4px;
+        padding: 4px 10px;
     }}
     """.strip()
 

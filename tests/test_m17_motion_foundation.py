@@ -279,19 +279,12 @@ class M17MainWindowMotionIntegrationTests(_SyntheticDatabaseTestCase):
         self.assertIs(window._workspace_stack.currentWidget(), window.entries_view)
         self.assertIsNone(window.entries_view.graphicsEffect())
 
-    def test_today_entries_handoff_uses_shared_navigation_not_direct_coupling(self) -> None:
-        """TodayView must reach Entries only through AppState (M17 Feature
-        1 prompt § 5 no view-to-view coupling), proven by emitting its
-        signal and observing AppState -- not by TodayView importing or
-        constructing EntriesView itself (see M17MotionSourceScanTests'
-        sibling architecture test in test_m17_today_command_center.py)."""
-        window = MainWindow(AppState(), TransitionManager(MotionPolicy.DISABLED))
-        self.addCleanup(window.close)
-
-        window.today_view.entries_requested.emit()
-
-        self.assertIs(window.app_state.workspace, Workspace.ENTRIES)
-        self.assertIs(window.current_workspace(), Workspace.ENTRIES)
+    # A Today -> Entries handoff test lived here. It drove the rejected
+    # TodayView's ``entries_requested`` signal, which no longer exists now
+    # that Today is reset to the M16.2 placeholder, so it was removed
+    # rather than rewritten: a cross-feature handoff test belongs with
+    # whatever Today the replacement DESIGN.md defines. Shared navigation
+    # itself stays covered above, driven through AppState directly.
 
     def test_build_application_wires_motion_policy_from_preferences(self) -> None:
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:

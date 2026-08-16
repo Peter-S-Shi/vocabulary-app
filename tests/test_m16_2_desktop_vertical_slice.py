@@ -142,10 +142,7 @@ class M162BootstrapTests(_SyntheticDatabaseTestCase):
         self.addCleanup(window.close)
 
         self.assertIsInstance(window, MainWindow)
-        # M17 Feature 1's visual pass dropped the "(Desktop Preview)"
-        # suffix: it communicated prototype status in the OS title bar and
-        # taskbar of what is now a real product surface.
-        self.assertEqual(window.windowTitle(), "Vocabulary App")
+        self.assertEqual(window.windowTitle(), "Vocabulary App (Desktop Preview)")
         self.assertIs(window.current_workspace(), Workspace.TODAY)
         self.assertIsNotNone(theme_manager.current)
 

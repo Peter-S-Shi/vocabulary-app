@@ -46,104 +46,96 @@ are one feature-level engineering closure — see `ROADMAP.md` § Milestone 17
 for the full operating model, frozen semantic boundaries, and verification
 model.
 
-**Today / Command Center + Motion Foundation** (feature 1 of the sequence)
-is implemented and pending independent review. It turns the M16.2 Today
-vertical slice into a real Command Center: `TodayController` adds
-read-only projections (`queue_items()`, `primary_recommendation()`,
-`recent_activity()`, `collections_needing_attention()`) over the same
-unmodified `src.learning_workflow.get_today_overview()`; `TodayView`
-renders the DESIGN.md § 4.1 hierarchy with the Learning Queue
-(`LearningQueueTableModel` over `daily_quiz_recommendations`) as the
-dominant area by layout stretch factor. Review/Quiz destinations are not
-implemented yet, so every action that would target them is intentionally
-disabled with an explanatory tooltip rather than a dead button; only the
-Entries handoff is real, wired through a `entries_requested` signal so
-Today never imports `EntriesView` or `AppState` directly. A minimal typed
-handoff shape, `LearningActionIntent` (`state/handoff.py`), lets a
-selected Learning Queue item's intent be constructed and inspected without
-Today fabricating a Review/Quiz session.
+**Feature 1 — Today.** Its non-visual groundwork is implemented and
+retained; **its visual/presentation implementation was rejected at human
+visual review and has been reset.** Today is *not* implemented.
 
-This checkpoint also establishes the authorized **Motion / Transition
-Foundation** (DESIGN.md § 23): a single centralized
-`TransitionManager` (`motion/transitions.py`) decorates workspace switches
-and the Management/Study chrome swap with a subtle opacity fade, with a
-`Normal`/`Reduced`/`Disabled` policy stored as a new `motion` desktop
-preference (`state/preferences.py`) alongside Appearance/Accent. Every
-state change (which workspace is current, which toolbar is visible)
-completes synchronously before any fade starts, so correctness never
-depends on animation completion; rapid/repeated navigation cancels and
-resets any in-flight fade rather than leaving stale opacity.
+Two Today presentations were built and both were rejected:
 
-**Today engineering/architecture review passed; the first human
-visual-acceptance pass failed.** Real native-window screenshots showed the
-information hierarchy was structurally present but the product still read
-as default Qt widgets with token coloring rather than the approved design:
-near-default application chrome, weak typography hierarchy and spacing
-rhythm, a structurally dominant but visually plain Learning Queue, panels
-that looked like prototype frames, and a "Desktop Preview" title that
-communicated prototype status. That the structural tests were green
-throughout is the point: layout-weight assertions are not evidence of
-`DESIGN.md` realization, and visual acceptance remains a human gate.
+1. The first implementation was rejected because the UI still read as
+   default Qt widgets with token coloring rather than a designed product
+   surface.
+2. The follow-up visual-realization pass was **also rejected**: it
+   improved polish and introduced a shared component grammar, but in
+   doing so it replaced the approved spatial composition with a
+   top-navigation / KPI-tile / full-width-table design of its own. Neither
+   attempt is a valid Command Center, and this document does not describe
+   either as one.
 
-A **visual realization pass** followed, implementing the existing design
-language rather than redesigning it. It adds the missing shared layer, not
-Today-specific decoration: `theming/tokens.py` gains the typography scale
-and spacing/radius/control metrics `DESIGN.md` § 15 defines structurally
-and § 20 defers the exact values of; `theming/theme_manager.py` grows from
-a color-only sheet into the shared component grammar (typography steps,
-panel/tile surfaces, management table grammar with header treatment, row
-density and a shape-plus-color selection marker, navigation active state,
-and the primary/secondary/subtle/destructive button hierarchy), keyed on
-semantic properties so every future M17 workspace inherits it; and a new
-`widgets/primitives.py` provides `PageHeader`, `SectionHeading`, `Panel`,
-`MetricTile`, `EmptyState`, and `StatusPill`. The shared shell was
-improved for the same reason — navigation is now exclusive and checkable
-with a real current-location treatment, and the window is titled
-"Vocabulary App". Today is rebuilt on those primitives and hardcodes no
-color and no font size. Entries deliberately keeps its M16.2 content
-depth; only the shared grammar it sits in improved.
+Throughout both rejections the automated suite was fully green. Structural
+assertions — layout stretch factors, token contrast, component-role
+coverage — cannot establish that an approved design was realized. That is
+why human visual acceptance is a required gate (see the Human UI
+Acceptance Delivery Pattern in `AGENTS.md`).
+
+A **controlled reset** therefore removed the rejected presentation while
+preserving design-neutral engineering. Reset to the M16.2 baseline:
+`views/today_view.py` (back to the placeholder skeleton),
+`theming/tokens.py` (the M17-added typography/spacing/radius/density
+metrics removed so they cannot become implicit constraints on the
+replacement design), `theming/theme_manager.py` (the M17 component grammar
+removed; the earlier M16 `QToolButton` contrast fix preserved), and
+`main_window.py` (M16.2 shell plus motion only — the M17 top-navigation
+and brand treatment removed, and no replacement shell composition
+introduced). Deleted outright:
+`qt_models/learning_queue_table_model.py`, the `widgets/` primitives
+package, and `tests/test_m17_visual_system.py`. The rejected commits
+remain in branch history for audit; nothing was force-pushed away.
+
+**Retained M17 engineering assets**, all independent of the rejected
+composition:
+
+- the **Motion / Transition Foundation** (`motion/transitions.py`,
+  DESIGN.md § 23): centralized `TransitionManager` with
+  `Normal`/`Reduced`/`Disabled` policy, the `motion` durable preference,
+  app-level wiring, and `MainWindow` decoration applied *after* each
+  synchronous state change so motion never gates correctness. It also
+  carries the animation-lifetime crash fix — animations are parented to
+  the `QGraphicsOpacityEffect` they animate rather than to the long-lived
+  manager, and the tracking dict keys by widget object rather than
+  `id(widget)`;
+- **`TodayController`'s read-only projections** over the unmodified
+  `src.learning_workflow.get_today_overview()`: `queue_items()`,
+  `primary_recommendation()`, `recent_activity()`,
+  `collections_needing_attention()`;
+- the **`LearningActionIntent` handoff contract** (`state/handoff.py`) and
+  its fail-closed mapping: `card`/`random` → `quiz`, `suggestion` →
+  `organize`, anything unrecognized → `unknown` (never guessed as
+  `quiz`/`review`);
+- the **Human UI Acceptance Delivery Pattern** in `AGENTS.md`.
+
+These prescribe *what data Today reads and what a queue item means*, not
+whether the final UI uses rows, cards, panels, a rail, or another approved
+presentation. Retained tests cover only those semantics; the tests that
+encoded the rejected UI structure were removed rather than adapted, and
+`tests/test_m17_today_command_center.py` was replaced by
+`tests/test_m17_today_controller_and_handoff.py` so no module name claims
+to prove a Today Command Center UI.
+
+**A fresh Today implementation is blocked** until the replacement
+`DESIGN.md` and its canonical visual reference are supplied. `DESIGN.md`
+is being replaced through a separate design workflow and was not
+independently redesigned here; its M17 Motion section remains because
+Motion is an independently authorized requirement.
 
 M17 implementation began from the verified `main` post-M16-closure commit
-`c8842e0f77199ed9d3d0a2e3c48701d4289f137e` (PR #24 merge commit). **A
-second human visual-acceptance pass is pending.** Do not mark Today,
-Motion, or Milestone 17 complete until it and independent review close
-this checkpoint.
+`c8842e0f77199ed9d3d0a2e3c48701d4289f137e` (PR #24 merge commit).
 
-Verification on 2026-08-16 passed:
+Verification after the reset, on 2026-08-16:
 
 ```text
-Focused M17 Today Command Center tests: 24/24 (tests/test_m17_today_command_center.py)
-Focused M17 visual-system tests: 18/18 (tests/test_m17_visual_system.py)
-Focused M17 Motion Foundation tests: 17/17 (tests/test_m17_motion_foundation.py)
-M16.1 + M16.2 desktop regression: 43/43
-Full repository suite: 263/263 (204 existing + 24 Today + 18 visual + 17 Motion),
-  confirmed in both M16-then-M17 and M17-then-M16 process orderings
+Retained Today controller/handoff tests: 14/14 (tests/test_m17_today_controller_and_handoff.py)
+Motion Foundation tests: 16/16 (tests/test_m17_motion_foundation.py)
+M16.1 + M16.2 desktop regression: 43/43 (restored to their pre-M17 assertions)
+Full repository suite: 234/234
 Python compile check (all tracked .py): passed
-scripts/audit_architecture.py: 65 Python files scanned, 0 serious, 0 warnings
+scripts/audit_architecture.py: 62 Python files scanned, 0 serious, 0 warnings
 scripts/check_quiz_randomization.py: passed
-tools/check_packaging_readiness.py: passed, only the expected local data/vocab.db exclusion warning
-Real (non-offscreen) native-window smoke: windows Qt platform confirmed, Today -> Entries -> rapid re-navigation, exit code 0
 ```
 
-The visual-system tests guard that the grammar stays shared (no view or
-primitive hardcodes a hex color or font size; only `theme_manager.py`
-calls `setStyleSheet()`), that every text-bearing control state resolves
-an explicit paired foreground, and that the new token pairs meet
-`DESIGN.md` § 12 contrast in both Light and Dark. **They do not claim to
-prove visual quality** — the first human pass failed while the structural
-suite was fully green.
-
-Corrective testing while adding the Today/handoff regression coverage
-surfaced and fixed a real native crash: `TransitionManager` parented each
-animation to itself rather than to the `QGraphicsOpacityEffect` it
-animates, so an animation that outlived its target widget could crash on
-event processing. Animations are now parented to the effect they animate
-and the tracking dict keys by the widget object rather than `id(widget)`;
-both test orderings above confirm the fix.
-
-No reusable core or schema/app-data version changed. `src/learning_workflow.py`
-is unmodified; every number and recommendation Today displays comes from
-its existing, unmodified functions.
+No visual-acceptance testing was run, deliberately: there is no proposed
+Today presentation to accept. No reusable core or schema/app-data version
+changed at any point; `src/learning_workflow.py` is unmodified.
 
 M16.1 selects **PySide6** as the desktop framework and freezes the
 controller/view-state/core boundary, the initial `src/ui_desktop/` package
@@ -1448,9 +1440,9 @@ complete.
 
 ## Next Objective
 
-**Independently review the Today / Command Center + Motion Foundation
-checkpoint on the M17 Draft PR. Do not begin Review until that review
-closes.**
+**Supply the replacement `DESIGN.md` and its canonical visual reference,
+then implement Today fresh from that authority. Today's presentation is
+reset and a new implementation is blocked until then.**
 
 Milestone 16 is complete on `main` (PR #23,
 `2e900d243950ca93aedf5cbde5b836dc6e378f25`). Post-M16 lifecycle
@@ -1461,8 +1453,13 @@ PR, and an ordered feature migration sequence — Today, Review, Quiz,
 Entries, minimum Collection integration, then parity/exit verification —
 rather than independent sub-milestone branches or PRs. See `ROADMAP.md`
 § Milestone 17 for the full operating model, frozen semantic boundaries,
-and verification model. Today (feature 1) is implemented pending review;
-Review (feature 2) has not started.
+and verification model.
+
+Today (feature 1) is **not** implemented: its non-visual controller and
+handoff groundwork plus the Motion Foundation are retained, but both
+attempted presentations were rejected at human visual review and the
+presentation has been reset to the M16.2 placeholder. Review (feature 2)
+has not started. Milestone 17 is not complete.
 
 ## Repository State
 
@@ -1541,9 +1538,12 @@ Review (feature 2) has not started.
   `c8842e0f77199ed9d3d0a2e3c48701d4289f137e`
 - M17 implementation branch (single long-lived branch for the whole
   milestone): `agent/m17-desktop-core-workflow-migration`
-- M17 feature 1 (Today / Command Center + Motion Foundation): implemented
-  on that branch, pending independent review; see the M17 Draft PR for the
-  exact reviewed head SHA
+- M17 feature 1 (Today): non-visual controller/handoff groundwork and the
+  Motion Foundation implemented and retained; **both attempted Today
+  presentations rejected at human visual review, presentation reset to the
+  M16.2 placeholder**, fresh implementation blocked on the replacement
+  `DESIGN.md` + canonical visual reference. See the M17 Draft PR for the
+  exact head SHA and the full reject/reset history.
 - Current lifecycle documents:
   - `ROADMAP.md`
   - `PROJECT_STATUS.md`
@@ -1573,11 +1573,14 @@ Review (feature 2) has not started.
   `2e900d243950ca93aedf5cbde5b836dc6e378f25`). Post-M16 lifecycle
   reconciliation Complete on `main` (PR #24,
   `c8842e0f77199ed9d3d0a2e3c48701d4289f137e`). Milestone 17 — Desktop Core
-  Workflow Migration In Progress: Today / Command Center + Motion
-  Foundation implemented, pending independent review; Review not started.**
+  Workflow Migration In Progress: Motion Foundation implemented and
+  retained; Today's non-visual controller/handoff groundwork retained;
+  **Today presentation rejected at human visual review and reset**, fresh
+  implementation blocked on the replacement `DESIGN.md`; Review not
+  started; M17 not complete.**
 - Exact next objective:
-  **Independently review the Today / Command Center + Motion Foundation
-  checkpoint on the M17 Draft PR (branch
-  `agent/m17-desktop-core-workflow-migration`). Do not mark Today or
-  Milestone 17 complete, and do not begin Review, until that review
-  closes.**
+  **Supply the replacement `DESIGN.md` and its canonical visual reference,
+  then implement Today fresh from that authority on the same branch
+  (`agent/m17-desktop-core-workflow-migration`) and Draft PR #25. Do not
+  restart Today from the rejected implementation, do not mark Today or
+  Milestone 17 complete, and do not begin Review.**
