@@ -1553,25 +1553,50 @@ Card Contents/History drawer reusing the shared `TransitionManager`).
 Browsing a Card created no Quiz session and touched no legacy
 `src/review.py` scheduling state (regression-tested).
 
-Quiz (feature 3) is **implemented, pending independent review and native
-human visual acceptance**: `QuizController` owns active-session
-presentation state only, calling existing `src.quiz`/`src.template_quiz`
-functions for every session/generation/grading/completion step (no SQL,
-no duplicated grading logic). It preserves all nine current Quiz families
-(term/meaning self-graded and MCQ, mixed MCQ, Matching, and the three
-template-aware modes), the single-global-active-session guard, duplicate-
-submission protection, and Mistake Book/Proficient Pool side effects.
-Plain Matching stays whole-Collection only (normalized inside the
-controller even if a Card-scoped intent slips through); template-aware
-Matching stays Card-scoped, since no core function generates a
-whole-Collection template-matching set. Review's Quick Quiz / Choose Quiz
-Type and Today's Learning Queue "quiz" action now perform a real launch
-through this one controller instead of the transitional honest-
-unavailable state. `QuizView` implements the Immersive Focus session bar,
-self-graded/MCQ/Matching task surfaces, a P6 restart/cancel confirmation,
-a foreign-active-session recovery notice (never a fake resume), and a
-compact completion summary (Return to Today / Next Card / Review
-Mistakes). Milestone 17 is not complete.
+Quiz (feature 3) is **complete and Human Accepted**: `QuizController`
+owns active-session presentation state only, calling existing
+`src.quiz`/`src.template_quiz` functions for every session/generation/
+grading/completion step (no SQL, no duplicated grading logic). It
+preserves all nine current Quiz families (term/meaning self-graded and
+MCQ, mixed MCQ, Matching, and the three template-aware modes), the
+single-global-active-session guard, duplicate-submission protection, and
+Mistake Book/Proficient Pool side effects. Plain Matching stays
+whole-Collection only (normalized inside the controller even if a
+Card-scoped intent slips through); template-aware Matching stays
+Card-scoped, since no core function generates a whole-Collection
+template-matching set. Review's Quick Quiz / Choose Quiz Type and Today's
+Learning Queue "quiz" action perform a real launch through this one
+controller instead of the transitional honest-unavailable state.
+`QuizView` implements the Immersive Focus session bar, self-graded/MCQ/
+Matching task surfaces, a P6 restart/cancel confirmation, a
+foreign-active-session recovery notice (never a fake resume), a compact
+completion summary (Return to Today / Next Card / Review Mistakes), and a
+read-only post-Quiz mistake-review state. **Native human visual
+acceptance PASSED 2026-08-16 at head `311762c`**, after two corrective
+passes: a typography/spacing visual-calibration pass against
+`VR-STUDY-001` (`0660214`), and a UX-defect pass fixing long-content
+clipping (a QScrollArea/box-layout heightForWidth negotiation
+imprecision), Matching wheel-scroll/selection-rebuild instability, and
+Review Mistakes routing (`311762c`). Milestone 17 is not complete: M17
+Feature 3B (`VR-STUDY-002` Quiz presentation choice) is in progress; see
+below.
+
+M17 Feature 3B — Quiz Presentation Choice (`VR-STUDY-002`, Quiz-only) adds
+a second, optional Quiz presentation, Flip Card + Filmstrip
+(`Review - Quiz.pdf` p5 Variant D), alongside the accepted Immersive
+Focus default — not a redesign or replacement of feature 3. One durable
+preference (`quiz_presentation`, `state/preferences.py`, never
+`vocab.db`) is set from a new minimum Settings vertical slice (Settings →
+Quiz → Quiz presentation) and resolved once per Quiz launch. Self-graded
+and MCQ (including template-linear types) render inside a bordered Flip
+Card + a non-interactive orientation filmstrip when selected; Matching
+always falls back to the existing wider Immersive Matching presentation
+regardless of the preference (a compatibility fallback that never alters
+the saved preference). Completion and mistake review remain the single
+shared Immersive-styled surfaces for both presentations — one Quiz
+engine, two presentations. `VR-STUDY-002` explicitly does not propagate
+outside Quiz (DESIGN.md § 6.4). Structural conformance and automated
+design guards are PASS; native visual acceptance is PENDING.
 
 ## Repository State
 
@@ -1686,12 +1711,27 @@ Mistakes). Milestone 17 is not complete.
   and Mistake Book/Proficient Pool side effects; plain Matching stays
   whole-Collection only (normalized in-controller), template-aware
   Matching stays Card-scoped. Review's Quick Quiz / Choose Quiz Type and
-  Today's Learning Queue "quiz" action now perform a real launch through
-  this one controller, replacing the M17 Feature 2 corrective patch's
-  transitional honest-unavailable state. **Implemented on
-  `agent/m17-desktop-core-workflow-migration`, pending independent review
-  and native human visual acceptance.** See the M17 Draft PR for the
-  exact reviewed head SHA.
+  Today's Learning Queue "quiz" action perform a real launch through this
+  one controller, replacing the M17 Feature 2 corrective patch's
+  transitional honest-unavailable state. **Native human visual acceptance
+  PASSED 2026-08-16 at head `311762c`** -- Quiz is complete and Human
+  Accepted (DESIGN.md § 2 Level 4), Milestone 17's third accepted
+  feature, after a typography/spacing visual-calibration corrective pass
+  (`0660214`) and a UX-defect corrective pass (`311762c`: long-content
+  clipping, Matching wheel/selection stability, a real post-Quiz
+  mistake-review state). See the M17 Draft PR for the full corrective-
+  pass and acceptance history.
+- M17 feature 3B (Quiz Presentation Choice, `VR-STUDY-002`, Quiz-only):
+  adds an optional Flip Card + Filmstrip Quiz presentation
+  (`Review - Quiz.pdf` p5 Variant D) alongside the accepted Immersive
+  Focus default, plus the one durable preference and minimum Settings
+  vertical slice that control it (`state/preferences.py`
+  `quiz_presentation`; `SettingsController`/`SettingsView`, P8 Settings
+  Form). Both presentations share the same `QuizController`; Matching
+  always falls back to the existing Immersive Matching presentation.
+  **Implemented on `agent/m17-desktop-core-workflow-migration`, pending
+  independent review and native human visual acceptance.** See the M17
+  Draft PR for the exact reviewed head SHA.
 - Current lifecycle documents:
   - `ROADMAP.md`
   - `PROJECT_STATUS.md`
@@ -1725,12 +1765,18 @@ Mistakes). Milestone 17 is not complete.
   `fdd9cc0`); Review (feature 2) is **complete and Human Accepted**
   (native visual acceptance PASSED 2026-08-16 against `38d53d2`, after one
   corrective patch for a functional-honesty finding); Quiz (feature 3) is
-  **implemented, pending independent review and native human visual
-  acceptance**; M17 not complete.**
+  **complete and Human Accepted** (native visual acceptance PASSED
+  2026-08-16 against `311762c`, after a visual-calibration corrective pass
+  and a UX-defect corrective pass); Quiz Presentation Choice (feature 3B,
+  `VR-STUDY-002`, Quiz-only) is **implemented, pending independent review
+  and native human visual acceptance**; M17 not complete.**
 - Exact next objective:
-  **Independently review the native Quiz session/grading/completion
+  **Independently review the M17 Feature 3B Quiz Presentation Choice
   checkpoint on the M17 Draft PR (branch
   `agent/m17-desktop-core-workflow-migration`), then obtain native human
-  visual acceptance against `VR-STUDY-001` (`Review - Quiz.pdf` p4 Variant
-  C). Do not mark Quiz or Milestone 17 complete, and do not begin Entries
-  (feature 4), until both close.**
+  visual acceptance against `VR-STUDY-002` (`Review - Quiz.pdf` p5 Variant
+  D) for the new Flip Card + Filmstrip Quiz presentation, confirming
+  Immersive Focus is unaffected, Matching correctly falls back, the
+  Settings preference persists across a restart, and Review has not
+  adopted Flip Card / Filmstrip. Do not mark Milestone 17 complete, and do
+  not begin Entries (feature 4), until this closes.**

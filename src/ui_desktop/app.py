@@ -48,7 +48,7 @@ def build_application(argv: list[str] | None = None) -> tuple[QApplication, Main
     theme_manager.apply(parse_appearance(preferences.appearance), parse_accent(preferences.accent))
 
     motion = TransitionManager(policy=parse_motion_policy(preferences.motion))
-    window = MainWindow(motion=motion)
+    window = MainWindow(motion=motion, preferences=preferences)
     if icon is not None:
         window.setWindowIcon(icon)
     return application, window, theme_manager

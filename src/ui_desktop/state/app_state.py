@@ -23,6 +23,7 @@ class Workspace(str, Enum):
     ENTRIES = "entries"
     REVIEW = "review"
     QUIZ = "quiz"
+    SETTINGS = "settings"
 
 
 class ShellMode(str, Enum):

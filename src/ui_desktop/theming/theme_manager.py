@@ -935,6 +935,93 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_secondary};
         font-size: 14px;
     }}
+
+    /* Flip Card + Filmstrip -- VR-STUDY-002 (M17 Feature 3B, DESIGN.md
+    § 6.4, `Review - Quiz.pdf` p5 Variant D). Front/revealed reuse the same
+    strong-border card silhouette the canonical reference uses for both
+    Review and Quiz; only the fill distinguishes an unanswered prompt from
+    a revealed answer/feedback state, matching Review's own front/back
+    treatment. Inner content (term/answer-input/field-caption/field-text/
+    grade/MCQ buttons) intentionally reuses the exact Immersive Focus
+    object names/tokens above -- the card adapts to that content rather
+    than shrinking it (M17 Feature 3B prompt § 11). */
+    QWidget#quiz-flip-card-front, QWidget#quiz-flip-card-revealed {{
+        border: 2px solid {neutral.border_strong};
+        border-radius: {radius * 2}px;
+        min-width: 380px;
+    }}
+    QWidget#quiz-flip-card-front {{
+        background-color: {neutral.surface_primary};
+    }}
+    QWidget#quiz-flip-card-revealed {{
+        background-color: {neutral.surface_secondary};
+    }}
+    QWidget#quiz-filmstrip {{
+        background-color: {neutral.surface_secondary};
+        border: 1px solid {neutral.border_subtle};
+        border-radius: {radius}px;
+    }}
+    QLabel#quiz-filmstrip-tile-future {{
+        color: {neutral.text_muted};
+        border: 1px solid {neutral.border_subtle};
+        border-radius: {radius}px;
+        padding: 4px 10px;
+        font-size: 12px;
+    }}
+    QLabel#quiz-filmstrip-tile-current {{
+        color: {neutral.text_primary};
+        background-color: {neutral.surface_primary};
+        border: 2px solid {neutral.text_primary};
+        border-radius: {radius}px;
+        padding: 3px 9px;
+        font-size: 12px;
+        font-weight: 700;
+    }}
+    QLabel#quiz-filmstrip-tile-correct {{
+        color: {semantic.quiz_correct.background};
+        border: 1px solid {neutral.border_subtle};
+        border-radius: {radius}px;
+        padding: 4px 10px;
+        font-size: 12px;
+    }}
+    QLabel#quiz-filmstrip-tile-wrong {{
+        color: {semantic.quiz_wrong.background};
+        border: 1px solid {neutral.border_subtle};
+        border-radius: {radius}px;
+        padding: 4px 10px;
+        font-size: 12px;
+    }}
+
+    /* Settings -- P8 Settings Form (DESIGN.md § 8), M17 Feature 3B bounded
+    vertical slice: Quiz presentation only. */
+    QLabel#settings-page-title {{
+        color: {neutral.text_primary};
+        font-size: 20px;
+        font-weight: 700;
+    }}
+    QLabel#settings-section-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QWidget#settings-row {{
+        background-color: {neutral.surface_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+    }}
+    QLabel#settings-row-label {{
+        color: {neutral.text_primary};
+        font-size: 14px;
+    }}
+    QComboBox#settings-quiz-presentation-combo {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 10px;
+        font-size: 14px;
+        min-width: 200px;
+    }}
     """.strip()
 
 

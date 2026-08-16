@@ -8,10 +8,11 @@ from pathlib import Path
 from src.app_config import get_app_preferences_path
 
 """
-Durable application-preference storage (Appearance, Accent, Motion), per the
-M16.1 contract § 11.B / § 12 and DESIGN.md § 23 (Motion / Transition
-System). This is UI/application preference state, not learning data: it is
-never written to ``vocab.db`` and never touched by ``src/`` core modules.
+Durable application-preference storage (Appearance, Accent, Motion, Quiz
+presentation), per the M16.1 contract § 11.B / § 12 and DESIGN.md § 23
+(Motion / Transition System). This is UI/application preference state, not
+learning data: it is never written to ``vocab.db`` and never touched by
+``src/`` core modules.
 """
 
 LOGGER = logging.getLogger("vocabulary_app.ui")
@@ -20,18 +21,42 @@ DEFAULT_APPEARANCE = "System"
 DEFAULT_ACCENT = "Calm Blue"
 DEFAULT_MOTION = "Normal"
 
+# M17 Feature 3B (`VR-STUDY-002`): a Quiz-only presentation choice, not a
+# durable learning fact -- stored here alongside Appearance/Accent/Motion,
+# never in vocab.db. "immersive_focus" is the already-accepted `VR-STUDY-001`
+# Quiz presentation; "flip_card_filmstrip" is the new optional one.
+QUIZ_PRESENTATION_IMMERSIVE = "immersive_focus"
+QUIZ_PRESENTATION_FLIP_CARD = "flip_card_filmstrip"
+DEFAULT_QUIZ_PRESENTATION = QUIZ_PRESENTATION_IMMERSIVE
+QUIZ_PRESENTATION_VALUES = frozenset({QUIZ_PRESENTATION_IMMERSIVE, QUIZ_PRESENTATION_FLIP_CARD})
+QUIZ_PRESENTATION_LABELS = {
+    QUIZ_PRESENTATION_IMMERSIVE: "Immersive Focus",
+    QUIZ_PRESENTATION_FLIP_CARD: "Flip Card + Filmstrip",
+}
+
+
+def parse_quiz_presentation(value: str) -> str:
+    """Malformed/unknown/missing values degrade safely to the accepted
+    default presentation rather than failing to launch Quiz."""
+    if value in QUIZ_PRESENTATION_VALUES:
+        return value
+    return DEFAULT_QUIZ_PRESENTATION
+
 
 @dataclass
 class Preferences:
     appearance: str = DEFAULT_APPEARANCE
     accent: str = DEFAULT_ACCENT
     motion: str = DEFAULT_MOTION
+    quiz_presentation: str = DEFAULT_QUIZ_PRESENTATION
 
 
 def load_preferences(path: Path | None = None) -> Preferences:
-    """Load Appearance/Accent from the persistent preferences file.
+    """Load Appearance/Accent/Motion/Quiz presentation from the persistent
+    preferences file.
 
-    A missing, unreadable, or malformed file degrades safely to defaults
+    A missing, unreadable, or malformed file -- or an old preferences file
+    written before Quiz presentation existed -- degrades safely to defaults
     rather than blocking access to vocabulary data.
     """
     target = path or get_app_preferences_path()
@@ -52,7 +77,8 @@ def load_preferences(path: Path | None = None) -> Preferences:
     appearance = str(raw.get("appearance") or DEFAULT_APPEARANCE)
     accent = str(raw.get("accent") or DEFAULT_ACCENT)
     motion = str(raw.get("motion") or DEFAULT_MOTION)
-    return Preferences(appearance=appearance, accent=accent, motion=motion)
+    quiz_presentation = parse_quiz_presentation(str(raw.get("quiz_presentation") or DEFAULT_QUIZ_PRESENTATION))
+    return Preferences(appearance=appearance, accent=accent, motion=motion, quiz_presentation=quiz_presentation)
 
 
 def save_preferences(preferences: Preferences, path: Path | None = None) -> Path:

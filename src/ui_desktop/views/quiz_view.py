@@ -17,6 +17,12 @@ from PySide6.QtWidgets import (
 
 from src.ui_desktop.controllers.quiz_controller import MATCHING_FAMILY, MCQ_FAMILY, QuizController
 from src.ui_desktop.state.handoff import QUIZ_TYPE_LABELS
+from src.ui_desktop.state.preferences import (
+    DEFAULT_QUIZ_PRESENTATION,
+    QUIZ_PRESENTATION_FLIP_CARD,
+    QUIZ_PRESENTATION_IMMERSIVE,
+    parse_quiz_presentation,
+)
 from src.ui_desktop.theming.metrics import SPACING
 
 """
@@ -95,6 +101,26 @@ completion event -- only ``QuizController._complete()`` (a fully-answered
 session reaching ``mark_quiz_session_completed``) is. A whole-
 Collection/random Quiz remains Entry-level evidence only; nothing here
 fabricates a Card completion for one.
+
+M17 Feature 3B (`VR-STUDY-002`, `Review - Quiz.pdf` p5 Variant D -- Quiz
+presentation choice, Quiz-only): ``set_presentation()`` is called once by
+``MainWindow`` per launch, before ``QuizController.start()``, resolving the
+saved Settings preference into this session's presentation -- never a
+second in-session switcher (prompt § 7). Self-graded/MCQ (including
+template-linear types, which already map to those families) render inside
+a bordered Flip Card + restrained orientation filmstrip when
+``flip_card_filmstrip`` is selected; Matching always falls back to the
+existing wider Immersive Matching presentation regardless of the saved
+preference (a genuinely simultaneous whole-set interaction, not a linear
+one -- prompt § 13), without ever altering the saved preference itself.
+Both presentations share the exact same ``QuizController`` session/answer/
+completion truth (``_fill_self_graded_content``/``_fill_mcq_content`` are
+the one implementation each family's content uses either way), and
+completion / mistake review stay the single shared Immersive-styled
+surfaces for both presentations (prompt § 14/§ 15) -- VR-STUDY-002 governs
+only the active self-graded/MCQ task surface. This view controls only
+itself: Review, Today, Entries, and Management Mode are unaffected and
+carry no Flip Card control of their own (prompt § 2).
 """
 
 MAIN_COLUMN_MAX_WIDTH = 640
@@ -184,8 +210,24 @@ class QuizView(QWidget):
         root.addWidget(self._surface, 1)
 
         self._matching_submit_button: QPushButton | None = None
+        self._presentation = DEFAULT_QUIZ_PRESENTATION
         controller.state_changed.connect(self._render)
         controller.matching_selection_changed.connect(self._on_matching_selection_changed)
+
+    def set_presentation(self, quiz_presentation: str) -> None:
+        """Resolve this Quiz session's presentation once, at launch time
+        (module docstring / M17 Feature 3B prompt § 7) -- ``MainWindow``
+        calls this before ``QuizController.start()`` so the very first
+        render already uses the saved choice."""
+        self._presentation = parse_quiz_presentation(quiz_presentation)
+
+    def _effective_presentation(self, family: str | None) -> str:
+        # Matching compatibility fallback (M17 Feature 3B prompt § 13):
+        # never Flip Card + Filmstrip, regardless of the saved preference,
+        # and this never mutates ``self._presentation`` itself.
+        if family == MATCHING_FAMILY:
+            return QUIZ_PRESENTATION_IMMERSIVE
+        return self._presentation
 
     # -- construction ------------------------------------------------------
 
@@ -259,9 +301,13 @@ class QuizView(QWidget):
 
         self._render_context(None, complete=False)
         family = controller.quiz_family()
+        presentation = self._effective_presentation(family)
         if family == MATCHING_FAMILY:
             self._column.setMaximumWidth(MATCHING_COLUMN_MAX_WIDTH)
             self._column_layout.addWidget(self._build_matching_task())
+        elif presentation == QUIZ_PRESENTATION_FLIP_CARD:
+            self._column.setMaximumWidth(MAIN_COLUMN_MAX_WIDTH)
+            self._column_layout.addWidget(self._build_flip_card_task(family))
         elif family == MCQ_FAMILY:
             self._column.setMaximumWidth(MAIN_COLUMN_MAX_WIDTH)
             self._column_layout.addWidget(self._build_mcq_task())
@@ -336,18 +382,25 @@ class QuizView(QWidget):
     # -- self-graded ---------------------------------------------------------
 
     def _build_self_graded_task(self) -> QWidget:
-        controller = self._controller
-        item = controller.current_item()
         block = QWidget()
         layout = QVBoxLayout(block)
         layout.setSpacing(SPACING.md)
         layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        self._fill_self_graded_content(layout, block)
+        return block
 
+    def _fill_self_graded_content(self, layout: QVBoxLayout, parent: QWidget) -> bool:
+        """Builds the self-graded prompt/answer/grade content into
+        ``layout`` (a plain open column for Immersive Focus, or a bordered
+        Flip Card's own layout for VR-STUDY-002 -- M17 Feature 3B module
+        docstring). Returns whether an item existed to render."""
+        controller = self._controller
+        item = controller.current_item()
         if item is None:
             layout.addWidget(_message_label("This Quiz has no items.", "quiz-empty-state"))
-            return block
+            return False
 
-        term = _WrappingLabel(str(item.get("prompt") or ""), block)
+        term = _WrappingLabel(str(item.get("prompt") or ""), parent)
         term.setObjectName("quiz-term-label")
         term.setAlignment(Qt.AlignmentFlag.AlignCenter)
         term.setWordWrap(True)
@@ -357,7 +410,7 @@ class QuizView(QWidget):
         # distinct group (visual-calibration corrective pass § 15).
         layout.addSpacing(SPACING.lg)
 
-        answer_input = QLineEdit(block)
+        answer_input = QLineEdit(parent)
         answer_input.setObjectName("quiz-answer-input")
         answer_input.setPlaceholderText("Your answer")
         answer_input.setText(controller.answer_draft)
@@ -366,15 +419,15 @@ class QuizView(QWidget):
         layout.addWidget(answer_input)
 
         if not controller.show_answer:
-            show_button = QPushButton("Show Answer", block)
+            show_button = QPushButton("Show Answer", parent)
             show_button.setObjectName("quiz-show-answer-button")
             show_button.clicked.connect(controller.reveal_answer)
             layout.addWidget(show_button, 0, Qt.AlignmentFlag.AlignHCenter)
         else:
-            layout.addWidget(_field_block("Your answer", controller.answer_draft or "(blank)", block))
-            layout.addWidget(_field_block("Expected", str(item.get("expected_answer") or ""), block))
+            layout.addWidget(_field_block("Your answer", controller.answer_draft or "(blank)", parent))
+            layout.addWidget(_field_block("Expected", str(item.get("expected_answer") or ""), parent))
 
-            grade_row = QWidget(block)
+            grade_row = QWidget(parent)
             grade_layout = QHBoxLayout(grade_row)
             grade_layout.setSpacing(SPACING.sm)
             grade_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
@@ -391,23 +444,28 @@ class QuizView(QWidget):
 
             layout.addWidget(grade_row)
 
-        return block
+        return True
 
     # -- MCQ -------------------------------------------------------------
 
     def _build_mcq_task(self) -> QWidget:
-        controller = self._controller
-        item = controller.current_item()
         block = QWidget()
         layout = QVBoxLayout(block)
         layout.setSpacing(SPACING.md)
         layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        self._fill_mcq_content(layout, block)
+        return block
 
+    def _fill_mcq_content(self, layout: QVBoxLayout, parent: QWidget) -> bool:
+        """MCQ counterpart to ``_fill_self_graded_content`` -- see that
+        method's docstring. Returns whether an item existed to render."""
+        controller = self._controller
+        item = controller.current_item()
         if item is None:
             layout.addWidget(_message_label("This Quiz has no items.", "quiz-empty-state"))
-            return block
+            return False
 
-        term = _WrappingLabel(str(item.get("prompt") or ""), block)
+        term = _WrappingLabel(str(item.get("prompt") or ""), parent)
         term.setObjectName("quiz-term-label")
         term.setAlignment(Qt.AlignmentFlag.AlignCenter)
         term.setWordWrap(True)
@@ -416,40 +474,125 @@ class QuizView(QWidget):
 
         feedback = controller.feedback
         if feedback is None:
-            group = QButtonGroup(block)
+            group = QButtonGroup(parent)
             self._mcq_group = group
             for option in item.get("options") or []:
-                button = QRadioButton(str(option), block)
+                button = QRadioButton(str(option), parent)
                 button.setObjectName("quiz-mcq-option")
                 group.addButton(button)
                 layout.addWidget(button)
 
-            submit_button = QPushButton("Submit", block)
+            submit_button = QPushButton("Submit", parent)
             submit_button.setObjectName("quiz-mcq-submit-button")
             submit_button.clicked.connect(lambda: self._submit_mcq(group))
             layout.addWidget(submit_button, 0, Qt.AlignmentFlag.AlignHCenter)
         else:
             is_correct = bool(feedback.get("is_correct"))
-            feedback_label = QLabel("Correct" if is_correct else "Wrong", block)
+            feedback_label = QLabel("Correct" if is_correct else "Wrong", parent)
             feedback_label.setObjectName("quiz-feedback-correct" if is_correct else "quiz-feedback-wrong")
             feedback_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.addWidget(feedback_label)
 
-            layout.addWidget(_field_block("Your answer", str(feedback.get("selected") or ""), block))
-            layout.addWidget(_field_block("Expected", str(feedback.get("expected_answer") or ""), block))
+            layout.addWidget(_field_block("Your answer", str(feedback.get("selected") or ""), parent))
+            layout.addWidget(_field_block("Expected", str(feedback.get("expected_answer") or ""), parent))
 
-            next_button = QPushButton("Next Question", block)
+            next_button = QPushButton("Next Question", parent)
             next_button.setObjectName("quiz-mcq-next-button")
             next_button.clicked.connect(controller.advance_after_mcq)
             layout.addWidget(next_button, 0, Qt.AlignmentFlag.AlignHCenter)
 
-        return block
+        return True
 
     def _submit_mcq(self, group: QButtonGroup) -> None:
         selected = group.checkedButton()
         if selected is None:
             return
         self._controller.submit_mcq(selected.text())
+
+    # -- Flip Card + Filmstrip (VR-STUDY-002, M17 Feature 3B) ---------------
+
+    def _build_flip_card_task(self, family: str) -> QWidget:
+        """Same ``QuizController`` state as Immersive Focus, presented as a
+        strong centered card + a restrained orientation filmstrip below it
+        (`Review - Quiz.pdf` p5 Variant D), instead of the wide open
+        Immersive column. Matching never reaches here -- ``_render()``'s
+        compatibility fallback keeps it on the existing wider Immersive
+        Matching presentation."""
+        controller = self._controller
+        outer = QWidget()
+        outer_layout = QVBoxLayout(outer)
+        outer_layout.setSpacing(SPACING.lg)
+        outer_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+
+        if controller.current_item() is None:
+            outer_layout.addWidget(_message_label("This Quiz has no items.", "quiz-empty-state"))
+            return outer
+
+        # Front = prompt/answer-entry (or unanswered MCQ options); revealed
+        # = Your answer/Expected + grading (or MCQ feedback) -- the same
+        # front/back distinction the canonical reference uses for Review's
+        # own flip card (prompt § 10/§ 18).
+        revealed = controller.feedback is not None if family == MCQ_FAMILY else controller.show_answer
+
+        card = QWidget(outer)
+        card.setObjectName("quiz-flip-card-revealed" if revealed else "quiz-flip-card-front")
+        card.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(SPACING.xl, SPACING.xl, SPACING.xl, SPACING.xl)
+        card_layout.setSpacing(SPACING.md)
+        card_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+
+        if family == MCQ_FAMILY:
+            self._fill_mcq_content(card_layout, card)
+        else:
+            self._fill_self_graded_content(card_layout, card)
+
+        outer_layout.addWidget(card, 0, Qt.AlignmentFlag.AlignHCenter)
+        outer_layout.addWidget(self._build_filmstrip(), 0, Qt.AlignmentFlag.AlignHCenter)
+
+        return outer
+
+    def _build_filmstrip(self) -> QWidget:
+        """Orientation/progress only (prompt § 8B/§ 9): total item count,
+        current item, already-answered items, remaining items. Tiles are
+        plain ``QLabel``s, not buttons -- deliberately non-interactive
+        (never a jump-to-item control), so the visual affordance never
+        promises navigation the existing linear Quiz engine cannot safely
+        offer without session/scoring changes this checkpoint does not
+        make."""
+        controller = self._controller
+        strip = QWidget()
+        strip.setObjectName("quiz-filmstrip")
+        strip.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        layout = QHBoxLayout(strip)
+        layout.setContentsMargins(SPACING.sm, SPACING.sm, SPACING.sm, SPACING.sm)
+        layout.setSpacing(SPACING.xs)
+
+        for index in range(len(controller.items)):
+            layout.addWidget(self._build_filmstrip_tile(index))
+
+        return strip
+
+    def _build_filmstrip_tile(self, index: int) -> QLabel:
+        controller = self._controller
+        result = controller.item_status(index)
+        if result is True:
+            text = f"{index + 1} ✓"
+            object_name = "quiz-filmstrip-tile-correct"
+        elif result is False:
+            text = f"{index + 1} ×"
+            object_name = "quiz-filmstrip-tile-wrong"
+        elif index == controller.current_index:
+            text = str(index + 1)
+            object_name = "quiz-filmstrip-tile-current"
+        else:
+            text = str(index + 1)
+            object_name = "quiz-filmstrip-tile-future"
+
+        tile = QLabel(text)
+        tile.setObjectName(object_name)
+        tile.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        return tile
 
     # -- matching ------------------------------------------------------------
 

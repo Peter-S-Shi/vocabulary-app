@@ -519,6 +519,8 @@ The Card Contents/History surface is a transient right drawer. It may resize or 
 
 This is a valid optional user-selectable Study presentation, not the global Study authority.
 
+**M17 Feature 3B scope decision (binding):** `VR-STUDY-002` is implemented as a **Quiz-only presentation choice**, not a second global Study design language. It SHALL NOT propagate to Review, Today, Entries, Collections, Card Contents, Analytics, general Study Mode, Management Mode, or other future features. Review remains exclusively the accepted `VR-STUDY-001` Immersive Focus experience; it carries no Flip Card control of its own. A future checkpoint that wants Flip Card + Filmstrip for Review specifically requires a separate, explicitly approved product decision — do not infer it from this section.
+
 Frozen visual relationship:
 
 ```text
@@ -538,6 +540,15 @@ minimal session context
 Review may use term on the front and meaning/example on the back. Quiz may reuse the card container for answer/expected-answer/feedback states. Filmstrip progress supplies position awareness.
 
 This view controls only itself. It must not redefine Management Mode, default Immersive Focus, or the application-wide component system.
+
+**Quiz implementation shape (M17 Feature 3B):**
+
+- One durable preference, `quiz_presentation` (`immersive_focus` default / `flip_card_filmstrip`), stored in the existing desktop `preferences.json` (never `vocab.db`), changed only from Settings → Quiz → Quiz presentation — no second in-session switcher anywhere (Review, Choose Quiz Type, Quiz session bar, completion).
+- The preference is resolved once per Quiz launch, when `QuizController.start()` is invoked, not re-read on every render.
+- Self-graded and MCQ Quiz families (including template-aware types that already progress linearly through those families) render inside the Flip Card + Filmstrip when selected. Both presentations consume the exact same `QuizController` session/answer/completion truth; there is one Quiz engine, not two.
+- **Matching compatibility fallback (binding):** plain and template-aware Matching are a genuinely simultaneous whole-set interaction, not a linear one-item flow. Regardless of the saved `quiz_presentation` preference, Matching always uses the existing wider Immersive Matching presentation. This fallback never alters the saved preference, never resets it to Immersive Focus, and never splits Matching into sequential fake questions.
+- Completion and the read-only post-Quiz mistake review remain the single shared Immersive-styled surfaces for both presentations — `VR-STUDY-002` governs only the active self-graded/MCQ task surface, not completion/mistake-review chrome.
+- The filmstrip is orientation/progress only (total count, current item, already-answered correct/wrong, remaining) and is deliberately non-interactive in this checkpoint: no click-to-jump, since the existing Quiz engine is a controlled linear progression and arbitrary navigation would require session/scoring changes out of scope here.
 
 ### 6.5 Analytics Landing — Learning Brief First
 

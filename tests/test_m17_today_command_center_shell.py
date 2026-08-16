@@ -79,18 +79,25 @@ class NavigationRailStructureTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.app = _qt_app()
 
-    def test_only_today_entries_and_study_are_enabled(self) -> None:
+    def test_only_today_entries_study_and_settings_are_enabled(self) -> None:
         """Updated for M17 Feature 2 (Review): "study" is the rail's real
         entry point into Study Mode / Review now that real Study content
         exists, per the M17 Feature 2 prompt's "smallest shared-shell
-        wiring genuinely required to make Review reachable"."""
+        wiring genuinely required to make Review reachable". Updated again
+        for M17 Feature 3B: Settings now has a real minimum workspace
+        (Quiz presentation), so it is enabled too -- collections/analytics/
+        data_tools remain honestly disabled placeholders."""
         rail = NavigationRail()
         self.addCleanup(rail.deleteLater)
 
-        enabled = {d.key for d in PRIMARY_DESTINATIONS if d.enabled}
-        disabled = {d.key for d in PRIMARY_DESTINATIONS if not d.enabled} | {SETTINGS_DESTINATION.key}
+        enabled = {d.key for d in PRIMARY_DESTINATIONS if d.enabled} | (
+            {SETTINGS_DESTINATION.key} if SETTINGS_DESTINATION.enabled else set()
+        )
+        disabled = {d.key for d in PRIMARY_DESTINATIONS if not d.enabled} | (
+            set() if SETTINGS_DESTINATION.enabled else {SETTINGS_DESTINATION.key}
+        )
 
-        self.assertEqual(enabled, {"today", "entries", "study"})
+        self.assertEqual(enabled, {"today", "entries", "study", "settings"})
         for key in enabled:
             self.assertTrue(rail.is_enabled_destination(key), key)
         for key in disabled:

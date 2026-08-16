@@ -84,6 +84,14 @@ class QuizController(QObject):
         self.pending_intent: QuizLaunchIntent | None = None
         self.reviewing_mistakes: bool = False
         self.mistake_index: int = 0
+        # Presentation-orientation cache only (M17 Feature 3B, VR-STUDY-002
+        # filmstrip): mirrors the same ``is_correct`` value already passed
+        # into ``record_quiz_answer`` for each item, so the filmstrip can
+        # show already-answered correct/wrong state without re-deriving it
+        # or querying quiz_item_logs from the view. Purely in-memory,
+        # rebuilt on every ``start()``, never written to vocab.db, never a
+        # second source of grading truth.
+        self.item_results: list[bool | None] = []
 
     # -- family classification --------------------------------------------
 
@@ -151,6 +159,7 @@ class QuizController(QObject):
         self.completed_session = None
         self.mistakes = []
         self.pending_intent = None
+        self.item_results = [None] * len(items)
         self.state_changed.emit()
         return True
 
@@ -215,6 +224,15 @@ class QuizController(QObject):
     def is_card_scoped(self) -> bool:
         return bool(self.intent and self.intent.card_number > 0)
 
+    def item_status(self, index: int) -> bool | None:
+        """``True``/``False`` if item ``index`` has already been answered
+        correctly/wrongly this session, ``None`` if not yet reached --
+        VR-STUDY-002's filmstrip orientation state (M17 Feature 3B prompt
+        § 8B)."""
+        if 0 <= index < len(self.item_results):
+            return self.item_results[index]
+        return None
+
     # -- self-graded ---------------------------------------------------------
 
     def set_answer_draft(self, text: str) -> None:
@@ -235,6 +253,8 @@ class QuizController(QObject):
         )
         if not result["logged"]:
             return False
+        if 0 <= self.current_index < len(self.item_results):
+            self.item_results[self.current_index] = is_correct
         self.answer_draft = ""
         self._advance_or_complete()
         return True
@@ -257,6 +277,8 @@ class QuizController(QObject):
         result = record_quiz_answer(self.session_id, item["entry_id"], prompt, item["correct_answer"], selected_option, is_correct)
         if not result["logged"]:
             return False
+        if 0 <= self.current_index < len(self.item_results):
+            self.item_results[self.current_index] = is_correct
         self.feedback = {
             "is_correct": is_correct,
             "expected_answer": item["correct_answer"],
@@ -429,5 +451,6 @@ class QuizController(QObject):
         self.start_error = None
         self.reviewing_mistakes = False
         self.mistake_index = 0
+        self.item_results = []
         if not silent:
             self.state_changed.emit()

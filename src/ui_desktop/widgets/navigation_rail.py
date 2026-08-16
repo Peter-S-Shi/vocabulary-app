@@ -51,7 +51,7 @@ PRIMARY_DESTINATIONS: tuple[NavDestination, ...] = (
     NavDestination("data_tools", "Data tools", False),
 )
 
-SETTINGS_DESTINATION = NavDestination("settings", "Settings", False)
+SETTINGS_DESTINATION = NavDestination("settings", "Settings", True)
 
 
 class NavigationRail(QWidget):

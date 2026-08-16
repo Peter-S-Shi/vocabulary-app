@@ -148,11 +148,16 @@ at native visual acceptance** (PASS recorded 2026-08-16 against `38d53d2`,
 against `VR-STUDY-001`, `Review - Quiz.pdf` p4 Variant C, after one
 corrective patch for a functional-honesty finding on the Choose Quiz Type
 confirmation). **Quiz — the native session/grading/completion migration
-that Review's Quick Quiz and Choose Quiz Type now launch for real — is
-implemented on the same branch and pending independent review and native
-human visual acceptance.** Milestone 17 overall is not complete. See
-§ Milestone 17 below for the operating model, the reset history, and the
-current feature-sequence position.
+that Review's Quick Quiz and Choose Quiz Type launch for real — is also
+complete and Human Accepted at native visual acceptance** (PASS recorded
+2026-08-16 against `311762c`, against `VR-STUDY-001`, after a
+typography/spacing visual-calibration corrective pass and a UX-defect
+corrective pass). **Quiz Presentation Choice (Feature 3B) — an optional
+Flip Card + Filmstrip Quiz presentation against `VR-STUDY-002`, explicitly
+scoped to Quiz only — is implemented on the same branch and pending
+independent review and native human visual acceptance.** Milestone 17
+overall is not complete. See § Milestone 17 below for the operating
+model, the reset history, and the current feature-sequence position.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -963,10 +968,13 @@ current core behavior.
 Plus DESIGN.md archetype = the Immersive Focus feedback/session
 implementation.
 
-**Status: implemented on `agent/m17-desktop-core-workflow-migration`,
-pending independent review and native human visual acceptance** against
-`VR-STUDY-001` (`Review - Quiz.pdf` p4 Variant C, parent pattern P3 --
-Immersive Study). `QuizController` owns active-session presentation state
+**Status: complete and Human Accepted.** Native human visual acceptance
+PASSED 2026-08-16 at head `311762c`, against `VR-STUDY-001`
+(`Review - Quiz.pdf` p4 Variant C, parent pattern P3 -- Immersive Study),
+after a typography/spacing visual-calibration corrective pass (`0660214`)
+and a UX-defect corrective pass fixing long-content clipping, Matching
+wheel-scroll/selection-rebuild instability, and Review Mistakes routing
+(`311762c`). `QuizController` owns active-session presentation state
 only; every session/generation/grading/completion call maps to one
 existing `src.quiz`/`src.template_quiz` function (`create_quiz_session`,
 `create_quiz_items`/`generate_mcq_items`/`generate_matching_items`/
@@ -981,15 +989,42 @@ whole-Collection only (normalized even if a Card-scoped intent slips
 through, per the M17 Feature 3 compatibility check); template-aware
 Matching remains Card-scoped, since no core function generates a
 whole-Collection template-matching set. Review's Quick Quiz / Choose Quiz
-Type and Today's Learning Queue "quiz" action both now perform a real
-launch through this one controller. `QuizView` implements the Immersive
-Focus session bar, self-graded/MCQ/Matching task surfaces (Matching using
+Type and Today's Learning Queue "quiz" action both perform a real launch
+through this one controller. `QuizView` implements the Immersive Focus
+session bar, self-graded/MCQ/Matching task surfaces (Matching using
 `VR-STUDY-001`'s "wider task canvas allowed" allowance), a P6 restart/
 cancel confirmation, a recovery notice for a foreign active session
-(never a fake resume), and a compact completion summary with Return to
-Today / Next Card / Review Mistakes. Do not mark Quiz or Milestone 17
-complete until independent review and native visual acceptance both
-close.
+(never a fake resume), a compact completion summary with Return to
+Today / Next Card / Review Mistakes, and a read-only post-Quiz
+mistake-review state.
+
+#### Quiz Presentation Choice (Feature 3B)
+
+Optional second Quiz presentation, not a redesign of Feature 3.
+DESIGN.md archetype = `VR-STUDY-002` Flip Card + Filmstrip
+(`Review - Quiz.pdf` p5 Variant D), explicitly scoped to Quiz only
+(DESIGN.md § 6.4) -- it does not propagate to Review, Today, Entries,
+Collections, Analytics, or Management Mode.
+
+**Status: implemented on `agent/m17-desktop-core-workflow-migration`,
+pending independent review and native human visual acceptance** against
+`VR-STUDY-002`. One durable preference (`quiz_presentation`,
+`state/preferences.py`, never `vocab.db`; default `immersive_focus`) is
+set from a new minimum Settings vertical slice (Settings → Quiz → Quiz
+presentation -- the P8 Settings Form pattern, DESIGN.md § 8) and resolved
+once per Quiz launch by `MainWindow` before `QuizController.start()` --
+no second in-session switcher. Self-graded and MCQ Quiz families
+(including template-aware types, which already progress through those
+same families) render inside a bordered Flip Card + a non-interactive
+orientation filmstrip when selected; both presentations consume the
+identical `QuizController` session/answer/completion truth -- one Quiz
+engine, two presentations. Matching always falls back to the existing
+wider Immersive Matching presentation regardless of the saved preference
+(a genuinely simultaneous whole-set interaction, not a linear one), and
+this fallback never alters the saved preference. Completion and the
+read-only mistake review remain the single shared Immersive-styled
+surfaces for both presentations. Do not mark Milestone 17 complete until
+independent review and native visual acceptance close.
 
 #### Entries
 
