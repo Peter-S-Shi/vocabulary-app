@@ -195,17 +195,18 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         padding: 4px 10px;
     }}
     #nav-rail {{
-        background-color: {neutral.surface_secondary};
-        border-right: 1px solid {neutral.border_default};
+        background-color: {neutral.app_background};
+        border-right: 1px solid {neutral.border_subtle};
     }}
     QPushButton#nav-rail-item {{
         text-align: left;
         background-color: transparent;
-        color: {neutral.text_primary};
+        color: {neutral.text_secondary};
+        font-size: 12px;
         border: none;
         border-left: 3px solid transparent;
         border-radius: 0px;
-        padding: {sp.sm}px {sp.lg}px;
+        padding: {sp.sm}px {sp.md}px;
     }}
     QPushButton#nav-rail-item:hover:enabled {{
         background-color: {accent.soft.background};
@@ -284,6 +285,9 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     }}
     QWidget#today-context-rail {{
         border-left: 1px solid {neutral.border_subtle};
+    }}
+    QWidget#today-context-divider {{
+        background-color: {neutral.border_subtle};
     }}
     QLabel#today-activity-title {{
         color: {neutral.text_primary};

@@ -2,12 +2,20 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
 from src.ui_desktop.controllers.today_controller import TodayController
 from src.ui_desktop.state.handoff import LearningActionIntent
-from src.ui_desktop.theming.metrics import CONTEXT_RAIL_WIDTH
+from src.ui_desktop.theming.metrics import CONTEXT_RAIL_WIDTH, SPACING
 from src.ui_desktop.widgets.panels import ActionRowCard, SummaryStatCard
 
 """
@@ -72,7 +80,7 @@ class TodayView(QWidget):
         workspace.setObjectName("today-command-workspace")
         layout = QVBoxLayout(workspace)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(16)
+        layout.setSpacing(SPACING.lg)
 
         header_row = QHBoxLayout()
         title = QLabel("Today", workspace)
@@ -85,7 +93,7 @@ class TodayView(QWidget):
         layout.addLayout(header_row)
 
         summary_row = QHBoxLayout()
-        summary_row.setSpacing(12)
+        summary_row.setSpacing(SPACING.md)
         self._summary_cards = {
             "available_cards": SummaryStatCard("Available Cards", 0, workspace),
             "never_quizzed": SummaryStatCard("Never Quizzed", 0, workspace),
@@ -100,59 +108,100 @@ class TodayView(QWidget):
         queue_heading.setObjectName("today-section-heading")
         layout.addWidget(queue_heading)
 
-        self._queue_column = QVBoxLayout()
-        self._queue_column.setSpacing(8)
-        layout.addLayout(self._queue_column, 1)
+        # The queue is the dominant region but must stay *bounded*: at
+        # normal window size, real data can produce enough items to push
+        # Suggested Next Actions off the first screen entirely (DESIGN.md
+        # § 6.1 requires it stay visibly represented, not scrolled away).
+        # A scroll area lets the queue itself take the remaining stretch
+        # while Suggested Next Actions stays pinned below it, always
+        # visible.
+        queue_content = QWidget()
+        self._queue_column = QVBoxLayout(queue_content)
+        self._queue_column.setContentsMargins(0, 0, 0, 0)
+        self._queue_column.setSpacing(SPACING.sm)
+
+        queue_scroll = QScrollArea(workspace)
+        queue_scroll.setObjectName("today-queue-scroll")
+        queue_scroll.setWidgetResizable(True)
+        queue_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        queue_scroll.setWidget(queue_content)
+        queue_scroll.setMinimumHeight(120)
+        # Capped, not stretched: a stretch=1 scroll area greedily claims
+        # *all* leftover vertical space even when its own content is
+        # shorter, which pushed Suggested Next Actions off the bottom of
+        # the visible window on the first native-window human visual
+        # acceptance pass. Capping it means the queue scrolls internally
+        # once it has more items than this fits, while Suggested Next
+        # Actions always immediately follows it, never chasing leftover
+        # space.
+        queue_scroll.setMaximumHeight(320)
+        layout.addWidget(queue_scroll)
 
         suggested_heading = QLabel("Suggested Next Actions", workspace)
         suggested_heading.setObjectName("today-section-heading")
         layout.addWidget(suggested_heading)
 
         self._suggested_column = QVBoxLayout()
-        self._suggested_column.setSpacing(8)
+        self._suggested_column.setSpacing(SPACING.sm)
         layout.addLayout(self._suggested_column)
+
+        # Any extra vertical space (a taller-than-normal window) collects
+        # here instead of being reclaimed by the queue -- Suggested Next
+        # Actions stays immediately below the queue at any window height.
+        layout.addStretch(1)
 
         return workspace
 
     def _build_context_rail(self) -> QWidget:
         rail = QWidget(self)
         rail.setObjectName("today-context-rail")
+        # See widgets/panels.py docstring: a bare QWidget ignores its QSS
+        # border/background without this attribute.
+        rail.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         rail.setFixedWidth(CONTEXT_RAIL_WIDTH)
         layout = QVBoxLayout(rail)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(16)
+        layout.setContentsMargins(SPACING.lg, 0, 0, 0)
+        layout.setSpacing(SPACING.lg)
 
         activity_heading = QLabel("Recent Activity", rail)
         activity_heading.setObjectName("today-context-heading")
         layout.addWidget(activity_heading)
         self._activity_column = QVBoxLayout()
-        self._activity_column.setSpacing(8)
+        self._activity_column.setSpacing(SPACING.sm)
         layout.addLayout(self._activity_column)
+
+        layout.addWidget(_section_divider(rail))
 
         attention_heading = QLabel("Collections Needing Attention", rail)
         attention_heading.setObjectName("today-context-heading")
         layout.addWidget(attention_heading)
         self._attention_column = QVBoxLayout()
-        self._attention_column.setSpacing(6)
+        self._attention_column.setSpacing(SPACING.xs)
         layout.addLayout(self._attention_column)
+
+        layout.addWidget(_section_divider(rail))
 
         quick_actions_heading = QLabel("Quick Actions", rail)
         quick_actions_heading.setObjectName("today-context-heading")
         layout.addWidget(quick_actions_heading)
 
-        quick_actions_row = QHBoxLayout()
-        open_entries_button = QPushButton("Open Entries", rail)
-        open_entries_button.setObjectName("today-quick-action")
-        open_entries_button.clicked.connect(self.navigate_to_entries_requested.emit)
-        quick_actions_row.addWidget(open_entries_button)
+        # A compact 2-column block grid (DESIGN.md § 6.1 canonical Quick
+        # Actions grammar), not two full-width stretched buttons. Only
+        # genuinely real actions are offered -- no placeholder actions
+        # (e.g. "Add entry") for capability the desktop app doesn't have.
+        quick_actions_grid = QGridLayout()
+        quick_actions_grid.setSpacing(SPACING.sm)
 
-        start_quiz_button = QPushButton("Start Quiz", rail)
-        start_quiz_button.setObjectName("today-quick-action")
+        open_entries_button = _quick_action_button("Open Entries", rail)
+        open_entries_button.clicked.connect(self.navigate_to_entries_requested.emit)
+        quick_actions_grid.addWidget(open_entries_button, 0, 0)
+
+        start_quiz_button = _quick_action_button("Start Quiz", rail)
         start_quiz_button.setEnabled(False)
         start_quiz_button.setToolTip(QUIZ_UNAVAILABLE_TOOLTIP)
-        quick_actions_row.addWidget(start_quiz_button)
-        layout.addLayout(quick_actions_row)
+        quick_actions_grid.addWidget(start_quiz_button, 0, 1)
 
+        layout.addLayout(quick_actions_grid)
         layout.addStretch(1)
         return rail
 
@@ -189,9 +238,11 @@ class TodayView(QWidget):
         items = self._controller.queue_items()
         if not items:
             self._queue_column.addWidget(_empty_state_label("Nothing queued right now."))
+            self._queue_column.addStretch(1)
             return
         for item in items:
             self._queue_column.addWidget(self._build_queue_card(item))
+        self._queue_column.addStretch(1)
 
     def _build_queue_card(self, item: dict) -> ActionRowCard:
         intent = self._controller.build_learning_action_intent(item)
@@ -291,6 +342,24 @@ def _empty_state_label(text: str) -> QLabel:
     label = QLabel(text)
     label.setObjectName("today-empty-state")
     return label
+
+
+def _section_divider(parent: QWidget) -> QWidget:
+    """A 1px separator between right-rail sections (DESIGN.md § 6.1: the
+    Context Rail's three sections must read as intentionally separated,
+    not loose text in a column)."""
+    divider = QWidget(parent)
+    divider.setObjectName("today-context-divider")
+    divider.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+    divider.setFixedHeight(1)
+    return divider
+
+
+def _quick_action_button(text: str, parent: QWidget) -> QPushButton:
+    button = QPushButton(text, parent)
+    button.setObjectName("today-quick-action")
+    button.setMinimumHeight(40)
+    return button
 
 
 def _clear_layout(layout) -> None:

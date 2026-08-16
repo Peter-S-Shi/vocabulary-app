@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QButtonGroup, QPushButton, QVBoxLayout, QWidget
 
 from src.ui_desktop.theming.metrics import NAV_RAIL_WIDTH
@@ -47,6 +47,13 @@ class NavigationRail(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("nav-rail")
+        # A plain QWidget ignores QSS background-color/border unless this
+        # is set (QLabel/QPushButton paint stylesheets natively via their
+        # QFrame/QAbstractButton ancestry; a bare QWidget does not) --
+        # found during the first native-window human visual acceptance
+        # pass for this checkpoint, where the rail rendered with no
+        # visible panel treatment despite the stylesheet rule existing.
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setFixedWidth(NAV_RAIL_WIDTH)
 
         layout = QVBoxLayout(self)
