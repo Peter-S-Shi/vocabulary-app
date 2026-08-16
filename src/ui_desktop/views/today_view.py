@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 from src.ui_desktop.controllers.today_controller import TodayController
 from src.ui_desktop.state.handoff import LearningActionIntent
 from src.ui_desktop.theming.metrics import CONTEXT_RAIL_WIDTH, SPACING
-from src.ui_desktop.widgets.panels import ActionRowCard, SummaryStatCard
+from src.ui_desktop.widgets.panels import ActionRowCard, SuggestedActionTile, SummaryStatCard
 
 """
 Today / Home -- Command Center (DESIGN.md § 6.1, `VR-TODAY-001`:
@@ -65,8 +65,8 @@ class TodayView(QWidget):
         self._controller = controller
 
         root = QHBoxLayout(self)
-        root.setContentsMargins(24, 20, 24, 20)
-        root.setSpacing(24)
+        root.setContentsMargins(16, 14, 16, 14)
+        root.setSpacing(SPACING.lg)
 
         root.addWidget(self._build_command_workspace(), 1)
         root.addWidget(self._build_context_rail(), 0)
@@ -80,7 +80,7 @@ class TodayView(QWidget):
         workspace.setObjectName("today-command-workspace")
         layout = QVBoxLayout(workspace)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(SPACING.lg)
+        layout.setSpacing(SPACING.md)
 
         header_row = QHBoxLayout()
         title = QLabel("Today", workspace)
@@ -93,7 +93,7 @@ class TodayView(QWidget):
         layout.addLayout(header_row)
 
         summary_row = QHBoxLayout()
-        summary_row.setSpacing(SPACING.md)
+        summary_row.setSpacing(SPACING.sm)
         self._summary_cards = {
             "available_cards": SummaryStatCard("Available Cards", 0, workspace),
             "never_quizzed": SummaryStatCard("Never Quizzed", 0, workspace),
@@ -118,7 +118,7 @@ class TodayView(QWidget):
         queue_content = QWidget()
         self._queue_column = QVBoxLayout(queue_content)
         self._queue_column.setContentsMargins(0, 0, 0, 0)
-        self._queue_column.setSpacing(SPACING.sm)
+        self._queue_column.setSpacing(SPACING.xs)
 
         queue_scroll = QScrollArea(workspace)
         queue_scroll.setObjectName("today-queue-scroll")
@@ -126,24 +126,28 @@ class TodayView(QWidget):
         queue_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         queue_scroll.setWidget(queue_content)
         queue_scroll.setMinimumHeight(120)
-        # Capped, not stretched: a stretch=1 scroll area greedily claims
-        # *all* leftover vertical space even when its own content is
-        # shorter, which pushed Suggested Next Actions off the bottom of
-        # the visible window on the first native-window human visual
-        # acceptance pass. Capping it means the queue scrolls internally
-        # once it has more items than this fits, while Suggested Next
-        # Actions always immediately follows it, never chasing leftover
-        # space.
-        queue_scroll.setMaximumHeight(320)
-        layout.addWidget(queue_scroll)
+        # Stretch=1 *and* capped: without a stretch factor, QScrollArea's
+        # generic sizeHint() left most of the window as dead space below
+        # the queue even with items to show. Stretch alone caused the
+        # original bug (unbounded growth swallowed Suggested Next
+        # Actions entirely). Both together let the queue actually use the
+        # available room up to a firm cap -- it scrolls internally past
+        # that cap instead of growing further, and Suggested Next Actions
+        # always immediately follows it.
+        queue_scroll.setMaximumHeight(400)
+        layout.addWidget(queue_scroll, 1)
 
         suggested_heading = QLabel("Suggested Next Actions", workspace)
         suggested_heading.setObjectName("today-section-heading")
         layout.addWidget(suggested_heading)
 
-        self._suggested_column = QVBoxLayout()
-        self._suggested_column.setSpacing(SPACING.sm)
-        layout.addLayout(self._suggested_column)
+        # A horizontal row of bounded tiles, not a vertical stack of
+        # full-width rows: each real recommendation occupies one compact
+        # tile, left-anchored via the trailing stretch, never stretched
+        # across the whole workspace width.
+        self._suggested_row = QHBoxLayout()
+        self._suggested_row.setSpacing(SPACING.sm)
+        layout.addLayout(self._suggested_row)
 
         # Any extra vertical space (a taller-than-normal window) collects
         # here instead of being reclaimed by the queue -- Suggested Next
@@ -160,8 +164,8 @@ class TodayView(QWidget):
         rail.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         rail.setFixedWidth(CONTEXT_RAIL_WIDTH)
         layout = QVBoxLayout(rail)
-        layout.setContentsMargins(SPACING.lg, 0, 0, 0)
-        layout.setSpacing(SPACING.lg)
+        layout.setContentsMargins(SPACING.md, SPACING.lg, SPACING.md, SPACING.lg)
+        layout.setSpacing(SPACING.md)
 
         activity_heading = QLabel("Recent Activity", rail)
         activity_heading.setObjectName("today-context-heading")
@@ -190,7 +194,7 @@ class TodayView(QWidget):
         # genuinely real actions are offered -- no placeholder actions
         # (e.g. "Add entry") for capability the desktop app doesn't have.
         quick_actions_grid = QGridLayout()
-        quick_actions_grid.setSpacing(SPACING.sm)
+        quick_actions_grid.setSpacing(SPACING.xs)
 
         open_entries_button = _quick_action_button("Open Entries", rail)
         open_entries_button.clicked.connect(self.navigate_to_entries_requested.emit)
@@ -201,6 +205,10 @@ class TodayView(QWidget):
         start_quiz_button.setToolTip(QUIZ_UNAVAILABLE_TOOLTIP)
         quick_actions_grid.addWidget(start_quiz_button, 0, 1)
 
+        # Both cells are fixed-width; a stretch in the (unused) third
+        # column keeps the pair anchored to the first row/left edge
+        # instead of stretching across the full rail width.
+        quick_actions_grid.setColumnStretch(2, 1)
         layout.addLayout(quick_actions_grid)
         layout.addStretch(1)
         return rail
@@ -260,32 +268,36 @@ class TodayView(QWidget):
         return card
 
     def _render_suggested_actions(self) -> None:
-        _clear_layout(self._suggested_column)
+        _clear_layout(self._suggested_row)
         recommendation = self._controller.primary_recommendation()
         if recommendation is None:
-            self._suggested_column.addWidget(_empty_state_label("No further suggestions right now."))
+            self._suggested_row.addWidget(_empty_state_label("No further suggestions right now."))
+            self._suggested_row.addStretch(1)
             return
 
         target_page = recommendation.get("target_page")
         if target_page == "Entries":
-            card = ActionRowCard(
+            tile = SuggestedActionTile(
                 str(recommendation.get("title") or ""),
                 str(recommendation.get("description") or ""),
                 "Open Entries",
                 button_enabled=True,
-                object_name="today-suggested-card",
             )
-            card.action_triggered.connect(self.navigate_to_entries_requested.emit)
+            tile.action_triggered.connect(self.navigate_to_entries_requested.emit)
         else:
-            card = ActionRowCard(
+            tile = SuggestedActionTile(
                 str(recommendation.get("title") or ""),
                 str(recommendation.get("description") or ""),
                 f"Open {target_page}" if target_page else "Unavailable",
                 button_enabled=False,
                 button_tooltip=QUIZ_UNAVAILABLE_TOOLTIP,
-                object_name="today-suggested-card",
             )
-        self._suggested_column.addWidget(card)
+        # Not every Learning Queue item's LearningActionIntent duplicates
+        # the single primary_recommendation() -- Suggested Next Actions
+        # intentionally shows only that one real recommendation, never a
+        # fabricated second/third tile just to fill the row.
+        self._suggested_row.addWidget(tile, 0)
+        self._suggested_row.addStretch(1)
 
     def _render_recent_activity(self) -> None:
         _clear_layout(self._activity_column)
@@ -358,7 +370,7 @@ def _section_divider(parent: QWidget) -> QWidget:
 def _quick_action_button(text: str, parent: QWidget) -> QPushButton:
     button = QPushButton(text, parent)
     button.setObjectName("today-quick-action")
-    button.setMinimumHeight(40)
+    button.setFixedSize(96, 40)
     return button
 
 

@@ -195,32 +195,49 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         padding: 4px 10px;
     }}
     #nav-rail {{
-        background-color: {neutral.app_background};
-        border-right: 1px solid {neutral.border_subtle};
+        background-color: {neutral.surface_secondary};
+        border-right: 1px solid {neutral.border_default};
     }}
     QPushButton#nav-rail-item {{
-        text-align: left;
         background-color: transparent;
-        color: {neutral.text_secondary};
-        font-size: 12px;
         border: none;
         border-left: 3px solid transparent;
         border-radius: 0px;
-        padding: {sp.sm}px {sp.md}px;
+        padding: 0px 2px;
     }}
     QPushButton#nav-rail-item:hover:enabled {{
         background-color: {accent.soft.background};
-        color: {accent.soft.foreground};
     }}
     QPushButton#nav-rail-item:checked {{
-        background-color: {accent.selected_background};
-        color: {accent.soft.foreground};
+        background-color: {neutral.surface_primary};
         border-left: 3px solid {accent.primary.background};
+    }}
+    QLabel#nav-rail-mark {{
+        background-color: transparent;
+        border: 1.5px solid {neutral.border_strong};
+        border-radius: 4px;
+    }}
+    QPushButton#nav-rail-item:hover:enabled QLabel#nav-rail-mark {{
+        border-color: {accent.border};
+    }}
+    QPushButton#nav-rail-item:checked QLabel#nav-rail-mark {{
+        background-color: {accent.primary.background};
+        border-color: {accent.primary.background};
+    }}
+    QPushButton#nav-rail-item:disabled QLabel#nav-rail-mark {{
+        border-color: {neutral.border_subtle};
+    }}
+    QLabel#nav-rail-label {{
+        background-color: transparent;
+        color: {neutral.text_secondary};
+        font-size: 10px;
+    }}
+    QPushButton#nav-rail-item:checked QLabel#nav-rail-label {{
+        color: {neutral.text_primary};
         font-weight: 600;
     }}
-    QPushButton#nav-rail-item:disabled {{
+    QPushButton#nav-rail-item:disabled QLabel#nav-rail-label {{
         color: {neutral.text_disabled};
-        background-color: transparent;
     }}
     QLabel#today-page-title {{
         color: {neutral.text_primary};
@@ -254,7 +271,7 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         font-size: 18px;
         font-weight: 700;
     }}
-    QWidget#today-queue-card, QWidget#today-suggested-card {{
+    QWidget#today-queue-card {{
         background-color: {neutral.surface_primary};
         border: 1px solid {neutral.border_default};
         border-radius: {radius}px;
@@ -262,17 +279,18 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     QLabel#today-action-title {{
         color: {neutral.text_primary};
         font-weight: 600;
+        font-size: 12px;
     }}
     QLabel#today-action-subtitle {{
         color: {neutral.text_secondary};
-        font-size: 12px;
+        font-size: 11px;
     }}
     QPushButton#today-action-button {{
         background-color: {accent.primary.background};
         color: {accent.primary.foreground};
         border: none;
         border-radius: {radius}px;
-        padding: 6px 14px;
+        padding: 4px 10px;
     }}
     QPushButton#today-action-button:hover:enabled {{
         background-color: {accent.hover.background};
@@ -283,8 +301,40 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_disabled};
         border: 1px solid {neutral.border_subtle};
     }}
+    QWidget#today-suggested-tile {{
+        background-color: {neutral.surface_secondary};
+        border: 1px solid {neutral.border_subtle};
+        border-radius: {radius}px;
+    }}
+    QLabel#today-tile-title {{
+        color: {neutral.text_primary};
+        font-weight: 600;
+        font-size: 12px;
+    }}
+    QLabel#today-tile-subtitle {{
+        color: {neutral.text_secondary};
+        font-size: 11px;
+    }}
+    QPushButton#today-tile-button {{
+        background-color: {neutral.surface_primary};
+        color: {accent.primary.background};
+        border: 1px solid {accent.border};
+        border-radius: {radius}px;
+        padding: 3px 10px;
+        font-size: 11px;
+    }}
+    QPushButton#today-tile-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+    }}
+    QPushButton#today-tile-button:disabled {{
+        background-color: transparent;
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
     QWidget#today-context-rail {{
-        border-left: 1px solid {neutral.border_subtle};
+        background-color: {neutral.surface_secondary};
+        border-left: 1px solid {neutral.border_default};
     }}
     QWidget#today-context-divider {{
         background-color: {neutral.border_subtle};

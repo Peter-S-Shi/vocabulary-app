@@ -49,8 +49,8 @@ class SummaryStatCard(_StyledContainer):
         self._value_label.setObjectName("today-summary-value")
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(SPACING.md, SPACING.sm, SPACING.md, SPACING.sm)
-        layout.setSpacing(2)
+        layout.setContentsMargins(SPACING.sm, SPACING.xs, SPACING.sm, SPACING.xs)
+        layout.setSpacing(1)
         layout.addWidget(caption)
         layout.addWidget(self._value_label)
 
@@ -98,16 +98,70 @@ class ActionRowCard(_StyledContainer):
         self._button = QPushButton(button_text, self)
         self._button.setObjectName("today-action-button")
         self._button.setEnabled(button_enabled)
-        self._button.setMinimumWidth(96)
+        self._button.setMinimumWidth(88)
         if button_tooltip:
             self._button.setToolTip(button_tooltip)
         self._button.clicked.connect(self.action_triggered.emit)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(SPACING.md, SPACING.sm, SPACING.md, SPACING.sm)
-        layout.setSpacing(SPACING.md)
+        layout.setContentsMargins(SPACING.sm, SPACING.xs, SPACING.sm, SPACING.xs)
+        layout.setSpacing(SPACING.sm)
         layout.addLayout(text_column, 1)
         layout.addWidget(self._button, 0)
+
+    @property
+    def button_enabled(self) -> bool:
+        return self._button.isEnabled()
+
+
+class SuggestedActionTile(_StyledContainer):
+    """A small, bounded secondary-action tile.
+
+    Visually distinct from ``ActionRowCard``: Suggested Next Actions is a
+    compact tile grammar (title/subtitle stacked, button below, bounded
+    width), not a stretched full-width queue row -- DESIGN.md § 6.1's
+    dominance rule (Queue > compact summary > right-context) only holds if
+    Suggested Next Actions reads as visibly smaller/secondary next to the
+    queue, not as another queue row.
+    """
+
+    action_triggered = Signal()
+
+    def __init__(
+        self,
+        title: str,
+        subtitle: str,
+        button_text: str,
+        *,
+        button_enabled: bool,
+        button_tooltip: str = "",
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setObjectName("today-suggested-tile")
+        self.setMaximumWidth(232)
+
+        title_label = QLabel(title, self)
+        title_label.setObjectName("today-tile-title")
+        title_label.setWordWrap(True)
+
+        subtitle_label = QLabel(subtitle, self)
+        subtitle_label.setObjectName("today-tile-subtitle")
+        subtitle_label.setWordWrap(True)
+
+        self._button = QPushButton(button_text, self)
+        self._button.setObjectName("today-tile-button")
+        self._button.setEnabled(button_enabled)
+        if button_tooltip:
+            self._button.setToolTip(button_tooltip)
+        self._button.clicked.connect(self.action_triggered.emit)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(SPACING.sm, SPACING.sm, SPACING.sm, SPACING.sm)
+        layout.setSpacing(4)
+        layout.addWidget(title_label)
+        layout.addWidget(subtitle_label)
+        layout.addWidget(self._button, 0, Qt.AlignmentFlag.AlignLeft)
 
     @property
     def button_enabled(self) -> bool:
