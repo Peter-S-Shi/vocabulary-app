@@ -610,6 +610,22 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         background-color: {accent.hover.background};
         color: {accent.hover.foreground};
     }}
+    QPushButton#review-choose-quiz-type-start-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+    }}
+    QPushButton#review-choose-quiz-type-start-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QLabel#review-choose-quiz-type-unavailable-message {{
+        background-color: {semantic.info_soft};
+        color: {semantic.info.background};
+        border-radius: {radius}px;
+        padding: 8px 10px;
+        font-size: 12px;
+    }}
     """.strip()
 
 

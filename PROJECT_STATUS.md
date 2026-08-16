@@ -1550,10 +1550,16 @@ entirely through existing `src.learning_workflow`/`src.collections` reads;
 Rail hidden, one minimal session bar, one dominant learning surface, a
 transient right Card Contents/History drawer reusing the shared
 `TransitionManager`). Quick Quiz and Choose Quiz Type both build a real,
-typed `QuizLaunchIntent` but stay honestly disabled/inert since Quiz is
-the next, not-yet-built feature. Browsing a Card creates no Quiz session
-and touches no legacy `src/review.py` scheduling state (regression-tested).
-Milestone 17 is not complete.
+typed `QuizLaunchIntent`, and neither ever fabricates a Quiz launch,
+session, or completion event since Quiz is the next, not-yet-built
+feature: Quick Quiz stays disabled with an explanatory tooltip, while
+Choose Quiz Type's "Start Quiz" is a real, enabled, clickable confirmation
+that answers with a persistent, explicit unavailable message rather than
+a passive disabled control (corrected after a Review human-acceptance
+functional-honesty finding — see the M17 Draft PR for the corrective-patch
+commit). Browsing a Card creates no Quiz session and touches no legacy
+`src/review.py` scheduling state (regression-tested). Milestone 17 is not
+complete.
 
 ## Repository State
 
@@ -1651,8 +1657,13 @@ Milestone 17 is not complete.
   (`src.learning_workflow.get_study_cards`/`get_card_learning_history`,
   `src.collections.get_card_groups_for_collection`); never calls the
   legacy `src/review.py` SRS scheduler. Quick Quiz and Choose Quiz Type
-  both build a real, typed `QuizLaunchIntent` (`state/handoff.py`) but
-  stay honestly disabled/inert because Quiz is not implemented yet.
+  both build a real, typed `QuizLaunchIntent` (`state/handoff.py`); neither
+  ever fabricates a Quiz launch, session, or completion event, since Quiz
+  is not implemented yet: Quick Quiz stays disabled with an explanatory
+  tooltip, and Choose Quiz Type's "Start Quiz" is a real, enabled,
+  clickable confirmation that answers with a persistent, explicit
+  unavailable message rather than a passive disabled control (corrective
+  patch after a Review human-acceptance functional-honesty finding).
   **Implemented on `agent/m17-desktop-core-workflow-migration`, pending
   independent review and native human visual acceptance.** See the M17
   Draft PR for the exact reviewed head SHA.

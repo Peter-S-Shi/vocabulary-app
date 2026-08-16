@@ -939,10 +939,15 @@ legacy `src/review.py` scheduler calls); `ReviewView` implements the
 frozen composition -- Management Rail hidden, one minimal session bar,
 one dominant learning surface, a transient right Card Contents/History
 drawer reusing the shared `TransitionManager`. Quick Quiz and Choose Quiz
-Type both build a real, typed `QuizLaunchIntent` (`state/handoff.py`) but
-stay honestly disabled/inert, since Quiz -- the next feature in the
-sequence -- is not implemented yet. Do not mark Review or Milestone 17
-complete until independent review and native visual acceptance both close.
+Type both build a real, typed `QuizLaunchIntent` (`state/handoff.py`), and
+neither ever fabricates a Quiz launch, session, or completion event, since
+Quiz -- the next feature in the sequence -- is not implemented yet: Quick
+Quiz stays disabled with an explanatory tooltip, while Choose Quiz Type's
+"Start Quiz" is a real, enabled, clickable confirmation that answers with
+a persistent, explicit unavailable message rather than a passive disabled
+control (corrected after a Review human-acceptance functional-honesty
+finding). Do not mark Review or Milestone 17 complete until independent
+review and native visual acceptance both close.
 
 #### Quiz
 

@@ -54,11 +54,22 @@ class LearningActionIntent:
 
 
 # Shared across every feature whose UI points at Quiz before Quiz itself is
-# implemented (Today's queue/tile actions; Review's Quick Quiz / Choose Quiz
-# Type routes). One wording, centrally owned, so the honest-unavailable
-# message can never drift between features that all describe the same real
-# product state.
+# implemented (Today's queue/tile actions; Review's Quick Quiz action).
+# One wording, centrally owned, so the honest-unavailable message can never
+# drift between features that all describe the same real product state.
 QUIZ_UNAVAILABLE_TOOLTIP = "Quiz is not implemented yet in the desktop app."
+
+# Shown as a persistent, explicit in-dialog message -- not a tooltip -- when
+# a user actively confirms a real choice (Review's "Choose Quiz Type" ->
+# "Start Quiz") that cannot yet be fulfilled. Added after the Review human-
+# acceptance functional-honesty finding: a disabled button's tooltip after a
+# deliberate choose-then-confirm flow is easy to miss and does not "clearly
+# tell the user" what happened -- an enabled, clickable confirmation that
+# answers with an unmissable, honest message does.
+QUIZ_UNAVAILABLE_MESSAGE = (
+    "Native Quiz is the next M17 checkpoint and has not been implemented "
+    "yet. No quiz session was started."
+)
 
 
 @dataclass(frozen=True)

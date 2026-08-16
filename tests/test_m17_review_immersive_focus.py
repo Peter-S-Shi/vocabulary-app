@@ -40,7 +40,11 @@ if PYSIDE6_AVAILABLE:
     from src.ui_desktop.main_window import MainWindow
     from src.ui_desktop.motion.transitions import TransitionManager
     from src.ui_desktop.state.app_state import ShellMode, Workspace
-    from src.ui_desktop.state.handoff import QUIZ_UNAVAILABLE_TOOLTIP, QuizLaunchIntent
+    from src.ui_desktop.state.handoff import (
+        QUIZ_UNAVAILABLE_MESSAGE,
+        QUIZ_UNAVAILABLE_TOOLTIP,
+        QuizLaunchIntent,
+    )
     from src.ui_desktop.views.review_view import ReviewView
 
     def _qt_app() -> QApplication:
@@ -519,7 +523,11 @@ class ReviewDialogTests(_SyntheticDatabaseTestCase):
 
         self.assertEqual(dialog.selected_intent.quiz_type, "matching")
 
-    def test_choose_quiz_type_dialog_start_button_stays_honestly_disabled(self) -> None:
+    def test_choose_quiz_type_dialog_start_button_is_enabled(self) -> None:
+        """Corrective finding from Review human acceptance: a passive
+        disabled button after a deliberate choose-then-confirm flow did
+        not clearly tell the user anything. Confirming is now a real,
+        clickable action (see the next test for what clicking it does)."""
         from src.ui_desktop.views.review_view import _ChooseQuizTypeDialog
 
         self._make_card([("chat", "cat")])
@@ -533,8 +541,60 @@ class ReviewDialogTests(_SyntheticDatabaseTestCase):
             for w in dialog.findChildren(QWidget)
             if getattr(w, "objectName", lambda: "")() == "review-choose-quiz-type-start-button"
         )
-        self.assertFalse(start_button.isEnabled())
-        self.assertEqual(start_button.toolTip(), QUIZ_UNAVAILABLE_TOOLTIP)
+        self.assertTrue(start_button.isEnabled())
+
+    def test_confirming_shows_unavailable_message_without_session_or_navigation(self) -> None:
+        from src.ui_desktop.views.review_view import _ChooseQuizTypeDialog
+
+        self._make_card([("chat", "cat")])
+        controller = ReviewController()
+        controller.open_default()
+        with db.get_connection() as connection:
+            sessions_before = connection.execute("SELECT COUNT(*) AS n FROM quiz_sessions").fetchone()["n"]
+
+        dialog = _ChooseQuizTypeDialog(controller)
+        self.addCleanup(dialog.deleteLater)
+        # A standalone QDialog never constructed with .show()/.exec() has no
+        # shown ancestor chain, so isVisible() would report False regardless
+        # of setVisible() -- isHidden() reflects this widget's own explicit
+        # shown/hidden flag directly, independent of that chain.
+        self.assertTrue(dialog._unavailable_message.isHidden())
+
+        start_button = next(
+            w
+            for w in dialog.findChildren(QWidget)
+            if getattr(w, "objectName", lambda: "")() == "review-choose-quiz-type-start-button"
+        )
+        start_button.click()
+
+        self.assertFalse(dialog._unavailable_message.isHidden())
+        self.assertEqual(dialog._unavailable_message.text(), QUIZ_UNAVAILABLE_MESSAGE)
+        # Confirming never fabricates a Quiz launch: no session created.
+        with db.get_connection() as connection:
+            sessions_after = connection.execute("SELECT COUNT(*) AS n FROM quiz_sessions").fetchone()["n"]
+        self.assertEqual(sessions_before, sessions_after)
+
+    def test_changing_quiz_type_clears_a_previous_unavailable_message(self) -> None:
+        from src.ui_desktop.views.review_view import _ChooseQuizTypeDialog
+
+        self._make_card([("chat", "cat")])
+        controller = ReviewController()
+        controller.open_default()
+
+        dialog = _ChooseQuizTypeDialog(controller)
+        self.addCleanup(dialog.deleteLater)
+        start_button = next(
+            w
+            for w in dialog.findChildren(QWidget)
+            if getattr(w, "objectName", lambda: "")() == "review-choose-quiz-type-start-button"
+        )
+        start_button.click()
+        self.assertFalse(dialog._unavailable_message.isHidden())
+
+        other_index = 1 if dialog._type_combo.currentIndex() != 1 else 0
+        dialog._type_combo.setCurrentIndex(other_index)
+
+        self.assertTrue(dialog._unavailable_message.isHidden())
 
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")

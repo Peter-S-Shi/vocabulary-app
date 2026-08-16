@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.ui_desktop.controllers.review_controller import QUIZ_TYPE_LABELS, QUICK_QUIZ_DEFAULT_TYPE, ReviewController
-from src.ui_desktop.state.handoff import QUIZ_UNAVAILABLE_TOOLTIP
+from src.ui_desktop.state.handoff import QUIZ_UNAVAILABLE_MESSAGE, QUIZ_UNAVAILABLE_TOOLTIP
 from src.ui_desktop.theming.metrics import SPACING
 
 """
@@ -62,9 +62,18 @@ Design → Implementation trace:
                                  requirement: never fabricate a working
                                  destination.
   Choose Quiz Type           -> _ChooseQuizTypeDialog (P6 utility): the
-                                 type picker itself is real and usable;
-                                 its own "Start Quiz" stays honestly
-                                 disabled for the same reason.
+                                 type picker is real and usable, and its
+                                 "Start Quiz" is a real, enabled, clickable
+                                 confirmation -- clicking it never
+                                 fabricates a Quiz launch; it shows a
+                                 persistent, explicit unavailable message
+                                 (QUIZ_UNAVAILABLE_MESSAGE) instead of a
+                                 disabled button's easy-to-miss tooltip
+                                 (corrected after the Review human-
+                                 acceptance functional-honesty finding: a
+                                 passive disabled control after a
+                                 deliberate choose-then-confirm flow did
+                                 not "clearly tell the user").
   interaction containers     -> P3 main surface + P6 transient drawer/
                                  dialogs, per DESIGN.md § 10's Editing
                                  Container Decision ("Study context is
@@ -514,9 +523,14 @@ class _StudyCardSelectorDialog(QDialog):
 
 class _ChooseQuizTypeDialog(QDialog):
     """P6 transient utility (DESIGN.md § 8): the Review-side half of
-    "Choose Quiz Type" -- the type picker is real and usable; launching
-    the Quiz itself stays honestly disabled because Quiz is the next,
-    not-yet-built M17 feature (module docstring's "Functional honesty")."""
+    "Choose Quiz Type" -- the type picker is real and usable, and
+    confirming is a real, clickable action, not a silently-disabled dead
+    end. Because Quiz is the next, not-yet-built M17 feature, confirming
+    never navigates anywhere, creates a session, or writes a completion
+    event; it shows an explicit, persistent unavailable message instead
+    (module docstring's "Functional honesty" -- a passive disabled-button
+    tooltip after a deliberate choose-then-confirm flow is easy to miss,
+    per the Review human-acceptance corrective finding)."""
 
     def __init__(self, controller: ReviewController, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -541,6 +555,12 @@ class _ChooseQuizTypeDialog(QDialog):
         self._type_combo.currentIndexChanged.connect(self._update_intent)
         layout.addWidget(self._type_combo)
 
+        self._unavailable_message = QLabel("", self)
+        self._unavailable_message.setObjectName("review-choose-quiz-type-unavailable-message")
+        self._unavailable_message.setWordWrap(True)
+        self._unavailable_message.setVisible(False)
+        layout.addWidget(self._unavailable_message)
+
         buttons = QHBoxLayout()
         close_button = QPushButton("Close", self)
         close_button.clicked.connect(self.reject)
@@ -548,8 +568,7 @@ class _ChooseQuizTypeDialog(QDialog):
         buttons.addStretch(1)
         start_button = QPushButton("Start Quiz", self)
         start_button.setObjectName("review-choose-quiz-type-start-button")
-        start_button.setEnabled(False)
-        start_button.setToolTip(QUIZ_UNAVAILABLE_TOOLTIP)
+        start_button.clicked.connect(self._confirm)
         buttons.addWidget(start_button)
         layout.addLayout(buttons)
 
@@ -558,6 +577,17 @@ class _ChooseQuizTypeDialog(QDialog):
     def _update_intent(self) -> None:
         quiz_type = self._type_combo.currentData()
         self.selected_intent = self._controller.build_choose_quiz_type_intent(quiz_type)
+        # A fresh choice supersedes any previous unavailable notice rather
+        # than leaving a stale message next to a newly selected type.
+        self._unavailable_message.setVisible(False)
+
+    def _confirm(self) -> None:
+        """Real confirmation of a real choice -- and still never a fake
+        Quiz launch. No navigation, no quiz session, no completion write;
+        only an explicit, unmissable statement of the current product
+        truth."""
+        self._unavailable_message.setText(QUIZ_UNAVAILABLE_MESSAGE)
+        self._unavailable_message.setVisible(True)
 
 
 def _field_block(caption_text: str, value_text: str, parent: QWidget) -> QWidget:
