@@ -86,7 +86,8 @@ remain in branch history for audit; nothing was force-pushed away.
 composition:
 
 - the **Motion / Transition Foundation** (`motion/transitions.py`,
-  DESIGN.md § 23): centralized `TransitionManager` with
+  DESIGN.md § 25 in the current replacement authority): centralized
+  `TransitionManager` with
   `Normal`/`Reduced`/`Disabled` policy, the `motion` durable preference,
   app-level wiring, and `MainWindow` decoration applied *after* each
   synchronous state change so motion never gates correctness. It also
@@ -112,11 +113,15 @@ encoded the rejected UI structure were removed rather than adapted, and
 `tests/test_m17_today_controller_and_handoff.py` so no module name claims
 to prove a Today Command Center UI.
 
-**A fresh Today implementation is blocked** until the replacement
-`DESIGN.md` and its canonical visual reference are supplied. `DESIGN.md`
-is being replaced through a separate design workflow and was not
-independently redesigned here; its M17 Motion section remains because
-Motion is an independently authorized requirement.
+**The replacement `DESIGN.md` has since been supplied and committed**
+(`c19b686`, "Replace DESIGN.md with final design authority contract") and
+is now the authoritative canonical visual-reference and spatial-composition
+authority for M17+. `DESIGN.md` was not independently redesigned as part
+of this lifecycle reconciliation; its Motion & Transition System section
+(now § 25) remains, since Motion is an independently authorized
+requirement that the new authority carries forward. **Today is ready for
+a fresh implementation derived from that authority** — it is no longer
+blocked, only not yet done.
 
 M17 implementation began from the verified `main` post-M16-closure commit
 `c8842e0f77199ed9d3d0a2e3c48701d4289f137e` (PR #24 merge commit).
@@ -1440,9 +1445,9 @@ complete.
 
 ## Next Objective
 
-**Supply the replacement `DESIGN.md` and its canonical visual reference,
-then implement Today fresh from that authority. Today's presentation is
-reset and a new implementation is blocked until then.**
+**Implement Today fresh from the now-supplied replacement `DESIGN.md`
+(`c19b686`) and its canonical visual reference. Today's presentation was
+reset and is ready for that fresh implementation.**
 
 Milestone 16 is complete on `main` (PR #23,
 `2e900d243950ca93aedf5cbde5b836dc6e378f25`). Post-M16 lifecycle
@@ -1455,11 +1460,14 @@ rather than independent sub-milestone branches or PRs. See `ROADMAP.md`
 § Milestone 17 for the full operating model, frozen semantic boundaries,
 and verification model.
 
-Today (feature 1) is **not** implemented: its non-visual controller and
+Today (feature 1) is **not yet** implemented: its non-visual controller and
 handoff groundwork plus the Motion Foundation are retained, but both
 attempted presentations were rejected at human visual review and the
-presentation has been reset to the M16.2 placeholder. Review (feature 2)
-has not started. Milestone 17 is not complete.
+presentation was reset to the M16.2 placeholder. The replacement
+`DESIGN.md` has since been supplied and committed, so Today is ready for a
+fresh implementation derived from that authority. Review (feature 2) has
+not started and must not begin before Today is freshly implemented and
+accepted. Milestone 17 is not complete.
 
 ## Repository State
 
@@ -1541,8 +1549,9 @@ has not started. Milestone 17 is not complete.
 - M17 feature 1 (Today): non-visual controller/handoff groundwork and the
   Motion Foundation implemented and retained; **both attempted Today
   presentations rejected at human visual review, presentation reset to the
-  M16.2 placeholder**, fresh implementation blocked on the replacement
-  `DESIGN.md` + canonical visual reference. See the M17 Draft PR for the
+  M16.2 placeholder**. The replacement `DESIGN.md` + canonical visual
+  reference (`c19b686`) has since been supplied, so Today is now ready for
+  a fresh implementation from that authority. See the M17 Draft PR for the
   exact head SHA and the full reject/reset history.
 - Current lifecycle documents:
   - `ROADMAP.md`
@@ -1575,12 +1584,15 @@ has not started. Milestone 17 is not complete.
   `c8842e0f77199ed9d3d0a2e3c48701d4289f137e`). Milestone 17 — Desktop Core
   Workflow Migration In Progress: Motion Foundation implemented and
   retained; Today's non-visual controller/handoff groundwork retained;
-  **Today presentation rejected at human visual review and reset**, fresh
-  implementation blocked on the replacement `DESIGN.md`; Review not
-  started; M17 not complete.**
+  **both attempted Today presentations rejected at human visual review and
+  reset**; replacement `DESIGN.md` supplied and committed (`c19b686`) and
+  now the authoritative canonical visual-reference and spatial-composition
+  authority for M17+; Today ready for fresh implementation from that
+  authority; Review not started; M17 not complete.**
 - Exact next objective:
-  **Supply the replacement `DESIGN.md` and its canonical visual reference,
-  then implement Today fresh from that authority on the same branch
+  **Implement Today fresh from the replacement `DESIGN.md` and its
+  canonical visual reference, on the same branch
   (`agent/m17-desktop-core-workflow-migration`) and Draft PR #25. Do not
   restart Today from the rejected implementation, do not mark Today or
-  Milestone 17 complete, and do not begin Review.**
+  Milestone 17 complete, and do not begin Review before Today is freshly
+  implemented and accepted.**

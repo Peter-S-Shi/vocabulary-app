@@ -132,11 +132,18 @@ evidence (see § Milestone 16 below).
 
 Milestone 17 — Desktop Core Workflow Migration is now **in progress** on
 the single long-lived branch `agent/m17-desktop-core-workflow-migration`.
-Its first feature checkpoint, **Today / Command Center + Motion
-Foundation**, is implemented and pending independent review; Review is the
-next feature in the sequence and has not started. Milestone 17 overall is
-not complete. See § Milestone 17 below for the operating model and the
-current feature-sequence position.
+The **Motion / Transition Foundation** and Today's non-visual
+controller/handoff groundwork are implemented and retained. **Today's
+presentation is not yet implemented**: two attempted visual
+implementations were rejected at human visual review, and the rejected
+presentation was controlled-reset to the M16.2 placeholder. A replacement
+[DESIGN.md](DESIGN.md) has since been supplied and committed, and is now
+the authoritative canonical visual-reference and spatial-composition
+authority for M17+; Today is ready for a fresh implementation derived from
+that authority. Review is the next feature in the sequence and must not
+begin before Today is freshly implemented and accepted. Milestone 17
+overall is not complete. See § Milestone 17 below for the operating model,
+the reset history, and the current feature-sequence position.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -868,9 +875,10 @@ architecture — M17 begins building the actual desktop product.
 
 Recommended order, each verified before proceeding to the next:
 
-1. Today — **not implemented: presentation reset after human visual
-   rejection; blocked on the replacement `DESIGN.md`** (Motion Foundation
-   and non-visual controller/handoff groundwork retained)
+1. Today — **not yet implemented: presentation reset after human visual
+   rejection; ready for a fresh implementation from the now-supplied
+   replacement `DESIGN.md`** (Motion Foundation and non-visual
+   controller/handoff groundwork retained)
 2. Review — next, not started
 3. Quiz — not started
 4. Entries — not started (beyond the M16.2 vertical slice)
@@ -883,17 +891,20 @@ Functional workflow migration = daily workload, due-review visibility, and
 workflow handoffs.
 Plus DESIGN.md archetype = the real Command Center implementation.
 
-**Status: not implemented — presentation reset, blocked on the
-replacement `DESIGN.md`.** On
+**Status: not yet implemented — presentation reset; ready for a fresh
+implementation from the replacement `DESIGN.md`.** On
 `agent/m17-desktop-core-workflow-migration`, the Motion / Transition
-Foundation (DESIGN.md § 23, a cross-cutting extension established at this
-checkpoint) and Today's non-visual controller/handoff groundwork are
-implemented and retained. Two Today presentations were built and **both
-were rejected at human visual review**; a controlled reset returned the
-presentation to the M16.2 placeholder. A fresh Today implementation must
-be derived from the replacement `DESIGN.md` and its canonical visual
-reference, not from the rejected work. Do not mark Today or Milestone 17
-complete.
+Foundation (DESIGN.md § 25, a cross-cutting extension originally
+established at the initial Today checkpoint) and Today's non-visual
+controller/handoff groundwork are implemented and retained. Two Today
+presentations were built and **both were rejected at human visual
+review**; a controlled reset returned the presentation to the M16.2
+placeholder. The replacement `DESIGN.md` (final design authority,
+committed at `c19b686`) has since been supplied and is now the
+authoritative canonical visual-reference and spatial-composition
+authority for M17+. A fresh Today implementation must be derived from
+that authority, not from the rejected work. Do not mark Today or
+Milestone 17 complete.
 
 #### Review
 
