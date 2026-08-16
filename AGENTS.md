@@ -63,6 +63,14 @@ themselves. Before handing off the human-acceptance gate:
 6. report the branch and the exact head SHA being displayed; then
 7. stop and wait for an explicit human PASS / FAIL.
 
+When checking for that window, search by window ownership across the
+launched **process tree**, not just the directly launched PID. The
+virtual environment's `pythonw.exe` is a shim that re-executes the base
+interpreter as a child process, and the application window belongs to
+that child. Checking only the direct PID (or `Process.MainWindowHandle`,
+which is unreliable for non-.NET processes) reports a false "no window"
+for a launch that actually succeeded.
+
 Do not substitute screenshots, headless/offscreen runs, or instructions
 telling the reviewer to run CLI commands. If the launch fails, diagnose
 and fix the launch/environment problem before handing off the gate — a
