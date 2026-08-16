@@ -1,939 +1,895 @@
-# Vocabulary App · Desktop Design Contract (`DESIGN.md`)
+## Objective
 
-Status: **Frozen UI Design Baseline — Milestone 16 Complete on `main`;
-Milestone 17 In Progress**
 
-This document freezes the Milestone 16 UI/design baseline; Milestone 16 is
-complete on `main` (see [Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md)).
-§ 23 (Motion / Transition System) is an M17-authorized additive extension
-to that baseline, not a reopening of it. See `ROADMAP.md` § Milestone 16 /
-§ Milestone 17 and `PROJECT_STATUS.md` for the authoritative current
-lifecycle state.
+> **Vocabulary App · Desktop Product Design Authority & AI Coding Conformance Contract**
 
-This document is the authoritative product/UI contract for the native desktop
-migration. It consolidates and freezes the Milestone 16 design decisions:
-information architecture, interaction grammar, theme architecture, semantic
-tokens, accessibility rules, and visual acceptance criteria.
+This is not a new UI exploration and not a product redesign.
 
-It is a **design-contract consolidation**, not a new design exploration. It
-does not implement UI code, does not start the minimal desktop shell, and does
-not change application code, database schema, or learning semantics.
+The current `DESIGN.md` already contains many correct and approved decisions: product principles, Management / Study modes, Command Center / Table-First / Immersive Focus / Learning Brief First archetypes, Utility/Dialog grammar, theme architecture, semantic tokens, contrast/accessibility rules, component interaction rules, and visual acceptance principles.
 
-## 1. Purpose and How to Use This Document
+Preserve those decisions unless the current repository or the approved visual artifacts prove that wording needs to be corrected or strengthened.
 
-This document tells a future contributor (human or coding agent):
+The purpose of v2 is to fix one demonstrated failure mode:
 
-- what the desktop product should feel like;
-- how the main workflows are structured;
-- which visual and interaction principles are frozen;
-- which semantics must not be changed by UI implementation;
-- what constitutes a visual or interaction regression; and
-- where implementation freedom still exists.
+> The existing DESIGN freezes content hierarchy but does not constrain canonical spatial composition strongly enough, allowing an AI coding agent to claim compliance while substantially redesigning an approved screen.
 
-It is **not**:
+The new document must make approved visual composition, design authority, implementation freedom, conformance evidence, and human visual acceptance explicit enough that a future coding agent can work from `DESIGN.md` alone without relying on hidden chat memory.
 
-- a component-by-component coding tutorial;
-- a framework construction manual;
-- a duplicate of [ROADMAP.md](ROADMAP.md) or [PROJECT_STATUS.md](PROJECT_STATUS.md);
-- a restatement of every historical design conversation.
+---
 
-Read this document alongside:
+## First: inspect authoritative sources
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) — module and layer boundaries;
-- [docs/migration/DESKTOP_MIGRATION_PLAN.md](docs/migration/DESKTOP_MIGRATION_PLAN.md) — migration strategy and phasing;
-- [docs/design/M14_SEMANTIC_CONTRACT.md](docs/design/M14_SEMANTIC_CONTRACT.md) — Learning Analytics semantics referenced by Analytics;
-- [docs/design/M15_1_SPEECH_SEMANTIC_CONTRACT.md](docs/design/M15_1_SPEECH_SEMANTIC_CONTRACT.md) and
-  [docs/design/M15_3_BATCH_EXPORT_CONTRACT.md](docs/design/M15_3_BATCH_EXPORT_CONTRACT.md) — Audio Export semantics referenced by the Utility grammar.
+Before editing, inspect the current repository state and relevant design/architecture/lifecycle documents, including at minimum:
 
-`DESIGN.md` governs product/UI structure. It does not override the semantic
-contracts above; where a UI rule and a semantic contract could conflict, the
-semantic contract wins and the UI must be adjusted, not the other way around.
+- `DESIGN.md`
+- `ROADMAP.md`
+- `PROJECT_STATUS.md`
+- `ARCHITECTURE.md`
+- `docs/migration/DESKTOP_MIGRATION_PLAN.md`
+- `docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md`
+- `docs/history/MILESTONE16_CLOSURE.md`
+- relevant M14/M15 semantic contracts referenced by the current DESIGN
+- current Streamlit surfaces as behavioral references where useful
+- current `src/ui_desktop/` implementation only as evidence of current state, not as visual authority
 
-## 2. Governing Product Principle
+Also inspect the approved visual exploration/validation artifacts and historical design prompts supplied for this design review. Treat those artifacts according to the authority rules below.
+
+Do not infer a canonical composition from memory when a visual artifact exists.
+
+---
+
+# 1. Preserve the governing product principle
+
+Keep:
 
 > **Replace the UI layer, preserve the learning engine.**
 
-The desktop UI may reorganize the current Streamlit-era pages and interactions
-into more coherent desktop workflows. It must **not** mechanically reproduce
-the old Streamlit page structure, and it must **not** silently change frozen
-learning semantics, evidence semantics, data meanings, or safety behavior
-(see [ARCHITECTURE.md § Learning Completion Semantics](ARCHITECTURE.md) and
-the M14 contract).
+Preserve the existing product character:
 
-The desktop product should feel:
+> Efficient when managing, quiet when studying, explanatory when analyzing, and precise when handling data.
 
-> **Efficient when managing, quiet when studying, explanatory when analyzing,
-> and precise when handling data.**
+Do not change learning, analytics, import, linked-source, audio, data-safety, or persistence semantics during this documentation task.
 
-The theme system personalizes that product without changing its identity.
+---
 
-## 3. Macro Interaction Model
+# 2. Add mandatory AI Coding Design-Conformance Rules
 
-The product has two interaction modes. They belong to the same product but do
-not share identical density or chrome.
+The new `DESIGN.md` must contain these rules explicitly.
 
-### 3.1 Management Mode
+## Rule A — Reading DESIGN is not design alignment
 
-Used for: Today / Home, Entries, Collections, Templates, Analytics, Data Tools
-(Import/Export, Backup/Restore), Settings, and other organization / inspection
-/ utility workflows.
+State clearly:
 
-Characteristics:
+> **“Read DESIGN.md” is not evidence that a UI implementation is design-aligned.**
 
-- the normal desktop shell (navigation, chrome) is visible;
-- medium-to-high information density is acceptable;
-- tables, filters, toolbars, dialogs, status indicators, and batch operations
-  are first-class patterns;
-- the UI should feel efficient, desktop-native, and calm.
+For any UI work, require a **DESIGN → Implementation Trace** mapping applicable DESIGN authority to concrete implementation decisions, including as relevant:
 
-### 3.2 Study Mode
+- screen composition;
+- regions / surfaces;
+- component roles;
+- interaction container;
+- visual hierarchy;
+- navigation / chrome;
+- canonical visual-reference correspondence.
 
-Used for: Review, Quiz, Mistake Book practice, and Proficient Pool practice.
+A section-number citation by itself is insufficient.
 
-Characteristics:
+## Rule B — Reverse mapping is required at delivery
 
-- normal management navigation largely disappears;
-- visual chrome is reduced to a minimal session bar;
-- one learning task is prioritized at a time;
-- accent usage is restrained (see § 14);
-- Study Mode should feel quieter than Management Mode.
+Require an **Implementation → DESIGN Trace** in final delivery.
 
-## 4. Frozen Core UI Archetypes
+It must identify:
 
-The following structural decisions are approved and frozen. Do not reopen
-them unless the repository reveals a direct semantic conflict; if one is
-found, record it under § 20 rather than silently redesigning.
+- which DESIGN sections controlled the feature;
+- what concrete layout/component/interaction decisions resulted;
+- which canonical visual references were used;
+- what was implemented strictly;
+- what was adapted within allowed native implementation freedom;
+- what remains deferred.
 
-| Screen | Frozen direction |
-|---|---|
-| Today / Home | **Command Center** — 学习指挥中心 |
-| Entries & Collections | **Table-First** — 列表 + 底部详情 |
-| Review / Quiz | **Immersive Focus** — primary Study Mode design language |
-| Review / Quiz secondary view | **Flip Card + Filmstrip** — functional secondary view, does not govern the global design system |
-| Analytics | **Learning Brief First** |
-| Utility / Dialog | Pattern Board direction (§ 5) — approved, no further exploration needed |
+If this trace cannot be established, the agent may not claim design alignment.
 
-### 4.1 Today / Home — Command Center
+## Rule C — Structural tests cannot prove visual completion
 
-Purpose: tell the user what matters today, what can be resumed, and what the
-next useful learning action is.
+State explicitly:
 
-Hierarchy (top to bottom, priority order):
+> **No visual requirement in `DESIGN.md` may be considered implemented solely because structural, unit, snapshot, token, contrast, widget-existence, hierarchy, or layout-property tests pass.**
 
-1. compact summary;
-2. **Today's Learning Queue** as the dominant area;
-3. suggested next actions;
-4. recent activity / Collections needing attention;
-5. quick actions.
+Automated checks may prove structure, tokens, contrast, interaction states, layout invariants, or architecture boundaries.
 
-Rules:
+They do not prove that:
 
-- the Learning Queue must have greater visual weight than statistics;
-- the page must support quick resumption and task triage;
-- it must not become a chart-heavy business dashboard — analytics belongs in
-  Analytics, not on the Home screen;
-- Today's Card-learning activity and summaries must reflect factual completed
-  Card-scoped Quiz history (per `src/learning_workflow.py` and the Learning
-  Completion Semantics in ARCHITECTURE.md), not legacy Review-schedule state.
+- the UI looks like the approved design;
+- spatial hierarchy works to a human observer;
+- spacing/rhythm feels correct;
+- canonical visual composition was faithfully reproduced;
+- product-quality visual completion was achieved.
 
-### 4.2 Entries & Collections — Table-First
+For visually governed UI:
 
-Purpose: efficiently browse, filter, compare, organize, and edit large numbers
-of Entries.
+> **Automated conformance + real native-window human visual acceptance are both required.**
 
-Hierarchy:
+## Rule D — Design-aligned / visually complete is a reserved claim
 
-1. scope / Collection navigation;
-2. toolbar with search, filter, sort, and batch actions;
-3. large dense Entries table as the dominant visual area;
-4. selected Entry detail in a horizontal bottom detail region.
+Define evidence levels such as:
 
-Rules:
+1. Implemented
+2. Structurally Conformant
+3. Visually Reviewed
+4. Human Accepted
 
-- the table is the visual authority;
-- the bottom detail area supports the table and must not overpower it;
-- editing may use dialogs or focused editors where appropriate;
-- the layout must remain suitable for high-frequency desktop data management;
-- multi-selection and batch actions (delete, Starred, Proficient Pool) remain
-  first-class, consistent with current Entry batch-action capability.
+Before explicit real-window human acceptance, an agent must not claim:
 
-Dark Mode must preserve clear separation between: app background, scope
-navigation, table, selected row, bottom detail region, and overlays/dialogs
-(see § 13).
+- “Visual parity achieved”
+- “Fully aligned with DESIGN.md”
+- “UI design complete”
+- “Human acceptance passed”
 
-### 4.3 Review / Quiz — Immersive Focus
+---
 
-This is the global design authority for Study Mode.
+# 3. Establish the Visual Authority System
 
-Characteristics:
+Define four authority levels:
 
-- normal application navigation largely disappears during an active session;
-- a minimal session bar remains;
-- generous whitespace; one learning task is presented at a time;
-- optional context (e.g. Card history) is available through temporary drawers
-  or lightweight controls, not persistent chrome;
-- dense management UI is not carried into an active learning session.
+- **CANONICAL** — formally approved full visual composition; page-level design authority.
+- **PATTERN** — formally approved reusable interaction/composition pattern.
+- **VALIDATION** — validates theme/tokens/contrast/state behavior; cannot redefine canonical page composition.
+- **EXPLORATION ONLY** — historical rejected/unselected alternatives; not valid implementation options.
 
-Frozen learning semantic (must not be silently changed by UI work):
+Make explicit:
 
-> Reviewing prepares the Card. A completed Card-scoped Quiz remains the
-> authoritative Card learning/review completion event. Browsing/review
-> exposure alone must not visually imply Card completion.
+> Exploration artifacts are not a menu from which a coding agent may choose a different implementation.
 
-Additional rules:
+Create a **Canonical Visual Reference Registry** with stable IDs and fields including:
 
-- Quiz feedback must remain clear but non-gamified;
-- do not revive legacy `Again / Hard / Good / Easy` scheduling semantics
-  unless separately authorized — this UI rule mirrors the frozen product
-  semantic in [ARCHITECTURE.md](ARCHITECTURE.md) and the Desktop Migration
-  Plan (§ 12, Review) that independent manual scheduling and legacy SRS rating
-  are retired from the active learning model.
+- Reference ID
+- file
+- page / figure / variant
+- authority level
+- what it controls
+- what it does not control
+- allowed native adaptations
 
-#### Secondary Study View: Flip Card + Filmstrip
+If a mandatory canonical reference is unavailable to the coding agent, it must stop and report missing design authority rather than inventing a replacement.
 
-A valid optional Review/Quiz presentation mode, using front/back card
-interaction, a compact filmstrip progress strip, and horizontal position
-awareness.
+Historical design prompts are provenance / intent evidence, not current visual authority.
 
-> Flip Card + Filmstrip is a secondary, user-selectable view. It does not
-> define the global design system. The application-wide Study Mode language
-> remains governed by Immersive Focus.
+---
 
-### 4.4 Analytics — Learning Brief First
+# 4. Register the approved canonical visual references
 
-Purpose: tell the user what deserves attention now, why, and what evidence
-supports that interpretation.
+Use the approved visual artifacts and verify exact page/variant labels before writing them.
 
-Hierarchy:
+The approved selections are:
 
-1. Learning Brief;
-2. supporting evidence;
-3. drill-down / Full Findings.
+## Management Shell
+Derived from the shared approved structure of Today Command Center and Entries Table-First.
 
-This hierarchy mirrors the Desktop Migration Plan's preferred Analytics
-information order: `What matters now -> why it was flagged -> supporting
-evidence -> deeper details -> useful next action`.
+Freeze the **persistent vertical left Navigation Rail** as a product-level Management Mode decision.
 
-The desktop Analytics experience must preserve the frozen M14 semantics (see
-[M14 Semantic Contract](docs/design/M14_SEMANTIC_CONTRACT.md)):
+At normal desktop width, replacing it with top horizontal navigation, browser-like tabs, or hamburger-only navigation is a design change, not an implementation detail.
 
-- no global mastery score, learner grade, or opaque health index;
-- the Learning Brief contains at most five prioritized items and may be
-  empty;
-- Findings are evidence-backed and deterministic, using the frozen
-  arbitration order (`Never Quizzed`, `Insufficient Evidence`, `Stale
-  Evidence`, `Recovery`, `Needs Attention`, `Strength`, `None`);
-- charts support interpretation rather than dominate the page;
-- actions remain user-triggered recommendations — Analytics does not silently
-  mutate Entry status, pool membership, due dates, Collection membership,
-  Card order, or start a Quiz;
-- the UI consumes structured analytical results from `src/statistics.py` /
-  `src/analytics.py` / `src/insights.py` rather than inventing thresholds or
-  classifications in presentation code.
+## Today / Home
+Canonical:
 
-The UI must preserve the distinctions between: factual **Statistics**,
-neutral **Analytics**, **Findings/actions**, and the **Learning Brief**; and
-between **Touched Coverage**, **Interpretable Coverage**, **Collection
-Content Knowledge**, and **Scope Activity**. Do not merge these into a single
-"mastery" metric or a single generic chart gallery.
+`Today - Home.pdf`
+→ Variant A — **Command Center / 学习指挥中心**
 
-## 5. Utility / Dialog Grammar
+Freeze the actual approved spatial composition:
 
-A coherent desktop interaction grammar covers: Add/Edit Entry, destructive
-confirmation, Import, Linked Source refresh preview, Audio Export, progress /
-cancellation, partial success, warning, error, empty state, and neutral
-information state. This grammar direction (the Pattern Board) is approved; no
-further exploration is required.
+- left Navigation Rail;
+- central Command Workspace as the largest region;
+- compact summary near the top of the central workspace;
+- **Today's Learning Queue** as the central visual anchor;
+- Suggested Next Actions below/supporting the queue;
+- persistent right Context Rail containing:
+  - Recent Activity;
+  - Collections Needing Attention;
+  - Quick Actions.
 
-### Normal dialogs
+Explicitly forbid composition substitutions such as:
 
-- focused, desktop-native proportions;
-- primary action normally at bottom-right;
-- Cancel / Back predictable and easy to find;
-- background UI may remain visible but inactive.
+- left rail → top navigation;
+- three-region Command Center → single-column dashboard;
+- Learning Queue → generic full-width management table;
+- right Context Rail → stacked panels at the bottom;
+- compact summary → dominant KPI dashboard.
 
-### Destructive actions
+The previously implemented pattern of top navigation + KPI tiles + full-width management table is a canonical-composition failure even if all expected content exists.
 
-- visually and spatially distinct — an outlined danger treatment, not a
-  filled default-looking button (see § 16, Buttons);
-- do not use vague "Are you sure?" wording — state consequences precisely
-  (what is deleted, how many items, whether it is recoverable);
-- destructive action is never the default focus/keyboard target (see § 17).
+## Entries & Collections
+Canonical:
 
-### Preview vs. commit
+`Entries & Collections Manager.pdf`
+→ Variant B — **Table-First**
 
-Preview must look and behave differently from committed state (e.g. a
-dashed/outlined preview treatment vs. a solid committed treatment).
+Freeze:
 
-Import preserves the existing product flow, unchanged by the UI layer:
+- Management left rail;
+- scope / Collection region;
+- toolbar;
+- dominant Entries table;
+- horizontal bottom detail region.
 
-```text
-Upload -> Validate -> Preview -> Confirm -> Import
-```
+The table must remain the visual authority. Bottom detail is supporting.
 
-Validation and data mutation are never collapsed into one opaque action.
+Forbid substitutions such as card gallery, dominant permanent right inspector, permanent editor taking over the workspace, or top-tab navigation.
 
-Linked Collection Source refresh follows the same preview-before-commit
-grammar and must communicate:
+## Review / Quiz
+Primary canonical:
 
-> Refresh finds appendable new content.
+`Review - Quiz.pdf`
+→ Variant C — **Immersive Focus**
 
-not:
+Freeze:
 
-> Make the Collection identical to the source file.
+- Management navigation disappears during active Study Mode;
+- minimal session bar;
+- generous whitespace;
+- one central learning task dominates;
+- optional Card Contents/context appears through a transient right drawer;
+- Review, Quiz, and completion states share the same Study visual language.
 
-An unavailable, moved, or unreadable linked file must not damage the
-Collection or existing Entries; the UI must offer replace/relink without
-requiring the Collection to be rebuilt (per Desktop Migration Plan § 17).
+Do not allow a persistent Study cockpit, management shell, or permanent reference sidebar to replace this composition.
 
-### Long-running work
+Secondary canonical Study view:
 
-Show: what is happening; current progress; what has already succeeded;
-whether cancellation is safe; and what remains after cancellation. Applies to
-imports, linked-file refresh analysis, backup generation, and audio
-synthesis/export.
+`Review - Quiz.pdf`
+→ Variant D — **Flip Card + Filmstrip**
 
-### Partial success
+It controls only its optional Study presentation mode and does not replace Immersive Focus as the global Study Mode authority.
 
-Partial success is a valid first-class result, not total failure. For Audio
-Export specifically, preserve the frozen M15.3 semantics:
+## Analytics
+Canonical:
 
-- outcomes are per-Card and independent: `succeeded`, `skipped`, `failed`, or
-  `unresolved`;
-- completed outputs remain completed;
-- retry targets failed/unresolved items only, not a restart of the whole
-  batch;
-- overwrite remains an explicit choice, never the default conflict policy;
-- the result is always **one Card → one audio file** — a Collection export is
-  never a single combined file.
+`Analytics - Insight.pdf`
+→ Variant A — **Learning Brief First**
 
-### Errors
+Freeze:
 
-Every error answers, in this order: (1) what happened, (2) what was not
-changed, (3) what the user can do next.
+- scope/filter controls;
+- **Learning Brief** as the dominant interpretation layer;
+- supporting evidence beneath/after it;
+- drill-down after interpretation/evidence.
 
-## 6. Theme Architecture
+Do not substitute a KPI dashboard, chart grid, Findings-table-first landing page, Evidence Landscape landing page, or global mastery score.
 
-The desktop product supports a user-selectable theme system with two
-independent axes.
+Also register these approved subordinate Analytics patterns:
 
-### 6.1 Appearance
+### Finding Inbox + Evidence Inspector
+Source: the corresponding approved Analytics exploration variant.
 
-Supported values: `System`, `Light`, `Dark`.
+Use as a reusable subordinate pattern for Full Findings / Evidence Inspection, not as the Analytics landing page.
 
-- `System` follows the OS Light/Dark preference.
-- `Light` and `Dark` are explicit user overrides.
-- **Dark Mode is independently designed and is not a simple inversion of
-  Light Mode** (see § 13).
-- Theme switching applies without an application restart.
-- Theme preference is UI/application preference state and must not mutate
-  vocabulary data, Quiz state, review evidence, analytics, or other learning
-  state.
+### Evidence Landscape
+Source: the corresponding approved Analytics exploration variant.
 
-### 6.2 Accent Families
+Use as a Collection-level evidence-comparison pattern, not as the Analytics landing page.
 
-Four curated accent families, all supported, all first-class:
+Preserve semantic distinctions such as Touched Coverage vs Interpretable Coverage and Content Knowledge vs Scope Activity.
 
-1. **Calm Blue / Slate** — default
-2. **Sage / Teal**
-3. **Indigo / Violet**
-4. **Warm Neutral**
+## Utility / Dialog Pattern Board
+Register `Utility - Dialog Patterns.pdf` as **PATTERN** authority for the approved reusable utility grammar, including:
 
-They are four moods of the same product, not four independent skins. Do not
-allow arbitrary custom RGB/hex editing unless a later milestone explicitly
-authorizes it.
+- Add/Edit focused modal/editor;
+- destructive confirmation;
+- Import Validate → Preview → Confirm;
+- Linked Source refresh preview;
+- Audio Export configuration;
+- long-running progress + cancel;
+- partial success + targeted retry;
+- empty / neutral / warning / controlled error states.
 
-## 7. Theme Controls
+## Theme validation artifacts
+Register the Theme Architecture visual validation PDF as **VALIDATION** authority.
 
-Two access levels.
+Register the Theme Contrast / Accessibility Hardening PDF as the latest **VALIDATION / numeric authority** where it supersedes earlier token/contrast values.
 
-**Quick Theme Control** — a compact popover reachable from the normal desktop
-shell:
+Theme validation must not be allowed to redefine canonical screen composition.
 
-```text
-Appearance          Accent
-○ System             ● Calm Blue
-○ Light               ○ Sage / Teal
-○ Dark                ○ Indigo / Violet
-                      ○ Warm Neutral
-```
+---
 
-Changes apply immediately. Theme controls do not permanently occupy main
-navigation space.
+# 5. Add a Non-Authoritative Exploration Registry
 
-**Settings → Appearance** — the full authoritative configuration surface for
-Appearance and Accent. Study Mode does not keep a prominent theme selector
-visible during an active Immersive Focus session (see § 14).
+Record unselected variants as **EXPLORATION ONLY** so future agents do not reinterpret them as valid alternatives.
 
-## 8. Semantic Token Architecture
+Examples include unselected Today, Entries, Review/Quiz, and Analytics variants.
 
-Theme implementation uses semantic tokens, never per-widget hard-coded
-colors. Four token layers, kept separate:
+Do not delete their historical significance, but make it explicit that they are not implementation authority.
 
-**Neutral / surface tokens** — `app-background`, `surface-primary`,
-`surface-secondary`, `surface-sunken`, `text-primary`, `text-secondary`,
-`text-muted`, `text-disabled`, `border-subtle`, `border-default`,
-`border-strong`, `overlay`, `shadow`.
+---
 
-**Accent tokens** — `accent-primary` / `on-accent-primary`, `accent-hover` /
-`on-accent-hover`, `accent-pressed` / `on-accent-pressed`, `accent-soft` /
-`on-accent-soft`, `accent-selected` / `on-accent-selected`, `accent-border`,
-`focus-ring`.
+# 6. Expand Interaction Modes and freeze chrome relationships
 
-**Semantic state tokens** — `success` / `on-success` / `success-soft`,
-`warning` / `on-warning` / `warning-soft`, `danger` / `on-danger` /
-`danger-soft`, `info` / `on-info` / `info-soft`, `quiz-correct` /
-`on-quiz-correct` / `quiz-correct-soft`, `quiz-wrong` / `on-quiz-wrong` /
-`quiz-wrong-soft`.
+Keep and strengthen Management Mode / Study Mode, and explicitly include:
 
-`quiz-correct` and `quiz-wrong` are documented aliases of the `success` and
-`danger` families rather than independently invented colors — Correct/Wrong
-remain semantic states, not a separate Study Mode palette (see § 11.3).
+- Management Mode
+- Study Mode
+- Utility / Dialog
+- Transient Overlay
 
-**Interaction-state layer** — hover, pressed, selected, focused, disabled,
-and read-only are expressed by combining the tokens above (e.g. selected row
-= `accent-soft` background + `on-accent-soft` text + `accent-primary` left
-border), never by inventing new one-off colors per component.
+Management Mode:
+- persistent vertical left Navigation Rail;
+- medium/high information density where appropriate;
+- desktop management chrome.
 
-## 9. Explicit Foreground Pair Rule
+Study Mode:
+- Management rail disappears;
+- minimal session chrome;
+- lower density / generous whitespace;
+- one learning task at a time.
 
-Freeze this rule:
+Utility/Dialog:
+- no independent navigation system;
+- focused transactional interaction.
 
-> **Every colored surface must have an explicit, compatible `on-*`
-> foreground token.**
+Transient Overlay:
+- inherits the parent screen and never creates a new shell.
 
-Never allow ad hoc combinations such as `background = accent-primary; text =
-text-muted`. Always use explicit pairs: `background = accent-primary; text =
-on-accent-primary`.
+---
 
-Current approved values happen to allow all Light accent-primary surfaces to
-share a white `on-accent-primary`, and all Dark accent-primary surfaces to
-share a dark `on-accent-primary` (see § 11.2). This may be implemented
-through aliasing/inheritance for efficiency, but:
+# 7. Add a complete Screen / Window Coverage Contract
 
-> Do not encode "Light accent always means white text" or "Dark accent
-> always means dark text" as a permanent component assumption.
+Build a comprehensive **Design Coverage Matrix** for the intended M17/M18 desktop product.
 
-The semantic `on-accent-primary` token must remain an explicit, independently
-resolvable token so a future palette adjustment can change it safely without
-touching component code.
-
-This rule was added specifically because the Milestone 16 contrast-hardening
-audit found real components (unstyled table rows and status pills) that
-silently inherited a browser-default black foreground instead of resolving an
-explicit token, producing unreadable text in Dark Mode (1.29:1 measured
-contrast). See § 11.4.
-
-## 10. Accent vs. Semantic Color
+Do not inventory only primary navigation pages.
 
-Freeze this distinction.
-
-Accent **may** influence: primary action, selected navigation, selected row
-emphasis, active tab, progress, focus ring, restrained highlights, and links.
-
-Accent **must not** redefine semantic meaning. Do not make Correct purple
-because the theme is Indigo, Delete teal because the theme is Sage, or
-Warning blue because the theme is Calm Blue.
-
-Semantic states (`success`, `warning`, `danger`/error, `info`,
-`quiz-correct`, `quiz-wrong`) remain semantically stable across all four
-accent families. They may have separate Light/Dark values for contrast, but
-never separate per-accent values. Semantic meaning is never communicated by
-color alone — pair it with labels, icons, borders, or typography.
+Include relevant:
 
-**Sage/Teal vs. Success collision** is the one flagged per-accent risk: the
-Sage accent and the semantic success green sit close in hue. Both were
-verified side by side (accent swatch next to a success chip, same page) and
-remain distinguishable by hue offset (~21°) and saturation/lightness
-difference; this pairing should get a real-use visual check again if either
-palette is ever adjusted.
+- primary workspaces;
+- Study Mode surfaces;
+- dialogs/modals;
+- drawers/side panels;
+- editors;
+- popovers;
+- preview/confirmation flows;
+- progress/result surfaces;
+- settings surfaces;
+- empty/error/partial-success states;
+- feature-specific auxiliary windows;
+- retired/integrated Streamlit-era surfaces.
 
-## 11. Frozen Theme Tokens
+Classify every surface as:
 
-> **Authority note:** these are the latest, contrast-hardened values from the
-> Milestone 16 Theme Contrast & Accessibility Hardening pass. Where any
-> earlier design artifact (including the initial Theme Architecture Visual
-> Validation pass) recorded different numeric values, **these values win.**
-> Do not revert to earlier, pre-hardening values.
+## A — Fully Specified / Canonical
+Approved full composition and visual reference.
 
-Exact hex values are the current numeric authority; the token *names* and
-*relationships* are the durable contract. A future palette refresh may adjust
-hex values as long as it re-passes the audit in § 12.
+## B — Pattern-Specified
+No dedicated full mockup, but a mandatory parent pattern/composition formula exists.
 
-### 11.1 Neutral Base
+## C — Agent-Derived
+Only where page-level design genuinely does not justify a dedicated canonical/pattern specification.
 
-| Token | Light | Dark | Notes |
-|---|---|---|---|
-| `app-background` | `#F4F3EF` | `#17181A` | outermost shell background |
-| `surface-primary` | `#FFFFFF` | `#1E2023` | main content surface (tables, cards, dialogs) |
-| `surface-secondary` | `#F8F7F4` | `#232528` | scope panels, headers, hover, sunken toolbars |
-| `surface-sunken` | `#ECEAE5` | `#131415` | recessed/inset elements (reserved; not yet exercised in a shipped component) |
-| `text-primary` | `#1C1B18` | `#EDECE8` | primary reading text |
-| `text-secondary` | `#56534C` | `#B7B4AC` | secondary/supporting text |
-| `text-muted` | `#79766D` | `#8F8D87` | de-emphasized but still-read text (captions, metadata) |
-| `text-disabled` | `#938F81` | `#726F67` | non-interactive, identifiable-only text |
-| `border-subtle` | `#E8E6E0` | `#2C2E31` | decorative dividers, no contrast requirement |
-| `border-default` | `#D9D6CE` | `#383A3D` | ordinary component borders |
-| `border-strong` | `#989486` | `#686B6F` | meaningful UI boundaries (inputs, disabled-control outlines) |
-| `overlay` | `rgba(28,27,24,.45)` | `rgba(0,0,0,.6)` | modal/dialog scrim |
-| `shadow` | soft, low-opacity, neutral-hued | soft, low-opacity, neutral-hued | elevation cue for dialogs/popovers; exact blur/spread is framework-dependent (§ 20) |
-
-`surface-elevated` (listed as a conceptual token category) is currently
-aliased to `surface-primary` for dialogs/popovers, differentiated from the
-page by `overlay` + `shadow` rather than a distinct flat color. If a future
-pass finds this insufficient for a specific elevated surface, add a fifth
-distinct tone rather than reusing `surface-primary` with an ad hoc shade.
-
-### 11.2 Accent Families (all values include explicit `on-*` pairs)
-
-| Family | Mode | `accent-primary` | `on-accent-primary` | `accent-hover` | `accent-pressed` | `accent-soft` | `on-accent-soft` | `accent-selected` |
-|---|---|---|---|---|---|---|---|---|
-| Calm Blue | Light | `#3E6690` | `#FFFFFF` | `#355A80` | `#2C4C6C` | `#E5EDF3` | `#2C4C6C` | `#DCE6EE` |
-| Calm Blue | Dark | `#82ACD4` | `#17181A` | `#93B8DA` | `#6E97BC` | `#223140` | `#B7D1E8` | `#283A4B` |
-| Sage/Teal | Light | `#4B7767` | `#FFFFFF` | `#40695A` | `#35594C` | `#E6EEEA` | `#35594C` | `#DCE9E2` |
-| Sage/Teal | Dark | `#83B09E` | `#17181A` | `#93BAAA` | `#6E9C8B` | `#21302B` | `#B7D8C9` | `#263A32` |
-| Indigo/Violet | Light | `#5C5C9B` | `#FFFFFF` | `#4E4E87` | `#414172` | `#EAEAF3` | `#414172` | `#E1E1EE` |
-| Indigo/Violet | Dark | `#9C9CCF` | `#17181A` | `#ABABD6` | `#8A8AC0` | `#292A3B` | `#C7C7E5` | `#2F3044` |
-| Warm Neutral | Light | `#8C6B4E` | `#FFFFFF` | `#7A5C42` | `#684D37` | `#F1E8DE` | `#684D37` | `#E9DDCE` |
-| Warm Neutral | Dark | `#C9A57F` | `#17181A` | `#D3B392` | `#B98F68` | `#322820` | `#E4CBAE` | `#392E24` |
-
-`accent-border` and `focus-ring` reuse `accent-primary` for their respective
-mode. `on-accent-primary` and `on-accent-hover`/`on-accent-pressed` share one
-value per Appearance (white in Light, dark in Dark) because every accent
-family was verified to keep enough contrast in both directions; this is an
-allowed aliasing per § 9, not a hard-coded assumption.
-
-### 11.3 Semantic State Tokens (independent of accent, per § 10)
-
-| Token | Light | Dark |
-|---|---|---|
-| `success` / `on-success` (solid) | `#3B764C` / `#FFFFFF` | `#74B285` / `#17181A` |
-| `success-soft` | `#E6F1E7` | `#1F2E23` |
-| `warning` / `on-warning` (solid) | `#8F631B` / `#FFFFFF` | `#CDA059` / `#17181A` |
-| `warning-soft` | `#F6ECDA` | `#332A19` |
-| `danger` / `on-danger` (solid) | `#B23A3A` / `#FFFFFF` | `#DD8080` / `#17181A` |
-| `danger-soft` | `#F7E4E3` | `#3A2323` |
-| `info` / `on-info` (solid) | `#3F6D82` / `#FFFFFF` | `#7CAFC2` / `#17181A` |
-| `info-soft` | `#E4EEF1` | `#21313A` |
-| `quiz-correct` / `quiz-correct-soft` | = `success` / `success-soft` | = `success` / `success-soft` |
-| `quiz-wrong` / `quiz-wrong-soft` | = `danger` / `danger-soft` | = `danger` / `danger-soft` |
+## Retired / Integrated
+Legacy Streamlit surfaces that must not be recreated as standalone desktop pages merely for parity.
 
-Each solid semantic color also serves as its own soft-background foreground
-(e.g. `success` text on `success-soft` background) — this pairing is audited
-in § 12, not assumed.
+Keep C deliberately small.
 
-### 11.4 Bug Found and Fixed During Hardening
-
-The contrast audit found that reusable table-row and status-pill components
-had no explicit `color` declaration and silently inherited the browser
-default (black), producing 1.29:1 contrast on a Dark Mode row — effectively
-invisible text. This is exactly the failure § 9's foreground-pair rule exists
-to prevent. The fix (explicit `text-primary` / `text-secondary` resolution on
-every reusable text-bearing component) is now a frozen implementation
-requirement, not just a styling preference — see § 13.
-
-## 12. Accessibility & Contrast Rules
-
-Accessibility is a product rule, not an optional polish step.
-
-Hard minimums:
-
-- normal text / readable muted text: **4.5:1**
-- large text and meaningful UI boundaries: **3:1**
-
-> WCAG thresholds are minimum acceptance boundaries, not preferred targets.
-
-Recommended design targets, left as engineering margin where practical:
-normal/muted readable text **≈4.7–5.0:1+**; meaningful control/focus
-boundaries **≈3.2:1+**. Do not deliberately tune a reusable token to sit
-exactly on the acceptance threshold.
-
-### Muted vs. Disabled
-
-`Muted` content is still intended to be read and must hit the 4.5:1 minimum
-(e.g. `text-muted` on `surface-primary`/`surface-secondary`). `Disabled`
-communicates non-interactivity; it may be visually weaker (Vocabulary App
-targets ≈3:1) but must remain identifiable, never invisible. They are not the
-same visual state and must not share a token.
-
-### Contrast audit (representative, computed via WCAG relative-luminance
-formulas; full pairwise audit covers all 8 Accent × Appearance combinations)
-
-| Component | Foreground | Background | Result | Status |
-|---|---|---|---|---|
-| Table row text (all themes, Dark) | `text-primary` | `surface-primary` | 13.8:1 | PASS (was 1.29:1 unstyled — fixed, § 11.4) |
-| Primary button (8 combos) | `on-accent-primary` | `accent-primary` | 4.9–7.8:1 | PASS |
-| Selected nav / selected row (8 combos) | `on-accent-soft` | `accent-soft` | 6.4–9.2:1 | PASS |
-| Muted text, Light | `text-muted` | `surface-primary`/`secondary` | 4.54–4.60:1 | PASS (was 3.31–3.54:1 — corrected) |
-| Muted text, Dark | `text-muted` | `surface-primary`/`secondary` | 4.61–4.63:1 | PASS (was 3.90–4.15:1 — corrected) |
-| Disabled text | `text-disabled` | `surface-secondary` | ≈3.0:1 | Design-target pass (informational, not full AA) |
-| Success/Warning soft-text, Light | `success`/`warning` | respective `*-soft` | 4.52–4.66:1 | PASS (was 4.25/4.31:1 — corrected) |
-| Danger/Info soft-text, Light | `danger`/`info` | respective `*-soft` | 4.78–4.82:1 | PASS (unchanged) |
-| All semantic soft-text, Dark | — | — | 5.17–5.90:1 | PASS (unchanged) |
-| `border-strong` vs `surface-primary`, Light/Dark | `border-strong` | `surface-primary` | 3.04:1 / 3.05:1 | PASS (was 2.15:1 / 1.99:1 — corrected) |
-| Decorative dividers (`border-subtle`/`border-default`) | — | — | 1.4–2.2:1 | Exempt — decorative only, no functional-boundary meaning |
-| `quiz-correct`/`quiz-wrong` text | `success`/`danger` | `surface-primary` | 5.4–6.6:1 | PASS |
-
-## 13. Dark Mode Rules
-
-Dark Mode preserves hierarchy. Especially for Table-First, keep clear
-distinction among: app background, scope pane, table, selected row, bottom
-detail, and dialog/elevated surface.
-
-Avoid:
-
-- pure black everywhere;
-- black/default browser text on dark surfaces;
-- neon accent borders;
-- glowing text;
-- gaming aesthetics.
-
-**All reusable text-bearing components must explicitly resolve a foreground
-token. Do not rely on browser/framework default foreground color** — this is
-a hard requirement, not a suggestion, following the real bug found in § 11.4.
-
-Dark Mode is a genuinely separate design, not an inverted Light Mode: its
-neutral scale, semantic colors, and accent tones were independently tuned
-(e.g. accent hues are lightened rather than kept at their Light-mode
-lightness, and semantic solids pair with dark rather than white text) so a
-naive `1 - lightness` inversion of the Light tokens would fail this contract.
-
-## 14. Study Mode Color Restraint
-
-Strong design rule. In Immersive Focus, accent may appear on: progress,
-focus, primary action, and restrained active state.
-
-Accent should **not** dominate: page background, vocabulary content surface,
-answer area, large card regions, or full-screen headers.
-
-> Changing from Calm Blue to Indigo should not dramatically increase the
-> emotional intensity of the session. Content first, theme second.
-
-Correct/Wrong remain semantic states (`quiz-correct`/`quiz-wrong`), never
-recolored by accent (per § 10).
-
-## 15. Typography, Spacing, Density, Radius
-
-Durable principles (exact pixel/pt values are framework-dependent, see § 20,
-and should be finalized against the chosen desktop framework's native text
-metrics rather than a browser-based mockup):
-
-- **Typography hierarchy**: a small number of weight/size steps (e.g.
-  page title, section header, body, secondary/metadata) is sufficient; avoid
-  inventing a large type scale.
-- **Body/readability**: body and table text sized for comfortable long-session
-  desktop reading, not web-page-dense or mobile-large.
-- **Compact metadata**: secondary text (counts, timestamps, tags) may run
-  smaller and use `text-secondary`/`text-muted`, never `text-disabled` unless
-  the item is genuinely non-interactive.
-- **Spacing scale**: a small consistent step scale (e.g. 4/8/12/16/24px-class
-  increments) applied uniformly rather than ad hoc per-component spacing.
-- **Table density**: Management Mode tables (Table-First) favor a denser row
-  height suited to scanning many Entries; Study Mode avoids table density
-  entirely.
-- **Dialog spacing**: generous enough padding to read destructive/warning
-  copy comfortably; dialogs are not shrunk to table density.
-- **Corner radius**: a single small-to-moderate radius used consistently
-  (calm, desktop-native — not the heavily rounded, card-heavy web-app look
-  rejected in § 18).
-- **Borders/dividers**: `border-subtle` for decorative separation,
-  `border-default` for ordinary component edges, `border-strong` only where
-  the boundary carries meaning (§ 12).
-- **Control height**: consistent control height across buttons/inputs within
-  a density mode so toolbars and forms align predictably.
-
-Management Mode may be denser than Study Mode; keep the system coherent
-without forcing identical density everywhere.
-
-## 16. Component / Interaction Rules
-
-Reusable behavior, described as product behavior and visual expectation, not
-framework construction steps:
-
-- **Navigation**: current location always visually distinct (accent-soft
-  selection, per § 8); hover and selected states are visually distinguishable
-  from each other, never collapsed into one treatment.
-- **Buttons**: primary (filled accent), secondary (outlined/neutral), subtle
-  (text-only), destructive (outlined danger, not filled) — see § 5 for why
-  destructive stays outlined rather than becoming the visually loudest,
-  default-focus button.
-- **Tables**: header row uses `surface-secondary` + `text-secondary`; body
-  rows always resolve an explicit foreground (§ 13); selected row combines
-  `accent-soft` background, `on-accent-soft` text, and an `accent-primary`
-  left-edge marker so selection reads correctly even for colorblind users
-  (shape + color, not color alone).
-- **Forms**: labels use `text-secondary`; inputs use `border-default` at
-  rest and `border-strong`/`accent-border` on focus; required-field and
-  validation-error states are marked by icon/label in addition to color.
-- **Dialogs**: see § 5.
-- **Inputs**: placeholder text uses `text-muted` (still legible), not
-  `text-disabled`.
-- **Selection**: consistent `accent-soft`/`on-accent-soft`/`accent-primary`
-  combination everywhere selection occurs (nav, table rows, list items,
-  chips) — one selection language, not per-screen variants.
-- **Hover**: `surface-secondary` background shift for neutral surfaces;
-  never the sole indicator of interactivity for keyboard-only users (see
-  § 17).
-- **Focus**: visible focus ring using `focus-ring`/`accent-primary` on every
-  interactive element, keyboard and mouse alike.
-- **Disabled**: `text-disabled` + `border-subtle`/reduced-opacity fill;
-  remains identifiable as a control, not removed from layout.
-- **Read-only**: visually distinct from both editable and disabled — content
-  is legible at full `text-primary`/`text-secondary` contrast but carries a
-  non-editable affordance (e.g. no input border) rather than looking
-  disabled.
-- **Loading**: neutral, restrained indicator; do not use accent-saturated
-  spinners that compete with § 14's restraint rule in Study Mode.
-- **Progress**: determinate where the operation supports it (imports, audio
-  batch export); see § 5's long-running-work requirements.
-- **Empty state**: explains what would appear here and, where applicable, the
-  action to populate it — never a bare blank area.
-- **Warnings**: `warning`/`warning-soft`, label + icon, non-blocking unless
-  the action truly requires acknowledgment.
-- **Errors**: `danger`/`danger-soft`, structured per § 5 (what happened / what
-  didn't change / what to do).
-- **Success**: `success`/`success-soft`, brief and non-intrusive — success is
-  confirmation, not celebration (consistent with § 4.3's "non-gamified").
-- **Partial success**: its own visually distinct state (not success, not
-  error) per § 5 — typically a mixed summary listing succeeded/skipped/
-  failed/unresolved counts rather than a single pass/fail badge.
-
-## 17. Keyboard & Desktop Behavior
-
-- keyboard focus is always visible (§ 16);
-- Escape reliably cancels/closes the current dialog or overlay;
-- Enter only triggers the safe/default action, and never a destructive one by
-  accident;
-- destructive actions are never a keyboard default — they require deliberate
-  selection (and, per § 5, are never the default-focused control in their
-  dialog);
-- high-frequency Review/Quiz workflows remain keyboard-friendly (e.g.
-  answer-and-advance without requiring the mouse);
-- tables and dialogs remain navigable without requiring mouse-only
-  interaction (arrow-key row movement, tab order through form fields).
-
-A complete shortcut map is not frozen here (§ 20) — only these behavioral
-guarantees.
-
-## 18. Anti-Patterns
-
-### Global
-
-- web landing-page aesthetics;
-- mobile UI stretched onto desktop;
-- excessive rounded cards;
-- decorative gradients;
-- neon AI-product styling;
-- uncontrolled color proliferation;
-- hidden state conveyed by color alone.
-
-### Today
-
-- chart-heavy business dashboard;
-- statistics visually dominating the learning queue.
-
-### Table-First
-
-- detail panel becoming more visually dominant than the table;
-- Dark Mode collapsing into one undifferentiated dark surface;
-- implicit/default foreground colors (§ 11.4, § 13).
-
-### Study Mode
-
-- full management sidebar remaining visible;
-- dense analytics or collection-management chrome;
-- large accent-filled surfaces;
-- gamified feedback that changes learning semantics.
-
-### Analytics
-
-- global mastery score;
-- opaque learner grade;
-- rainbow Findings;
-- charts dominating interpretation.
-
-### Themes
-
-- accent overriding semantic colors;
-- arbitrary foreground/background combinations;
-- Light/Dark implemented by naïve inversion;
-- theme changes modifying learning data.
-
-## 19. Visual Acceptance Criteria
-
-Concrete pass/fail criteria for reviewing a screen against this contract.
-
-**Today / Home** — PASS when the learning queue is the visual priority and
-current/resumable actions are obvious, with supporting statistics secondary.
-FAIL when statistics or charts dominate the page, or the user cannot quickly
-identify the next learning action.
-
-**Table-First** — PASS when the table clearly dominates, and the selected
-row/detail relationship is obvious, with dense browsing remaining
-comfortable. FAIL when the bottom detail panel becomes the main page,
-Dark Mode row text relies on implicit/default colors, or selected and hover
-states become indistinguishable.
-
-**Immersive Focus** — PASS when active Study Mode reduces normal application
-chrome, the current task is visually dominant, and accent remains restrained.
-FAIL when the normal management sidebar remains prominent, large accent
-surfaces dominate, or Review browsing visually implies authoritative
-completion.
-
-**Analytics** — PASS when the Learning Brief appears before supporting
-evidence and evidence/findings remain interpretable, with drill-down
-available. FAIL when a global mastery score appears, charts replace
-interpretation, or semantic Findings are reduced to colorful badges.
-
-**Utility / Dialog** — PASS when preview and commit are clearly separated,
-destructive actions state consequences, and progress/partial success are
-understandable. FAIL when import mutates data before confirmation, partial
-success is presented as total failure, or a destructive action is ambiguous
-or accidentally the default/primary control.
-
-**Theme / Accessibility** — PASS when all eight Accent × Appearance
-combinations pass the same contrast audit (§ 12), all colored surfaces
-resolve explicit compatible foregrounds (§ 9), and semantic states remain
-independent of accent (§ 10). FAIL when a theme is only tested in Calm Blue,
-Dark Mode relies on browser/framework default text colors, or text becomes
-unreadable to preserve a preferred palette value.
-
-## 20. Open Questions / Framework-Dependent Notes
-
-Kept open deliberately; do not use this section to weaken an already-approved
-decision above.
-
-- **Desktop framework**: selected and complete on `main` through M16.1 —
-  PySide6 (see § 21 and
-  [M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md)).
-  Do not read anything in this document as depending on PySide6-specific
-  implementation details; this contract still describes required
-  capabilities, not widget-level construction.
-- **Exact typography metrics** (point sizes, line-height, font family
-  fallback chain) are provisional until validated against PySide6's native
-  text rendering; § 15 states the durable structure, not final numbers.
-- **Shadow/elevation values** for dialogs and popovers are conceptually
-  frozen as tokens (§ 11.1) but their concrete blur/spread/opacity have not
-  been visually validated the way the color tokens have; validate when the
-  dialog system is actually implemented.
-- **`surface-elevated`** is currently aliased to `surface-primary` (§ 11.1);
-  revisit only if a real elevated surface proves visually indistinguishable
-  from `surface-primary` in practice.
-- **Complete keyboard shortcut map**: § 17 freezes behavioral guarantees, not
-  a full shortcut inventory — that inventory is deferred to implementation.
-  Windows platform-native shortcut/menu conventions (accelerators, system
-  menu integration) are similarly deferred.
-- **Packaging-specific theme behavior** (e.g. how `System` appearance is read
-  on each target OS) is deferred to the packaging milestones.
-
-## 21. Relationship to Framework Decision
-
-M16.1 selected PySide6 as the desktop framework and is complete on `main`
-(`ROADMAP.md` § M16.1;
-[M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md);
-Desktop Migration Plan § 3). That decision lives in the M16.1 contract, not
-here: this document's normative content remains the same required
-capabilities it described before the framework was chosen — dense tables,
-dialogs, file pickers, progress/cancel workflows, desktop navigation, theme
-tokens, keyboard focus, and dynamic Light/Dark switching — and does not
-itself encode PySide6-specific widget or API details.
-
-`DESIGN.md` is a product/UI contract. It is not a framework implementation
-manual.
-
-## 22. Document Provenance
-
-Consolidated from the Milestone 16 design-exploration sequence, in order:
-
-1. Grayscale wireframe exploration (variants A–F) for the four master
-   screens, compiled to PDF.
-2. User-approved locked master-screen decisions (§ 4 table).
-3. Utility / Dialog Pattern Board (§ 5).
-4. Theme Architecture Visual Validation — two-axis (Appearance × 4 Accent)
-   theme system, token architecture, cross-screen validation.
-5. Theme Contrast & Accessibility Hardening — WCAG-oriented contrast audit
-   and correction pass producing the token values frozen in § 11.
-
-Where the hardening pass (5) revised a numeric value set by the earlier
-validation pass (4), this document uses the hardening pass's value, per the
-explicit precedence rule stated at the top of § 11.
-
-## 23. Motion / Transition System
-
-**Status: authorized additive extension, added during M17 Feature 1 (Today
-/ Command Center). This section adds a new cross-cutting requirement; it
-does not reopen or reinterpret §§ 1–22.**
-
-### 23.1 Why
-
-Milestone 16 established the visual system; it said nothing about how the
-product moves between screens and modes. Navigation between major screens
-and modes should feel fluid, comfortable, calm, and native rather than
-abruptly swapping content.
-
-### 23.2 Design Intent
-
-Motion must feel:
-
-- subtle;
-- responsive;
-- calm;
-- purposeful;
-- visually comfortable;
-- subordinate to the content.
-
-Motion must **not** feel flashy, game-like, slow, or decorative for its own
-sake. If a transition draws attention to itself instead of the content it
-reveals, it has failed this rule.
-
-### 23.3 Where Motion Applies
-
-- workspace/page transitions (e.g. Today ↔ Entries);
-- Management-shell navigation;
-- the Management ↔ Study Mode chrome swap (§ 3);
-- lightweight reveal/change transitions where they materially improve
-  orientation.
-
-Motion is a shared desktop-shell concern, not feature-owned business logic:
-one centralized mechanism decorates transitions across every workspace and
-mode, rather than each feature inventing its own timers or animation code.
-
-Do not animate everything. Avoid unnecessary row-by-row table animation,
-gratuitous number counting, bouncing, large movement, or any motion that
-delays the user's ability to act.
-
-### 23.4 Behavioral Guarantees
-
-Motion must:
-
-- never mutate learning/domain state;
-- remain entirely outside reusable core/business modules;
-- never make a view or controller depend on animation completion for
-  correctness — the actual state change (e.g. which workspace is current)
-  always completes synchronously, before any transition decorates it;
-- preserve navigation state and focus semantics;
-- tolerate repeated/rapid navigation without leaving stale widgets, stale
-  opacity, incorrect state, or queued obsolete transitions;
-- be interruptible/replaced safely;
-- degrade cleanly when motion is reduced or disabled;
-- never block user input longer than necessary.
-
-### 23.5 Reduced Motion
-
-Motion policy is a single centrally controllable setting with three
-values — Normal, Reduced, Disabled — not a per-widget toggle. It is stored
-as a durable desktop preference alongside Appearance and Accent (§ 7),
-outside `vocab.db`, so it can be adjusted without a full Settings surface
-being required by this section. A future Settings UI may expose it; that
-is implementation scope, not a design requirement added here.
-
-### 23.6 Anti-Patterns
-
-- large sliding/bouncing page transitions;
-- per-row list/table animation on ordinary data refresh;
-- animated counters or gamified number reveals;
-- motion that must finish before the user can act;
-- a Today-only, Entries-only, or otherwise feature-specific animation
-  language;
-- accent-saturated or glowing transition effects (this would also violate
-  § 14's Study Mode color restraint once Study Mode motion is implemented).
+The matrix should cover at minimum:
+
+### M17
+- Today
+- Review
+- Quiz variants
+- Quiz completion
+- Card Contents drawer
+- Choose Quiz Type
+- session recovery/restart/cancel
+- Mistake Book / Proficient Pool launch/browse/practice
+- Entries
+- Entry add/edit
+- search/filter/sort
+- minimum Collection integration
+
+### M18
+- Collection Manager
+- Card organization
+- Collection/Card editors
+- Template Manager
+- Template Editor
+- Template Field editor
+- Review Calendar
+- Card History
+- Analytics landing
+- Full Findings
+- evidence drill-down
+- Collection evidence comparison
+- Data Tools
+- Import / Export
+- Template-definition import/export
+- Linked Source setup/status/refresh/preview/relink/error recovery
+- Backup / Restore Preview
+- Audio Export config/progress/cancel/partial-success/retry/result
+- Settings / Appearance / Storage
+- theme popover
+- relevant empty/error/warning/result states
+
+Retired/integrated examples should include, where consistent with current migration docs:
+- Streamlit Dashboard;
+- old standalone Statistics presentation;
+- Streamlit sidebar navigation;
+- Streamlit `session_state` navigation behavior;
+- legacy standalone concepts now integrated into Today/Analytics/History/Data Tools.
+
+---
+
+# 8. Define the approved reusable Parent Patterns
+
+Freeze these reusable patterns:
+
+- **P1 — Command Workspace**
+- **P2 — Table-First Manager**
+- **P3 — Immersive Study**
+- **P4 — Learning Brief / Evidence**
+- **P4A — Finding Inbox + Evidence Inspector**
+- **P4B — Evidence Landscape**
+- **P5 — Focused Editor**
+- **P6 — Utility Workflow / Dialog**
+- **P7 — Evidence Browser**
+- **P8 — Settings Form**
+
+For each pattern, define concise executable rules for:
+
+- interaction mode;
+- required regions;
+- dominant/supporting relationship;
+- density;
+- action hierarchy;
+- expected chrome;
+- closest canonical reference;
+- allowed variation.
+
+Do not turn these into widget-by-widget implementation manuals.
+
+---
+
+# 9. Add the mandatory Agent Design-Derivation Formula
+
+For Pattern-Specified and especially Agent-Derived surfaces, require a concise derivation record covering:
+
+1. Interaction Mode
+2. Parent Pattern
+3. Primary User Task
+4. Spatial Composition
+5. Dominant Region
+6. Density Rule
+7. Surface Hierarchy
+8. Action Hierarchy
+9. Editing Container
+10. Navigation / Chrome Inheritance
+11. Motion / Transition
+12. Canonical Visual Reference Relationship
+13. Native Human Acceptance Target
+
+A C-class surface may be designed by the agent only through this derivation process.
+
+“Keep the same style” is not an acceptable design specification.
+
+---
+
+# 10. Add Editing Container Decision Rules
+
+Provide clear guidance for choosing among:
+
+- inline;
+- bottom detail;
+- side drawer;
+- modal / pop-up;
+- independent focused editor workspace/window.
+
+Use principles such as:
+
+- tiny/local/reversible edit → inline;
+- preserve list context → bottom detail or drawer;
+- focused multi-field Save/Cancel task → modal;
+- complex structured editing → focused editor workspace.
+
+Freeze the current decision:
+
+> **Template Editor defaults to a focused editor workspace.**
+
+Smaller field-level edits may use modal interaction where appropriate.
+
+---
+
+# 11. Add a restrained Motion / Transition system
+
+Use one coherent motion language.
+
+Principle:
+
+> **Motion explains state change; it does not decorate the application.**
+
+Examples:
+- navigation: instant / near-instant;
+- modal/popover: subtle native transition;
+- drawer: short restrained slide;
+- Flip Card: allowed only in the optional Flip Card Study view;
+- progress: communicates process/state;
+- no decorative dashboard animation.
+
+---
+
+# 12. Add the Implementation Freedom Boundary
+
+Create three explicit scopes.
+
+## Frozen Product Design Decisions
+
+The coding agent may not independently change:
+
+- canonical screen composition;
+- navigation model;
+- approved archetype / parent pattern;
+- major regions;
+- dominant/supporting relationships;
+- Management vs Study mode/chrome;
+- major interaction containers;
+- canonical visual-reference authority;
+- product/learning/analytics semantics;
+- approved theme architecture.
+
+## Adaptable Native Implementation Details
+
+The agent may reasonably decide:
+
+- exact PySide6 widget classes;
+- layout mechanics;
+- minor pixel-level spacing;
+- exact font fallback;
+- native scrollbar behavior;
+- technical splitter/layout implementation;
+- DPI/native metrics;
+- text wrapping;
+- small dimension adjustments;
+- accessibility-compatible framework adjustments.
+
+Freeze this principle:
+
+> **Native adaptation may alter dimensions and mechanics; it may not substitute composition.**
+
+Examples:
+- adjusting column ratios is adaptation;
+- changing a three-region layout into a single-column dashboard is redesign.
+- narrowing a vertical rail is adaptation;
+- replacing it with top navigation is redesign.
+
+## Agent-Derived Design
+
+Only surfaces marked C in the Coverage Matrix may receive page-level agent design decisions, and only through the derivation formula.
+
+---
+
+# 13. Add a Design Change Gate
+
+If a coding agent finds that a frozen composition appears unsuitable under real PySide6/native constraints, it must not silently redesign.
+
+Require a Design Change Proposal containing:
+
+- Existing authority
+- Problem observed
+- Why normal native adaptation is insufficient
+- Proposed design change
+- Affected canonical references/patterns
+- semantic/workflow impact
+- human approval required
+
+Then STOP.
+
+No approved design change → no canonical composition change.
+
+---
+
+# 14. Preserve and reorganize the mature visual system
+
+Retain the current approved/hardened content for:
+
+- Appearance: System / Light / Dark
+- four curated Accent families
+- Theme controls
+- semantic token architecture
+- explicit `on-*` foreground pairs
+- Accent vs Semantic State separation
+- hardened token values
+- Dark Mode surface hierarchy
+- restrained Study Mode accent usage
+- typography / spacing / density / radius principles
+- components and interaction states
+- keyboard / desktop behavior
+- accessibility / contrast
+
+Do not invent new token values or “improve” the palette during this rewrite.
+
+Where the Theme Contrast / Accessibility Hardening artifact is the later numeric authority, preserve those hardened values.
+
+---
+
+# 15. Rewrite the Visual Acceptance Contract
+
+For canonical A-class screens, visual completion requires:
+
+> **DESIGN → Implementation Trace**
+> + **automated structural conformance**
+> + **real native-window rendering**
+> + **comparison against the registered canonical reference**
+> + **explicit human acceptance**
+
+Automated tests may be regression guards, but do not substitute human visual judgment.
+
+For each canonical master screen, define concise visual invariants and forbidden substitutions.
+
+Examples:
+
+## Management Shell
+- persistent vertical left Navigation Rail at normal desktop width;
+- top horizontal nav is not an equivalent implementation.
+
+## Today
+- central Command Workspace is largest;
+- right Context Rail remains a distinct secondary region;
+- Learning Queue is the central visual anchor;
+- compact summary is not a dominant KPI dashboard.
+
+## Entries
+- table is visually dominant;
+- detail remains subordinate and horizontal/bottom-oriented by default.
+
+## Study
+- Management chrome disappears;
+- minimal session bar + central learning task;
+- optional context is transient, not a permanent cockpit/sidebar.
+
+## Analytics
+- Learning Brief dominates;
+- evidence supports interpretation;
+- charts/tables do not become the landing-page visual authority.
+
+Define the term:
+
+> **Forbidden Composition Substitution**
+
+A composition substitution is a DESIGN failure even if the same content exists, tests pass, tokens are correct, and accessibility checks pass.
+
+---
+
+# 16. Add reusable trace templates
+
+Include concise templates for:
+
+## DESIGN → Implementation Trace
+
+Columns such as:
+- DESIGN authority
+- requirement
+- implementation decision
+- visual reference
+
+## Implementation → DESIGN Trace
+
+Columns such as:
+- implemented surface/decision
+- DESIGN authority
+- strict implementation
+- allowed adaptation
+- deferred
+
+Keep these small enough to use routinely.
+
+---
+
+# 17. Add Human Acceptance Record guidance
+
+A visual acceptance record should identify:
+
+- native surface/build shown;
+- canonical reference compared;
+- accepted/rejected;
+- issues found;
+- what remains pending.
+
+Do not create a bureaucratic approval system; create clear evidence boundaries.
+
+---
+
+# 18. Retired / Integrated UI Concepts
+
+Record legacy surfaces that must not be recreated merely for one-to-one Streamlit parity.
+
+Use the current Roadmap/Migration Plan as authority.
+
+The desktop application is not a literal Streamlit page port.
+
+---
+
+# 19. Fix stale lifecycle/framework wording
+
+The current repository lifecycle has advanced beyond some wording in the existing `DESIGN.md`.
+
+Reconcile the rewritten DESIGN with current authoritative `ROADMAP.md` and `PROJECT_STATUS.md`.
+
+Do not reopen completed M16 architecture decisions.
+
+PySide6 is selected and the M16 architecture/state boundaries are already frozen by the M16.1 architecture contract.
+
+Remove or rewrite obsolete “framework undecided” / “M16 still open” wording as appropriate.
+
+Do not modify `ROADMAP.md` or `PROJECT_STATUS.md` unless you discover a genuine current inconsistency that cannot be resolved inside `DESIGN.md`; if such an issue exists, report it before broadening scope.
+
+---
+
+# 20. Suggested v2 document structure
+
+Use this as the preferred organization unless repository evidence suggests a small improvement:
+
+## Part I — Authority & AI Coding Contract
+1. Purpose, Scope & Authority
+2. Governing Product Design Principle
+3. AI Coding Design-Conformance Rules
+4. UI Feature Design Workflow
+
+## Part II — Visual Authority System
+5. Visual Authority Levels
+6. Canonical Visual Reference Registry
+7. Non-Authoritative Exploration Registry
+
+## Part III — Product Spatial Architecture
+8. Interaction Modes
+9. Global Management Shell
+10. Canonical Screen Composition Contracts
+
+## Part IV — Screen / Window Coverage Contract
+11. Design Coverage Classification
+12. Complete Design Coverage Matrix
+
+## Part V — Reusable Design Patterns
+13. Approved Parent Patterns
+14. Utility / Dialog Grammar
+15. Editing Container Decision Rules
+16. Motion & Transition Language
+
+## Part VI — Agent-Derived Design
+17. Mandatory Design Derivation Formula
+
+## Part VII — Implementation Freedom Boundary
+18. Frozen Product Design Decisions
+19. Adaptable Native Implementation Details
+20. Design Change Gate
+
+## Part VIII — Visual System
+21. Theme Architecture
+22. Theme Controls
+23. Semantic Token Architecture
+24. Explicit Foreground Pair Rule
+25. Accent vs Semantic State
+26. Frozen Theme Tokens
+27. Dark Mode
+28. Study Mode Color Restraint
+29. Typography / Spacing / Density / Radius
+30. Components & Interaction States
+31. Keyboard & Desktop Behavior
+32. Accessibility & Contrast
+
+## Part IX — Acceptance & Evidence
+33. Visual Acceptance Contract
+34. Canonical Screen Acceptance Criteria
+35. Forbidden Composition Substitutions
+36. DESIGN → Implementation Trace Template
+37. Implementation → DESIGN Trace Template
+38. Human Acceptance Record
+
+## Part X — Governance
+39. Anti-Patterns
+40. Retired / Integrated UI Concepts
+41. Framework / Native Notes
+42. Design Provenance
+
+Keep the document coherent; do not mechanically preserve old section numbering.
+
+---
+
+# 21. Old → new migration principle
+
+Treat the current DESIGN as source material.
+
+Use this transformation:
+
+> **Preserve → relocate → consolidate → strengthen**
+
+Do not:
+
+- redesign;
+- simplify away frozen decisions;
+- invent new product behavior;
+- change semantic contracts;
+- change token values;
+- derive visual authority from the current imperfect M16.2 UI implementation;
+- turn the document into a PySide6 construction manual.
+
+The new document may be longer than the current one, but it should remain a design authority, not a widget-by-widget specification.
+
+---
+
+# 22. Visual-reference file handling
+
+Approved visual artifacts may be supplied separately during design review. Machine-specific source locations are intentionally not recorded in this document.
+
+Do **not** move, rename, copy, or commit those visual files into the repository during this rewrite unless separately authorized.
+
+A future repo-owned location may be considered, such as:
+
+`docs/design/visual-references/`
+
+but this document does not authorize that asset migration.
+
+---
+
+# 23. Scope restrictions
+
+This task is documentation-only.
+
+Do not:
+
+- modify production Python;
+- modify tests to make the current UI appear compliant;
+- implement Today/Entries/Review/Quiz/Analytics corrections;
+- alter database/schema/data;
+- change theme values;
+- start M17 implementation;
+- move visual assets;
+- perform unrelated cleanup.
+
+The current imperfect UI implementation may be cited as evidence for why stronger conformance rules are needed, but it is **not** the visual authority.
+
+---
+
+# 24. Verification before delivery
+
+Before finishing:
+
+- compare the rewritten document against the current DESIGN so mature theme/token/accessibility content was not accidentally lost;
+- verify the four canonical master-screen decisions remain exactly:
+  - Today → Command Center;
+  - Entries → Table-First;
+  - Review/Quiz → Immersive Focus primary;
+  - Analytics → Learning Brief First;
+- verify Flip Card + Filmstrip remains secondary;
+- verify Management left Navigation Rail is frozen;
+- verify the Utility Pattern Board remains authoritative;
+- verify selected Analytics subordinate patterns are correctly scoped;
+- verify unselected exploration variants are not presented as valid implementation alternatives;
+- verify hardened token values were not changed;
+- verify the document distinguishes structural proof from real human visual acceptance;
+- verify current lifecycle/framework wording matches current repository authority.
+
+No app tests are required solely because this is a documentation-only rewrite unless repository tooling has a relevant documentation check worth running.
+
+---
+
+# 25. Git review workflow
+
+Do not push directly to `main`.
+
+Use:
+
+**new documentation branch → edit → review your diff → commit → push branch → create PR → STOP**
+
+Do not merge the PR.
+
+Do not delete the branch.
+
+Do not begin UI corrective implementation.
+
+At completion, report:
+
+- branch;
+- commit SHA;
+- PR number / URL;
+- files changed;
+- approximate old/new DESIGN size;
+- sections materially added/reorganized;
+- whether any existing design decision was intentionally changed (expected answer: none, except stale lifecycle/framework wording correction);
+- whether any token value changed (expected answer: no);
+- any unresolved authority/reference ambiguity;
+- concise self-audit against the verification checklist above.
+
+Then stop for human review.
