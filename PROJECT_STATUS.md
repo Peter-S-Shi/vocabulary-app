@@ -83,15 +83,24 @@ Verification on 2026-08-16 passed:
 
 ```text
 Focused M17 Today Command Center tests: 22/22 (tests/test_m17_today_command_center.py)
-Focused M17 Motion Foundation tests: 14/14 (tests/test_m17_motion_foundation.py)
+Focused M17 Motion Foundation tests: 17/17 (tests/test_m17_motion_foundation.py)
 M16.1 + M16.2 desktop regression: 43/43
-Full repository suite: 240/240 (204 existing + 22 Today + 14 Motion)
+Full repository suite: 243/243 (204 existing + 22 Today + 17 Motion),
+  confirmed in both M16-then-M17 and M17-then-M16 process orderings
 Python compile check (all tracked .py): passed
 scripts/audit_architecture.py: 63 Python files scanned, 0 serious, 0 warnings
 scripts/check_quiz_randomization.py: passed
 tools/check_packaging_readiness.py: passed, only the expected local data/vocab.db exclusion warning
 Real (non-offscreen) native-window smoke: windows Qt platform confirmed, Today -> Entries -> rapid re-navigation, exit code 0
 ```
+
+Corrective testing while adding the Today/handoff regression coverage
+surfaced and fixed a real native crash: `TransitionManager` parented each
+animation to itself rather than to the `QGraphicsOpacityEffect` it
+animates, so an animation that outlived its target widget could crash on
+event processing. Animations are now parented to the effect they animate
+and the tracking dict keys by the widget object rather than `id(widget)`;
+both test orderings above confirm the fix.
 
 No reusable core or schema/app-data version changed. `src/learning_workflow.py`
 is unmodified; every number and recommendation Today displays comes from

@@ -23,11 +23,21 @@ That case maps to ``action="organize"`` instead. Collection management
 itself is not implemented by this contract or by Today; ``"organize"`` is
 recorded so a later checkpoint can route it correctly, the same way
 ``"quiz"`` is recorded for a future Review/Quiz checkpoint.
+
+An unrecognized ``quiz_mode`` (one that is neither of the two known Quiz
+modes nor ``"suggestion"``) maps to ``action="unknown"``, never to
+``"quiz"`` or ``"review"``. Guessing a specific action for a mode this
+contract does not yet recognize would assert semantics nobody has verified;
+``"unknown"`` lets a caller detect and handle the gap explicitly instead of
+silently mislabeling it. No current
+``get_daily_quiz_candidates()`` item reaches this branch.
 """
 
 # The two quiz_mode values get_daily_quiz_candidates() uses for an actual
 # launchable Quiz (a specific Card, or a random special-pool audit).
 _QUIZ_MODES = ("card", "random")
+
+UNKNOWN_ACTION = "unknown"
 
 
 @dataclass(frozen=True)
@@ -53,10 +63,10 @@ def learning_action_intent_from_recommendation(recommendation: dict) -> Learning
     elif quiz_mode == "suggestion":
         action = "organize"
     else:
-        # No current get_daily_quiz_candidates() item reaches this branch;
-        # kept as a safe, explicit default for an unrecognized future
-        # quiz_mode rather than silently mislabeling it as "quiz".
-        action = "review"
+        # Fail closed: an unrecognized quiz_mode is reported as unknown,
+        # never guessed at as "quiz" or "review" -- see the module
+        # docstring for why.
+        action = UNKNOWN_ACTION
     return LearningActionIntent(
         action=action,
         collection_id=recommendation.get("collection_id"),

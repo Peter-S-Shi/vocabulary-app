@@ -174,11 +174,17 @@ class M17TodayControllerProjectionTests(unittest.TestCase):
         self.assertEqual(intent.reason, "recent_entries_need_collection")
         self.assertEqual(intent.entry_count, 3)
 
-    def test_build_learning_action_intent_unrecognized_quiz_mode_falls_back_to_review(self) -> None:
+    def test_build_learning_action_intent_unrecognized_quiz_mode_fails_closed_to_unknown(self) -> None:
+        """An unrecognized future quiz_mode must not be guessed at as
+        "quiz" or "review" -- the contract fails closed to an explicit
+        "unknown" action so a caller can detect and handle the gap,
+        rather than silently asserting semantics nobody has verified."""
         controller = TodayController()
         item = {"quiz_mode": "some-future-mode-not-yet-known"}
         intent = controller.build_learning_action_intent(item)
-        self.assertEqual(intent.action, "review")
+        self.assertEqual(intent.action, "unknown")
+        self.assertNotEqual(intent.action, "review")
+        self.assertNotEqual(intent.action, "quiz")
 
 
 @unittest.skipUnless(
