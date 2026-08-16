@@ -47,12 +47,15 @@ for the full operating model, frozen semantic boundaries, and verification
 model.
 
 **Feature 1 — Today.** Its non-visual groundwork is implemented and
-retained. A **third, fresh presentation** has now been implemented from
-the replacement `DESIGN.md` design authority (`c19b686`) and its
-canonical visual reference (`Today - Home.pdf` p2, Variant A). It is
-**structurally complete and automated-conformance PASS; native human
-visual acceptance is PENDING** — per DESIGN.md § 2 Rule C, structural
-tests alone do not close a visual implementation requirement.
+retained. A **third, fresh presentation** was implemented from the
+replacement `DESIGN.md` design authority (`c19b686`) and its canonical
+visual reference (`Today - Home.pdf` p2, Variant A). It went through two
+visual-realization/calibration passes and one rendering-bug fix after
+native visual acceptance FAILs, and **is now Human Accepted** at the
+native visual acceptance gate: PASS recorded 2026-08-16 against commit
+`fdd9cc0`. Per DESIGN.md § 2, this is Level 4 — Human Accepted, the only
+level that closes a visual implementation requirement; structural tests
+alone (Level 2) never could have.
 
 Two earlier Today presentations were built and both were rejected before
 this one; that history is preserved below, not erased:
@@ -162,16 +165,37 @@ dominance, the Today region structure and dominance, and the functional-
 honesty behavior above — structural proof only, per DESIGN.md § 2 Rule C,
 not evidence that the canonical composition was visually realized.
 
+**This third presentation's own path to acceptance** (macro archetype
+confirmed correct at every review, never rebuilt from scratch):
+
+1. First native visual acceptance on the third presentation — **FAIL**:
+   under-realized (flat/borderless cards, dominant rail, queue overflow
+   hid Suggested Next Actions, no right-rail section grammar). Fixed by
+   visual-realization corrective pass #1 (`f917ccb`).
+2. Second native visual acceptance — **FAIL**: density/rhythm too
+   spacious versus the canonical sample, Suggested Next Actions read as
+   a queue row instead of a small tile, right rail read as loose text,
+   Quick Actions stretched full-width. Fixed by visual calibration pass
+   #2 (`adb6882`).
+3. Third native visual acceptance — **FAIL**: a genuine rendering bug
+   (rail labels illegible at any font size). Root cause: `QAbstractButton`
+   does not derive its `sizeHint()` from a child layout, so the rail
+   items' icon+label content was crushed into an unrenderable sliver.
+   Fixed with an explicit minimum height (`fdd9cc0`).
+4. Fourth native visual acceptance — **PASS**, 2026-08-16, against
+   `fdd9cc0`. Recorded as Human Accepted; see PR #25 for the full
+   finding-by-finding record of each pass.
+
 M17 implementation began from the verified `main` post-M16-closure commit
 `c8842e0f77199ed9d3d0a2e3c48701d4289f137e` (PR #24 merge commit).
 
-Verification for this checkpoint, on 2026-08-16:
+Verification for this checkpoint (last updated 2026-08-16, `fdd9cc0`):
 
 ```text
 Implementation: COMPLETE
 Structural conformance: PASS
 Automated design guards: PASS
-Native visual acceptance: PENDING
+Native visual acceptance: PASS (Human Accepted, fdd9cc0, 2026-08-16)
 
 Today Command Center + shell structure tests: 14/14 (tests/test_m17_today_command_center_shell.py)
 Retained Today controller/handoff tests: 14/14 (tests/test_m17_today_controller_and_handoff.py)
@@ -1490,13 +1514,11 @@ complete.
 
 ## Next Objective
 
-**Obtain native human visual acceptance for the fresh Today Command
-Center implementation.** Today has been implemented fresh from the
-replacement `DESIGN.md` (`c19b686`) and its canonical visual reference,
-and is structurally complete and automated-conformance PASS; per
-DESIGN.md § 2 Rule C, only a human reviewing the real native window can
-close a visual implementation requirement, and that review has not yet
-happened.
+**Begin Review (feature 2)**, now that Today (feature 1) has native human
+visual acceptance — PASS recorded 2026-08-16 against `fdd9cc0`, closing
+Today at DESIGN.md § 2 Level 4 (Human Accepted). Review has not started;
+this status file records the acceptance and lifecycle closure only, and
+does not itself begin Review implementation work.
 
 Milestone 16 is complete on `main` (PR #23,
 `2e900d243950ca93aedf5cbde5b836dc6e378f25`). Post-M16 lifecycle
@@ -1509,14 +1531,15 @@ rather than independent sub-milestone branches or PRs. See `ROADMAP.md`
 § Milestone 17 for the full operating model, frozen semantic boundaries,
 and verification model.
 
-Today (feature 1) is **implemented** (third presentation, fresh from the
-replacement `DESIGN.md`): its non-visual controller/handoff groundwork,
-the Motion Foundation, and now a Command Center presentation with a
-shared Management Rail are all in place. Structural conformance is PASS;
-**native human visual acceptance is PENDING** — the two earlier
-presentations were rejected at that same gate, so it is not treated as a
-formality. Review (feature 2) has not started and must not begin before
-Today is accepted. Milestone 17 is not complete.
+Today (feature 1) is **complete and Human Accepted** (third presentation,
+fresh from the replacement `DESIGN.md`): its non-visual controller/handoff
+groundwork, the Motion Foundation, and a Command Center presentation with
+a shared Management Rail are all in place, structurally conformant, and
+**native human visual acceptance PASSED** on 2026-08-16 against `fdd9cc0`
+— after two earlier presentations were rejected pre-reset and this third
+presentation itself went through two visual-calibration passes and one
+rendering-bug fix before acceptance. Review (feature 2) has not started.
+Milestone 17 is not complete.
 
 ## Repository State
 
@@ -1601,8 +1624,10 @@ Today is accepted. Milestone 17 is not complete.
   from the replacement `DESIGN.md` (`c19b686`); the two earlier
   presentations were rejected at human visual review and are preserved as
   history, not restored. **Native human visual acceptance for this third
-  presentation is PENDING.** See the M17 Draft PR for the exact head SHA
-  and the full reject/reset/fresh-implementation history.
+  presentation PASSED 2026-08-16 at head `fdd9cc0`** — Today is complete
+  and Human Accepted (DESIGN.md § 2 Level 4). See the M17 Draft PR for the
+  exact head SHA and the full reject/reset/fresh-implementation/
+  acceptance history.
 - Current lifecycle documents:
   - `ROADMAP.md`
   - `PROJECT_STATUS.md`

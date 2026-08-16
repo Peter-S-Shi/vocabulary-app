@@ -140,11 +140,12 @@ controlled-reset to the M16.2 placeholder; the replacement
 authoritative canonical visual-reference and spatial-composition
 authority for M17+. **A third, fresh Today presentation — a Command
 Center built from that authority, with a shared Management Navigation
-Rail — is now implemented and structurally conformant; native human
-visual acceptance is PENDING.** Review is the next feature in the
-sequence and must not begin before Today is accepted. Milestone 17
-overall is not complete. See § Milestone 17 below for the operating model,
-the reset history, and the current feature-sequence position.
+Rail — is now complete and Human Accepted at native visual acceptance**
+(PASS recorded 2026-08-16 against `fdd9cc0`, after two visual-calibration
+passes and one rendering-bug fix). **Review is the next feature in the
+sequence and has not started.** Milestone 17 overall is not complete. See
+§ Milestone 17 below for the operating model, the reset history, and the
+current feature-sequence position.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -876,11 +877,11 @@ architecture — M17 begins building the actual desktop product.
 
 Recommended order, each verified before proceeding to the next:
 
-1. Today — **implemented (third presentation) from the replacement
-   `DESIGN.md`; structurally conformant, native human visual acceptance
-   PENDING** (Motion Foundation and non-visual controller/handoff
-   groundwork retained; two earlier presentations were rejected)
-2. Review — next, not started; must not begin before Today is accepted
+1. Today — **complete and Human Accepted** (third presentation, from the
+   replacement `DESIGN.md`; native visual acceptance PASSED 2026-08-16
+   against `fdd9cc0`) (Motion Foundation and non-visual controller/handoff
+   groundwork retained; two earlier presentations were rejected pre-reset)
+2. Review — next, not started
 3. Quiz — not started
 4. Entries — not started (beyond the M16.2 vertical slice)
 5. minimum Collection navigation/integration required by those workflows — not started
@@ -892,9 +893,10 @@ Functional workflow migration = daily workload, due-review visibility, and
 workflow handoffs.
 Plus DESIGN.md archetype = the real Command Center implementation.
 
-**Status: implemented — a third, fresh Command Center presentation built
-from the replacement `DESIGN.md`; structurally conformant and
-automated-conformance PASS; native human visual acceptance PENDING.** On
+**Status: complete and Human Accepted — a third, fresh Command Center
+presentation built from the replacement `DESIGN.md`; structurally
+conformant, automated-conformance PASS, and native human visual
+acceptance PASSED 2026-08-16 against `fdd9cc0`.** On
 `agent/m17-desktop-core-workflow-migration`, the Motion / Transition
 Foundation (DESIGN.md § 25, a cross-cutting extension originally
 established at the initial Today checkpoint) and Today's non-visual
@@ -907,9 +909,14 @@ visual-reference and spatial-composition authority for M17+. The current
 presentation — a shared vertical left Management Navigation Rail plus a
 three-region Today Command Center (compact summary, dominant Learning
 Queue, Suggested Next Actions, right Context Rail) — was derived fresh
-from that authority, not from either rejected attempt. Do not mark Today
-or Milestone 17 complete until a human has reviewed the real native
-window and accepted it.
+from that authority, not from either rejected attempt. This third
+presentation itself went through two visual-realization/calibration
+passes (`f917ccb`, `adb6882`) and one rendering-bug fix (`fdd9cc0`, a
+`QAbstractButton.sizeHint()` gap that crushed the rail's labels
+illegible) after native visual acceptance FAILs, each verified against
+the real running window, not the implementation trace. **Today is
+Milestone 17's first accepted feature; Milestone 17 overall is not
+complete.**
 
 #### Review
 
