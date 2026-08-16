@@ -1514,12 +1514,13 @@ complete.
 
 ## Next Objective
 
-**Begin Quiz (feature 3)**, now that Review (feature 2) has native human
-visual acceptance — PASS recorded 2026-08-16 against `38d53d2`, closing
-Review at DESIGN.md § 2 Level 4 (Human Accepted), after one corrective
-patch for a functional-honesty finding on the Choose Quiz Type
-confirmation. This status file records the acceptance and lifecycle
-closure only, and does not itself begin Quiz implementation work.
+**Independently review and obtain native human visual acceptance for
+Quiz (feature 3)**, now implemented on the same branch against
+`VR-STUDY-001` (`Review - Quiz.pdf` p4 Variant C, parent pattern P3 --
+Immersive Study). Structural conformance and automated design guards are
+PASS; native visual acceptance is PENDING. Do not mark Quiz or Milestone
+17 complete, and do not begin Entries (feature 4), until that review and
+acceptance both close.
 
 Milestone 16 is complete on `main` (PR #23,
 `2e900d243950ca93aedf5cbde5b836dc6e378f25`). Post-M16 lifecycle
@@ -1548,17 +1549,29 @@ and factual completed-Quiz history entirely through existing
 the frozen Immersive Focus composition (Management Rail hidden, one
 minimal session bar, one dominant learning surface, a transient right
 Card Contents/History drawer reusing the shared `TransitionManager`).
-Quick Quiz and Choose Quiz Type both built a real, typed
-`QuizLaunchIntent`, and neither fabricated a Quiz launch, session, or
-completion event while Quiz did not yet exist: Quick Quiz stayed disabled
-with an explanatory tooltip, while Choose Quiz Type's "Start Quiz" was a
-real, enabled, clickable confirmation that answered with a persistent,
-explicit unavailable message rather than a passive disabled control
-(corrected after a Review human-acceptance functional-honesty finding).
 **Native human visual acceptance PASSED** on 2026-08-16 against `38d53d2`.
 Browsing a Card created no Quiz session and touched no legacy
-`src/review.py` scheduling state (regression-tested). Quiz (feature 3) has
-not started. Milestone 17 is not complete.
+`src/review.py` scheduling state (regression-tested).
+
+Quiz (feature 3) is **implemented, pending independent review and native
+human visual acceptance**: `QuizController` owns active-session
+presentation state only, calling existing `src.quiz`/`src.template_quiz`
+functions for every session/generation/grading/completion step (no SQL,
+no duplicated grading logic). It preserves all nine current Quiz families
+(term/meaning self-graded and MCQ, mixed MCQ, Matching, and the three
+template-aware modes), the single-global-active-session guard, duplicate-
+submission protection, and Mistake Book/Proficient Pool side effects.
+Plain Matching stays whole-Collection only (normalized inside the
+controller even if a Card-scoped intent slips through); template-aware
+Matching stays Card-scoped, since no core function generates a
+whole-Collection template-matching set. Review's Quick Quiz / Choose Quiz
+Type and Today's Learning Queue "quiz" action now perform a real launch
+through this one controller instead of the transitional honest-
+unavailable state. `QuizView` implements the Immersive Focus session bar,
+self-graded/MCQ/Matching task surfaces, a P6 restart/cancel confirmation,
+a foreign-active-session recovery notice (never a fake resume), and a
+compact completion summary (Return to Today / Next Card / Review
+Mistakes). Milestone 17 is not complete.
 
 ## Repository State
 
@@ -1655,19 +1668,30 @@ not started. Milestone 17 is not complete.
   drawer. Reads only existing reusable core
   (`src.learning_workflow.get_study_cards`/`get_card_learning_history`,
   `src.collections.get_card_groups_for_collection`); never calls the
-  legacy `src/review.py` SRS scheduler. Quick Quiz and Choose Quiz Type
-  both built a real, typed `QuizLaunchIntent` (`state/handoff.py`); neither
-  fabricated a Quiz launch, session, or completion event while Quiz did
-  not yet exist: Quick Quiz stayed disabled with an explanatory tooltip,
-  and Choose Quiz Type's "Start Quiz" was a real, enabled, clickable
-  confirmation that answered with a persistent, explicit unavailable
-  message rather than a passive disabled control (corrected after a
-  Review human-acceptance functional-honesty finding). **Native human
-  visual acceptance PASSED 2026-08-16 at head `38d53d2`** — Review is
-  complete and Human Accepted (DESIGN.md § 2 Level 4). Review is
-  Milestone 17's second accepted feature; Quiz (feature 3) has not
-  started. See the M17 Draft PR for the full corrective-patch and
+  legacy `src/review.py` SRS scheduler. **Native human visual acceptance
+  PASSED 2026-08-16 at head `38d53d2`** — Review is complete and Human
+  Accepted (DESIGN.md § 2 Level 4), Milestone 17's second accepted
+  feature. See the M17 Draft PR for the full corrective-patch and
   acceptance history.
+- M17 feature 3 (Quiz): `QuizController` + `QuizView` implement the
+  native session/grading/completion workflow against `VR-STUDY-001`
+  (`Review - Quiz.pdf` p4 Variant C, parent pattern P3 -- Immersive
+  Study). Reads/writes only through existing reusable core
+  (`src.quiz.create_quiz_session`/`create_quiz_items`/
+  `generate_mcq_items`/`generate_matching_items`/`record_quiz_answer`/
+  `mark_quiz_session_completed`, `src.template_quiz.
+  generate_template_multi_rule_quiz_items`); no SQL, no duplicated
+  grading logic. Preserves all nine current Quiz families, the
+  single-global-active-session guard, duplicate-submission protection,
+  and Mistake Book/Proficient Pool side effects; plain Matching stays
+  whole-Collection only (normalized in-controller), template-aware
+  Matching stays Card-scoped. Review's Quick Quiz / Choose Quiz Type and
+  Today's Learning Queue "quiz" action now perform a real launch through
+  this one controller, replacing the M17 Feature 2 corrective patch's
+  transitional honest-unavailable state. **Implemented on
+  `agent/m17-desktop-core-workflow-migration`, pending independent review
+  and native human visual acceptance.** See the M17 Draft PR for the
+  exact reviewed head SHA.
 - Current lifecycle documents:
   - `ROADMAP.md`
   - `PROJECT_STATUS.md`
@@ -1700,11 +1724,13 @@ not started. Milestone 17 is not complete.
   Human Accepted** (native visual acceptance PASSED 2026-08-16 against
   `fdd9cc0`); Review (feature 2) is **complete and Human Accepted**
   (native visual acceptance PASSED 2026-08-16 against `38d53d2`, after one
-  corrective patch for a functional-honesty finding); Quiz (feature 3) has
-  not started; M17 not complete.**
+  corrective patch for a functional-honesty finding); Quiz (feature 3) is
+  **implemented, pending independent review and native human visual
+  acceptance**; M17 not complete.**
 - Exact next objective:
-  **Implement Quiz (feature 3) — native Quiz session migration and the
-  real Review/Today → Quiz launch integration — on the same branch
-  (`agent/m17-desktop-core-workflow-migration`) and Draft PR #25. Do not
-  mark Quiz or Milestone 17 complete before native human visual
-  acceptance.**
+  **Independently review the native Quiz session/grading/completion
+  checkpoint on the M17 Draft PR (branch
+  `agent/m17-desktop-core-workflow-migration`), then obtain native human
+  visual acceptance against `VR-STUDY-001` (`Review - Quiz.pdf` p4 Variant
+  C). Do not mark Quiz or Milestone 17 complete, and do not begin Entries
+  (feature 4), until both close.**

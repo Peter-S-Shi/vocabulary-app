@@ -37,7 +37,8 @@ if PYSIDE6_AVAILABLE:
     from src.ui_desktop.main_window import MainWindow
     from src.ui_desktop.state.app_state import Workspace
     from src.ui_desktop.theming.metrics import CONTEXT_RAIL_WIDTH, NAV_RAIL_WIDTH
-    from src.ui_desktop.views.today_view import QUIZ_UNAVAILABLE_TOOLTIP, TodayView
+    from src.ui_desktop.state.handoff import QuizLaunchIntent
+    from src.ui_desktop.views.today_view import TodayView
     from src.ui_desktop.widgets.navigation_rail import (
         PRIMARY_DESTINATIONS,
         SETTINGS_DESTINATION,
@@ -227,15 +228,16 @@ class TodayViewRegionStructureTests(_SyntheticDatabaseTestCase):
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
 class TodayViewFunctionalHonestyTests(_SyntheticDatabaseTestCase):
-    """M17 Feature 1 fresh-implementation prompt § 9: quiz/review-bound
-    actions must render honestly disabled (Review/Quiz is not
-    implemented); only the real Entries destination is a live action."""
+    """M17 Feature 1 fresh-implementation prompt § 9, updated by M17
+    Feature 3: a Learning Queue "quiz" action now has a real, data-complete
+    target and launches a real Quiz; only genuinely under-specified/
+    unsupported actions stay honestly disabled."""
 
     @classmethod
     def setUpClass(cls) -> None:
         cls.app = _qt_app()
 
-    def test_never_quizzed_queue_item_renders_disabled_quiz_button(self) -> None:
+    def test_never_quizzed_queue_item_renders_enabled_quiz_button_that_launches(self) -> None:
         entry_a = add_entry("French", "English", "word", "chat", "cat")
         entry_b = add_entry("French", "English", "word", "chien", "dog")
         collection_id = create_collection("Shell Test Collection", card_size=2)
@@ -258,11 +260,22 @@ class TodayViewFunctionalHonestyTests(_SyntheticDatabaseTestCase):
             for card in cards
             for button in card.findChildren(QWidget)
             if getattr(button, "objectName", lambda: "")() == "today-action-button"
-            and not button.isEnabled()
+            and button.text() == "Quiz"
         ]
         self.assertGreater(len(quiz_buttons), 0)
         for button in quiz_buttons:
-            self.assertEqual(button.toolTip(), QUIZ_UNAVAILABLE_TOOLTIP)
+            self.assertTrue(button.isEnabled())
+
+        received: list[object] = []
+        view.quiz_launch_requested.connect(received.append)
+        quiz_buttons[0].click()
+
+        self.assertEqual(len(received), 1)
+        intent = received[0]
+        self.assertIsInstance(intent, QuizLaunchIntent)
+        self.assertEqual(intent.collection_id, collection_id)
+        self.assertEqual(intent.card_number, 1)
+        self.assertEqual(intent.source, "today_queue")
 
     def test_organize_suggestion_button_is_enabled_and_navigates_to_entries(self) -> None:
         add_entry("French", "English", "word", "loup", "wolf")  # uncollected -> recent-entries suggestion

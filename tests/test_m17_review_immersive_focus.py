@@ -8,7 +8,7 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
-    from PySide6.QtWidgets import QApplication, QWidget
+    from PySide6.QtWidgets import QApplication, QDialog, QWidget
 
     PYSIDE6_AVAILABLE = True
 except ImportError:  # pragma: no cover - exercised only when PySide6 is absent
@@ -40,11 +40,7 @@ if PYSIDE6_AVAILABLE:
     from src.ui_desktop.main_window import MainWindow
     from src.ui_desktop.motion.transitions import TransitionManager
     from src.ui_desktop.state.app_state import ShellMode, Workspace
-    from src.ui_desktop.state.handoff import (
-        QUIZ_UNAVAILABLE_MESSAGE,
-        QUIZ_UNAVAILABLE_TOOLTIP,
-        QuizLaunchIntent,
-    )
+    from src.ui_desktop.state.handoff import QuizLaunchIntent
     from src.ui_desktop.views.review_view import ReviewView
 
     def _qt_app() -> QApplication:
@@ -235,23 +231,56 @@ class ReviewControllerQuizHandoffTests(_SyntheticDatabaseTestCase):
         self.assertIsNotNone(intent.card_id)
 
     def test_choose_quiz_type_intent_uses_selected_type(self) -> None:
-        self._make_card([("chat", "cat")])
+        collection_id, _ = self._make_card([("chat", "cat")])
         controller = ReviewController()
         controller.open_default()
-        intent = controller.build_choose_quiz_type_intent("matching")
-        self.assertEqual(intent.quiz_type, "matching")
+        intent = controller.build_choose_quiz_type_intent("term_to_meaning_mcq")
+        self.assertEqual(intent.quiz_type, "term_to_meaning_mcq")
         self.assertEqual(intent.source, "review_choose_quiz_type")
+        self.assertEqual(intent.collection_id, collection_id)
+        self.assertEqual(intent.card_number, 1)
+
+    def test_choose_quiz_type_matching_is_forced_whole_collection(self) -> None:
+        """M17 Feature 3 compatibility check: plain Matching is
+        whole-Collection only in the current product (Streamlit always
+        forces card_number=0 for it) -- never Card-scoped, regardless of
+        which Card Review currently displays."""
+        collection_id, _ = self._make_card([("chat", "cat"), ("chien", "dog"), ("pomme", "apple"), ("poire", "pear")])
+        controller = ReviewController()
+        controller.open_default()
+        intent = controller.build_choose_quiz_type_intent("matching", matching_item_count=4)
+        self.assertEqual(intent.quiz_type, "matching")
+        self.assertEqual(intent.card_number, 0)
+        self.assertIsNone(intent.card_id)
+        self.assertEqual(intent.item_count, 4)
+
+    def test_matching_item_count_options_bounded_by_collection_size(self) -> None:
+        self._make_card([("chat", "cat"), ("chien", "dog"), ("pomme", "apple")])
+        controller = ReviewController()
+        controller.open_default()
+        options = controller.matching_item_count_options()
+        self.assertTrue(all(option <= 3 for option in options))
 
     def test_quiz_intents_are_none_without_a_current_card(self) -> None:
         controller = ReviewController()
         controller.open_default()  # empty database
         self.assertIsNone(controller.build_quick_quiz_intent())
-        self.assertIsNone(controller.build_choose_quiz_type_intent("matching"))
+        self.assertIsNone(controller.build_choose_quiz_type_intent("term_to_meaning"))
 
-    def test_quiz_type_options_match_core_quiz_types(self) -> None:
+    def test_quiz_type_options_are_plain_types_only(self) -> None:
+        """Template-aware types are offered through a separate template
+        picker (available_template_sources/template_rules), not this flat
+        list -- see ReviewDialogTests for the template flow."""
         controller = ReviewController()
-        self.assertEqual(set(controller.quiz_type_options()), set(quiz.QUIZ_TYPES.keys()))
+        plain_types = {qt for qt in quiz.QUIZ_TYPES if not qt.startswith("template_field_")}
+        self.assertEqual(set(controller.quiz_type_options()), plain_types)
         self.assertEqual(set(QUIZ_TYPE_LABELS.keys()), set(quiz.QUIZ_TYPES.keys()))
+
+    def test_no_template_sources_for_a_plain_collection(self) -> None:
+        self._make_card([("chat", "cat")])
+        controller = ReviewController()
+        controller.open_default()
+        self.assertEqual(controller.available_template_sources(), [])
 
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
@@ -362,8 +391,8 @@ class ReviewViewStructureTests(_SyntheticDatabaseTestCase):
         self.assertIn("Card 1", view._context_label.text())
         self.assertEqual(view._progress_label.text(), "Review 1/2")
 
-    def test_quick_quiz_button_is_disabled_with_honest_tooltip(self) -> None:
-        self._make_card([("chat", "cat")])
+    def test_quick_quiz_button_launches_a_real_quiz(self) -> None:
+        collection_id, _ = self._make_card([("chat", "cat")])
         controller = ReviewController()
         view = ReviewView(controller)
         self.addCleanup(view.deleteLater)
@@ -375,8 +404,15 @@ class ReviewViewStructureTests(_SyntheticDatabaseTestCase):
             if getattr(widget, "objectName", lambda: "")() == "review-quick-quiz-button"
         ]
         self.assertEqual(len(buttons), 1)
-        self.assertFalse(buttons[0].isEnabled())
-        self.assertEqual(buttons[0].toolTip(), QUIZ_UNAVAILABLE_TOOLTIP)
+        self.assertTrue(buttons[0].isEnabled())
+
+        received: list[object] = []
+        view.quiz_launch_requested.connect(received.append)
+        buttons[0].click()
+
+        self.assertEqual(len(received), 1)
+        self.assertEqual(received[0].source, "review_quick_quiz")
+        self.assertEqual(received[0].collection_id, collection_id)
 
     def test_previous_next_buttons_respect_bounds(self) -> None:
         self._make_card([("chat", "cat"), ("chien", "dog")])
@@ -508,58 +544,69 @@ class ReviewDialogTests(_SyntheticDatabaseTestCase):
 
         self.assertIn("no longer available", dialog._warning_label.text())
 
-    def test_choose_quiz_type_dialog_updates_intent_on_selection(self) -> None:
+    def test_start_button_launches_the_selected_type_and_closes(self) -> None:
+        """M17 Feature 3: replaces the transitional honest-unavailable
+        message -- confirming a real choice now performs a real launch."""
         from src.ui_desktop.views.review_view import _ChooseQuizTypeDialog
 
-        self._make_card([("chat", "cat")])
+        collection_id, _ = self._make_card([("chat", "cat")])
         controller = ReviewController()
         controller.open_default()
 
         dialog = _ChooseQuizTypeDialog(controller)
         self.addCleanup(dialog.deleteLater)
-        matching_index = dialog._type_combo.findData("matching")
-        self.assertGreaterEqual(matching_index, 0)
-        dialog._type_combo.setCurrentIndex(matching_index)
+        mcq_index = dialog._type_combo.findData("term_to_meaning_mcq")
+        self.assertGreaterEqual(mcq_index, 0)
+        dialog._type_combo.setCurrentIndex(mcq_index)
 
-        self.assertEqual(dialog.selected_intent.quiz_type, "matching")
-
-    def test_choose_quiz_type_dialog_start_button_is_enabled(self) -> None:
-        """Corrective finding from Review human acceptance: a passive
-        disabled button after a deliberate choose-then-confirm flow did
-        not clearly tell the user anything. Confirming is now a real,
-        clickable action (see the next test for what clicking it does)."""
-        from src.ui_desktop.views.review_view import _ChooseQuizTypeDialog
-
-        self._make_card([("chat", "cat")])
-        controller = ReviewController()
-        controller.open_default()
-
-        dialog = _ChooseQuizTypeDialog(controller)
-        self.addCleanup(dialog.deleteLater)
+        received: list[object] = []
+        dialog.launch_requested.connect(received.append)
         start_button = next(
             w
             for w in dialog.findChildren(QWidget)
             if getattr(w, "objectName", lambda: "")() == "review-choose-quiz-type-start-button"
         )
         self.assertTrue(start_button.isEnabled())
+        start_button.click()
 
-    def test_confirming_shows_unavailable_message_without_session_or_navigation(self) -> None:
+        self.assertEqual(len(received), 1)
+        self.assertEqual(received[0].quiz_type, "term_to_meaning_mcq")
+        self.assertEqual(received[0].collection_id, collection_id)
+        self.assertEqual(dialog.result(), QDialog.DialogCode.Accepted)
+
+    def test_matching_selection_reveals_item_count_combo(self) -> None:
         from src.ui_desktop.views.review_view import _ChooseQuizTypeDialog
 
-        self._make_card([("chat", "cat")])
+        self._make_card([("chat", "cat"), ("chien", "dog"), ("pomme", "apple"), ("poire", "pear")])
         controller = ReviewController()
         controller.open_default()
-        with db.get_connection() as connection:
-            sessions_before = connection.execute("SELECT COUNT(*) AS n FROM quiz_sessions").fetchone()["n"]
 
         dialog = _ChooseQuizTypeDialog(controller)
         self.addCleanup(dialog.deleteLater)
-        # A standalone QDialog never constructed with .show()/.exec() has no
-        # shown ancestor chain, so isVisible() would report False regardless
-        # of setVisible() -- isHidden() reflects this widget's own explicit
-        # shown/hidden flag directly, independent of that chain.
-        self.assertTrue(dialog._unavailable_message.isHidden())
+        self.assertTrue(dialog._matching_count_combo.isHidden())
 
+        matching_index = dialog._type_combo.findData("matching")
+        self.assertGreaterEqual(matching_index, 0)
+        dialog._type_combo.setCurrentIndex(matching_index)
+
+        self.assertFalse(dialog._matching_count_combo.isHidden())
+
+    def test_matching_launch_is_whole_collection_not_card_scoped(self) -> None:
+        from src.ui_desktop.views.review_view import _ChooseQuizTypeDialog
+
+        collection_id, _ = self._make_card(
+            [("chat", "cat"), ("chien", "dog"), ("pomme", "apple"), ("poire", "pear")], card_size=1
+        )
+        controller = ReviewController()
+        controller.open_default()
+
+        dialog = _ChooseQuizTypeDialog(controller)
+        self.addCleanup(dialog.deleteLater)
+        matching_index = dialog._type_combo.findData("matching")
+        dialog._type_combo.setCurrentIndex(matching_index)
+
+        received: list[object] = []
+        dialog.launch_requested.connect(received.append)
         start_button = next(
             w
             for w in dialog.findChildren(QWidget)
@@ -567,14 +614,12 @@ class ReviewDialogTests(_SyntheticDatabaseTestCase):
         )
         start_button.click()
 
-        self.assertFalse(dialog._unavailable_message.isHidden())
-        self.assertEqual(dialog._unavailable_message.text(), QUIZ_UNAVAILABLE_MESSAGE)
-        # Confirming never fabricates a Quiz launch: no session created.
-        with db.get_connection() as connection:
-            sessions_after = connection.execute("SELECT COUNT(*) AS n FROM quiz_sessions").fetchone()["n"]
-        self.assertEqual(sessions_before, sessions_after)
+        self.assertEqual(len(received), 1)
+        self.assertEqual(received[0].quiz_type, "matching")
+        self.assertEqual(received[0].card_number, 0)
+        self.assertEqual(received[0].collection_id, collection_id)
 
-    def test_changing_quiz_type_clears_a_previous_unavailable_message(self) -> None:
+    def test_template_section_hidden_when_no_eligible_sources(self) -> None:
         from src.ui_desktop.views.review_view import _ChooseQuizTypeDialog
 
         self._make_card([("chat", "cat")])
@@ -583,18 +628,36 @@ class ReviewDialogTests(_SyntheticDatabaseTestCase):
 
         dialog = _ChooseQuizTypeDialog(controller)
         self.addCleanup(dialog.deleteLater)
+        self.assertIsNone(dialog._template_checkbox)
+        self.assertIsNone(dialog._template_section)
+
+    def test_start_without_touching_template_section_uses_plain_type(self) -> None:
+        from src.template_quiz import get_available_template_quiz_sources_for_card
+        from src.ui_desktop.views.review_view import _ChooseQuizTypeDialog
+
+        collection_id, _ = self._make_card([("chat", "cat")])
+        controller = ReviewController()
+        controller.open_default()
+        # No entry in this synthetic Card uses a rule-eligible template, so
+        # the template section never appears -- this test only proves the
+        # plain-type path stays safe when template use is (correctly)
+        # unavailable, matching test_template_section_hidden_when_no_eligible_sources.
+        self.assertEqual(get_available_template_quiz_sources_for_card(collection_id, 1), [])
+
+        dialog = _ChooseQuizTypeDialog(controller)
+        self.addCleanup(dialog.deleteLater)
+        received: list[object] = []
+        dialog.launch_requested.connect(received.append)
         start_button = next(
             w
             for w in dialog.findChildren(QWidget)
             if getattr(w, "objectName", lambda: "")() == "review-choose-quiz-type-start-button"
         )
         start_button.click()
-        self.assertFalse(dialog._unavailable_message.isHidden())
-
-        other_index = 1 if dialog._type_combo.currentIndex() != 1 else 0
-        dialog._type_combo.setCurrentIndex(other_index)
-
-        self.assertTrue(dialog._unavailable_message.isHidden())
+        # Falls through to the plain-type path (the default selection),
+        # which is a valid launch -- proving the absence of a template
+        # section never blocks a normal Choose Quiz Type flow.
+        self.assertEqual(len(received), 1)
 
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")

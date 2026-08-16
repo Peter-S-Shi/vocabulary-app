@@ -3,11 +3,13 @@ from __future__ import annotations
 from PySide6.QtWidgets import QHBoxLayout, QMainWindow, QStackedWidget, QToolBar, QWidget
 
 from src.ui_desktop.controllers.entries_controller import EntriesController
+from src.ui_desktop.controllers.quiz_controller import QuizController
 from src.ui_desktop.controllers.review_controller import ReviewController
 from src.ui_desktop.controllers.today_controller import TodayController
 from src.ui_desktop.motion.transitions import TransitionManager
 from src.ui_desktop.state.app_state import AppState, ShellMode, Workspace
 from src.ui_desktop.views.entries_view import EntriesView
+from src.ui_desktop.views.quiz_view import QuizView
 from src.ui_desktop.views.review_view import ReviewView
 from src.ui_desktop.views.today_view import TodayView
 from src.ui_desktop.widgets.navigation_rail import NavigationRail
@@ -15,18 +17,26 @@ from src.ui_desktop.widgets.navigation_rail import NavigationRail
 """
 QMainWindow shell: the shared vertical left Management Navigation Rail
 (DESIGN.md § 5, `VR-SHELL-001`) plus the Management Mode <-> Study Mode
-chrome swap (M16.1 contract § 8). M17 Feature 2 (Review) is the first real
-Study Mode content; Quiz remains out of scope for this checkpoint.
+chrome swap (M16.1 contract § 8). Review and, since M17 Feature 3, Quiz
+are both real Study Mode content sharing the same chrome-swap mechanism.
 
-Review supplies its own complete session bar (DESIGN.md § 6.3's "a
-minimal session bar remains" -- singular), so the generic `_study_toolbar`
-built for the M16.2/M17-Feature-1 chrome-swap proof is suppressed
-specifically while the Review workspace is active, rather than stacking a
-second bar above Review's own. It remains available for `mode=STUDY`
-combined with any other workspace (still exercised by
+Review and Quiz each supply their own complete session bar (DESIGN.md
+§ 6.3's "a minimal session bar remains" -- singular), so the generic
+`_study_toolbar` built for the M16.2/M17-Feature-1 chrome-swap proof is
+suppressed specifically while either workspace is active, rather than
+stacking a second bar above their own. It remains available for
+`mode=STUDY` combined with any other workspace (still exercised by
 `tests/test_m16_2_desktop_vertical_slice.py`'s structural chrome-swap
 tests, which use the synthetic `workspace=TODAY, mode=STUDY` combination
 that predates any real Study content).
+
+Quiz has no rail entry point of its own -- it is only ever reached through
+a real launch request (Review's Quick Quiz / Choose Quiz Type, or a Today
+Learning Queue item), each producing a `QuizLaunchIntent`
+(`state/handoff.py`) that `_start_quiz()` hands to the one shared
+`QuizController`. Review and Today never talk to `src.quiz`/
+`src.template_quiz` directly, and neither invents its own session
+machinery (M17 Feature 3 prompt § 11).
 
 `AppState` is the single source of truth for the active workspace and
 shell mode (M16.1 contract § 11.C). `MainWindow` never keeps an
@@ -70,21 +80,31 @@ class MainWindow(QMainWindow):
         self.today_controller = TodayController()
         self.entries_controller = EntriesController()
         self.review_controller = ReviewController()
+        self.quiz_controller = QuizController()
 
         self.today_view = TodayView(self.today_controller)
         self.today_view.navigate_to_entries_requested.connect(
             lambda: self.app_state.request_navigation(Workspace.ENTRIES)
         )
+        self.today_view.navigate_to_review_requested.connect(self._enter_review)
+        self.today_view.quiz_launch_requested.connect(self._start_quiz)
         self.entries_view = EntriesView(self.entries_controller)
         self.review_view = ReviewView(self.review_controller)
         self.review_view.set_motion(self._motion)
         self.review_view.exit_requested.connect(self._exit_study_mode)
         self.review_view.navigate_to_entries_requested.connect(self._exit_study_mode_to_entries)
+        self.review_view.quiz_launch_requested.connect(self._start_quiz)
+        self.quiz_view = QuizView(self.quiz_controller)
+        self.quiz_view.exit_requested.connect(self._exit_study_mode)
+        self.quiz_view.return_to_today_requested.connect(self._on_quiz_return_to_today)
+        self.quiz_view.next_card_requested.connect(self._on_quiz_next_card)
+        self.quiz_view.review_mistakes_requested.connect(self._on_quiz_review_mistakes)
 
         self._workspace_stack = QStackedWidget(self)
         self._workspace_stack.addWidget(self.today_view)
         self._workspace_stack.addWidget(self.entries_view)
         self._workspace_stack.addWidget(self.review_view)
+        self._workspace_stack.addWidget(self.quiz_view)
 
         self._last_management_workspace = Workspace.TODAY
 
@@ -124,8 +144,43 @@ class MainWindow(QMainWindow):
         elif destination_key == "entries":
             self.app_state.request_navigation(Workspace.ENTRIES)
         elif destination_key == "study":
-            self.app_state.request_navigation(Workspace.REVIEW)
-            self.app_state.enter_study_mode()
+            self._enter_review()
+
+    def _enter_review(self) -> None:
+        self.app_state.request_navigation(Workspace.REVIEW)
+        self.app_state.enter_study_mode()
+
+    def _start_quiz(self, intent) -> None:
+        """The single entry point every Quiz launch source goes through
+        (module docstring). ``QuizController.start()`` never raises -- a
+        blocked or failed start still navigates to the Quiz workspace, which
+        renders whichever honest state resulted (module docstring;
+        QuizView._render)."""
+        self.quiz_controller.start(intent)
+        self.app_state.request_navigation(Workspace.QUIZ)
+        self.app_state.enter_study_mode()
+
+    def _on_quiz_return_to_today(self) -> None:
+        self.quiz_controller.acknowledge_completion()
+        self._exit_study_mode()
+
+    def _on_quiz_next_card(self) -> None:
+        self.quiz_controller.acknowledge_completion()
+        self.app_state.request_navigation(Workspace.REVIEW)
+        self.review_controller.open_default()
+
+    def _on_quiz_review_mistakes(self) -> None:
+        # Read the completed session's Card context before resetting it --
+        # acknowledge_completion() clears completed_session.
+        session = self.quiz_controller.completed_session
+        collection_id = session.get("collection_id") if session else None
+        card_number = session.get("card_number") if session else None
+        self.quiz_controller.acknowledge_completion()
+        self.app_state.request_navigation(Workspace.REVIEW)
+        if collection_id and card_number:
+            self.review_controller.open_card(collection_id, card_number)
+        else:
+            self.review_controller.open_default()
 
     def _build_study_toolbar(self) -> QToolBar:
         toolbar = QToolBar("Study Session", self)
@@ -153,11 +208,13 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _rail_key_for_workspace(workspace: Workspace) -> str:
-        """Review has no dedicated rail button -- entering it is reached
-        through the shared "study" destination (NavigationRail's existing
-        placeholder key), the same way DESIGN.md's frozen IA already names
-        that slot."""
-        return "study" if workspace is Workspace.REVIEW else workspace.value
+        """Review and Quiz have no dedicated rail button -- both are
+        reached through the shared "study" destination (NavigationRail's
+        existing placeholder key), the same way DESIGN.md's frozen IA
+        already names that slot. The rail itself stays hidden throughout
+        Study Mode regardless, so this only matters for which button is
+        checked once Management Mode is restored."""
+        return "study" if workspace in (Workspace.REVIEW, Workspace.QUIZ) else workspace.value
 
     def _render_workspace(self, workspace: Workspace, *, animate: bool = True) -> None:
         widget = None
@@ -175,6 +232,13 @@ class MainWindow(QMainWindow):
             widget = self.review_view
             self._workspace_stack.setCurrentWidget(widget)
             self.review_controller.open_default()
+        elif workspace is Workspace.QUIZ:
+            # No refresh-on-render here: _start_quiz() already called
+            # QuizController.start() before requesting this navigation, and
+            # QuizController's own completion/exit actions manage state
+            # explicitly rather than through a workspace re-render.
+            widget = self.quiz_view
+            self._workspace_stack.setCurrentWidget(widget)
 
         self._navigation_rail.set_active(self._rail_key_for_workspace(workspace))
 
@@ -186,10 +250,11 @@ class MainWindow(QMainWindow):
 
     def _render_mode(self, mode: ShellMode, *, animate: bool = True) -> None:
         is_study = mode is ShellMode.STUDY
-        # Review supplies its own complete session bar (module docstring);
-        # the generic toolbar only covers a hypothetical bare Study mode
-        # with no dedicated content, which no real workspace exercises today.
-        show_generic_toolbar = is_study and self.app_state.workspace is not Workspace.REVIEW
+        # Review and Quiz each supply their own complete session bar
+        # (module docstring); the generic toolbar only covers a
+        # hypothetical bare Study mode with no dedicated content, which no
+        # real workspace exercises today.
+        show_generic_toolbar = is_study and self.app_state.workspace not in (Workspace.REVIEW, Workspace.QUIZ)
         self._navigation_rail.setVisible(not is_study)
         self._study_toolbar.setVisible(show_generic_toolbar)
 

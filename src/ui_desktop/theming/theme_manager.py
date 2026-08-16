@@ -619,12 +619,208 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         background-color: {accent.hover.background};
         color: {accent.hover.foreground};
     }}
-    QLabel#review-choose-quiz-type-unavailable-message {{
-        background-color: {semantic.info_soft};
-        color: {semantic.info.background};
+    QDialog QCheckBox {{
+        color: {neutral.text_primary};
+    }}
+    QDialog QLineEdit {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 4px 8px;
+    }}
+
+    /* Quiz -- Immersive Focus (DESIGN.md § 6.3, `VR-STUDY-001`; M17 Feature 3) */
+    QWidget#quiz-session-bar {{
+        background-color: {neutral.surface_secondary};
+        border-bottom: 1px solid {neutral.border_default};
+    }}
+    QPushButton#quiz-exit-button {{
+        background-color: transparent;
+        border: none;
+        color: {neutral.text_secondary};
+        padding: 4px 8px;
+    }}
+    QPushButton#quiz-exit-button:hover {{
+        color: {neutral.text_primary};
+    }}
+    QLabel#quiz-context-label {{
+        color: {neutral.text_primary};
+        font-weight: 600;
+    }}
+    QLabel#quiz-progress-label {{
+        color: {neutral.text_secondary};
+        font-size: 12px;
+    }}
+    QLabel#quiz-term-label {{
+        color: {neutral.text_primary};
+        font-size: 26px;
+        font-weight: 700;
+    }}
+    QLineEdit#quiz-answer-input {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
         border-radius: {radius}px;
         padding: 8px 10px;
+        font-size: 14px;
+    }}
+    QLineEdit#quiz-answer-input:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_secondary};
+    }}
+    QLabel#quiz-field-caption {{
+        color: {neutral.text_muted};
+        font-size: 11px;
+        font-weight: 600;
+    }}
+    QLabel#quiz-field-text {{
+        color: {neutral.text_secondary};
+        font-size: 14px;
+    }}
+    QPushButton#quiz-show-answer-button,
+    QPushButton#quiz-mcq-submit-button,
+    QPushButton#quiz-mcq-next-button,
+    QPushButton#quiz-matching-submit-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 8px 20px;
+        font-weight: 600;
+    }}
+    QPushButton#quiz-show-answer-button:hover:enabled,
+    QPushButton#quiz-mcq-submit-button:hover:enabled,
+    QPushButton#quiz-mcq-next-button:hover:enabled,
+    QPushButton#quiz-matching-submit-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#quiz-matching-submit-button:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QPushButton#quiz-grade-correct-button {{
+        background-color: {semantic.quiz_correct.background};
+        color: {semantic.quiz_correct.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 8px 20px;
+        font-weight: 600;
+    }}
+    QPushButton#quiz-grade-wrong-button {{
+        background-color: {semantic.quiz_wrong.background};
+        color: {semantic.quiz_wrong.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 8px 20px;
+        font-weight: 600;
+    }}
+    QRadioButton#quiz-mcq-option {{
+        color: {neutral.text_primary};
+        padding: 4px 2px;
+    }}
+    QLabel#quiz-feedback-correct {{
+        color: {semantic.quiz_correct.background};
+        font-size: 16px;
+        font-weight: 700;
+    }}
+    QLabel#quiz-feedback-wrong {{
+        color: {semantic.quiz_wrong.background};
+        font-size: 16px;
+        font-weight: 700;
+    }}
+    QLabel#quiz-matching-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QWidget#quiz-matching-row {{
+        background-color: {neutral.surface_secondary};
+        border: 1px solid {neutral.border_subtle};
+        border-radius: {radius}px;
+    }}
+    QLabel#quiz-matching-term-label {{
+        color: {neutral.text_primary};
+        font-weight: 600;
+        padding: 6px 8px;
+    }}
+    QComboBox#quiz-matching-combo {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 4px 8px;
+    }}
+    QLabel#quiz-completion-title {{
+        color: {neutral.text_primary};
+        font-size: 20px;
+        font-weight: 700;
+    }}
+    QLabel#quiz-completion-stat-value {{
+        color: {neutral.text_primary};
+        font-size: 22px;
+        font-weight: 700;
+    }}
+    QLabel#quiz-completion-stat-label {{
+        color: {neutral.text_muted};
+        font-size: 11px;
+    }}
+    QWidget#quiz-completion-divider {{
+        background-color: {neutral.border_subtle};
+    }}
+    QLabel#quiz-completion-mistakes-heading {{
+        color: {neutral.text_secondary};
         font-size: 12px;
+        font-weight: 600;
+    }}
+    QLabel#quiz-completion-mistakes-list {{
+        color: {neutral.text_primary};
+        font-size: 13px;
+    }}
+    QPushButton#quiz-completion-return-today-button,
+    QPushButton#quiz-completion-next-card-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#quiz-completion-return-today-button:hover,
+    QPushButton#quiz-completion-next-card-button:hover {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QPushButton#quiz-completion-review-mistakes-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#quiz-completion-review-mistakes-button:hover {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QLabel#quiz-blocked-message, QLabel#quiz-error-message, QLabel#quiz-empty-state {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+    }}
+    QPushButton#quiz-blocked-cancel-button {{
+        background-color: {neutral.surface_primary};
+        color: {danger.background};
+        border: 1px solid {danger.background};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#quiz-blocked-cancel-button:hover {{
+        background-color: {semantic.danger_soft};
+    }}
+    QLabel#quiz-exit-confirm-message {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
     }}
     """.strip()
 

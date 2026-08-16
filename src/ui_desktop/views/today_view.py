@@ -14,7 +14,11 @@ from PySide6.QtWidgets import (
 )
 
 from src.ui_desktop.controllers.today_controller import TodayController
-from src.ui_desktop.state.handoff import QUIZ_UNAVAILABLE_TOOLTIP, LearningActionIntent
+from src.ui_desktop.state.handoff import (
+    QUIZ_NO_TARGET_TOOLTIP,
+    LearningActionIntent,
+    quiz_launch_intent_from_learning_action_intent,
+)
 from src.ui_desktop.theming.metrics import CONTEXT_RAIL_WIDTH, SPACING
 from src.ui_desktop.widgets.panels import ActionRowCard, SuggestedActionTile, SummaryStatCard
 
@@ -47,21 +51,26 @@ metrics (available/never-quizzed/quizzed-today/learned-today) rather than
 the canonical reference's "Due today" framing, which would imply a
 Review-scheduling due-date concept this product does not have.
 
-Any action that would launch Quiz is rendered honestly disabled -- Quiz
-is not implemented in the desktop app yet (M17 Feature 1
-fresh-implementation prompt § 9; still true after M17 Feature 2, which
-implements Review's browse/preparation surface but not Quiz itself). The
-real ``LearningActionIntent`` is still built for every queue item so a
-later checkpoint can wire it in without redesigning this view, but the
-button never pretends to work. ``QUIZ_UNAVAILABLE_TOOLTIP`` now lives in
-``state/handoff.py`` (re-exported here for existing importers) so Today
-and Review share one honest-unavailable wording instead of two strings
-that could drift apart.
+Since M17 Feature 3, a Learning Queue item whose ``LearningActionIntent``
+represents a real supported Quiz target (``action == "quiz"``) is wired to
+a real launch: ``quiz_launch_intent_from_learning_action_intent``
+(``state/handoff.py``) converts it into the same ``QuizLaunchIntent``
+Review builds, and MainWindow's one ``QuizController`` starts it -- Today
+never talks to ``src.quiz``/``src.template_quiz`` directly, and never
+invents a second session mechanism (M17 Feature 3 prompt § 11). The
+contextless Quick Actions "Start Quiz" tile, and a Suggested Next Action
+naming "Quiz" without a specific Collection/Card, still have no real
+target to launch -- those stay honestly disabled with
+``QUIZ_NO_TARGET_TOOLTIP`` rather than fabricating one; only ``action ==
+"organize"`` (Entries) and a Review-targeted suggestion have unambiguous,
+data-complete real destinations without further user input.
 """
 
 
 class TodayView(QWidget):
     navigate_to_entries_requested = Signal()
+    navigate_to_review_requested = Signal()
+    quiz_launch_requested = Signal(object)  # QuizLaunchIntent
 
     def __init__(self, controller: TodayController, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -205,7 +214,7 @@ class TodayView(QWidget):
 
         start_quiz_button = _quick_action_button("Start Quiz", rail)
         start_quiz_button.setEnabled(False)
-        start_quiz_button.setToolTip(QUIZ_UNAVAILABLE_TOOLTIP)
+        start_quiz_button.setToolTip(QUIZ_NO_TARGET_TOOLTIP)
         quick_actions_grid.addWidget(start_quiz_button, 0, 1)
 
         # Both cells are fixed-width; a stretch in the (unused) third
@@ -268,6 +277,10 @@ class TodayView(QWidget):
         )
         if intent.action == "organize":
             card.action_triggered.connect(self.navigate_to_entries_requested.emit)
+        elif intent.action == "quiz":
+            quiz_intent = quiz_launch_intent_from_learning_action_intent(intent)
+            if quiz_intent is not None:
+                card.action_triggered.connect(lambda quiz_intent=quiz_intent: self.quiz_launch_requested.emit(quiz_intent))
         return card
 
     def _render_suggested_actions(self) -> None:
@@ -287,13 +300,27 @@ class TodayView(QWidget):
                 button_enabled=True,
             )
             tile.action_triggered.connect(self.navigate_to_entries_requested.emit)
+        elif target_page == "Review":
+            tile = SuggestedActionTile(
+                str(recommendation.get("title") or ""),
+                str(recommendation.get("description") or ""),
+                "Open Review",
+                button_enabled=True,
+            )
+            tile.action_triggered.connect(self.navigate_to_review_requested.emit)
         else:
+            # target_page == "Quiz" here names a special-pool drill
+            # (Mistake Book / Proficient Pool / Starred) without a specific
+            # Collection/Card -- unlike a Learning Queue item, this
+            # recommendation carries no collection_id to launch a real
+            # Quiz from, so it stays honestly disabled rather than
+            # fabricating a target (module docstring).
             tile = SuggestedActionTile(
                 str(recommendation.get("title") or ""),
                 str(recommendation.get("description") or ""),
                 f"Open {target_page}" if target_page else "Unavailable",
                 button_enabled=False,
-                button_tooltip=QUIZ_UNAVAILABLE_TOOLTIP,
+                button_tooltip=QUIZ_NO_TARGET_TOOLTIP,
             )
         # Not every Learning Queue item's LearningActionIntent duplicates
         # the single primary_recommendation() -- Suggested Next Actions
@@ -347,7 +374,9 @@ class TodayView(QWidget):
 
     def _action_button_spec(self, intent: LearningActionIntent) -> tuple[str, bool, str]:
         if intent.action == "quiz":
-            return "Quiz", False, QUIZ_UNAVAILABLE_TOOLTIP
+            if quiz_launch_intent_from_learning_action_intent(intent) is not None:
+                return "Quiz", True, ""
+            return "Quiz", False, QUIZ_NO_TARGET_TOOLTIP
         if intent.action == "organize":
             return "Organize in Entries", True, ""
         return "Unavailable", False, "This action is not recognized yet."

@@ -3,10 +3,11 @@ from __future__ import annotations
 from PySide6.QtCore import QObject, Signal
 
 from src import db
-from src.collections import get_card_groups_for_collection
+from src.collections import get_card_groups_for_collection, get_entries_in_collection
 from src.learning_workflow import get_card_learning_history, get_study_cards
 from src.quiz import QUIZ_TYPES
-from src.ui_desktop.state.handoff import QuizLaunchIntent
+from src.template_quiz import get_available_template_quiz_sources_for_card, get_template_quiz_rules
+from src.ui_desktop.state.handoff import QUICK_QUIZ_DEFAULT_TYPE, QUIZ_TYPE_LABELS, QuizLaunchIntent
 
 """
 ReviewController owns the Study Mode / Review workspace's transient
@@ -25,27 +26,22 @@ Card identity is always resolved through the current Card roster
 ARCHITECTURE.md's stable-``card_id`` contract: a retired Card's Quiz
 history must never be attributed to a later Card that reuses the same
 display number.
+
+Since M17 Feature 3, Quick Quiz and Choose Quiz Type build a real
+``QuizLaunchIntent`` (``state/handoff.py``) that ``QuizController`` and
+``MainWindow`` actually act on -- Review still never starts a Quiz session
+itself (no ``src.quiz``/``src.template_quiz`` write calls in this file);
+it only builds the typed request.
+
+``QUICK_QUIZ_DEFAULT_TYPE``/``QUIZ_TYPE_LABELS`` now live in
+``state/handoff.py`` (re-exported here for existing importers) since Quiz
+completion/setup surfaces need the same labels Review does.
 """
 
-# Deterministic default type for a "Quick Quiz" launch -- matches the
-# existing Streamlit Review page's hardcoded quick-quiz default
-# (``_review_quiz_focus_values``), not a new product decision.
-QUICK_QUIZ_DEFAULT_TYPE = "mixed_mcq"
-
-# Presentational labels only (no prompt/answer-field or scoring logic) for
-# the Choose Quiz Type utility -- src.quiz.QUIZ_TYPES remains the sole
-# authority for which quiz_type values are valid.
-QUIZ_TYPE_LABELS: dict[str, str] = {
-    "term_to_meaning": "Term → Meaning",
-    "meaning_to_term": "Meaning → Term",
-    "term_to_meaning_mcq": "Term → Meaning (multiple choice)",
-    "meaning_to_term_mcq": "Meaning → Term (multiple choice)",
-    "mixed_mcq": "Mixed (multiple choice)",
-    "matching": "Matching",
-    "template_field_self_graded": "Custom field (self-graded)",
-    "template_field_mcq": "Custom field (multiple choice)",
-    "template_field_matching": "Custom field (matching)",
-}
+# Matches src/ui_streamlit/quiz_page.py's MATCHING_ITEM_COUNTS -- plain
+# Matching is whole-Collection only (see build_choose_quiz_type_intent),
+# so its size is chosen independently of the current Card's entry count.
+MATCHING_ITEM_COUNT_OPTIONS: tuple[int, ...] = (4, 6, 8, 10)
 
 
 class ReviewController(QObject):
@@ -194,27 +190,105 @@ class ReviewController(QObject):
         if entry is not None:
             self._visited_entry_ids.add(entry["id"])
 
-    # -- Quiz handoff (inert -- Quiz is not implemented yet) --------------
+    # -- Quiz handoff --------------------------------------------------------
 
     def quiz_type_options(self) -> list[str]:
-        return list(QUIZ_TYPES.keys())
+        """Plain (non-template) quiz types offered by Choose Quiz Type.
+        Template-aware types are offered separately, only when
+        ``available_template_sources()`` is non-empty, because they need a
+        template + rule selection the flat type list cannot express."""
+        return [quiz_type for quiz_type in QUIZ_TYPES if not quiz_type.startswith("template_field_")]
 
     def build_quick_quiz_intent(self) -> QuizLaunchIntent | None:
-        return self._build_quiz_launch_intent("review_quick_quiz", QUICK_QUIZ_DEFAULT_TYPE)
-
-    def build_choose_quiz_type_intent(self, quiz_type: str) -> QuizLaunchIntent | None:
-        return self._build_quiz_launch_intent("review_choose_quiz_type", quiz_type)
-
-    def _build_quiz_launch_intent(self, source: str, quiz_type: str) -> QuizLaunchIntent | None:
         card = self.current_card()
         if card is None:
             return None
         return QuizLaunchIntent(
-            source=source,
+            source="review_quick_quiz",
+            collection_id=card["collection_id"],
+            collection_name=card["collection_name"],
+            card_number=card["card_number"],
+            card_id=card["card_id"],
+            quiz_type=QUICK_QUIZ_DEFAULT_TYPE,
+            item_count=card["entry_count"],
+            reason="Requested from Review for the currently displayed Card.",
+        )
+
+    def build_choose_quiz_type_intent(
+        self, quiz_type: str, *, matching_item_count: int | None = None
+    ) -> QuizLaunchIntent | None:
+        card = self.current_card()
+        if card is None:
+            return None
+        if quiz_type == "matching":
+            # Plain Matching is whole-Collection only in the current product
+            # (M17 Feature 3 compatibility check: Streamlit always forces
+            # card_number=0 for it, and no core function generates a
+            # Card-scoped plain-matching set) -- never Card-scoped here
+            # either, regardless of which Card Review currently displays.
+            return QuizLaunchIntent(
+                source="review_choose_quiz_type",
+                collection_id=card["collection_id"],
+                collection_name=card["collection_name"],
+                card_number=0,
+                card_id=None,
+                quiz_type="matching",
+                item_count=matching_item_count or self.matching_item_count_options()[0]
+                if self.matching_item_count_options()
+                else 0,
+                reason="Requested from Review's Choose Quiz Type for the current Collection.",
+            )
+        return QuizLaunchIntent(
+            source="review_choose_quiz_type",
             collection_id=card["collection_id"],
             collection_name=card["collection_name"],
             card_number=card["card_number"],
             card_id=card["card_id"],
             quiz_type=quiz_type,
-            reason="Requested from Review for the currently displayed Card.",
+            item_count=card["entry_count"],
+            reason="Requested from Review's Choose Quiz Type for the current Card.",
+        )
+
+    def matching_item_count_options(self) -> list[int]:
+        card = self.current_card()
+        if card is None:
+            return []
+        available = len(get_entries_in_collection(card["collection_id"]))
+        options = [count for count in MATCHING_ITEM_COUNT_OPTIONS if count <= available]
+        if not options and available >= 2:
+            options = [available]
+        return options
+
+    # -- template-aware Quiz options -------------------------------------
+
+    def available_template_sources(self) -> list[dict]:
+        """Templates the current Card's Entries actually use that have
+        template-aware quiz rules defined (empty when none do -- Choose
+        Quiz Type must not offer a template-aware section in that case)."""
+        card = self.current_card()
+        if card is None:
+            return []
+        return get_available_template_quiz_sources_for_card(card["collection_id"], card["card_number"])
+
+    def template_rules(self, template_type: str) -> list[dict]:
+        return get_template_quiz_rules(template_type)
+
+    def build_template_quiz_intent(
+        self, template_id: int, template_type: str, rule_ids: list[str], mode_quiz_type: str
+    ) -> QuizLaunchIntent | None:
+        card = self.current_card()
+        if card is None:
+            return None
+        return QuizLaunchIntent(
+            source="review_choose_quiz_type",
+            collection_id=card["collection_id"],
+            collection_name=card["collection_name"],
+            card_number=card["card_number"],
+            card_id=card["card_id"],
+            quiz_type=mode_quiz_type,
+            item_count=card["entry_count"],
+            reason="Requested from Review's Choose Quiz Type (template-aware) for the current Card.",
+            template_id=template_id,
+            template_type=template_type,
+            template_rule_ids=tuple(rule_ids),
         )
