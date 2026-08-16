@@ -89,6 +89,16 @@ class NavigationRail(QWidget):
         button.setCheckable(True)
         button.setEnabled(destination.enabled)
 
+        # QAbstractButton.sizeHint() computes its own preferred size from
+        # style/text/icon metrics -- it does not delegate to a child
+        # layout the way plain QWidget.sizeHint() does. Left unset, the
+        # rail's outer layout allocated this button only its default
+        # empty-text height (~23px), crushing the icon+label content
+        # below into a sliver too short to render legibly (found via a
+        # real on-screen capture: at any label font size, every item's
+        # text rendered as an illegible dashed smear, not readable words).
+        button.setMinimumHeight(52)
+
         content = QVBoxLayout(button)
         content.setContentsMargins(0, 6, 0, 6)
         content.setSpacing(2)
@@ -101,6 +111,10 @@ class NavigationRail(QWidget):
         label = QLabel(destination.label, button)
         label.setObjectName("nav-rail-label")
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # A safety net for a longer multi-word label ("Data tools") at
+        # this narrow a rail width, not a requirement for the current
+        # single-word destinations.
+        label.setWordWrap(True)
         content.addWidget(label, 0, Qt.AlignmentFlag.AlignHCenter)
 
         if not destination.enabled:

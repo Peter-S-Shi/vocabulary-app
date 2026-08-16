@@ -29,5 +29,5 @@ SPACING = Spacing()
 # for the nav rail selection, cards, and buttons introduced this checkpoint.
 RADIUS_DEFAULT = 6
 
-NAV_RAIL_WIDTH = 104
+NAV_RAIL_WIDTH = 128
 CONTEXT_RAIL_WIDTH = 248

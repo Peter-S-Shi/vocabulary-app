@@ -230,7 +230,7 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     QLabel#nav-rail-label {{
         background-color: transparent;
         color: {neutral.text_secondary};
-        font-size: 10px;
+        font-size: 11px;
     }}
     QPushButton#nav-rail-item:checked QLabel#nav-rail-label {{
         color: {neutral.text_primary};
