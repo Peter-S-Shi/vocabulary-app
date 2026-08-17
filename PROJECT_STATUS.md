@@ -13,13 +13,41 @@ Desktop-specific migration principles and workflow mapping are defined in
 ## Current Phase
 
 **Milestone 16 — Desktop Architecture and UI Design (Complete on `main`);
-Milestone 17 — Desktop Core Workflow Migration (Complete on `main`)**
+Milestone 17 — Desktop Core Workflow Migration (Complete on `main`);
+Milestone 18 — Desktop Management and Major Feature Completion (In
+Progress)**
 
 ## Current Milestone
 
 **Milestone 16 Complete on `main`; Milestone 17 Complete on `main`
 (merged via PR #25). Milestone 18 — Desktop Management and Major Feature
-Completion has not started.**
+Completion is IN PROGRESS**, developed under the M18 Autonomous
+Execution Contract on branch
+`agent/m18-desktop-management-major-feature-completion` through Draft PR
+#29 (unmerged; no implementation changes are recorded in this
+documentation-only update).
+
+**Human Gate 1 — Management Grammar Calibration is complete and Human
+Accepted.** Phase B implemented Collection Manager + Card Organization
+(`e78764e`) and Template Manager + Template Editor (`0f5ae60`, a new
+Templates workspace/rail destination), each delegating every read/write
+to the existing `src.collections`/`src.entry_templates` core the
+Streamlit Collections/Templates pages already use. Initial native visual
+acceptance at `781d2a4` **FAILed** on two findings: Light Mode rendered
+the new controls at effectively-invisible contrast (no explicit QSS
+coverage existed for any control this checkpoint added -- the same
+defect class M16.2's closure documented for Today/Entries navigation),
+and existing Custom Templates had no discoverable entry point besides an
+undocumented double-click gesture. Two corrective passes followed
+(`5b3757c` root-cause QSS fix + discoverable "Open Template" action;
+`283ab6f` a Templates-table selection-by-id integrity fix an independent
+review of pass 1 found). **Native human visual acceptance PASSED
+2026-08-17 against final accepted head
+`283ab6f9298a7f64d2d311ffc11c01b2a186d2cf`.** See `ROADMAP.md` §
+Milestone 18 for the full operating model and per-checkpoint acceptance
+record. The next objective is **Phase C — Remaining Management/Data
+Workflows + Linked Source**; per the M18 contract, that work does not
+begin until separately authorized.
 
 M16.0 Desktop UI Design Baseline is complete and frozen: [DESIGN.md](DESIGN.md)
 records the approved desktop information architecture, theme architecture, and

@@ -194,9 +194,23 @@ state, which could silently override the new SQL-level "Sort by" order;
 removed, with the proxy forced to `sort(-1)` so it stays a pure
 index-mapping adapter). **Milestone 17 — Desktop Core Workflow Migration
 is now COMPLETE.** See § Milestone 17 below for the full operating
-model, the reset history, and the per-feature acceptance record. The
-next milestone, **M18 — Desktop Management and Major Feature
-Completion, has not started.**
+model, the reset history, and the per-feature acceptance record.
+
+**Milestone 18 — Desktop Management and Major Feature Completion is now
+IN PROGRESS**, developed on the single long-lived branch
+`agent/m18-desktop-management-major-feature-completion` through Draft PR
+#29, per the M18 Autonomous Execution Contract. **Human Gate 1 —
+Management Grammar Calibration (Collection Manager + Card Organization,
+Template Manager + Template Editor) is complete and Human Accepted**:
+native visual acceptance PASSED 2026-08-17 against head
+`283ab6f9298a7f64d2d311ffc11c01b2a186d2cf`, after an initial FAIL and two
+corrective passes (Light Mode contrast root-cause fix across every new
+M18 control, a discoverable "Open Template" affordance replacing an
+undocumented double-click gesture, and a Templates-table
+selection-by-id integrity fix). See § Milestone 18 below for the
+operating model and per-checkpoint acceptance record. The next
+objective is **Phase C — Remaining Management/Data Workflows + Linked
+Source**.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -1345,6 +1359,59 @@ M17 must not reopen or silently change:
 
 Milestone 18 completes desktop parity for management/data workflows and
 finishes the desktop-facing parts of the three new major capabilities.
+
+### Operating Model
+
+**Status: IN PROGRESS.** Milestone 18 is developed under the M18
+Autonomous Execution Contract as one milestone, one long-lived branch
+(`agent/m18-desktop-management-major-feature-completion`), one Draft PR
+(#29, Draft throughout development), and an ordered checkpoint sequence
+with three Human Gates, per that contract's operating model.
+
+**Phase B — Representative Management Grammar:**
+
+- Collection Manager + Card Organization (`e78764e`): create/rename/
+  edit/delete Collection, rename Card, remove/reposition Entries within a
+  Collection. Every write calls the same `src.collections` functions the
+  Streamlit Collections page already uses.
+- Template Manager + Template Editor (`0f5ae60`, corrected at `781d2a4`):
+  a new Templates workspace/rail destination; create/edit/delete
+  Template and Field, with the existing in-use safety gates
+  (`template_has_entries`, `template_field_has_values`) enforced as
+  outright-disabled actions rather than mere warnings. Every write calls
+  the same `src.entry_templates` functions the Streamlit Templates page
+  already uses.
+
+**Human Gate 1 — Management Grammar Calibration: complete and Human
+Accepted.** Initial native visual acceptance at `781d2a4` **FAILed**:
+Light Mode rendered the new Collection/Template controls at
+effectively-invisible contrast (every control this checkpoint added had
+no explicit QSS coverage, the same defect class the M16.2 closure
+documented for Today/Entries navigation actions), and existing Custom
+Templates had no discoverable entry point besides an undocumented
+double-click gesture. Two corrective passes followed:
+
+1. `5b3757c` — explicit primary/secondary/destructive QSS for every new
+   M18 control (reusing the existing `QPushButton[destructive="true"]`
+   property selector for delete/remove actions rather than duplicating
+   per-button rules), a missing `QDialog QSpinBox` rule, and a new
+   discoverable "Open Template" toolbar action (enabled only when a row
+   is selected) sharing the same code path double-click already used.
+2. `283ab6f` — independent review of pass 1 found the Templates table's
+   row-index-based selection could silently drift to the wrong Template
+   after a reordering refresh (e.g. renaming the selected Template while
+   its editor was still open); selection now follows the Template's
+   stable id.
+
+**Native human visual acceptance PASSED 2026-08-17 against final
+accepted head `283ab6f9298a7f64d2d311ffc11c01b2a186d2cf`.** Automated
+evidence at that head: focused Collection Manager/Template Manager/
+corrective tests all green (16/16, 15/15, 11/11), full repository suite
+634/634, architecture audit 77 files / 0 violations, two independent
+code reviews each with one real finding, both fixed and
+regression-tested. Milestone 18 overall is not complete; the next
+objective is **Phase C — Remaining Management/Data Workflows + Linked
+Source**, per the M18 contract's default workstream strategy.
 
 ### 18.1 Management Workflow Migration
 

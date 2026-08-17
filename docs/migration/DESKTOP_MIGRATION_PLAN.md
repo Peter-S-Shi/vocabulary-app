@@ -942,8 +942,12 @@ recorded 2026-08-17 against final accepted head
 for the full operating model, frozen semantic boundaries, verification
 model, and per-checkpoint acceptance record.
 
-**Milestone 18 — Desktop Management and Major Feature Completion is the
-next objective and has not started.**
+**Milestone 18 — Desktop Management and Major Feature Completion is IN
+PROGRESS.** Human Gate 1 — Management Grammar Calibration (Collection
+Manager + Card Organization, Template Manager + Template Editor) is
+complete and Human Accepted; see
+[ROADMAP.md § Milestone 18](../../ROADMAP.md#milestone-18-desktop-management-and-major-feature-completion)
+for the operating model and per-checkpoint acceptance record.
 
 The migration should remain incremental:
 
