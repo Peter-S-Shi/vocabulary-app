@@ -1845,6 +1845,37 @@ for the full corrective-pass and acceptance history.
   Integration is complete and Human Accepted (DESIGN.md § 2 Level 4),
   Milestone 17's sixth accepted feature. See the M17 Draft PR for the
   full corrective-pass and acceptance history.
+- M17 Theme Completion & Cross-Screen Validation: closes the Appearance
+  axis (System/Light/Dark, Calm Blue) as a complete, live-switchable,
+  OS-aware product capability. `System` resolves through a live OS
+  Light/Dark read (`system_appearance.py`, Qt's `QStyleHints.
+  colorScheme()`) with an explicit logged fallback, and reacts to a live
+  OS appearance change while `System` remains selected
+  (`ThemeManager.watch_system_appearance()`) without ever overriding an
+  explicit Light/Dark choice. Settings gained a real Appearance control
+  persisting immediately and live-applying through the single existing
+  `ThemeManager.apply()` call site. A contrast re-audit against the
+  surfaces tokens are actually deployed on found and fixed two real
+  defects the M16.2 audit had missed (Light `text-muted` against
+  `surface-secondary`/`app-background`; the Entries Star column's fixed
+  gold, now a theme-aware `star`/`on-star` semantic token,
+  hue-separated from `warning`). Implemented at `934eeac`. A first
+  corrective pass (`7b4a86c`) audited every text color across
+  Today/Entries/Collections/Settings/Review/Quiz/Utility against the
+  four-level primary/secondary/muted/disabled text-role hierarchy and
+  fixed four confirmed defects; it also discovered, and correctly left
+  out of its own scope, that `QPushButton:checked/:disabled/:hover` ->
+  child `QLabel` descendant-pseudo-state QSS selectors are not reliably
+  re-evaluated by Qt's style engine. A second corrective pass (`48a171f`)
+  replaced that mechanism in the Navigation Rail with one driven
+  reliably -- a Qt dynamic property (`navActive`) for the active/normal
+  distinction plus static object names for the disabled destinations --
+  verified through the real production bootstrap path. **Native human
+  visual acceptance PASSED 2026-08-17 at head
+  `48a171f6aaa7e7ce3b60be945024c8712e69ec64`** — Theme Completion &
+  Cross-Screen Validation is complete and Human Accepted, Milestone 17's
+  seventh accepted feature. See the M17 Draft PR for the full
+  corrective-pass and acceptance history.
 - Current lifecycle documents:
   - `ROADMAP.md`
   - `PROJECT_STATUS.md`
@@ -1893,9 +1924,14 @@ for the full corrective-pass and acceptance history.
   `6d8ed13c206018ece80277210abb858afd8930f9`, after a corrective pass for
   paged/scrollable Card navigation, efficient large-Collection Card
   projection, the focused-Entry-vs-checked-Entries separation, and the
-  persistent direct Star toggle); M17 not complete.**
+  persistent direct Star toggle); Theme Completion & Cross-Screen
+  Validation is **complete and Human Accepted** (native visual acceptance
+  PASSED 2026-08-17 against `48a171f6aaa7e7ce3b60be945024c8712e69ec64`,
+  after a typography color-role hierarchy corrective pass and a
+  Navigation Rail active/normal/disabled state-rendering reliability
+  fix); M17 not complete.**
 - Exact next objective:
   **Begin M17 Parity + Exit Verification on the M17 Draft PR (branch
   `agent/m17-desktop-core-workflow-migration`) -- the final M17
-  checkpoint, following all six accepted features. Do not mark Milestone
-  17 complete until it closes.**
+  checkpoint, following all seven accepted features. Do not mark
+  Milestone 17 complete until it closes.**

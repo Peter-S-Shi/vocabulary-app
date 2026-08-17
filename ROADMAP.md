@@ -170,10 +170,18 @@ acceptance** (PASS recorded 2026-08-17 against
 `6d8ed13c206018ece80277210abb858afd8930f9`, after a corrective pass for
 paged/scrollable Card navigation, efficient large-Collection Card
 projection, the focused-Entry-vs-checked-Entries separation, and the
-persistent direct Star toggle). Milestone 17 overall is not complete;
-the next and final objective is **M17 Parity + Exit Verification**. See
-§ Milestone 17 below for the operating model, the reset history, and the
-current feature-sequence position.
+persistent direct Star toggle). **Theme Completion & Cross-Screen
+Validation — closing the Appearance axis (System/Light/Dark, Calm Blue)
+as a real, live-switchable, OS-aware product capability, plus a
+typography color-hierarchy audit and a Navigation Rail state-rendering
+reliability fix — is also complete and Human Accepted at native visual
+acceptance** (PASS recorded 2026-08-17 against
+`48a171f6aaa7e7ce3b60be945024c8712e69ec64`, after two corrective passes:
+a typography color-role hierarchy patch, and a Navigation Rail
+active/normal/disabled state-rendering reliability fix). Milestone 17
+overall is not complete; the next and final objective is **M17 Parity +
+Exit Verification**. See § Milestone 17 below for the operating model,
+the reset history, and the current feature-sequence position.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -924,7 +932,12 @@ Recommended order, each verified before proceeding to the next:
    2026-08-17 against `6d8ed13c206018ece80277210abb858afd8930f9`, after a
    corrective pass for paged Card navigation and Entries selection-model
    separation)
-6. M17 parity + exit verification — not started (the final M17
+6. Theme Completion & Cross-Screen Validation — **complete and Human
+   Accepted** (native visual acceptance PASSED 2026-08-17 against
+   `48a171f6aaa7e7ce3b60be945024c8712e69ec64`, after a typography
+   color-role hierarchy corrective patch and a Navigation Rail
+   active/normal/disabled state-rendering reliability fix)
+7. M17 parity + exit verification — not started (the final M17
    checkpoint)
 
 #### Today
@@ -1143,6 +1156,57 @@ only runs from the generic entry points (`_enter_review`,
 `_on_quiz_next_card`), since `ReviewView` already re-renders reactively
 from `ReviewController.state_changed`. **Minimum Collection Integration
 is Milestone 17's sixth accepted feature; Milestone 17 overall is not
+complete. The next objective is Theme Completion & Cross-Screen
+Validation.**
+
+#### Theme Completion & Cross-Screen Validation
+
+Close the Appearance axis (System/Light/Dark, Calm Blue) as a complete,
+live-switchable, OS-aware product capability across the real M17 desktop
+product, plus a typography color-hierarchy audit and Navigation Rail
+state-rendering reliability fix. Three deferred Accent families
+(Sage/Teal, Indigo/Violet, Warm Neutral), the Quick Theme Control
+popover, and any M18 Settings expansion remain out of scope.
+
+**Status: complete and Human Accepted** on
+`agent/m17-desktop-core-workflow-migration` against the canonical Theme
+Architecture Visual Validation board: native human visual acceptance
+PASSED 2026-08-17 against head
+`48a171f6aaa7e7ce3b60be945024c8712e69ec64`, after two corrective passes.
+`System` now resolves through a live OS Light/Dark read (Qt's
+`QStyleHints.colorScheme()`, `system_appearance.py`) with an explicit
+logged fallback, and reacts to a live OS appearance change while
+`System` remains selected (`ThemeManager.watch_system_appearance()`,
+wired to Qt's own `colorSchemeChanged` signal) without ever overriding
+an explicit Light/Dark choice. Settings gained a real Appearance control
+that persists immediately and live-applies through the single existing
+`ThemeManager.apply()` call site. A contrast re-audit against the
+surfaces tokens are actually deployed on (not just their best-case
+pairing) found and fixed two real defects the original M16.2 audit had
+missed: Light `text-muted` failed WCAG AA against `surface-secondary`/
+`app-background`, and the Entries Star column's fixed gold both
+under-contrasted in Light and hue-collided with `warning` -- it is now a
+theme-aware `star`/`on-star` semantic token. The first corrective pass
+(typography color-role hierarchy) audited every `color:` declaration
+across Today/Entries/Collections/Settings/Review/Quiz/Utility against the
+four-level text-role hierarchy (primary/secondary/muted/disabled) and
+fixed four confirmed, empirically-verified defects (a disabled Quiz
+answer field and dialog combo boxes not visually reading as disabled, a
+Settings row label colliding in visual weight with its own value, and an
+unstyled Today attention-row label). That pass also discovered --
+investigated, but correctly left out of its own narrow scope -- that
+`QPushButton:checked/:disabled/:hover` -> child `QLabel` descendant-
+pseudo-state QSS selectors are not reliably re-evaluated by Qt's style
+engine (confirmed on both the offscreen and real native "windows" Qt
+platforms, through the real `app.py` bootstrap path); a second corrective
+pass replaced that mechanism in the Navigation Rail with one actually
+driven reliably -- a Qt dynamic property (`navActive`) set directly on
+the mark/label themselves for the active-vs-normal distinction (paired
+with an explicit `unpolish()`/`polish()` repaint), and static Python-
+decided object names for the (runtime-constant) disabled destinations --
+verified end to end through the real production bootstrap path, not just
+generated QSS text. **Theme Completion & Cross-Screen Validation is
+Milestone 17's seventh accepted feature; Milestone 17 overall is not
 complete. The next and final objective is M17 Parity + Exit
 Verification.**
 
