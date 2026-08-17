@@ -93,10 +93,26 @@ class LinkedSourceController(QObject):
         self.state_changed.emit()
 
     def set_staged_import_mode(self, mode: str) -> None:
+        """Independent-review finding: changing the staged mode/sheet
+        must invalidate any existing preview and clear a stale result --
+        without this, checking "Confirm" against a preview run under the
+        *previous* mode, then changing the mode combo afterward, would
+        leave Confirm enabled and let ``confirm()`` write real Entries
+        under a mode the user never actually previewed or consented to."""
+        if mode == self.staged_import_mode:
+            return
         self.staged_import_mode = mode
+        self.preview = None
+        self.result = None
+        self.state_changed.emit()
 
     def set_staged_sheet(self, sheet_name: str) -> None:
+        if sheet_name == self.staged_sheet_name:
+            return
         self.staged_sheet_name = sheet_name
+        self.preview = None
+        self.result = None
+        self.state_changed.emit()
 
     def run_preview(self) -> None:
         if self.link is not None:

@@ -4,6 +4,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -210,6 +211,70 @@ class LinkedSourceControllerTests(_SyntheticDatabaseTestCase):
         relink_names = [name for name in dir(controller) if "relink" in name.lower()]
         self.assertEqual(relink_names, [])
 
+    def test_changing_staged_mode_invalidates_a_stale_preview(self) -> None:
+        """Regression for an independent-review finding: changing the
+        staged import mode/sheet after a preview must invalidate it and
+        clear any result -- otherwise Confirm could stay enabled and
+        write real Entries under a mode the user never actually
+        previewed or consented to."""
+        collection_id = create_collection("Fruits", "", card_size=8)
+        source_path = self._write_source_csv("fruits.csv", "French,pomme,apple\n")
+        controller = LinkedSourceController()
+        controller.open_for_collection(collection_id, "Fruits")
+        controller.stage_source_path(source_path)
+        controller.run_preview()
+        self.assertTrue(controller.can_confirm())
+
+        controller.set_staged_import_mode("template_aware")
+
+        self.assertIsNone(controller.preview)
+        self.assertFalse(controller.can_confirm())
+
+    def test_changing_staged_sheet_invalidates_a_stale_preview(self) -> None:
+        collection_id = create_collection("Fruits", "", card_size=8)
+        source_path = self._write_source_csv("fruits.csv", "French,pomme,apple\n")
+        controller = LinkedSourceController()
+        controller.open_for_collection(collection_id, "Fruits")
+        controller.stage_source_path(source_path)
+        controller.run_preview()
+        controller.sheet_names = ["Sheet1", "Sheet2"]  # simulate a multi-sheet xlsx
+
+        controller.set_staged_sheet("Sheet2")
+
+        self.assertIsNone(controller.preview)
+
+    def test_setting_the_same_staged_mode_is_a_no_op(self) -> None:
+        controller = LinkedSourceController()
+        controller.staged_import_mode = "general_entry"
+        controller.preview = {"can_confirm": True}
+
+        controller.set_staged_import_mode("general_entry")
+
+        self.assertIsNotNone(controller.preview)
+
+    def test_unlink_failure_result_is_reported(self) -> None:
+        """Regression for an independent-review finding:
+        unlink_collection_source() can return success=False; the caller
+        must be able to see that, not just a silently-unchanged dialog."""
+        collection_id = create_collection("Fruits", "", card_size=8)
+        source_path = self._write_source_csv("fruits.csv", "French,pomme,apple\n")
+        controller = LinkedSourceController()
+        controller.open_for_collection(collection_id, "Fruits")
+        controller.stage_source_path(source_path)
+        controller.run_preview()
+        controller.confirm()
+
+        with patch(
+            "src.ui_desktop.controllers.linked_source_controller.unlink_collection_source",
+            return_value={"success": False, "unlinked": False, "errors": ["Could not unlink source."]},
+        ):
+            result = controller.unlink()
+
+        self.assertFalse(result["success"])
+        self.assertIn("Could not unlink source.", result["errors"])
+        # A failed unlink must not silently clear the real, still-active link.
+        self.assertIsNotNone(controller.link)
+
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
 class LinkedSourceDialogStructureTests(_SyntheticDatabaseTestCase):
@@ -242,6 +307,54 @@ class LinkedSourceDialogStructureTests(_SyntheticDatabaseTestCase):
         self.addCleanup(dialog.deleteLater)
 
         self.assertFalse(dialog._unlink_button.isVisible())
+
+    def test_mode_combo_resyncs_after_unlink_resets_staged_mode(self) -> None:
+        """Regression for an independent-review finding: after Unlink
+        resets staged_import_mode back to "general_entry" via
+        _clear_staged(), the visible mode combo must not keep showing
+        whatever mode was selected before -- that would mislead the user
+        about which mode Confirm will actually run under."""
+        collection_id = create_collection("Fruits", "", card_size=8)
+        source_path = self._write_source_csv("fruits.csv", "French,pomme,apple\n")
+        controller = LinkedSourceController()
+        controller.open_for_collection(collection_id, "Fruits")
+        controller.stage_source_path(source_path)
+        controller.set_staged_import_mode("template_aware")
+        controller.run_preview()
+        dialog = LinkedSourceDialog(controller, parent=None)
+        self.addCleanup(dialog.deleteLater)
+        self.assertEqual(dialog._mode_combo.currentData(), "template_aware")
+        controller.confirm()
+
+        controller.unlink()
+
+        self.assertEqual(controller.staged_import_mode, "general_entry")
+        self.assertEqual(dialog._mode_combo.currentData(), "general_entry")
+
+    def test_unlink_failure_shows_a_result_message(self) -> None:
+        from PySide6.QtWidgets import QMessageBox
+
+        collection_id = create_collection("Fruits", "", card_size=8)
+        source_path = self._write_source_csv("fruits.csv", "French,pomme,apple\n")
+        controller = LinkedSourceController()
+        controller.open_for_collection(collection_id, "Fruits")
+        controller.stage_source_path(source_path)
+        controller.run_preview()
+        controller.confirm()
+        dialog = LinkedSourceDialog(controller, parent=None)
+        self.addCleanup(dialog.deleteLater)
+
+        with patch(
+            "src.ui_desktop.controllers.linked_source_controller.unlink_collection_source",
+            return_value={"success": False, "unlinked": False, "errors": ["Could not unlink source."]},
+        ):
+            with patch(
+                "src.ui_desktop.views.linked_source_view.QMessageBox.question",
+                return_value=QMessageBox.StandardButton.Yes,
+            ):
+                dialog._on_unlink()
+
+        self.assertIn("Could not unlink source.", dialog._result_label.text())
 
     def test_collections_view_has_a_linked_source_button(self) -> None:
         from src.ui_desktop.controllers.collections_controller import CollectionsController

@@ -230,7 +230,16 @@ class LinkedSourceDialog(QDialog):
         )
         if confirmed != QMessageBox.StandardButton.Yes:
             return
-        self._controller.unlink()
+        result = self._controller.unlink()
+        # Independent-review finding: unlink_collection_source() can
+        # return {"success": False, "errors": [...]} (e.g. a transient DB
+        # error); controller.unlink() leaves controller.result untouched
+        # on that branch (there is no "unlink result" concept the way
+        # there is an import/link result), so _reload() alone would show
+        # nothing and the user would see the dialog just sit there with
+        # no indication the confirmed Unlink actually failed.
+        if not result.get("success"):
+            self._result_label.setText("; ".join(result.get("errors") or ["Could not unlink this source."]))
 
     # -- reload ----------------------------------------------------------
 
@@ -259,6 +268,17 @@ class LinkedSourceDialog(QDialog):
 
         if not is_linked:
             self._file_label.setText(controller.staged_source_path or "No file selected.")
+            # Independent-review finding: the mode combo must resync from
+            # controller.staged_import_mode -- otherwise, e.g. after
+            # Unlink resets it back to "general_entry" via
+            # _clear_staged(), the combo could keep visually showing
+            # whatever mode was selected before, misleading the user
+            # about which mode Confirm will actually run under.
+            self._mode_combo.blockSignals(True)
+            mode_index = self._mode_combo.findData(controller.staged_import_mode)
+            if mode_index >= 0:
+                self._mode_combo.setCurrentIndex(mode_index)
+            self._mode_combo.blockSignals(False)
 
         has_multiple_sheets = len(controller.sheet_names) > 1
         self._sheet_row_label.setVisible(has_multiple_sheets and not is_linked)
