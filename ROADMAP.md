@@ -158,10 +158,14 @@ scoped to Quiz only — is also complete and Human Accepted at native
 visual acceptance** (PASS recorded 2026-08-16 against `c54468e`).
 **Entries (Feature 4) — the real Table-First Entries Manager against
 `VR-ENTRIES-001`, replacing the M16.2 architecture-proof placeholder — is
-implemented on the same branch and pending independent review and native
-human visual acceptance.** Milestone 17 overall is not complete. See
-§ Milestone 17 below for the operating model, the reset history, and the
-current feature-sequence position.
+also complete and Human Accepted at native visual acceptance** (PASS
+recorded 2026-08-16 against `2cc333256d2a831c3268c150a86935276117f1c8`,
+after a corrective pass for typography, toolbar layout, Scope Pane
+resizing, editor scroll-safety, the "Add to Collection" menu interaction,
+and checkbox selection). Milestone 17 overall is not complete; the next
+objective is **Minimum Collection Integration**. See § Milestone 17 below
+for the operating model, the reset history, and the current
+feature-sequence position.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -900,9 +904,13 @@ Recommended order, each verified before proceeding to the next:
 2. Review — **complete and Human Accepted** (Immersive Focus browse/
    preparation surface; native visual acceptance PASSED 2026-08-16 against
    `38d53d2`, after one corrective patch for a functional-honesty finding)
-3. Quiz — **implemented, pending independent review and native human
-   visual acceptance**
-4. Entries — not started (beyond the M16.2 vertical slice)
+3. Quiz — **complete and Human Accepted** (native visual acceptance
+   PASSED 2026-08-16 against `311762c`; includes Feature 3B Quiz
+   Presentation Choice, also complete and Human Accepted against
+   `c54468e`)
+4. Entries — **complete and Human Accepted** (native visual acceptance
+   PASSED 2026-08-16 against
+   `2cc333256d2a831c3268c150a86935276117f1c8`, after a corrective pass)
 5. minimum Collection navigation/integration required by those workflows — not started
 6. M17 parity + exit verification — not started
 
@@ -1035,12 +1043,17 @@ Functional workflow migration = entry browsing, filtering, add/edit
 behavior, template-aware fields, and safe editing.
 Plus DESIGN.md archetype = the real Table-First implementation.
 
-**Status: implemented on `agent/m17-desktop-core-workflow-migration`,
-pending independent review and native human visual acceptance** against
-`VR-ENTRIES-001` (`Entries & Collections Manager.pdf` p3 Variant B,
-parent pattern P2). Replaces the M16.2 architecture-proof placeholder.
-`EntriesController` owns scope/filter/selection/editor-orchestration
-state only, calling existing `src.entries.search_entries`/
+**Status: complete and Human Accepted** on
+`agent/m17-desktop-core-workflow-migration` against `VR-ENTRIES-001`
+(`Entries & Collections Manager.pdf` p3 Variant B, parent pattern P2):
+native human visual acceptance PASSED 2026-08-16 against head
+`2cc333256d2a831c3268c150a86935276117f1c8`, after one corrective pass
+(`2cc3332`) for typography, toolbar layout, Scope Pane resizing, editor
+scroll-safety, the "Add to Collection" menu interaction, and checkbox
+selection, following a first native visual-acceptance FAIL at the initial
+implementation head (`9f63813`). Replaces the M16.2 architecture-proof
+placeholder. `EntriesController` owns scope/filter/selection/editor-
+orchestration state only, calling existing `src.entries.search_entries`/
 `create_entry_with_template`/`update_entry_with_template`/
 `delete_entries`, `src.collections.update_entry_collections`/
 `add_entries_to_collection`/`add_entries_to_system_collection`, and
@@ -1050,15 +1063,21 @@ or Card-history reconciliation logic (one small batched query,
 `get_collection_names_for_entries`, was added to `src/collections.py` to
 avoid an N+1 per-row query for the table's Collections column).
 `EntriesView` implements the frozen composition (Management Rail ->
-Scope Pane -> compact toolbar -> dominant Entries Table -> subordinate
+bounded resizable Scope Pane, split into explicit "Scope"/"Collections"
+sections -> two-row toolbar (search/filters/Quick Add/Add Entry, plus a
+conditional batch-action row) -> dominant Entries Table -> subordinate
 horizontal Entry Detail): real native multi-row table selection
-(ExtendedSelection, not checkbox emulation) restored by id across
-refresh, one P5 `_EntryEditorDialog` for both Add and Edit
-(template-locked on Edit), the still-live Quick Add structured-text-card
-flow, and Delete/batch-collection-removal always honoring the existing
-`CrossCardMoveConfirmationRequired` gate -- never a silent delete. Do not
-mark Entries or Milestone 17 complete until independent review and
-native visual acceptance both close.
+(ExtendedSelection) plus an explicit checkbox column and header
+select-all affordance sharing one selection truth, restored by id across
+refresh; one P5 `_EntryEditorDialog` for both Add and Edit
+(template-locked on Edit, scroll-safe form body with a pinned
+Save/Cancel footer); the still-live Quick Add structured-text-card flow;
+and Delete/batch-collection-removal always honoring the existing
+`CrossCardMoveConfirmationRequired` gate -- never a silent delete, with
+confirmation copy distinguishing permanent deletion from Collection
+removal. **Entries is Milestone 17's fifth accepted feature; Milestone 17
+overall is not complete. The next objective is Minimum Collection
+Integration.**
 
 #### Collection Integration
 

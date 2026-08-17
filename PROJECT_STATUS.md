@@ -1601,9 +1601,8 @@ Human Accepted (DESIGN.md § 2 Level 4), Milestone 17's fourth accepted
 feature. See the M17 Draft PR for the full acceptance record.
 
 M17 Feature 4 — Entries (`VR-ENTRIES-001`, `Entries & Collections
-Manager.pdf` p3 Variant B, parent pattern P2) is **implemented, pending
-independent review and native human visual acceptance**: replaces the
-M16.2 architecture-proof placeholder with the real Table-First workflow.
+Manager.pdf` p3 Variant B, parent pattern P2) replaces the M16.2
+architecture-proof placeholder with the real Table-First workflow.
 `EntriesController` owns scope/filter/selection/editor-orchestration
 state only, calling existing `src.entries`/`src.collections`/
 `src.entry_templates`/`src.text_parser` functions for every read/write
@@ -1613,21 +1612,37 @@ state only, calling existing `src.entries`/`src.collections`/
 duplicated template validation/canonical-field-resolution/Card-history-
 reconciliation logic. `EntriesView` implements the frozen composition
 (Management Rail → Scope Pane → compact toolbar → dominant Entries Table
-→ subordinate horizontal Entry Detail): the Scope Pane surfaces All
-Entries, the three system collections, and real user Collections; the
-table uses real native multi-row selection (not checkbox emulation) with
-selection restored by id across refresh; Add/Edit use one P5 focused
-`_EntryEditorDialog` (template-locked on Edit, dynamic per-template
-fields, manual canonical Term/Meaning only when the template's mapping
-needs them); Quick Add migrates the still-live structured-text-card flow;
-Delete/batch-collection-removal always go through the existing
-`CrossCardMoveConfirmationRequired` gate (`src.collections`), never
-bypassed. One small batched core query
+→ subordinate horizontal Entry Detail): the Scope Pane surfaces explicit
+"Scope" (All Entries, the three system collections) and "Collections"
+(real user Collections) sections behind a bounded user-resizable
+`QSplitter`; the table uses real native multi-row selection plus an
+explicit checkbox column and header "select all visible" affordance, all
+sharing one selection truth, with selection restored by id across
+refresh; Add/Edit use one P5 focused `_EntryEditorDialog` (template-
+locked on Edit, dynamic per-template fields, manual canonical
+Term/Meaning only when the template's mapping needs them, a scrollable
+form body with a pinned Save/Cancel footer); Quick Add migrates the
+still-live structured-text-card flow; Delete/batch-collection-removal
+always go through the existing `CrossCardMoveConfirmationRequired` gate
+(`src.collections`), never bypassed, with delete confirmation copy that
+explicitly distinguishes permanent deletion from removing an Entry only
+from the current Collection. One small batched core query
 (`get_collection_names_for_entries`) was added to `src/collections.py` to
 avoid an N+1 per-row query for the table's Collections column — the only
-core addition, not raw SQL in the desktop layer. Structural conformance
-and automated design guards are PASS; native visual acceptance is
-PENDING.
+core addition, not raw SQL in the desktop layer. A first native visual-
+acceptance pass (`9f63813`) found typography, toolbar-layout, Scope-Pane-
+resizing, editor-scroll-safety, "Add to Collection" menu-interaction, and
+checkbox-selection defects; a corrective pass (`2cc3332`) recalibrated
+typography against the canonical hierarchy, split batch actions into
+their own conditional row, replaced the fixed-width Scope Pane with a
+bounded resizable splitter, made the Add/Edit dialog scroll-safe,
+anchored the "Add to Collection" menu below its button (fixing a Qt/
+Windows popup-dismissal interaction bug) with explicit `QMenu` QSS, added
+the checkbox column/header-select-all affordance, and reworded the hard-
+delete confirmation. **Native human visual acceptance PASSED 2026-08-16
+at head `2cc3332`** — Entries is complete and Human Accepted (DESIGN.md
+§ 2 Level 4), Milestone 17's fifth accepted feature. See the M17 Draft PR
+for the full corrective-pass and acceptance history.
 
 ## Repository State
 
@@ -1767,20 +1782,29 @@ PENDING.
 - M17 feature 4 (Entries, `VR-ENTRIES-001`, `Entries & Collections
   Manager.pdf` p3 Variant B, parent pattern P2): replaces the M16.2
   architecture-proof placeholder with the real Table-First Entries
-  Manager -- Scope Pane (All Entries/Starred/Mistake Book/Proficient
-  Pool/real user Collections) -> compact toolbar -> dominant real-
-  multi-selection Entries Table -> subordinate horizontal Entry Detail.
-  `EntriesController` calls only existing `src.entries`/
-  `src.collections`/`src.entry_templates`/`src.text_parser` functions
-  (`search_entries`, `create_entry_with_template`,
+  Manager -- Scope Pane (explicit "Scope" section: All Entries/Starred/
+  Mistake Book/Proficient Pool; explicit "Collections" section: real user
+  Collections; bounded resizable `QSplitter`) -> two-row toolbar (search/
+  filters/Quick Add/Add Entry, plus a conditional batch-action row) ->
+  dominant Entries Table (native multi-selection + explicit checkbox
+  column + header select-all, one shared selection truth) -> subordinate
+  horizontal Entry Detail. `EntriesController` calls only existing
+  `src.entries`/`src.collections`/`src.entry_templates`/`src.text_parser`
+  functions (`search_entries`, `create_entry_with_template`,
   `update_entry_with_template`, `delete_entries`,
   `parse_and_validate_entry_card`, `update_entry_collections`); Add/Edit
-  share one P5 `_EntryEditorDialog`, Quick Add's structured-text-card flow
-  is preserved, and Delete/Collection-removal always honor the existing
-  `CrossCardMoveConfirmationRequired` gate. **Implemented on
-  `agent/m17-desktop-core-workflow-migration`, pending independent review
-  and native human visual acceptance.** See the M17 Draft PR for the
-  exact reviewed head SHA.
+  share one P5 `_EntryEditorDialog` with a scroll-safe form body, Quick
+  Add's structured-text-card flow is preserved, and Delete/Collection-
+  removal always honor the existing `CrossCardMoveConfirmationRequired`
+  gate, with confirmation copy distinguishing permanent deletion from
+  Collection removal. Implemented at `9f63813`; a corrective pass at
+  `2cc3332` fixed typography, toolbar layout, Scope Pane resizing, editor
+  scroll-safety, the "Add to Collection" menu interaction, and checkbox
+  selection. **Native human visual acceptance PASSED 2026-08-16 at head
+  `2cc333256d2a831c3268c150a86935276117f1c8`** — Entries is complete and
+  Human Accepted (DESIGN.md § 2 Level 4), Milestone 17's fifth accepted
+  feature. See the M17 Draft PR for the full corrective-pass and
+  acceptance history.
 - Current lifecycle documents:
   - `ROADMAP.md`
   - `PROJECT_STATUS.md`
@@ -1819,14 +1843,15 @@ PENDING.
   and a UX-defect corrective pass); Quiz Presentation Choice (feature 3B,
   `VR-STUDY-002`, Quiz-only) is **complete and Human Accepted** (native
   visual acceptance PASSED 2026-08-16 against `c54468e`); Entries
-  (feature 4) is **implemented, pending independent review and native
-  human visual acceptance**; M17 not complete.**
+  (feature 4) is **complete and Human Accepted** (native visual
+  acceptance PASSED 2026-08-16 against
+  `2cc333256d2a831c3268c150a86935276117f1c8`, after a corrective pass for
+  typography, toolbar layout, Scope Pane resizing, editor scroll-safety,
+  the "Add to Collection" menu interaction, and checkbox selection); M17
+  not complete.**
 - Exact next objective:
-  **Independently review the M17 Feature 4 Entries / Table-First Manager
-  checkpoint on the M17 Draft PR (branch
-  `agent/m17-desktop-core-workflow-migration`), then obtain native human
-  visual acceptance against `VR-ENTRIES-001` (`Entries & Collections
-  Manager.pdf` p3 Variant B). Do not mark Entries or Milestone 17
-  complete, and do not begin the remaining M17 feature sequence (minimum
-  Collection integration, then parity/exit verification), until that
-  review and acceptance both close.**
+  **Begin M17 — Minimum Collection Integration on the M17 Draft PR
+  (branch `agent/m17-desktop-core-workflow-migration`), the next feature
+  in the M17 sequence after Entries. Do not mark Milestone 17 complete
+  until Minimum Collection Integration and the remaining
+  parity/exit-verification work both close.**
