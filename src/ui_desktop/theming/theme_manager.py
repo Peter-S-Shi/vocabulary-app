@@ -236,6 +236,20 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         background-color: {neutral.surface_primary};
         border-left: 3px solid {accent.primary.background};
     }}
+    /* Known limitation (M17 Theme Completion Typography Corrective Patch
+    audit finding, out of scope for this patch to redesign): the
+    `nav-rail-mark`/`nav-rail-label` descendant-pseudo-state rules below
+    are not reliably re-evaluated by Qt's style engine against
+    `nav-rail-item`'s *dynamic* hover/checked/disabled state (confirmed
+    empirically on both the offscreen and real native "windows" Qt
+    platforms). In practice this goes unnoticed because the primary
+    selection indicator -- `nav-rail-item`'s own single-level background-
+    color/border-left, which Qt resolves correctly -- already
+    communicates which item is active; only this secondary mark/label
+    text-color distinction is affected. Left as-is rather than
+    redesigned here; see `today-attention-label`'s static Python-decided
+    object names below for the pattern this patch used instead where a
+    reliable per-state distinction was actually required. */
     QLabel#nav-rail-mark {{
         background-color: transparent;
         border: 1.5px solid {neutral.border_strong};
@@ -640,6 +654,9 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         border-radius: {radius}px;
         padding: 4px 8px;
     }}
+    QDialog QComboBox:disabled {{
+        color: {neutral.text_disabled};
+    }}
     QDialog QPushButton {{
         background-color: {neutral.surface_secondary};
         color: {neutral.text_primary};
@@ -728,7 +745,7 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     }}
     QLineEdit#quiz-answer-input:disabled {{
         background-color: {neutral.surface_secondary};
-        color: {neutral.text_secondary};
+        color: {neutral.text_disabled};
     }}
     QLabel#quiz-field-caption {{
         color: {neutral.text_muted};
@@ -1035,7 +1052,7 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         border-radius: {radius}px;
     }}
     QLabel#settings-row-label {{
-        color: {neutral.text_primary};
+        color: {neutral.text_secondary};
         font-size: 14px;
     }}
     QComboBox#settings-quiz-presentation-combo, QComboBox#settings-appearance-combo {{
@@ -1331,6 +1348,29 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         border: 1px solid {accent.border};
     }}
     QPushButton#today-attention-row:disabled {{
+        color: {neutral.text_disabled};
+    }}
+    /* M17 Theme Completion Typography Corrective Patch: two static,
+    single-level selectors rather than a `QPushButton:disabled QLabel`
+    descendant-pseudo-state compound selector. Confirmed empirically
+    (against both the offscreen and the real native "windows" Qt
+    platforms, through the real app.py bootstrap path) that Qt's style
+    engine does not reliably re-evaluate a child QLabel's color against
+    an ancestor's *dynamic* pseudo-state here -- whichever competing
+    descendant rule has the highest selector specificity wins
+    unconditionally, regardless of whether that pseudo-state is actually
+    true. This is a pre-existing limitation (also present, undetected,
+    in `nav-rail-item`'s equivalent `QLabel#nav-rail-label`/`#nav-rail-
+    mark` rules below -- out of scope for this narrow patch to redesign)
+    -- not something newly introduced here. `_build_attention_row()`
+    (today_view.py) resolves the enabled/disabled distinction once, in
+    Python, from the same real data that already decides whether the row
+    itself is enabled, and assigns one of these two object names
+    accordingly. */
+    QLabel#today-attention-label {{
+        color: {neutral.text_primary};
+    }}
+    QLabel#today-attention-label-disabled {{
         color: {neutral.text_disabled};
     }}
 

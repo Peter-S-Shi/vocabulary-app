@@ -390,12 +390,22 @@ class TodayView(QWidget):
 
         system_type = item.get("system_type")
         if system_type:
+            # Reliable single-level selector (see theme_manager.py's
+            # "today-attention-label" comment: descendant selectors
+            # combining a QPushButton's *dynamic* pseudo-state --
+            # :hover/:disabled -- with a child QLabel's object name are
+            # not dependably re-evaluated by Qt's style engine, so the
+            # enabled/disabled distinction is decided here, once, in
+            # Python, from the same real data (`system_type`) that
+            # already decides whether the row itself is enabled).
+            label.setObjectName("today-attention-label")
             button.clicked.connect(
                 lambda _checked=False, system_type=system_type: self.navigate_to_entries_scope_requested.emit(
                     EntriesScopeIntent(scope=f"system:{system_type}")
                 )
             )
         else:
+            label.setObjectName("today-attention-label-disabled")
             button.setEnabled(False)
         return button
 
