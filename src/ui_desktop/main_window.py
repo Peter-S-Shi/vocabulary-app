@@ -11,6 +11,7 @@ from src.ui_desktop.controllers.today_controller import TodayController
 from src.ui_desktop.motion.transitions import TransitionManager
 from src.ui_desktop.state.app_state import AppState, ShellMode, Workspace
 from src.ui_desktop.state.preferences import Preferences
+from src.ui_desktop.theming.theme_manager import ThemeManager
 from src.ui_desktop.views.collections_view import CollectionsView
 from src.ui_desktop.views.entries_view import EntriesView
 from src.ui_desktop.views.quiz_view import QuizView
@@ -75,6 +76,7 @@ class MainWindow(QMainWindow):
         app_state: AppState | None = None,
         motion: TransitionManager | None = None,
         preferences: Preferences | None = None,
+        theme_manager: ThemeManager | None = None,
     ) -> None:
         super().__init__()
         self.setWindowTitle("Vocabulary App (Desktop Preview)")
@@ -82,13 +84,14 @@ class MainWindow(QMainWindow):
 
         self.app_state = app_state or AppState()
         self._motion = motion or TransitionManager()
+        self.theme_manager = theme_manager
 
         self.today_controller = TodayController()
         self.entries_controller = EntriesController()
         self.collections_controller = CollectionsController()
         self.review_controller = ReviewController()
         self.quiz_controller = QuizController()
-        self.settings_controller = SettingsController(preferences)
+        self.settings_controller = SettingsController(preferences, self.theme_manager)
 
         self.today_view = TodayView(self.today_controller)
         self.today_view.navigate_to_entries_requested.connect(
@@ -151,6 +154,25 @@ class MainWindow(QMainWindow):
         # animates -- motion decorates a *transition*, not first paint.
         self._render_workspace(self.app_state.workspace, animate=False)
         self._render_mode(self.app_state.mode, animate=False)
+
+        # M17 Theme Completion: everything QSS/QPalette-driven re-themes
+        # itself automatically the instant ThemeManager.apply() re-runs
+        # (ThemeManager docstring) -- only the Star column's custom
+        # QAbstractItemModel-painted gold needs an explicit push, both now
+        # (using whatever ThemeManager already applied at bootstrap) and
+        # on every future live theme change.
+        if self.theme_manager is not None:
+            self.theme_manager.theme_applied.connect(self._on_theme_applied)
+            if self.theme_manager.current_tokens is not None:
+                self._on_theme_applied(self.theme_manager.current_tokens)
+
+    def _on_theme_applied(self, tokens) -> None:
+        """The one live-theme seam MainWindow needs to broker (module
+        docstring's ``ThemeManager`` note): every custom-drawn widget is
+        already QSS/QPalette-styled and re-themes itself for free, so this
+        only forwards to the one view whose Star column paints a
+        non-QSS-driven color from a model data role."""
+        self.entries_view.apply_theme_tokens(tokens)
 
     def _on_rail_destination_activated(self, destination_key: str) -> None:
         if destination_key == "today":

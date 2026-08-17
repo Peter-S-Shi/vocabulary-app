@@ -46,9 +46,13 @@ def build_application(argv: list[str] | None = None) -> tuple[QApplication, Main
     theme_manager = ThemeManager(application)
     preferences = load_preferences()
     theme_manager.apply(parse_appearance(preferences.appearance), parse_accent(preferences.accent))
+    # Live OS Light/Dark reaction while Appearance=System (M17 Theme
+    # Completion prompt § 7.3); the one production ThemeManager opts in
+    # once, here -- tests constructing their own ThemeManager never do.
+    theme_manager.watch_system_appearance()
 
     motion = TransitionManager(policy=parse_motion_policy(preferences.motion))
-    window = MainWindow(motion=motion, preferences=preferences)
+    window = MainWindow(motion=motion, preferences=preferences, theme_manager=theme_manager)
     if icon is not None:
         window.setWindowIcon(icon)
     return application, window, theme_manager

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 from enum import Enum
 
-from PySide6.QtGui import QColor, QPalette
+from PySide6.QtCore import Qt, QObject, Signal
+from PySide6.QtGui import QColor, QGuiApplication, QPalette
 from PySide6.QtWidgets import QApplication
 
 from src.ui_desktop.theming.metrics import RADIUS_DEFAULT, SPACING
+from src.ui_desktop.theming.system_appearance import detect_system_color_scheme
 from src.ui_desktop.theming.tokens import (
     THEME_CALM_BLUE_DARK,
     THEME_CALM_BLUE_LIGHT,
@@ -17,7 +20,18 @@ Resolves (Appearance, Accent) into a QPalette + QSS pair and applies both
 through one call site, per the M16.1 contract § 14 theme/token
 implementation boundary. This module decides only the PySide6 plumbing; it
 does not redesign any DESIGN.md token value.
+
+M17 Theme Completion & Cross-Screen Validation closes the Appearance axis:
+``System`` now resolves through a real, live OS Light/Dark read
+(``system_appearance.detect_system_color_scheme``) instead of the M16.2
+placeholder that always resolved to Light, and ``ThemeManager.apply()`` is
+now safely re-callable at any point during a running session -- Settings'
+Appearance control and a live OS appearance change (while ``System`` is
+selected) both drive re-application through this same single call site,
+never a second theme-switch mechanism.
 """
+
+LOGGER = logging.getLogger("vocabulary_app.ui")
 
 
 class Appearance(str, Enum):
@@ -51,16 +65,26 @@ def parse_accent(value: str) -> Accent:
 def resolve_effective_appearance(appearance: Appearance) -> Appearance:
     """Resolve ``System`` to a concrete Light/Dark value.
 
-    Reading the OS Light/Dark preference is packaging-specific behavior
-    that DESIGN.md § 20 explicitly defers to the packaging milestones.
-    Until that is implemented, ``System`` resolves to ``Light`` as a
-    documented, safe placeholder rather than silently guessing per-OS
-    behavior. This is a known limitation, not a redesign of the Appearance
-    axis (which still accepts and stores ``System``).
+    Reads the OS's current appearance live, every call, through Qt's own
+    ``QStyleHints.colorScheme()`` abstraction (``system_appearance.py``).
+    If the platform cannot report an appearance (``Qt.ColorScheme.
+    Unknown`` -- an unsupported platform/Qt build, not an error), this
+    falls back to ``Light`` explicitly and logs the fallback rather than
+    silently pretending ``System`` detection succeeded (M17 Theme
+    Completion prompt § 7).
     """
-    if appearance is Appearance.SYSTEM:
+    if appearance is not Appearance.SYSTEM:
+        return appearance
+    scheme = detect_system_color_scheme()
+    if scheme == Qt.ColorScheme.Dark:
+        return Appearance.DARK
+    if scheme == Qt.ColorScheme.Light:
         return Appearance.LIGHT
-    return appearance
+    LOGGER.warning(
+        "Could not detect the OS Light/Dark appearance (Qt reported ColorScheme.Unknown); "
+        "falling back to Light for the System appearance preference."
+    )
+    return Appearance.LIGHT
 
 
 _TOKENS_BY_THEME: dict[tuple[Appearance, Accent], ThemeTokens] = {
@@ -1014,7 +1038,7 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_primary};
         font-size: 14px;
     }}
-    QComboBox#settings-quiz-presentation-combo {{
+    QComboBox#settings-quiz-presentation-combo, QComboBox#settings-appearance-combo {{
         background-color: {neutral.surface_primary};
         color: {neutral.text_primary};
         border: 1px solid {neutral.border_default};
@@ -1470,20 +1494,81 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     """.strip()
 
 
-class ThemeManager:
-    """Single apply point for (Appearance, Accent) -> QPalette + QSS."""
+class ThemeManager(QObject):
+    """Single apply point for (Appearance, Accent) -> QPalette + QSS.
+
+    ``apply()`` is safely re-callable at any point during a running
+    session -- both Settings' Appearance control (live explicit
+    Light/Dark/System switching) and ``watch_system_appearance()``'s live
+    OS-change reaction call back through this one method, never a second
+    theme-switch mechanism (M17 Theme Completion prompt § 6/§ 8). Because
+    every custom-drawn widget in this app is styled through the single
+    application-level QSS ``build_stylesheet()`` returns (module
+    docstring; every ``QToolButton``/dialog/menu/etc. rule lives there),
+    re-calling ``QApplication.setStyleSheet()``/``setPalette()`` re-themes
+    the entire already-rendered widget tree automatically, including
+    dialogs/menus opened afterward -- no per-view re-theme wiring is
+    needed for anything QSS/QPalette-driven. ``theme_applied`` exists only
+    for the one narrow exception: presentation baked into custom
+    ``QAbstractItemModel`` data roles (the Entries Star column's gold),
+    which Qt's style engine cannot re-paint on its own.
+    """
+
+    theme_applied = Signal(object)  # emits the just-applied ThemeTokens
 
     def __init__(self, application: QApplication) -> None:
+        super().__init__()
         self._application = application
         self._current: tuple[Appearance, Accent] | None = None
+        self._current_tokens: ThemeTokens | None = None
+        self._watching_system = False
 
     @property
     def current(self) -> tuple[Appearance, Accent] | None:
         return self._current
+
+    @property
+    def current_tokens(self) -> ThemeTokens | None:
+        return self._current_tokens
 
     def apply(self, appearance: Appearance, accent: Accent) -> ThemeTokens:
         tokens = resolve_tokens(appearance, accent)
         self._application.setPalette(build_palette(tokens))
         self._application.setStyleSheet(build_stylesheet(tokens))
         self._current = (appearance, accent)
+        self._current_tokens = tokens
+        self.theme_applied.emit(tokens)
         return tokens
+
+    def watch_system_appearance(self) -> None:
+        """Opt-in, idempotent: wires a live reaction to the OS Light/Dark
+        appearance changing while this manager's stored preference is
+        ``System`` (M17 Theme Completion prompt § 7.3).
+
+        Connects to Qt's own ``QStyleHints.colorSchemeChanged`` signal --
+        each platform's native OS-level notification, not a polling loop
+        (``system_appearance.py``). This is opt-in rather than automatic
+        at construction time so constructing a ``ThemeManager`` for a
+        test never silently subscribes it to a process-global Qt signal
+        it did not ask to watch; the one production ``ThemeManager``
+        (``app.py``) calls this once, explicitly, after its initial
+        ``apply()``. Calling this more than once on the same instance is
+        a safe no-op (M17 Theme Completion prompt § 18 "no duplicate
+        theme manager instance/state").
+        """
+        if self._watching_system:
+            return
+        QGuiApplication.styleHints().colorSchemeChanged.connect(self._on_os_color_scheme_changed)
+        self._watching_system = True
+
+    def _on_os_color_scheme_changed(self, _scheme: Qt.ColorScheme) -> None:
+        """Re-applies only while the *stored* preference is ``System`` --
+        an OS change while an explicit Light/Dark preference is active
+        must never override that explicit choice (prompt § 7.3's
+        "does not override the explicit choice"). Always re-reads the
+        live OS state through ``apply()`` -> ``resolve_effective_
+        appearance()`` rather than trusting this signal's payload, so
+        this stays correct even if multiple OS changes coalesce into one
+        emission."""
+        if self._current is not None and self._current[0] is Appearance.SYSTEM:
+            self.apply(*self._current)

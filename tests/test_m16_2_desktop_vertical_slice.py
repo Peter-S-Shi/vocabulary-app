@@ -389,9 +389,16 @@ class M162ThemeManagerTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.app = _qt_app()
 
-    def test_resolve_effective_appearance_system_defaults_to_light(self) -> None:
-        self.assertIs(resolve_effective_appearance(Appearance.SYSTEM), Appearance.LIGHT)
+    def test_resolve_effective_appearance_system_resolves_through_real_os_detection(self) -> None:
+        """Since M17 Theme Completion, `System` resolves through a real,
+        live OS Light/Dark read (`system_appearance.py`), not the M16.2
+        placeholder that always resolved to Light -- see
+        `tests/test_m17_theme_completion.py`'s `SystemAppearanceAbstract
+        ionTests` for the full mocked-OS-state coverage. This just
+        confirms explicit Dark is never routed through OS detection at
+        all."""
         self.assertIs(resolve_effective_appearance(Appearance.DARK), Appearance.DARK)
+        self.assertIs(resolve_effective_appearance(Appearance.LIGHT), Appearance.LIGHT)
 
     def test_parse_helpers_fall_back_safely_on_unknown_values(self) -> None:
         self.assertIs(parse_appearance("Not A Real Value"), Appearance.SYSTEM)

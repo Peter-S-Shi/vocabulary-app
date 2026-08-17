@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QItemSelectionModel, QRect, QSortFilterProxyModel, Qt, Signal
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QColor, QGuiApplication
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -292,6 +292,15 @@ class EntriesView(QWidget):
     def refresh(self) -> None:
         self._controller.refresh_scopes()
         self._controller.refresh()
+
+    def apply_theme_tokens(self, tokens) -> None:
+        """The one non-QSS-driven live-theme seam this checkpoint needs
+        (``theme_manager.py`` module docstring): the Star column's fill
+        color is a custom ``QAbstractItemModel`` data role, not QSS, so it
+        does not repaint itself when the application stylesheet changes.
+        ``MainWindow`` calls this once at startup and again on every
+        ``ThemeManager.theme_applied`` emission."""
+        self._controller.model.set_star_color(QColor(tokens.semantic.star.background))
 
     # -- toolbar -------------------------------------------------------------
 

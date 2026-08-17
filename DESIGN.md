@@ -1102,6 +1102,8 @@ Supported values:
 
 `System` follows the OS appearance. Light and Dark are explicit overrides. Dark Mode is independently designed, not a naïve inversion.
 
+On desktop, `System` resolves through a live read of the OS's current Light/Dark appearance (Qt's `QStyleHints.colorScheme()`, not a hand-rolled per-platform poll) and re-resolves automatically if the OS appearance changes while the app is running and `System` remains selected; switching to an explicit Light/Dark choice is never silently overridden by a later OS change (M17 Theme Completion).
+
 Theme changes apply without restart and must not mutate vocabulary data, Quiz state, Review evidence, Analytics, or other learning state.
 
 ### 13.2 Accent families
@@ -1153,9 +1155,11 @@ Theme implementation uses semantic tokens, never per-widget hard-coded colors.
 
 ### Semantic state tokens
 
-`success` / `on-success` / `success-soft`, `warning` / `on-warning` / `warning-soft`, `danger` / `on-danger` / `danger-soft`, `info` / `on-info` / `info-soft`, `quiz-correct` / `on-quiz-correct` / `quiz-correct-soft`, `quiz-wrong` / `on-quiz-wrong` / `quiz-wrong-soft`.
+`success` / `on-success` / `success-soft`, `warning` / `on-warning` / `warning-soft`, `danger` / `on-danger` / `danger-soft`, `info` / `on-info` / `info-soft`, `quiz-correct` / `on-quiz-correct` / `quiz-correct-soft`, `quiz-wrong` / `on-quiz-wrong` / `quiz-wrong-soft`, `star` / `on-star` (M17 Theme Completion).
 
 `quiz-correct` aliases success and `quiz-wrong` aliases danger. Correct/Wrong are semantic states, not a theme-accent palette.
+
+`star` is the Entries "Starred" affordance's own semantic (filled ★): independent of both accent and `warning`, chosen at a distinctly more yellow hue than `warning`'s brownish amber so a filled star can never be mistaken for a warning badge.
 
 ### Interaction-state layer
 
@@ -1227,7 +1231,7 @@ Exact hex values are current numeric authority. Token names and relationships ar
 | `surface-sunken` | `#ECEAE5` | `#131415` | recessed/inset elements |
 | `text-primary` | `#1C1B18` | `#EDECE8` | primary reading text |
 | `text-secondary` | `#56534C` | `#B7B4AC` | secondary/supporting text |
-| `text-muted` | `#79766D` | `#8F8D87` | de-emphasized but readable metadata/captions |
+| `text-muted` | `#6E6B62` | `#8F8D87` | de-emphasized but readable metadata/captions |
 | `text-disabled` | `#938F81` | `#726F67` | non-interactive identifiable text |
 | `border-subtle` | `#E8E6E0` | `#2C2E31` | decorative dividers |
 | `border-default` | `#D9D6CE` | `#383A3D` | ordinary component borders |
@@ -1236,6 +1240,8 @@ Exact hex values are current numeric authority. Token names and relationships ar
 | `shadow` | soft, low-opacity, neutral-hued | soft, low-opacity, neutral-hued | elevation cue; exact native rendering is framework-dependent |
 
 `surface-elevated` currently aliases `surface-primary`, separated by overlay/shadow. Add a distinct tone only if a real elevated surface proves insufficiently distinguishable.
+
+M17 Theme Completion re-hardened Light `text-muted` (`#79766D` -> `#6E6B62`): the prior value's own audited contrast (§ 19) had only been checked against `surface-primary` (4.54:1, PASS), not against the `surface-secondary`/`app-background` pairs the token is actually deployed against in the running app, where it measured 4.24:1 / 4.09:1 -- a real WCAG AA failure. The new value clears 4.5:1 against all three.
 
 ### 18.2 Accent Families
 
@@ -1266,8 +1272,11 @@ Exact hex values are current numeric authority. Token names and relationships ar
 | `info-soft` | `#E4EEF1` | `#21313A` |
 | `quiz-correct` / `quiz-correct-soft` | = `success` / `success-soft` | = `success` / `success-soft` |
 | `quiz-wrong` / `quiz-wrong-soft` | = `danger` / `danger-soft` | = `danger` / `danger-soft` |
+| `star` / `on-star` (M17 Theme Completion) | `#8A6D00` / `#FFFFFF` | `#E8C547` / `#17181A` |
 
 Each semantic solid may serve as foreground on its matching soft background only because that pair is explicitly audited, not because such pairing is assumed universally.
+
+`star` has no `star-soft` background counterpart -- it is deployed as a foreground glyph color (the Entries Star column's filled ★) directly on `surface-primary`/`surface-secondary`, never as a filled chip.
 
 ---
 
@@ -1298,15 +1307,17 @@ Muted content is still intended to be read and must meet 4.5:1. Disabled content
 | Dark table row text (`text-primary` on `surface-primary`) | ~13.8:1 | PASS; previously ~1.29:1 when unstyled |
 | Primary button, all 8 Accent × Appearance combos | ~4.9–7.8:1 | PASS |
 | Selected nav/row (`on-accent-soft` on `accent-soft`) | ~6.4–9.2:1 | PASS |
-| Muted text, Light | ~4.54–4.60:1 | PASS |
-| Muted text, Dark | ~4.61–4.63:1 | PASS |
-| Disabled text | ~3.0:1 | design-target pass |
+| Muted text, Light, vs `app-background`/`surface-primary`/`surface-secondary` (M17 re-audit) | ~4.80 / 5.33 / 4.97:1 | PASS |
+| Muted text, Dark, vs `app-background`/`surface-primary`/`surface-secondary` | ~5.35 / 4.92 / 4.63:1 | PASS |
+| Disabled text | ~3.0:1 | design-target pass; exempt from AA (WCAG 1.4.3, inactive controls) |
 | Success/Warning soft text, Light | ~4.52–4.66:1 | PASS |
 | Danger/Info soft text, Light | ~4.78–4.82:1 | PASS |
 | semantic soft text, Dark | ~5.17–5.90:1 | PASS |
 | `border-strong` vs `surface-primary`, Light/Dark | ~3.04:1 / 3.05:1 | PASS |
 | decorative subtle/default dividers | ~1.4–2.2:1 | exempt when purely decorative |
 | `quiz-correct` / `quiz-wrong` text | ~5.4–6.6:1 | PASS |
+| `star` vs `surface-primary`/`surface-secondary`, Light (M17 Theme Completion) | ~4.92 / 4.59:1 | PASS |
+| `star` vs `surface-primary`/`surface-secondary`, Dark | ~9.73 / 9.15:1 | PASS |
 
 All eight Accent × explicit Appearance combinations must remain auditable. `System` inherits Light/Dark behavior and is not a ninth palette.
 

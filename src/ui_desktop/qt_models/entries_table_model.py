@@ -38,11 +38,16 @@ pane, set by a plain row click/current-index change, never by a
 checkbox). Both are pure presentation mirrors the view keeps in sync
 with the controller's two independent truths -- neither is derived from
 the other. A leading Star column (``STAR_COLUMN``) gives each row a
-direct, persisted Starred toggle (``row["starred"]``) painted via a
-fixed semantic gold when filled; the model has no theme-token access
-(models stay theme-agnostic per the M16.1 layering), so this is one
-fixed accent rather than a full palette resolution, chosen to read
-legibly on both Light and Dark surfaces.
+direct, persisted Starred toggle (``row["starred"]``) painted via the
+Star semantic color when filled.
+
+M17 Theme Completion (prompt § 13): the model still has no direct
+``ThemeManager``/token access (models stay theme-agnostic per the M16.1
+layering) -- ``set_star_color()`` lets the view push the resolved
+``tokens.semantic.star.background`` color in instead, both at
+construction and again on every live theme change, so the Star column
+participates in live theme switching without the model importing theming
+code itself.
 """
 
 
@@ -62,7 +67,9 @@ class EntriesTableModel(QAbstractTableModel):
     )
     HEADERS: tuple[str, ...] = ("", "★", "Term", "Language", "Type", "Template", "Collections", "Status", "Updated")
 
-    STAR_FILLED_COLOR = QColor("#C9972E")
+    # Safe default before the view supplies the real resolved token color
+    # (set_star_color()); never the sole source of truth for it.
+    DEFAULT_STAR_COLOR = QColor("#8A6D00")
     FOCUSED_ROW_TINT = QColor(62, 102, 144, 40)
 
     checkbox_toggled = Signal(int, bool)
@@ -72,6 +79,7 @@ class EntriesTableModel(QAbstractTableModel):
         self._rows: list[dict] = list(rows) if rows else []
         self._checked_ids: set[int] = set()
         self._focused_id: int | None = None
+        self._star_color = QColor(self.DEFAULT_STAR_COLOR)
 
     def set_rows(self, rows: list[dict]) -> None:
         self.beginResetModel()
@@ -84,6 +92,19 @@ class EntriesTableModel(QAbstractTableModel):
             top_left = self.index(0, 0)
             bottom_right = self.index(len(self._rows) - 1, len(self.COLUMNS) - 1)
             self.dataChanged.emit(top_left, bottom_right, [Qt.ItemDataRole.CheckStateRole, Qt.ItemDataRole.BackgroundRole])
+
+    def set_star_color(self, color: QColor) -> None:
+        """Pushed by the view from resolved theme tokens (module
+        docstring); repaints every filled star in place without a full
+        model reset."""
+        if self._star_color == color:
+            return
+        self._star_color = QColor(color)
+        if self._rows:
+            star_col = self.COLUMNS.index(self.STAR_COLUMN)
+            top_left = self.index(0, star_col)
+            bottom_right = self.index(len(self._rows) - 1, star_col)
+            self.dataChanged.emit(top_left, bottom_right, [Qt.ItemDataRole.ForegroundRole])
 
     def set_focused_id(self, entry_id: int | None) -> None:
         if entry_id == self._focused_id:
@@ -142,7 +163,7 @@ class EntriesTableModel(QAbstractTableModel):
             if role == Qt.ItemDataRole.ToolTipRole:
                 return "Remove from Starred" if starred else "Add to Starred"
             if role == Qt.ItemDataRole.ForegroundRole:
-                return self.STAR_FILLED_COLOR if starred else None
+                return self._star_color if starred else None
             if role == Qt.ItemDataRole.TextAlignmentRole:
                 return int(Qt.AlignmentFlag.AlignCenter)
             return None
