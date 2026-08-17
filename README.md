@@ -42,7 +42,15 @@ freezing the controller/view-state/core boundary (see
 **M16.2 Minimal Desktop Vertical Slice & M16 Exit is complete on `main`**
 through PR #23 at `2e900d243950ca93aedf5cbde5b836dc6e378f25` — see
 [Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md). **Milestone 17 —
-Desktop Core Workflow Migration** is the next objective and has not started.
+Desktop Core Workflow Migration is complete on `main`**, merged via PR #25:
+Today, Review, Quiz, Quiz Presentation Choice, Entries, Minimum Collection
+Integration, Theme Completion & Cross-Screen Validation, and the final
+Parity + Exit Verification checkpoint are all Human Accepted. Native Human
+Exit PASS recorded 2026-08-17 against final accepted head
+`d232717b6b225e7c798c510ae8e87ce87fe5d8c8`; see
+[ROADMAP.md § Milestone 17](ROADMAP.md#milestone-17-desktop-core-workflow-migration)
+for the full acceptance record. **Milestone 18 — Desktop Management and
+Major Feature Completion** is the next objective and has not started.
 
 Streamlit remains the currently runnable compatibility/reference UI, but it is
 no longer the intended Release Candidate target. The active lifecycle now
@@ -174,9 +182,11 @@ This project does not include:
 - cloud sync
 - account login or authentication
 - mobile app packaging
-- a feature-complete desktop GUI (a minimal M16.2 vertical slice exists —
-  see [Desktop Preview](#desktop-preview-m162-complete-on-main) above; full
-  workflow migration is Milestone 17 scope)
+- full desktop/Streamlit feature parity (the native desktop app covers the
+  core daily learning loop as of Milestone 17 — see
+  [Desktop App](#desktop-app-milestone-17-core-workflow-complete-on-main)
+  above; deeper Collection management, Settings/personalization, and
+  Analytics remain Milestone 18 scope)
 - full destructive database restore
 
 These statements describe the current implementation. The active roadmap now
@@ -286,16 +296,20 @@ http://localhost:8501
 
 Run the command from the directory containing `app.py`.
 
-### Desktop Preview (M16.2, Complete on `main`)
+### Desktop App (Milestone 17 Core Workflow, Complete on `main`)
 
-A minimal native desktop vertical slice exists under `src/ui_desktop/`,
-proving the M16.1 architecture end to end (Today and Entries as native
-workspaces, Management/Study chrome swap, runtime Light/Dark theming,
-durable Appearance/Accent preferences). It is not a feature-complete
-desktop application — full Today/Review/Quiz/Entries migration is
-Milestone 17 scope; see
-[Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md)
-for exact scope. Install the additional desktop dependency, then launch:
+The native desktop application under `src/ui_desktop/` now covers the
+primary daily learning loop end to end: Today (Command Center), Entries
+(Table-First manager, with search/filter/sort/result count and Custom
+Entry Type), Collections Navigator, Review and Quiz (both in Immersive
+Focus, plus an optional Flip Card + Filmstrip Quiz presentation), and a
+Settings Appearance control with live System/Light/Dark theming. It is
+not yet a full replacement for every Streamlit capability — richer
+Collection management, deeper Settings/personalization, and Analytics
+remain Milestone 18 scope; see
+[ROADMAP.md § Milestone 17](ROADMAP.md#milestone-17-desktop-core-workflow-migration)
+for the exact accepted scope. Install the additional desktop dependency,
+then launch:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements-desktop.txt

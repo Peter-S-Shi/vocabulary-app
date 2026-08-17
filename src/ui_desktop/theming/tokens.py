@@ -72,6 +72,7 @@ class SemanticTokens:
     danger_soft: str
     info: ColorPair
     info_soft: str
+    star: ColorPair  # Entries Star affordance; independent of accent/warning (DESIGN.md § 15)
 
     @property
     def quiz_correct(self) -> ColorPair:
@@ -108,7 +109,16 @@ NEUTRAL_LIGHT = NeutralTokens(
     surface_sunken="#ECEAE5",
     text_primary="#1C1B18",
     text_secondary="#56534C",
-    text_muted="#79766D",
+    # M17 Theme Completion contrast hardening: the prior #79766D only
+    # passed the DESIGN.md-audited 4.5:1 minimum against surface-primary
+    # (4.54:1); against the surfaces text-muted is actually deployed on
+    # in the running app (surface-secondary, app-background -- e.g. Today
+    # captions, Entries/Collections scope headings), it measured 4.24:1
+    # and 4.09:1, a real WCAG AA failure the audit in DESIGN.md § 18/§ 19
+    # had not caught. #6E6B62 clears 4.5:1 against all three surfaces
+    # (4.97 / 5.33 / 4.80) while staying strictly between text-secondary
+    # and text-disabled, preserving the hierarchy.
+    text_muted="#6E6B62",
     text_disabled="#938F81",
     border_subtle="#E8E6E0",
     border_default="#D9D6CE",
@@ -160,6 +170,15 @@ SEMANTIC_LIGHT = SemanticTokens(
     danger_soft="#F7E4E3",
     info=ColorPair("#3F6D82", "#FFFFFF"),
     info_soft="#E4EEF1",
+    # M17 Theme Completion (prompt § 13): the desktop Entries Star column
+    # previously used one fixed hardcoded gold (#C9972E) with no theme
+    # awareness. It measured only 2.64:1 against Light surface-primary
+    # (fails WCAG AA) and sits at hue ~41 deg, only ~4 deg from warning's
+    # own ~37 deg hue in both Appearances -- close enough to risk reading
+    # as a warning badge. #8A6D00 clears 4.5:1+ against every Light
+    # surface it appears on and shifts to hue ~47 deg (clearly more
+    # yellow/gold, less brown/amber) for real separation from warning.
+    star=ColorPair("#8A6D00", "#FFFFFF"),
 )
 
 SEMANTIC_DARK = SemanticTokens(
@@ -171,6 +190,9 @@ SEMANTIC_DARK = SemanticTokens(
     danger_soft="#3A2323",
     info=ColorPair("#7CAFC2", "#17181A"),
     info_soft="#21313A",
+    # Same Star rationale as Light: #E8C547 keeps hue ~47 deg (vs
+    # warning's ~37 deg) and contrasts ~9.7:1 against Dark surface-primary.
+    star=ColorPair("#E8C547", "#17181A"),
 )
 
 THEME_CALM_BLUE_LIGHT = ThemeTokens(

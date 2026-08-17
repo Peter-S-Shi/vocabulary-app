@@ -34,7 +34,6 @@ SQLite compatibility path built on top of that architecture.
 
 if PYSIDE6_AVAILABLE:
     from src.ui_desktop.app import build_application
-    from src.ui_desktop.controllers.entries_controller import EntriesController
     from src.ui_desktop.controllers.today_controller import TodayController
     from src.ui_desktop.main_window import MainWindow
     from src.ui_desktop.qt_models.entries_table_model import EntriesTableModel
@@ -177,15 +176,15 @@ class M162NavigationAndChromeTests(_SyntheticDatabaseTestCase):
         self.assertIs(self.window.current_workspace(), Workspace.TODAY)
 
     def test_study_mode_suppresses_management_chrome_and_restores_it(self) -> None:
-        self.assertTrue(self.window._management_toolbar.isVisible())
+        self.assertTrue(self.window._navigation_rail.isVisible())
         self.assertFalse(self.window._study_toolbar.isVisible())
 
         self.window.app_state.enter_study_mode()
-        self.assertFalse(self.window._management_toolbar.isVisible())
+        self.assertFalse(self.window._navigation_rail.isVisible())
         self.assertTrue(self.window._study_toolbar.isVisible())
 
         self.window.app_state.enter_management_mode()
-        self.assertTrue(self.window._management_toolbar.isVisible())
+        self.assertTrue(self.window._navigation_rail.isVisible())
         self.assertFalse(self.window._study_toolbar.isVisible())
 
     def test_mode_changed_signal_only_fires_on_actual_transition(self) -> None:
@@ -237,7 +236,7 @@ class M162ShellStateAuthorityTests(_SyntheticDatabaseTestCase):
 
         self.assertIs(window.app_state.mode, ShellMode.STUDY)
         self.assertTrue(window._study_toolbar.isVisible())
-        self.assertFalse(window._management_toolbar.isVisible())
+        self.assertFalse(window._navigation_rail.isVisible())
 
     def test_shell_convenience_method_keeps_state_and_ui_aligned(self) -> None:
         window = MainWindow()
@@ -294,58 +293,6 @@ class M162TodayControllerTests(_SyntheticDatabaseTestCase):
 
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
-class M162EntriesControllerAndModelTests(_SyntheticDatabaseTestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.app = _qt_app()
-
-    def test_refresh_populates_model_from_real_reusable_core_output(self) -> None:
-        add_entry("English", "Chinese", "word", "alpha", "first meaning")
-        add_entry("French", "Chinese", "word", "beta", "deuxième sens")
-
-        controller = EntriesController()
-        row_counts: list[int] = []
-        controller.rows_changed.connect(row_counts.append)
-
-        count = controller.refresh()
-
-        self.assertEqual(count, 2)
-        self.assertEqual(row_counts, [2])
-        self.assertEqual(controller.model.rowCount(), 2)
-        terms = {controller.model.row_at(row)["term"] for row in range(controller.model.rowCount())}
-        self.assertEqual(terms, {"alpha", "beta"})
-
-    def test_search_text_filters_through_real_core_query(self) -> None:
-        add_entry("English", "Chinese", "word", "alpha", "first meaning")
-        add_entry("French", "Chinese", "word", "beta", "deuxième sens")
-
-        controller = EntriesController()
-        controller.refresh()
-        count = controller.set_search_text("alpha")
-
-        self.assertEqual(count, 1)
-        self.assertEqual(controller.model.row_at(0)["term"], "alpha")
-
-    def test_select_row_emits_selection_and_exposes_entry(self) -> None:
-        add_entry("English", "Chinese", "word", "alpha", "first meaning")
-        controller = EntriesController()
-        controller.refresh()
-
-        selections: list[object] = []
-        controller.selection_changed.connect(selections.append)
-
-        entry = controller.select_row(0)
-
-        self.assertEqual(entry["term"], "alpha")
-        self.assertIs(controller.selected_entry, entry)
-        self.assertEqual(selections, [entry])
-
-        missing = controller.select_row(99)
-        self.assertIsNone(missing)
-        self.assertIsNone(controller.selected_entry)
-
-
-@unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
 class M162EntriesTableModelTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -360,8 +307,9 @@ class M162EntriesTableModelTests(unittest.TestCase):
 
         self.assertEqual(model.rowCount(), 1)
         self.assertEqual(model.columnCount(), len(EntriesTableModel.COLUMNS))
-        self.assertEqual(model.data(model.index(0, 0)), "alpha")
-        self.assertEqual(model.headerData(0, Qt.Orientation.Horizontal), "Term")
+        term_column = EntriesTableModel.COLUMNS.index("term")
+        self.assertEqual(model.data(model.index(0, term_column)), "alpha")
+        self.assertEqual(model.headerData(term_column, Qt.Orientation.Horizontal), "Term")
 
     def test_row_at_returns_none_out_of_range(self) -> None:
         model = EntriesTableModel([])
@@ -441,9 +389,16 @@ class M162ThemeManagerTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.app = _qt_app()
 
-    def test_resolve_effective_appearance_system_defaults_to_light(self) -> None:
-        self.assertIs(resolve_effective_appearance(Appearance.SYSTEM), Appearance.LIGHT)
+    def test_resolve_effective_appearance_system_resolves_through_real_os_detection(self) -> None:
+        """Since M17 Theme Completion, `System` resolves through a real,
+        live OS Light/Dark read (`system_appearance.py`), not the M16.2
+        placeholder that always resolved to Light -- see
+        `tests/test_m17_theme_completion.py`'s `SystemAppearanceAbstract
+        ionTests` for the full mocked-OS-state coverage. This just
+        confirms explicit Dark is never routed through OS detection at
+        all."""
         self.assertIs(resolve_effective_appearance(Appearance.DARK), Appearance.DARK)
+        self.assertIs(resolve_effective_appearance(Appearance.LIGHT), Appearance.LIGHT)
 
     def test_parse_helpers_fall_back_safely_on_unknown_values(self) -> None:
         self.assertIs(parse_appearance("Not A Real Value"), Appearance.SYSTEM)

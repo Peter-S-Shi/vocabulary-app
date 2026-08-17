@@ -563,6 +563,36 @@ def get_collection_ids_for_entry(entry_id: int) -> list[int]:
     return [int(row["collection_id"]) for row in rows]
 
 
+def get_collection_names_for_entries(entry_ids: list[int]) -> dict[int, list[str]]:
+    """Batched counterpart to ``get_collection_ids_for_entry`` (one query
+    for many entries instead of N+1) -- added for the M17 Feature 4
+    Entries table's Collections column, which needs this for every visible
+    row (M17 Feature 4 prompt § 11: "adding a small reusable core query is
+    acceptable if a canonical Entries scope genuinely requires data that
+    no reusable API currently exposes")."""
+    unique_ids = sorted({int(entry_id) for entry_id in entry_ids})
+    if not unique_ids:
+        return {}
+
+    placeholders = ",".join("?" for _ in unique_ids)
+    with get_connection() as connection:
+        rows = connection.execute(
+            f"""
+            SELECT ec.entry_id, c.name
+            FROM entry_collections ec
+            JOIN collections c ON c.id = ec.collection_id
+            WHERE ec.entry_id IN ({placeholders})
+            ORDER BY ec.entry_id ASC, c.name ASC
+            """,
+            unique_ids,
+        ).fetchall()
+
+    names_by_entry: dict[int, list[str]] = {entry_id: [] for entry_id in unique_ids}
+    for row in rows:
+        names_by_entry[int(row["entry_id"])].append(str(row["name"]))
+    return names_by_entry
+
+
 def update_entry_collections(
     entry_id: int,
     desired_collection_ids: list[int],
@@ -720,6 +750,123 @@ def get_card_groups_for_collection(collection_id: int) -> list[dict]:
         }
         for card_number, card_entries in sorted(grouped_entries.items())
     ]
+
+
+CARD_SORT_MODES = ("card_number", "card_created_at", "card_updated_at")
+CARD_PAGE_SIZE_OPTIONS = (5, 10, 20, 50)
+DEFAULT_CARD_PAGE_SIZE = 10
+
+
+def get_card_page_for_collection(
+    collection_id: int,
+    *,
+    page: int = 1,
+    page_size: int = DEFAULT_CARD_PAGE_SIZE,
+    sort_by: str = "card_number",
+) -> dict:
+    """Paged, read-only Card projection for a Collection (M17 Minimum
+    Collection Integration corrective pass § 2/§ 3): a Collection with
+    thousands of Entries must never require loading every Entry's full
+    row (term/meaning/example/notes/tags/source) just to show one page of
+    Cards. Each Card's Entry *count* is computed with a positional SQL
+    aggregate over ``entry_collections`` -- never
+    ``get_entries_in_collection``/``get_card_groups_for_collection``'s
+    "load everything, group in Python" path -- and only the requested
+    page's Card numbers are returned. Card metadata (name/timestamps) is
+    still read once per Collection via the existing
+    ``get_card_metadata_for_collection`` (one lightweight row per Card,
+    not per Entry) since sorting by created/updated time needs to see
+    every Card's metadata regardless of which page is requested.
+    """
+    if sort_by not in CARD_SORT_MODES:
+        sort_by = "card_number"
+
+    collection = get_collection_by_id(collection_id)
+    if collection is None:
+        return {"cards": [], "total_cards": 0, "total_pages": 1, "page": 1, "page_size": max(1, int(page_size))}
+
+    card_size = max(1, int(collection["card_size"]))
+    safe_page_size = max(1, int(page_size))
+
+    with get_connection() as connection:
+        count_rows = connection.execute(
+            """
+            SELECT ((ec.position - 1) / ?) + 1 AS card_number, COUNT(*) AS entry_count
+            FROM entry_collections ec
+            WHERE ec.collection_id = ?
+            GROUP BY card_number
+            """,
+            (card_size, collection_id),
+        ).fetchall()
+
+    entry_counts = {int(row["card_number"]): int(row["entry_count"]) for row in count_rows}
+    card_metadata = get_card_metadata_for_collection(collection_id)
+    card_numbers = set(entry_counts) | set(card_metadata)
+
+    total_cards = len(card_numbers)
+    total_pages = max(1, (total_cards + safe_page_size - 1) // safe_page_size)
+    safe_page = min(max(1, int(page)), total_pages)
+
+    def sort_key(card_number: int):
+        metadata = card_metadata.get(card_number, {})
+        if sort_by == "card_created_at":
+            return (metadata.get("created_at") or "", card_number)
+        if sort_by == "card_updated_at":
+            return (metadata.get("updated_at") or "", card_number)
+        return (card_number,)
+
+    ordered_numbers = sorted(card_numbers, key=sort_key)
+    start = (safe_page - 1) * safe_page_size
+    page_numbers = ordered_numbers[start : start + safe_page_size]
+
+    cards = [
+        {
+            "card_number": card_number,
+            "card_id": card_metadata.get(card_number, {}).get("card_id"),
+            "card_name": card_metadata.get(card_number, {}).get("name", ""),
+            "card_created_at": card_metadata.get(card_number, {}).get("created_at", ""),
+            "card_updated_at": card_metadata.get(card_number, {}).get("updated_at", ""),
+            "entry_count": entry_counts.get(card_number, 0),
+        }
+        for card_number in page_numbers
+    ]
+
+    return {
+        "cards": cards,
+        "total_cards": total_cards,
+        "total_pages": total_pages,
+        "page": safe_page,
+        "page_size": safe_page_size,
+    }
+
+
+def get_entry_ids_in_system_collection(entry_ids: list[int], system_type: str) -> set[int]:
+    """Batched membership check against a system practice pool (e.g.
+    which of these visible Entries are currently Starred) -- avoids an
+    N+1 ``is_entry_in_system_collection`` call per row (M17 Minimum
+    Collection Integration corrective pass § 9, a direct per-row Star
+    affordance in Entries)."""
+    unique_ids = sorted({int(entry_id) for entry_id in entry_ids})
+    if not unique_ids:
+        return set()
+
+    system_collection = get_system_collection_by_type_or_name(system_type)
+    if system_collection is None:
+        return set()
+
+    placeholders = ",".join("?" for _ in unique_ids)
+    with get_connection() as connection:
+        rows = connection.execute(
+            f"""
+            SELECT entry_id
+            FROM entry_collections
+            WHERE collection_id = ?
+              AND entry_id IN ({placeholders})
+            """,
+            (system_collection["id"], *unique_ids),
+        ).fetchall()
+
+    return {int(row["entry_id"]) for row in rows}
 
 
 def get_card_names_for_collection(collection_id: int) -> dict[int, str]:

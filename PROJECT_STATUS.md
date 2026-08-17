@@ -1,6 +1,6 @@
 # Vocabulary App Project Status
 
-Last reviewed: 2026-08-15
+Last reviewed: 2026-08-17
 
 This file is the authoritative evidence-based snapshot of the current project
 state.
@@ -13,11 +13,13 @@ Desktop-specific migration principles and workflow mapping are defined in
 ## Current Phase
 
 **Milestone 16 — Desktop Architecture and UI Design (Complete on `main`);
-Milestone 17 — Desktop Core Workflow Migration (Next)**
+Milestone 17 — Desktop Core Workflow Migration (Complete on `main`)**
 
 ## Current Milestone
 
-**Milestone 16 Complete on `main`; Milestone 17 Not Started**
+**Milestone 16 Complete on `main`; Milestone 17 Complete on `main`
+(merged via PR #25). Milestone 18 — Desktop Management and Major Feature
+Completion has not started.**
 
 M16.0 Desktop UI Design Baseline is complete and frozen: [DESIGN.md](DESIGN.md)
 records the approved desktop information architecture, theme architecture, and
@@ -35,16 +37,181 @@ acceptance. See `ROADMAP.md` § Milestone 16 for exit criteria and
 [Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md) for full
 evidence.
 
-Milestone 17 — Desktop Core Workflow Migration is the next objective. It
-remains one milestone: one long-lived branch, one Draft PR (expected
-`agent/m17-desktop-core-workflow-migration`), and an ordered feature
+Milestone 17 — Desktop Core Workflow Migration is **in progress** on the
+single long-lived branch `agent/m17-desktop-core-workflow-migration`. It
+remains one milestone: one branch, one Draft PR, and an ordered feature
 migration sequence (Today, Review, Quiz, Entries, minimum Collection
 integration, then parity/exit verification) rather than independent
 sub-milestone branches or PRs. From M17 onward, functional workflow
 migration and that workflow's approved `DESIGN.md` archetype implementation
 are one feature-level engineering closure — see `ROADMAP.md` § Milestone 17
 for the full operating model, frozen semantic boundaries, and verification
-model. M17 implementation has not started; no branch or PR exists yet.
+model.
+
+**Feature 1 — Today.** Its non-visual groundwork is implemented and
+retained. A **third, fresh presentation** was implemented from the
+replacement `DESIGN.md` design authority (`c19b686`) and its canonical
+visual reference (`Today - Home.pdf` p2, Variant A). It went through two
+visual-realization/calibration passes and one rendering-bug fix after
+native visual acceptance FAILs, and **is now Human Accepted** at the
+native visual acceptance gate: PASS recorded 2026-08-16 against commit
+`fdd9cc0`. Per DESIGN.md § 2, this is Level 4 — Human Accepted, the only
+level that closes a visual implementation requirement; structural tests
+alone (Level 2) never could have.
+
+Two earlier Today presentations were built and both were rejected before
+this one; that history is preserved below, not erased:
+
+1. The first implementation was rejected because the UI still read as
+   default Qt widgets with token coloring rather than a designed product
+   surface.
+2. The follow-up visual-realization pass was **also rejected**: it
+   improved polish and introduced a shared component grammar, but in
+   doing so it replaced the approved spatial composition with a
+   top-navigation / KPI-tile / full-width-table design of its own. Neither
+   attempt is a valid Command Center, and this document does not describe
+   either as one.
+
+Throughout both rejections the automated suite was fully green. Structural
+assertions — layout stretch factors, token contrast, component-role
+coverage — cannot establish that an approved design was realized. That is
+why human visual acceptance is a required gate (see the Human UI
+Acceptance Delivery Pattern in `AGENTS.md`).
+
+A **controlled reset** therefore removed the rejected presentation while
+preserving design-neutral engineering. Reset to the M16.2 baseline:
+`views/today_view.py` (back to the placeholder skeleton),
+`theming/tokens.py` (the M17-added typography/spacing/radius/density
+metrics removed so they cannot become implicit constraints on the
+replacement design), `theming/theme_manager.py` (the M17 component grammar
+removed; the earlier M16 `QToolButton` contrast fix preserved), and
+`main_window.py` (M16.2 shell plus motion only — the M17 top-navigation
+and brand treatment removed, and no replacement shell composition
+introduced). Deleted outright:
+`qt_models/learning_queue_table_model.py`, the `widgets/` primitives
+package, and `tests/test_m17_visual_system.py`. The rejected commits
+remain in branch history for audit; nothing was force-pushed away.
+
+**Retained M17 engineering assets**, all independent of the rejected
+composition:
+
+- the **Motion / Transition Foundation** (`motion/transitions.py`,
+  DESIGN.md § 25 in the current replacement authority): centralized
+  `TransitionManager` with
+  `Normal`/`Reduced`/`Disabled` policy, the `motion` durable preference,
+  app-level wiring, and `MainWindow` decoration applied *after* each
+  synchronous state change so motion never gates correctness. It also
+  carries the animation-lifetime crash fix — animations are parented to
+  the `QGraphicsOpacityEffect` they animate rather than to the long-lived
+  manager, and the tracking dict keys by widget object rather than
+  `id(widget)`;
+- **`TodayController`'s read-only projections** over the unmodified
+  `src.learning_workflow.get_today_overview()`: `queue_items()`,
+  `primary_recommendation()`, `recent_activity()`,
+  `collections_needing_attention()`;
+- the **`LearningActionIntent` handoff contract** (`state/handoff.py`) and
+  its fail-closed mapping: `card`/`random` → `quiz`, `suggestion` →
+  `organize`, anything unrecognized → `unknown` (never guessed as
+  `quiz`/`review`);
+- the **Human UI Acceptance Delivery Pattern** in `AGENTS.md`.
+
+These prescribe *what data Today reads and what a queue item means*, not
+whether the final UI uses rows, cards, panels, a rail, or another approved
+presentation. That is exactly what the fresh implementation below now
+consumes.
+
+**The replacement `DESIGN.md` was supplied and committed**
+(`c19b686`, "Replace DESIGN.md with final design authority contract") and
+is the authoritative canonical visual-reference and spatial-composition
+authority for M17+. `DESIGN.md` was not modified to build this checkpoint.
+
+**Fresh Today implementation (third presentation), built from that
+authority, not from either rejected attempt:**
+
+- a shared vertical left **Management Navigation Rail**
+  (`src/ui_desktop/widgets/navigation_rail.py`, DESIGN.md § 5
+  `VR-SHELL-001`) replaces the M16.2 `QToolBar` navigation. It shows the
+  full approved product IA (Today, Entries, Collections, Study,
+  Analytics, Data tools, Settings); only Today and Entries are wired to
+  real workspaces, and every other destination is honestly disabled with
+  a "not implemented yet" tooltip rather than a dead-looking active
+  button;
+- `TodayView` (`src/ui_desktop/views/today_view.py`) is a fresh
+  three-region Command Center (DESIGN.md § 6.1 `VR-TODAY-001`): a
+  central Command Workspace (compact 4-metric summary → Today's Learning
+  Queue, the dominant visual anchor → Suggested Next Actions) plus a
+  secondary, persistent right Context Rail (Recent Activity, Collections
+  Needing Attention, Quick Actions);
+- the compact summary intentionally reports this app's real metrics
+  (Available Cards / Never Quizzed / Quizzed Today / Learned Today) from
+  `TodayController` rather than the canonical mockup's "Due
+  today"/"Mistake review" framing, which would imply a Review-due
+  scheduling concept this product does not have (DESIGN.md § 6.1 product
+  semantics, § 32 precedence: product truth over visual reference);
+- every queue item still builds a real `LearningActionIntent`; any action
+  that would launch Review/Quiz renders **honestly disabled** with an
+  explicit tooltip, since neither is implemented in the desktop app yet.
+  Only the real Entries destination is a live action;
+- two small new modules — `theming/metrics.py` (compact spacing/radius
+  constants) and `widgets/panels.py` (`SummaryStatCard`, `ActionRowCard`)
+  — supply only the reusable grammar this checkpoint's rail and Today
+  composition need; the deleted M17 primitive layer was not resurrected
+  wholesale;
+- Motion reuses the existing `TransitionManager.fade_in` for the rail's
+  visibility swap and workspace switches; no new animation code was
+  added outside `motion/transitions.py`.
+
+`tests/test_m17_today_command_center_shell.py` (new, 14 tests) covers the
+rail's honest-disabled-destination structure, the shell's rail/workspace
+dominance, the Today region structure and dominance, and the functional-
+honesty behavior above — structural proof only, per DESIGN.md § 2 Rule C,
+not evidence that the canonical composition was visually realized.
+
+**This third presentation's own path to acceptance** (macro archetype
+confirmed correct at every review, never rebuilt from scratch):
+
+1. First native visual acceptance on the third presentation — **FAIL**:
+   under-realized (flat/borderless cards, dominant rail, queue overflow
+   hid Suggested Next Actions, no right-rail section grammar). Fixed by
+   visual-realization corrective pass #1 (`f917ccb`).
+2. Second native visual acceptance — **FAIL**: density/rhythm too
+   spacious versus the canonical sample, Suggested Next Actions read as
+   a queue row instead of a small tile, right rail read as loose text,
+   Quick Actions stretched full-width. Fixed by visual calibration pass
+   #2 (`adb6882`).
+3. Third native visual acceptance — **FAIL**: a genuine rendering bug
+   (rail labels illegible at any font size). Root cause: `QAbstractButton`
+   does not derive its `sizeHint()` from a child layout, so the rail
+   items' icon+label content was crushed into an unrenderable sliver.
+   Fixed with an explicit minimum height (`fdd9cc0`).
+4. Fourth native visual acceptance — **PASS**, 2026-08-16, against
+   `fdd9cc0`. Recorded as Human Accepted; see PR #25 for the full
+   finding-by-finding record of each pass.
+
+M17 implementation began from the verified `main` post-M16-closure commit
+`c8842e0f77199ed9d3d0a2e3c48701d4289f137e` (PR #24 merge commit).
+
+Verification for this checkpoint (last updated 2026-08-16, `fdd9cc0`):
+
+```text
+Implementation: COMPLETE
+Structural conformance: PASS
+Automated design guards: PASS
+Native visual acceptance: PASS (Human Accepted, fdd9cc0, 2026-08-16)
+
+Today Command Center + shell structure tests: 14/14 (tests/test_m17_today_command_center_shell.py)
+Retained Today controller/handoff tests: 14/14 (tests/test_m17_today_controller_and_handoff.py)
+Motion Foundation tests: 16/16 (tests/test_m17_motion_foundation.py)
+M16.1 + M16.2 desktop regression: 33/33
+Full repository suite: 248/248
+Python compile check (all tracked .py): passed
+scripts/audit_architecture.py: 66 Python files scanned, 0 serious, 0 warnings
+scripts/check_quiz_randomization.py: passed
+git diff --check: passed
+```
+
+No reusable core or schema/app-data version changed at any point;
+`src/learning_workflow.py` is unmodified.
 
 M16.1 selects **PySide6** as the desktop framework and freezes the
 controller/view-state/core boundary, the initial `src/ui_desktop/` package
@@ -111,8 +278,8 @@ real desktop bootstrap (`build_application()`, including its own
 the real `VOCAB_APP_DB_PATH`/`get_database_path()` resolution, not just the
 controllers in isolation. M16.2 adds no schema or app-data migration and
 does not alter learning, analytics, import, or audio semantics. Full
-evidence, including the SQLite compatibility proof and the completed human
-visual-check list, is recorded in
+evidence, including the SQLite compatibility proof and the human
+acceptance evidence, is recorded in
 [Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md).
 
 A human visual-acceptance pass found the Management-mode Today/Entries
@@ -150,11 +317,20 @@ and shut down cleanly with exit code 0. This proves the app does not crash
 on the real platform; it does not substitute for visual inspection. A
 screenshot-based visual-verification attempt was aborted after it captured
 the operator's live desktop instead of the application window and was
-deleted immediately without being used as evidence. The subsequent human
-visual-acceptance pass against the Milestone 16 Closure checklist passed,
-including the navigation-contrast fix, the desktop launcher, and the
-application icon, closing Milestone 16 on `main` through PR #23 at
-`2e900d243950ca93aedf5cbde5b836dc6e378f25`.
+deleted immediately without being used as evidence. A final **targeted**
+human acceptance pass confirmed three specific things: the desktop
+shortcut launches the app without manual PowerShell interaction, the
+repository icon appears correctly on the shortcut/application window/
+taskbar, and the corrected Today/Entries navigation is visibly readable
+after the contrast fix. The full `DESIGN.md` visual-acceptance checklist
+was **not** re-run against the fixed build; broader Light/Dark, Entries
+table usability, and full visual acceptance remain later M17/M19 work —
+see
+[Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md) § Human
+Acceptance Evidence for the exact scope of what was and was not
+re-confirmed. Milestone 16 remains **Complete on `main`** through PR #23
+at `2e900d243950ca93aedf5cbde5b836dc6e378f25`; none of its exit criteria
+depend on the broader checklist having been re-run.
 
 M15.3 adds a UI-independent snapshot-based Audio Export service for a single
 current Card, an ordered Card selection, or all active Cards in a Collection.
@@ -207,7 +383,9 @@ Milestone 16 is complete on `main`; its M16.0 UI/Design Baseline is complete
 and frozen in `DESIGN.md`. M16.1 Desktop Architecture Foundation is complete
 on `main` (PR #21). M16.2 Minimal Desktop Vertical Slice & M16 Exit is
 complete on `main` (PR #23, `2e900d243950ca93aedf5cbde5b836dc6e378f25`).
-Milestone 17 — Desktop Core Workflow Migration is the next objective.
+(Historical note, as of this 2026-08-13 snapshot: Milestone 17 — Desktop
+Core Workflow Migration was the next objective and had not yet started.
+Milestone 17 is now complete on `main` -- see "Current Milestone" above.)
 
 Verification on 2026-08-13 passed:
 
@@ -1340,18 +1518,137 @@ complete.
 
 ## Next Objective
 
-**Begin Milestone 17 — Desktop Core Workflow Migration, starting with the
-Today feature.**
+**Independently review and obtain native human visual acceptance for
+Quiz (feature 3)**, now implemented on the same branch against
+`VR-STUDY-001` (`Review - Quiz.pdf` p4 Variant C, parent pattern P3 --
+Immersive Study). Structural conformance and automated design guards are
+PASS; native visual acceptance is PENDING. Do not mark Quiz or Milestone
+17 complete, and do not begin Entries (feature 4), until that review and
+acceptance both close.
 
 Milestone 16 is complete on `main` (PR #23,
-`2e900d243950ca93aedf5cbde5b836dc6e378f25`). M17 is one milestone: one
-long-lived branch, one Draft PR (expected
-`agent/m17-desktop-core-workflow-migration`), and an ordered feature
-migration sequence — Today, Review, Quiz, Entries, minimum Collection
-integration, then parity/exit verification — rather than independent
-sub-milestone branches or PRs. See `ROADMAP.md` § Milestone 17 for the full
-operating model, frozen semantic boundaries, and verification model. No M17
-branch or implementation exists yet.
+`2e900d243950ca93aedf5cbde5b836dc6e378f25`). Post-M16 lifecycle
+reconciliation merged through PR #24 at
+`c8842e0f77199ed9d3d0a2e3c48701d4289f137e`. M17 is one milestone: one
+long-lived branch (`agent/m17-desktop-core-workflow-migration`), one Draft
+PR, and an ordered feature migration sequence — Today, Review, Quiz,
+Entries, minimum Collection integration, then parity/exit verification —
+rather than independent sub-milestone branches or PRs. See `ROADMAP.md`
+§ Milestone 17 for the full operating model, frozen semantic boundaries,
+and verification model.
+
+Today (feature 1) is **complete and Human Accepted** (third presentation,
+fresh from the replacement `DESIGN.md`): its non-visual controller/handoff
+groundwork, the Motion Foundation, and a Command Center presentation with
+a shared Management Rail are all in place, structurally conformant, and
+**native human visual acceptance PASSED** on 2026-08-16 against `fdd9cc0`
+— after two earlier presentations were rejected pre-reset and this third
+presentation itself went through two visual-calibration passes and one
+rendering-bug fix before acceptance.
+
+Review (feature 2) is **complete and Human Accepted**:
+`ReviewController` projects the current Card roster, Entry composition,
+and factual completed-Quiz history entirely through existing
+`src.learning_workflow`/`src.collections` reads; `ReviewView` implements
+the frozen Immersive Focus composition (Management Rail hidden, one
+minimal session bar, one dominant learning surface, a transient right
+Card Contents/History drawer reusing the shared `TransitionManager`).
+**Native human visual acceptance PASSED** on 2026-08-16 against `38d53d2`.
+Browsing a Card created no Quiz session and touched no legacy
+`src/review.py` scheduling state (regression-tested).
+
+Quiz (feature 3) is **complete and Human Accepted**: `QuizController`
+owns active-session presentation state only, calling existing
+`src.quiz`/`src.template_quiz` functions for every session/generation/
+grading/completion step (no SQL, no duplicated grading logic). It
+preserves all nine current Quiz families (term/meaning self-graded and
+MCQ, mixed MCQ, Matching, and the three template-aware modes), the
+single-global-active-session guard, duplicate-submission protection, and
+Mistake Book/Proficient Pool side effects. Plain Matching stays
+whole-Collection only (normalized inside the controller even if a
+Card-scoped intent slips through); template-aware Matching stays
+Card-scoped, since no core function generates a whole-Collection
+template-matching set. Review's Quick Quiz / Choose Quiz Type and Today's
+Learning Queue "quiz" action perform a real launch through this one
+controller instead of the transitional honest-unavailable state.
+`QuizView` implements the Immersive Focus session bar, self-graded/MCQ/
+Matching task surfaces, a P6 restart/cancel confirmation, a
+foreign-active-session recovery notice (never a fake resume), a compact
+completion summary (Return to Today / Next Card / Review Mistakes), and a
+read-only post-Quiz mistake-review state. **Native human visual
+acceptance PASSED 2026-08-16 at head `311762c`**, after two corrective
+passes: a typography/spacing visual-calibration pass against
+`VR-STUDY-001` (`0660214`), and a UX-defect pass fixing long-content
+clipping (a QScrollArea/box-layout heightForWidth negotiation
+imprecision), Matching wheel-scroll/selection-rebuild instability, and
+Review Mistakes routing (`311762c`). (Historical note: at this point in
+the M17 checkpoint sequence, Milestone 17 was not yet complete; M17
+Feature 3B (`VR-STUDY-002` Quiz presentation choice) is complete and
+Human Accepted; see below. Milestone 17 as a whole is now complete --
+see "Current Milestone" above.)
+
+M17 Feature 3B — Quiz Presentation Choice (`VR-STUDY-002`, Quiz-only) adds
+a second, optional Quiz presentation, Flip Card + Filmstrip
+(`Review - Quiz.pdf` p5 Variant D), alongside the accepted Immersive
+Focus default — not a redesign or replacement of feature 3. One durable
+preference (`quiz_presentation`, `state/preferences.py`, never
+`vocab.db`) is set from a new minimum Settings vertical slice (Settings →
+Quiz → Quiz presentation) and resolved once per Quiz launch. Self-graded
+and MCQ (including template-linear types) render inside a bordered Flip
+Card + a non-interactive orientation filmstrip when selected; Matching
+always falls back to the existing wider Immersive Matching presentation
+regardless of the preference (a compatibility fallback that never alters
+the saved preference). Completion and mistake review remain the single
+shared Immersive-styled surfaces for both presentations — one Quiz
+engine, two presentations. `VR-STUDY-002` explicitly does not propagate
+outside Quiz (DESIGN.md § 6.4). **Native human visual acceptance PASSED
+2026-08-16 at head `c54468e`** — Quiz Presentation Choice is complete and
+Human Accepted (DESIGN.md § 2 Level 4), Milestone 17's fourth accepted
+feature. See the M17 Draft PR for the full acceptance record.
+
+M17 Feature 4 — Entries (`VR-ENTRIES-001`, `Entries & Collections
+Manager.pdf` p3 Variant B, parent pattern P2) replaces the M16.2
+architecture-proof placeholder with the real Table-First workflow.
+`EntriesController` owns scope/filter/selection/editor-orchestration
+state only, calling existing `src.entries`/`src.collections`/
+`src.entry_templates`/`src.text_parser` functions for every read/write
+(`search_entries`, `create_entry_with_template`,
+`update_entry_with_template`, `delete_entries`,
+`parse_and_validate_entry_card`, `update_entry_collections`) — no SQL, no
+duplicated template validation/canonical-field-resolution/Card-history-
+reconciliation logic. `EntriesView` implements the frozen composition
+(Management Rail → Scope Pane → compact toolbar → dominant Entries Table
+→ subordinate horizontal Entry Detail): the Scope Pane surfaces explicit
+"Scope" (All Entries, the three system collections) and "Collections"
+(real user Collections) sections behind a bounded user-resizable
+`QSplitter`; the table uses real native multi-row selection plus an
+explicit checkbox column and header "select all visible" affordance, all
+sharing one selection truth, with selection restored by id across
+refresh; Add/Edit use one P5 focused `_EntryEditorDialog` (template-
+locked on Edit, dynamic per-template fields, manual canonical
+Term/Meaning only when the template's mapping needs them, a scrollable
+form body with a pinned Save/Cancel footer); Quick Add migrates the
+still-live structured-text-card flow; Delete/batch-collection-removal
+always go through the existing `CrossCardMoveConfirmationRequired` gate
+(`src.collections`), never bypassed, with delete confirmation copy that
+explicitly distinguishes permanent deletion from removing an Entry only
+from the current Collection. One small batched core query
+(`get_collection_names_for_entries`) was added to `src/collections.py` to
+avoid an N+1 per-row query for the table's Collections column — the only
+core addition, not raw SQL in the desktop layer. A first native visual-
+acceptance pass (`9f63813`) found typography, toolbar-layout, Scope-Pane-
+resizing, editor-scroll-safety, "Add to Collection" menu-interaction, and
+checkbox-selection defects; a corrective pass (`2cc3332`) recalibrated
+typography against the canonical hierarchy, split batch actions into
+their own conditional row, replaced the fixed-width Scope Pane with a
+bounded resizable splitter, made the Add/Edit dialog scroll-safe,
+anchored the "Add to Collection" menu below its button (fixing a Qt/
+Windows popup-dismissal interaction bug) with explicit `QMenu` QSS, added
+the checkbox column/header-select-all affordance, and reworded the hard-
+delete confirmation. **Native human visual acceptance PASSED 2026-08-16
+at head `2cc3332`** — Entries is complete and Human Accepted (DESIGN.md
+§ 2 Level 4), Milestone 17's fifth accepted feature. See the M17 Draft PR
+for the full corrective-pass and acceptance history.
 
 ## Repository State
 
@@ -1424,9 +1721,207 @@ branch or implementation exists yet.
   (merged)
 - M16.2 / Milestone 16 merge commit on `main`:
   `2e900d243950ca93aedf5cbde5b836dc6e378f25`
+- Post-M16-closure lifecycle-reconciliation PR: `#24` (merged), merge
+  commit `c8842e0f77199ed9d3d0a2e3c48701d4289f137e`
+- M17 synchronized base commit (verified `main` at prompt time):
+  `c8842e0f77199ed9d3d0a2e3c48701d4289f137e`
+- M17 implementation branch (single long-lived branch for the whole
+  milestone): `agent/m17-desktop-core-workflow-migration`
+- M17 feature 1 (Today): non-visual controller/handoff groundwork, the
+  Motion Foundation, and a **fresh third Command Center presentation**
+  (shared Management Rail + Today three-region composition) implemented
+  from the replacement `DESIGN.md` (`c19b686`); the two earlier
+  presentations were rejected at human visual review and are preserved as
+  history, not restored. **Native human visual acceptance for this third
+  presentation PASSED 2026-08-16 at head `fdd9cc0`** — Today is complete
+  and Human Accepted (DESIGN.md § 2 Level 4). See the M17 Draft PR for the
+  exact head SHA and the full reject/reset/fresh-implementation/
+  acceptance history.
+- M17 feature 2 (Review): `ReviewController` + `ReviewView` implement the
+  Card browse/study-preparation workflow against `VR-STUDY-001`
+  (`Review - Quiz.pdf` p4 Variant C, parent pattern P3 -- Immersive
+  Study/DESIGN.md § 6.3): Management Rail hidden, one minimal session bar,
+  one dominant learning surface, a transient right Card Contents/History
+  drawer. Reads only existing reusable core
+  (`src.learning_workflow.get_study_cards`/`get_card_learning_history`,
+  `src.collections.get_card_groups_for_collection`); never calls the
+  legacy `src/review.py` SRS scheduler. **Native human visual acceptance
+  PASSED 2026-08-16 at head `38d53d2`** — Review is complete and Human
+  Accepted (DESIGN.md § 2 Level 4), Milestone 17's second accepted
+  feature. See the M17 Draft PR for the full corrective-patch and
+  acceptance history.
+- M17 feature 3 (Quiz): `QuizController` + `QuizView` implement the
+  native session/grading/completion workflow against `VR-STUDY-001`
+  (`Review - Quiz.pdf` p4 Variant C, parent pattern P3 -- Immersive
+  Study). Reads/writes only through existing reusable core
+  (`src.quiz.create_quiz_session`/`create_quiz_items`/
+  `generate_mcq_items`/`generate_matching_items`/`record_quiz_answer`/
+  `mark_quiz_session_completed`, `src.template_quiz.
+  generate_template_multi_rule_quiz_items`); no SQL, no duplicated
+  grading logic. Preserves all nine current Quiz families, the
+  single-global-active-session guard, duplicate-submission protection,
+  and Mistake Book/Proficient Pool side effects; plain Matching stays
+  whole-Collection only (normalized in-controller), template-aware
+  Matching stays Card-scoped. Review's Quick Quiz / Choose Quiz Type and
+  Today's Learning Queue "quiz" action perform a real launch through this
+  one controller, replacing the M17 Feature 2 corrective patch's
+  transitional honest-unavailable state. **Native human visual acceptance
+  PASSED 2026-08-16 at head `311762c`** -- Quiz is complete and Human
+  Accepted (DESIGN.md § 2 Level 4), Milestone 17's third accepted
+  feature, after a typography/spacing visual-calibration corrective pass
+  (`0660214`) and a UX-defect corrective pass (`311762c`: long-content
+  clipping, Matching wheel/selection stability, a real post-Quiz
+  mistake-review state). See the M17 Draft PR for the full corrective-
+  pass and acceptance history.
+- M17 feature 3B (Quiz Presentation Choice, `VR-STUDY-002`, Quiz-only):
+  adds an optional Flip Card + Filmstrip Quiz presentation
+  (`Review - Quiz.pdf` p5 Variant D) alongside the accepted Immersive
+  Focus default, plus the one durable preference and minimum Settings
+  vertical slice that control it (`state/preferences.py`
+  `quiz_presentation`; `SettingsController`/`SettingsView`, P8 Settings
+  Form). Both presentations share the same `QuizController`; Matching
+  always falls back to the existing Immersive Matching presentation.
+  **Native human visual acceptance PASSED 2026-08-16 at head `c54468e`**
+  -- Quiz Presentation Choice is complete and Human Accepted (DESIGN.md
+  § 2 Level 4), Milestone 17's fourth accepted feature. See the M17 Draft
+  PR for the full acceptance record.
+- M17 feature 4 (Entries, `VR-ENTRIES-001`, `Entries & Collections
+  Manager.pdf` p3 Variant B, parent pattern P2): replaces the M16.2
+  architecture-proof placeholder with the real Table-First Entries
+  Manager -- Scope Pane (explicit "Scope" section: All Entries/Starred/
+  Mistake Book/Proficient Pool; explicit "Collections" section: real user
+  Collections; bounded resizable `QSplitter`) -> two-row toolbar (search/
+  filters/Quick Add/Add Entry, plus a conditional batch-action row) ->
+  dominant Entries Table (native multi-selection + explicit checkbox
+  column + header select-all, one shared selection truth) -> subordinate
+  horizontal Entry Detail. `EntriesController` calls only existing
+  `src.entries`/`src.collections`/`src.entry_templates`/`src.text_parser`
+  functions (`search_entries`, `create_entry_with_template`,
+  `update_entry_with_template`, `delete_entries`,
+  `parse_and_validate_entry_card`, `update_entry_collections`); Add/Edit
+  share one P5 `_EntryEditorDialog` with a scroll-safe form body, Quick
+  Add's structured-text-card flow is preserved, and Delete/Collection-
+  removal always honor the existing `CrossCardMoveConfirmationRequired`
+  gate, with confirmation copy distinguishing permanent deletion from
+  Collection removal. Implemented at `9f63813`; a corrective pass at
+  `2cc3332` fixed typography, toolbar layout, Scope Pane resizing, editor
+  scroll-safety, the "Add to Collection" menu interaction, and checkbox
+  selection. **Native human visual acceptance PASSED 2026-08-16 at head
+  `2cc333256d2a831c3268c150a86935276117f1c8`** — Entries is complete and
+  Human Accepted (DESIGN.md § 2 Level 4), Milestone 17's fifth accepted
+  feature. See the M17 Draft PR for the full corrective-pass and
+  acceptance history.
+- M17 Minimum Collection Integration (DESIGN.md § 6.8, Class B --
+  "inherited from the invoking A/B surface", explicitly not a full
+  Collection Manager): a real `Workspace.COLLECTIONS` Management Mode
+  workspace, reached through the now-enabled `Collections` rail
+  destination. `CollectionsController` is a read-only projection over
+  `src.collections.get_collections`/`get_collection_by_id`/
+  `get_card_groups_for_collection` -- no SQL, no mutation, no second Card
+  model -- keeping normal Collections and system practice pools (Starred/
+  Mistake Book/Proficient Pool) as two separate lists, the same
+  separation `EntriesController`/`_ScopePane` already established for the
+  Entries Scope Pane. `CollectionsView`: Management Rail -> left selector
+  pane ("Collections"/"Practice Pools" sections) -> right read-only
+  detail (factual metadata + compact Card list, or a pool summary) with
+  "Open Entries"/"Open in Study" handoff actions, visual traits inherited
+  from Entries' Scope Pane + detail vocabulary. Two typed handoffs
+  (`state/handoff.py`) -- `EntriesScopeIntent` (Entries' own existing
+  scope key) and `StudyTargetIntent` (`collection_id`, `card_number`) --
+  are each consumed exactly once by `MainWindow`; `_open_review_at_card`
+  fails honestly (no navigation, no fallback to `open_default()`) if the
+  requested Card is gone. Today's "Collections Needing Attention" pool
+  rows are now actionable via the same `EntriesScopeIntent` handoff. This
+  checkpoint also fixed a real latent bug where
+  `_render_workspace(REVIEW)` unconditionally called
+  `ReviewController.open_default()` on every render, which would have
+  silently overwritten any specific Collection/Card handoff -- now only
+  the generic entry points call it. Implemented at `009645a`. A
+  corrective pass at `6d8ed13` made Card browsing genuinely paged and
+  scrollable for large Collections (a new read-only core query,
+  `get_card_page_for_collection`, computes per-Card Entry counts via SQL
+  aggregation rather than loading every Entry row), split Entries'
+  single selection concept into independent `focused_id` (bottom
+  detail/Edit) and `checked_ids` (batch actions) truths with distinct
+  visual states, and added a direct per-row Star toggle reusing the
+  existing Starred system-Collection core (including the
+  `CrossCardMoveConfirmationRequired` safety gate on unstar). **Native
+  human visual acceptance PASSED 2026-08-17 at head
+  `6d8ed13c206018ece80277210abb858afd8930f9`** — Minimum Collection
+  Integration is complete and Human Accepted (DESIGN.md § 2 Level 4),
+  Milestone 17's sixth accepted feature. See the M17 Draft PR for the
+  full corrective-pass and acceptance history.
+- M17 Theme Completion & Cross-Screen Validation: closes the Appearance
+  axis (System/Light/Dark, Calm Blue) as a complete, live-switchable,
+  OS-aware product capability. `System` resolves through a live OS
+  Light/Dark read (`system_appearance.py`, Qt's `QStyleHints.
+  colorScheme()`) with an explicit logged fallback, and reacts to a live
+  OS appearance change while `System` remains selected
+  (`ThemeManager.watch_system_appearance()`) without ever overriding an
+  explicit Light/Dark choice. Settings gained a real Appearance control
+  persisting immediately and live-applying through the single existing
+  `ThemeManager.apply()` call site. A contrast re-audit against the
+  surfaces tokens are actually deployed on found and fixed two real
+  defects the M16.2 audit had missed (Light `text-muted` against
+  `surface-secondary`/`app-background`; the Entries Star column's fixed
+  gold, now a theme-aware `star`/`on-star` semantic token,
+  hue-separated from `warning`). Implemented at `934eeac`. A first
+  corrective pass (`7b4a86c`) audited every text color across
+  Today/Entries/Collections/Settings/Review/Quiz/Utility against the
+  four-level primary/secondary/muted/disabled text-role hierarchy and
+  fixed four confirmed defects; it also discovered, and correctly left
+  out of its own scope, that `QPushButton:checked/:disabled/:hover` ->
+  child `QLabel` descendant-pseudo-state QSS selectors are not reliably
+  re-evaluated by Qt's style engine. A second corrective pass (`48a171f`)
+  replaced that mechanism in the Navigation Rail with one driven
+  reliably -- a Qt dynamic property (`navActive`) for the active/normal
+  distinction plus static object names for the disabled destinations --
+  verified through the real production bootstrap path. **Native human
+  visual acceptance PASSED 2026-08-17 at head
+  `48a171f6aaa7e7ce3b60be945024c8712e69ec64`** — Theme Completion &
+  Cross-Screen Validation is complete and Human Accepted, Milestone 17's
+  seventh accepted feature. See the M17 Draft PR for the full
+  corrective-pass and acceptance history.
+- M17 Parity + Exit Verification (the final M17 checkpoint): closed the
+  three frozen final corrective items and verified the seven prior
+  checkpoints as one integrated product. Custom Entry Type (Add/Edit
+  Entry gains a "Custom..." option via a native `QInputDialog` prompt,
+  saved as ordinary Entry data through the existing `entry_type`
+  field -- no core/schema change, since `src/entries.py` already stored
+  it as free text). Entries sorting (`search_entries()` gained an
+  allowlisted `sort_by`/`sort_direction` capability -- Term/Created/
+  Updated -- fulfilling a toolbar spec DESIGN.md § 6.2 had already
+  documented but never implemented; a compact "Sort by" control composes
+  with scope/search/filter). Entries result count (a subordinate "N
+  entries" label reusing the count `EntriesController.refresh()` already
+  computes). Integrated workflow parity verified: Today/Collections ->
+  Entries exact scope, Collection/Card -> exact Review Card with no
+  silent fallback, Review -> Quiz context preservation, Study exit ->
+  correct Management workspace/Navigation Rail state, theme switching
+  never mutates learning data. Implemented at `b686a99`. One corrective
+  fix (`d232717`) followed: the Entries table's pre-existing
+  `QTableView.setSortingEnabled(True)` (M17 Feature 4) wired native
+  header-click sorting directly to `QSortFilterProxyModel`'s own
+  independent sort state -- a parallel sorting mechanism a header click
+  could use to silently override "Sort by"'s real SQL-level order
+  (confirmed empirically the proxy defaulted to `sortColumn() == 0`, not
+  `-1`, immediately on `setSortingEnabled(True)`, before any click).
+  Removed; the proxy is forced to `sort(-1)` and stays a pure
+  index-mapping adapter. New regression tests check the *visible*
+  proxy/table order directly, not only the source model, which is what
+  let the original defect through a fully-green suite -- confirmed to
+  fail against the pre-fix code and pass against the fix. **Native Human
+  Exit PASS recorded 2026-08-17 at final accepted head
+  `d232717b6b225e7c798c510ae8e87ce87fe5d8c8`** — M17 Parity + Exit
+  Verification is complete and Human Accepted, Milestone 17's eighth and
+  final checkpoint. 592/592 local tests passing, architecture audit
+  clean; no remote CI is configured in this repository. Full
+  corrective-pass and acceptance history recorded on the M17 PR (merged
+  into `main`); no separate `MILESTONE17_CLOSURE.md` was created.
 - Current lifecycle documents:
   - `ROADMAP.md`
   - `PROJECT_STATUS.md`
+  - `DESIGN.md` (§ 25 Motion / Transition System)
   - `docs/migration/DESKTOP_MIGRATION_PLAN.md`
   - `docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md`
   - `docs/history/MILESTONE16_CLOSURE.md` (final closure record)
@@ -1448,11 +1943,49 @@ branch or implementation exists yet.
   Foundation Complete on `main` (PR #21,
   `a1dc044721e9017d39842e96e0516a88a36d129f`); M16.2 Minimal Desktop
   Vertical Slice & M16 Exit Complete on `main` (PR #23,
-  `2e900d243950ca93aedf5cbde5b836dc6e378f25`). Milestone 17 — Desktop Core
-  Workflow Migration Not Started.**
+  `2e900d243950ca93aedf5cbde5b836dc6e378f25`). Post-M16 lifecycle
+  reconciliation Complete on `main` (PR #24,
+  `c8842e0f77199ed9d3d0a2e3c48701d4289f137e`). **Milestone 17 — Desktop
+  Core Workflow Migration is COMPLETE on `main`** (merged via PR #25):
+  Today (feature 1) is **complete and
+  Human Accepted** (native visual acceptance PASSED 2026-08-16 against
+  `fdd9cc0`); Review (feature 2) is **complete and Human Accepted**
+  (native visual acceptance PASSED 2026-08-16 against `38d53d2`, after one
+  corrective patch for a functional-honesty finding); Quiz (feature 3) is
+  **complete and Human Accepted** (native visual acceptance PASSED
+  2026-08-16 against `311762c`, after a visual-calibration corrective pass
+  and a UX-defect corrective pass); Quiz Presentation Choice (feature 3B,
+  `VR-STUDY-002`, Quiz-only) is **complete and Human Accepted** (native
+  visual acceptance PASSED 2026-08-16 against `c54468e`); Entries
+  (feature 4) is **complete and Human Accepted** (native visual
+  acceptance PASSED 2026-08-16 against
+  `2cc333256d2a831c3268c150a86935276117f1c8`, after a corrective pass for
+  typography, toolbar layout, Scope Pane resizing, editor scroll-safety,
+  the "Add to Collection" menu interaction, and checkbox selection);
+  Minimum Collection Integration is **complete and Human Accepted**
+  (native visual acceptance PASSED 2026-08-17 against
+  `6d8ed13c206018ece80277210abb858afd8930f9`, after a corrective pass for
+  paged/scrollable Card navigation, efficient large-Collection Card
+  projection, the focused-Entry-vs-checked-Entries separation, and the
+  persistent direct Star toggle); Theme Completion & Cross-Screen
+  Validation is **complete and Human Accepted** (native visual acceptance
+  PASSED 2026-08-17 against `48a171f6aaa7e7ce3b60be945024c8712e69ec64`,
+  after a typography color-role hierarchy corrective pass and a
+  Navigation Rail active/normal/disabled state-rendering reliability
+  fix); M17 Parity + Exit Verification (final checkpoint) is **complete
+  and Human Accepted** (native Human Exit PASS recorded 2026-08-17
+  against final accepted head
+  `d232717b6b225e7c798c510ae8e87ce87fe5d8c8`, after a corrective fix for
+  a parallel Entries-sorting mechanism). **Milestone 17 is COMPLETE.**
 - Exact next objective:
-  **Begin Milestone 17 — Desktop Core Workflow Migration on one long-lived
-  branch (`agent/m17-desktop-core-workflow-migration`) through one Draft PR,
-  starting with the Today feature (functional migration + Command Center
-  DESIGN.md implementation as one closure). See `ROADMAP.md` § Milestone 17
-  for the full operating model.**
+  **Begin Milestone 18 — Desktop Management and Major Feature Completion.
+  M18 has not started; no branch/PR exists yet. Known M18 carryover from
+  M17: deferred Accent families (Sage/Teal, Indigo/Violet, Warm Neutral)
+  and the Quick Theme Control popover; full Collection Manager (create/
+  rename/delete Collections from the desktop UI); richer Settings/
+  Appearance UX beyond the current single Appearance row; advanced
+  Entries table personalization (saved sort/filter views, drag-
+  reordering, column customization); the Entries Entry Type filter combo
+  listing only the predefined set rather than live distinct values; and
+  non-blocking performance refinements. See ROADMAP.md § Milestone 18
+  for the full scope.**

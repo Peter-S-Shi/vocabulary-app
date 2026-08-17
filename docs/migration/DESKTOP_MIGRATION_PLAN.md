@@ -929,17 +929,21 @@ recorded in
 [Milestone 16 Closure](../history/MILESTONE16_CLOSURE.md). **Milestone 16 is
 complete on `main`.**
 
-**Milestone 17 — Desktop Core Workflow Migration (Phase 3 above) is the next
-objective and has not started.** It remains one milestone: one long-lived
-branch (expected `agent/m17-desktop-core-workflow-migration`), one Draft PR,
-and an ordered feature migration sequence (Today, Review, Quiz, Entries,
-minimum Collection integration, then parity/exit verification) rather than
-independent sub-milestone branches or PRs. From M17 onward, functional
-workflow migration and that workflow's approved `DESIGN.md` archetype
-implementation are one feature-level engineering closure — see
+**Milestone 17 — Desktop Core Workflow Migration (Phase 3 above) is
+complete on `main`**, merged via PR #25. It ran as one milestone: one
+long-lived branch (`agent/m17-desktop-core-workflow-migration`), one PR,
+and an ordered feature migration sequence (Today, Review, Quiz, Quiz
+Presentation Choice, Entries, Minimum Collection Integration, Theme
+Completion & Cross-Screen Validation, then Parity + Exit Verification) —
+all eight checkpoints are Human Accepted, with native Human Exit PASS
+recorded 2026-08-17 against final accepted head
+`d232717b6b225e7c798c510ae8e87ce87fe5d8c8`. See
 [ROADMAP.md § Milestone 17](../../ROADMAP.md#milestone-17-desktop-core-workflow-migration)
-for the full operating model, frozen semantic boundaries, and verification
-model.
+for the full operating model, frozen semantic boundaries, verification
+model, and per-checkpoint acceptance record.
+
+**Milestone 18 — Desktop Management and Major Feature Completion is the
+next objective and has not started.**
 
 The migration should remain incremental:
 
