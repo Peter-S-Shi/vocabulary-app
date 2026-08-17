@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 from src.ui_desktop.controllers.today_controller import TodayController
 from src.ui_desktop.state.handoff import (
     QUIZ_NO_TARGET_TOOLTIP,
+    EntriesScopeIntent,
     LearningActionIntent,
     quiz_launch_intent_from_learning_action_intent,
 )
@@ -69,6 +70,7 @@ data-complete real destinations without further user input.
 
 class TodayView(QWidget):
     navigate_to_entries_requested = Signal()
+    navigate_to_entries_scope_requested = Signal(object)  # EntriesScopeIntent
     navigate_to_review_requested = Signal()
     quiz_launch_requested = Signal(object)  # QuizLaunchIntent
 
@@ -362,15 +364,34 @@ class TodayView(QWidget):
             self._attention_column.addWidget(_empty_state_label("Nothing needs attention."))
             return
         for item in items:
-            row = QWidget(self)
-            row_layout = QHBoxLayout(row)
-            row_layout.setContentsMargins(0, 0, 0, 0)
-            label = QLabel(str(item.get("label") or ""), row)
-            chip = QLabel(f"{item.get('entry_count', 0)} item(s)", row)
-            chip.setObjectName("today-attention-chip")
-            row_layout.addWidget(label, 1)
-            row_layout.addWidget(chip, 0)
-            self._attention_column.addWidget(row)
+            self._attention_column.addWidget(self._build_attention_row(item))
+
+    def _build_attention_row(self, item: dict) -> QWidget:
+        """Each pool with real practiceable Entries is an actionable
+        management/browse target, so it completes the handoff into the
+        matching Entries system scope (M17 Minimum Collection Integration
+        prompt § 8) instead of staying a plain informational row."""
+        button = QPushButton(self)
+        button.setObjectName("today-attention-row")
+        button.setFlat(True)
+        layout = QHBoxLayout(button)
+        layout.setContentsMargins(SPACING.xs, SPACING.xs, SPACING.xs, SPACING.xs)
+        label = QLabel(str(item.get("label") or ""), button)
+        chip = QLabel(f"{item.get('entry_count', 0)} item(s)", button)
+        chip.setObjectName("today-attention-chip")
+        layout.addWidget(label, 1)
+        layout.addWidget(chip, 0)
+
+        system_type = item.get("system_type")
+        if system_type:
+            button.clicked.connect(
+                lambda _checked=False, system_type=system_type: self.navigate_to_entries_scope_requested.emit(
+                    EntriesScopeIntent(scope=f"system:{system_type}")
+                )
+            )
+        else:
+            button.setEnabled(False)
+        return button
 
     def _action_button_spec(self, intent: LearningActionIntent) -> tuple[str, bool, str]:
         if intent.action == "quiz":

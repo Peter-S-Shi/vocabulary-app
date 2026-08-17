@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QHBoxLayout, QMainWindow, QStackedWidget, QToolBar, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QMainWindow, QMessageBox, QStackedWidget, QToolBar, QWidget
 
+from src.ui_desktop.controllers.collections_controller import CollectionsController
 from src.ui_desktop.controllers.entries_controller import EntriesController
 from src.ui_desktop.controllers.quiz_controller import QuizController
 from src.ui_desktop.controllers.review_controller import ReviewController
@@ -10,6 +11,7 @@ from src.ui_desktop.controllers.today_controller import TodayController
 from src.ui_desktop.motion.transitions import TransitionManager
 from src.ui_desktop.state.app_state import AppState, ShellMode, Workspace
 from src.ui_desktop.state.preferences import Preferences
+from src.ui_desktop.views.collections_view import CollectionsView
 from src.ui_desktop.views.entries_view import EntriesView
 from src.ui_desktop.views.quiz_view import QuizView
 from src.ui_desktop.views.review_view import ReviewView
@@ -83,6 +85,7 @@ class MainWindow(QMainWindow):
 
         self.today_controller = TodayController()
         self.entries_controller = EntriesController()
+        self.collections_controller = CollectionsController()
         self.review_controller = ReviewController()
         self.quiz_controller = QuizController()
         self.settings_controller = SettingsController(preferences)
@@ -91,9 +94,13 @@ class MainWindow(QMainWindow):
         self.today_view.navigate_to_entries_requested.connect(
             lambda: self.app_state.request_navigation(Workspace.ENTRIES)
         )
+        self.today_view.navigate_to_entries_scope_requested.connect(self._open_entries_with_scope)
         self.today_view.navigate_to_review_requested.connect(self._enter_review)
         self.today_view.quiz_launch_requested.connect(self._start_quiz)
         self.entries_view = EntriesView(self.entries_controller)
+        self.collections_view = CollectionsView(self.collections_controller)
+        self.collections_view.open_entries_requested.connect(self._open_entries_with_scope)
+        self.collections_view.open_in_study_requested.connect(self._open_review_at_card)
         self.review_view = ReviewView(self.review_controller)
         self.review_view.set_motion(self._motion)
         self.review_view.exit_requested.connect(self._exit_study_mode)
@@ -108,6 +115,7 @@ class MainWindow(QMainWindow):
         self._workspace_stack = QStackedWidget(self)
         self._workspace_stack.addWidget(self.today_view)
         self._workspace_stack.addWidget(self.entries_view)
+        self._workspace_stack.addWidget(self.collections_view)
         self._workspace_stack.addWidget(self.review_view)
         self._workspace_stack.addWidget(self.quiz_view)
         self._workspace_stack.addWidget(self.settings_view)
@@ -149,12 +157,49 @@ class MainWindow(QMainWindow):
             self.app_state.request_navigation(Workspace.TODAY)
         elif destination_key == "entries":
             self.app_state.request_navigation(Workspace.ENTRIES)
+        elif destination_key == "collections":
+            self.app_state.request_navigation(Workspace.COLLECTIONS)
         elif destination_key == "study":
             self._enter_review()
         elif destination_key == "settings":
             self.app_state.request_navigation(Workspace.SETTINGS)
 
     def _enter_review(self) -> None:
+        """Generic Review entry point (rail "study" destination, Today's
+        Review-targeted suggestion): opens the default Card. A specific
+        Collection/Card handoff (``_open_review_at_card``) prepares its
+        own exact target instead and must never be overridden by this
+        default (M17 Minimum Collection Integration prompt § 9) -- so
+        ``open_default()`` is called here explicitly, not inside
+        ``_render_workspace``, which only ever renders whatever state the
+        caller already prepared."""
+        self.review_controller.open_default()
+        self.app_state.request_navigation(Workspace.REVIEW)
+        self.app_state.enter_study_mode()
+
+    def _open_entries_with_scope(self, intent) -> None:
+        """The one consumer of ``EntriesScopeIntent`` (state/handoff.py):
+        hands the scope key straight to the existing
+        ``EntriesController.set_scope()`` -- Entries' own scope contract
+        already understands it, so this never re-implements Collection
+        filtering (M17 Minimum Collection Integration prompt § 7)."""
+        self.entries_controller.set_scope(intent.scope)
+        self.app_state.request_navigation(Workspace.ENTRIES)
+
+    def _open_review_at_card(self, intent) -> None:
+        """The one consumer of ``StudyTargetIntent``. If the exact
+        Collection/Card is no longer available, this fails honestly --
+        Review is never entered and ``open_default()`` is never called as
+        a fallback -- leaving the user on Collections, a recoverable state
+        (prompt § 9)."""
+        opened = self.review_controller.open_card(intent.collection_id, intent.card_number)
+        if not opened:
+            QMessageBox.warning(
+                self,
+                "Card Unavailable",
+                "This Card is no longer available. It may have been removed or reorganized since this list was loaded.",
+            )
+            return
         self.app_state.request_navigation(Workspace.REVIEW)
         self.app_state.enter_study_mode()
 
@@ -231,10 +276,23 @@ class MainWindow(QMainWindow):
             self._workspace_stack.setCurrentWidget(widget)
             self.entries_view.refresh()
             self._last_management_workspace = workspace
+        elif workspace is Workspace.COLLECTIONS:
+            widget = self.collections_view
+            self._workspace_stack.setCurrentWidget(widget)
+            self.collections_view.refresh()
+            self._last_management_workspace = workspace
         elif workspace is Workspace.REVIEW:
+            # No default-Card-open here: whichever caller requested this
+            # navigation (_enter_review, _open_review_at_card,
+            # _on_quiz_next_card) already prepared the exact Card state
+            # itself. Calling open_default() here unconditionally would
+            # silently override a specific Collection/Card handoff the
+            # instant it navigated -- exactly the fallback the M17 Minimum
+            # Collection Integration prompt § 9 forbids. ReviewView
+            # re-renders reactively from ReviewController.state_changed,
+            # not from this workspace switch, so this is safe.
             widget = self.review_view
             self._workspace_stack.setCurrentWidget(widget)
-            self.review_controller.open_default()
         elif workspace is Workspace.QUIZ:
             # No refresh-on-render here: _start_quiz() already called
             # QuizController.start() before requesting this navigation, and

@@ -43,6 +43,37 @@ UNKNOWN_ACTION = "unknown"
 
 
 @dataclass(frozen=True)
+class EntriesScopeIntent:
+    """Typed navigation intent for "open Entries already scoped to X"
+    (M17 Minimum Collection Integration prompt § 7/§ 8). Carries only the
+    minimum factual target Entries' own existing scope contract already
+    understands -- a scope key exactly as ``EntriesController``/
+    ``_ScopePane`` already produce/consume it (``"all"``,
+    ``"system:<starred|mistake_book|proficient_pool>"``,
+    ``"collection:<id>"``) -- never an ad-hoc dict, and never a second
+    Collection-filter implementation. Built by both the Collections
+    Navigator (a chosen Collection or practice pool) and Today (an
+    actionable "Collections Needing Attention" pool), consumed only by
+    ``MainWindow`` handing the scope straight to the existing
+    ``EntriesController.set_scope()``."""
+
+    scope: str
+
+
+@dataclass(frozen=True)
+class StudyTargetIntent:
+    """Typed navigation intent for "open this exact Collection/Card in
+    Study" (M17 Minimum Collection Integration prompt § 9). Consumed only
+    by ``ReviewController.open_card(collection_id, card_number)`` -- never
+    a fallback to ``open_default()``. If the Card no longer exists when
+    this is consumed, the caller must fail honestly rather than silently
+    opening a different Card (prompt § 9)."""
+
+    collection_id: int
+    card_number: int
+
+
+@dataclass(frozen=True)
 class LearningActionIntent:
     action: str
     collection_id: int | None

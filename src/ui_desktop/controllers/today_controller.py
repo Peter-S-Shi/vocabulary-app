@@ -63,7 +63,10 @@ class TodayController(QObject):
 
     def collections_needing_attention(self) -> list[dict]:
         """Special-pool collections (Mistake Book, Proficient Pool,
-        Starred) that currently hold practiceable entries."""
+        Starred) that currently hold practiceable entries. ``system_type``
+        is included so a view can complete the handoff into the matching
+        Entries ``system:<type>`` scope (M17 Minimum Collection
+        Integration prompt § 8) without re-deriving it from the label."""
         if self.overview is None:
             return []
         special = self.overview.get("special_collections") or {}
@@ -80,6 +83,7 @@ class TodayController(QObject):
                         "label": label,
                         "collection_id": status.get("collection_id"),
                         "entry_count": int(status.get("entry_count") or 0),
+                        "system_type": system_type,
                     }
                 )
         return attention

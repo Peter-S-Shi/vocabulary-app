@@ -643,6 +643,26 @@ It must maintain the semantic separations:
 
 It must not manufacture a Collection score or global mastery metric merely to simplify the visualization.
 
+### 6.8 Minimum M17 Collection Integration — Collections Navigator / Collection Context
+
+**Authority:** Class B, "inherited from the invoking A/B surface" (§ 7.2) — explicitly **not** a full Collection Manager. Design Derivation Record per § 9, since the exact local composition is not fully obvious from P2 alone:
+
+1. **Interaction Mode** — Management.
+2. **Parent Pattern** — P2 Table-First Manager, a deliberately lighter instance: a scoped list/selector + read-only detail, not a dense editable table.
+3. **Primary User Task** — choose a Collection (or system practice pool) and dispatch into the correct already-accepted workflow (Entries scope, or Review/Study at an exact Card) — not manage or edit the Collection itself.
+4. **Spatial Composition** — Management Rail (shared) → left Collections/Pools selector pane, split into explicit "Collections" and "Practice Pools" sections → right read-only detail pane (selected Collection's factual metadata + a compact Card list for normal Collections, or a pool summary for system pools) with handoff actions.
+5. **Dominance Rule** — the selector pane and its current selection drive the surface; the detail pane is subordinate factual context, never an editing surface.
+6. **Density Rule** — inherits the existing Management Mode density/spacing/typography scale already established by Entries/Today.
+7. **Surface Hierarchy** — selector pane uses `surface_secondary` (matching Entries' Scope Pane / Today's Context Rail); detail content uses `surface_primary` on `app_background`, matching existing Management-mode surface roles.
+8. **Action Hierarchy** — primary = "Open Entries" / "Open in Study" (accent-primary buttons, matching Entries' Add Entry / Detail Edit treatment); secondary = list selection; no destructive actions exist here (read-only).
+9. **Editing Container** — none. This surface has no editor; it is read-only navigation/context only.
+10. **Navigation / Chrome Inheritance** — full Management shell retained (Navigation Rail visible); no Study-mode chrome swap on this surface itself — "Open in Study" is what triggers Review's existing chrome swap.
+11. **Motion / Transition** — reuses the existing shared `TransitionManager.fade_in` on workspace switch, exactly like Today/Entries; no new motion behavior.
+12. **Canonical Visual Relationship** — closest visual authority is `VR-ENTRIES-001`'s Scope Pane + detail vocabulary (scoped list on the left, factual read-only detail on the right); inherits those visual traits rather than inventing new visual language.
+13. **Native Human Acceptance Target** — the real native Collections workspace showing a normal-Collection selection (card list, Open Entries, Open in Study), a system-pool selection (Open Entries only), and the resulting Entries/Review handoffs actually landing on the correct scope/Card, in both Light and Dark Mode.
+
+Explicitly out of scope for this surface (belongs to later product work, principally M18): Create/Rename/Delete Collection, editing Card size/description, Entry reordering, drag-and-drop, Card reorganization, Card name editing, Collection bulk management, a direct Collection → Quiz launcher, and the full P2 Collection Manager / P2-P5 Card Organization Workspace.
+
 ---
 
 ## 7. Screen / Window Coverage Contract

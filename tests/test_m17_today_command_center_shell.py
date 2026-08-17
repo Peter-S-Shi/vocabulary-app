@@ -79,14 +79,16 @@ class NavigationRailStructureTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.app = _qt_app()
 
-    def test_only_today_entries_study_and_settings_are_enabled(self) -> None:
+    def test_only_today_entries_collections_study_and_settings_are_enabled(self) -> None:
         """Updated for M17 Feature 2 (Review): "study" is the rail's real
         entry point into Study Mode / Review now that real Study content
         exists, per the M17 Feature 2 prompt's "smallest shared-shell
-        wiring genuinely required to make Review reachable". Updated again
-        for M17 Feature 3B: Settings now has a real minimum workspace
-        (Quiz presentation), so it is enabled too -- collections/analytics/
-        data_tools remain honestly disabled placeholders."""
+        wiring genuinely required to make Review reachable". Updated for
+        M17 Feature 3B: Settings now has a real minimum workspace (Quiz
+        presentation), so it is enabled too. Updated for M17 Minimum
+        Collection Integration: Collections now has a real minimum
+        workspace (Collections Navigator), so it is enabled too --
+        analytics/data_tools remain honestly disabled placeholders."""
         rail = NavigationRail()
         self.addCleanup(rail.deleteLater)
 
@@ -97,7 +99,7 @@ class NavigationRailStructureTests(unittest.TestCase):
             set() if SETTINGS_DESTINATION.enabled else {SETTINGS_DESTINATION.key}
         )
 
-        self.assertEqual(enabled, {"today", "entries", "study", "settings"})
+        self.assertEqual(enabled, {"today", "entries", "collections", "study", "settings"})
         for key in enabled:
             self.assertTrue(rail.is_enabled_destination(key), key)
         for key in disabled:
@@ -107,7 +109,7 @@ class NavigationRailStructureTests(unittest.TestCase):
         rail = NavigationRail()
         self.addCleanup(rail.deleteLater)
 
-        button = rail._buttons["collections"]
+        button = rail._buttons["analytics"]
         self.assertFalse(button.isEnabled())
         self.assertIn("not implemented yet", button.toolTip())
 
@@ -142,10 +144,10 @@ class NavigationRailStructureTests(unittest.TestCase):
         rail.destination_activated.connect(received.append)
 
         # Qt does not deliver clicked() to a disabled QPushButton; this
-        # documents that guarantee rather than assuming it. "collections"
-        # remains disabled/not-implemented after M17 Feature 2 (Review is
-        # "study", a different destination).
-        rail._buttons["collections"].click()
+        # documents that guarantee rather than assuming it. "analytics"
+        # remains disabled/not-implemented (Collections gained a real
+        # minimum workspace in M17 Minimum Collection Integration).
+        rail._buttons["analytics"].click()
 
         self.assertEqual(received, [])
 

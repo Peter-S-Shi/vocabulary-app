@@ -21,6 +21,7 @@ preferences persist through ``state/preferences.py``. Neither lives here.
 class Workspace(str, Enum):
     TODAY = "today"
     ENTRIES = "entries"
+    COLLECTIONS = "collections"
     REVIEW = "review"
     QUIZ = "quiz"
     SETTINGS = "settings"

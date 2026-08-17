@@ -1291,6 +1291,134 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         background-color: {neutral.border_subtle};
         margin: 4px 0px;
     }}
+
+    /* Today -- "Collections Needing Attention" rows become actionable
+    (M17 Minimum Collection Integration prompt § 8): a clickable row
+    styled consistently with the existing today-quick-action affordance. */
+    QPushButton#today-attention-row {{
+        background-color: transparent;
+        border: 1px solid transparent;
+        border-radius: {radius}px;
+        text-align: left;
+        padding: 2px;
+    }}
+    QPushButton#today-attention-row:hover:enabled {{
+        background-color: {accent.soft.background};
+        border: 1px solid {accent.border};
+    }}
+    QPushButton#today-attention-row:disabled {{
+        color: {neutral.text_disabled};
+    }}
+
+    /* Collections Navigator / Collection Context -- Minimum M17
+    Collection Integration (DESIGN.md § 6.8, Class B). Read-only
+    navigation/context surface; visual traits inherited from Entries'
+    Scope Pane + detail vocabulary rather than a new visual language. */
+    QWidget#collections-list-pane {{
+        background-color: {neutral.surface_secondary};
+        border-right: 1px solid {neutral.border_default};
+    }}
+    QLabel#collections-list-heading {{
+        color: {neutral.text_muted};
+        font-size: 11px;
+        font-weight: 700;
+        padding: 6px 8px 2px 8px;
+    }}
+    QWidget#collections-list-divider {{
+        background-color: {neutral.border_subtle};
+    }}
+    QPushButton#collections-list-item {{
+        background-color: transparent;
+        border: none;
+        border-left: 3px solid transparent;
+        text-align: left;
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        padding: 6px 8px;
+        border-radius: 0px;
+    }}
+    QPushButton#collections-list-item:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+    }}
+    QPushButton#collections-list-item:checked {{
+        background-color: {neutral.surface_primary};
+        border-left: 3px solid {accent.primary.background};
+        color: {neutral.text_primary};
+        font-weight: 600;
+    }}
+    QLabel#collections-title {{
+        color: {neutral.text_primary};
+        font-size: 21px;
+        font-weight: 700;
+    }}
+    QLabel#collections-empty-state {{
+        color: {neutral.text_muted};
+        font-style: italic;
+        font-size: 13px;
+    }}
+    QLabel#collections-detail-name {{
+        color: {neutral.text_primary};
+        font-size: 18px;
+        font-weight: 700;
+    }}
+    QLabel#collections-detail-description {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+    }}
+    QLabel#collections-detail-meta {{
+        color: {neutral.text_muted};
+        font-size: 12px;
+    }}
+    QPushButton#collections-open-entries-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 16px;
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#collections-open-entries-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#collections-open-entries-button:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QLabel#collections-cards-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QWidget#collections-card-row {{
+        background-color: {neutral.surface_secondary};
+        border: 1px solid {neutral.border_subtle};
+        border-radius: {radius}px;
+    }}
+    QLabel#collections-card-label {{
+        color: {neutral.text_primary};
+        font-size: 13px;
+    }}
+    QLabel#collections-card-count {{
+        color: {neutral.text_muted};
+        font-size: 12px;
+    }}
+    QPushButton#collections-open-in-study-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 4px 12px;
+        font-size: 12px;
+    }}
+    QPushButton#collections-open-in-study-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
     """.strip()
 
 
