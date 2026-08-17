@@ -376,7 +376,13 @@ class TodayView(QWidget):
         button.setFlat(True)
         layout = QHBoxLayout(button)
         layout.setContentsMargins(SPACING.xs, SPACING.xs, SPACING.xs, SPACING.xs)
-        label = QLabel(str(item.get("label") or ""), button)
+        # "★ " prefix on Starred is presentation-only (M17 Minimum
+        # Collection Integration corrective pass § 12); system_type stays
+        # "starred".
+        label_text = str(item.get("label") or "")
+        if item.get("system_type") == "starred":
+            label_text = f"★ {label_text}"
+        label = QLabel(label_text, button)
         chip = QLabel(f"{item.get('entry_count', 0)} item(s)", button)
         chip.setObjectName("today-attention-chip")
         layout.addWidget(label, 1)

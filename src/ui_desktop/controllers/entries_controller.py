@@ -12,7 +12,9 @@ from src.collections import (
     get_collections,
     get_entries_in_collection,
     get_entries_in_system_collection,
+    get_entry_ids_in_system_collection,
     get_system_collection_by_type_or_name,
+    remove_entries_from_system_collection,
     resolve_collection_names,
     update_entry_collections,
 )
@@ -46,6 +48,22 @@ against the same ``search_entries()`` result -- reusing its own
 search_text/language/entry_type/status filtering rather than duplicating
 it, per the M17 Feature 4 prompt's explicit "do not solve such a gap with
 SQL in EntriesController" boundary.
+
+M17 Minimum Collection Integration corrective pass (§ 5-10): row
+inspection and batch selection are two independent transient truths, not
+one shared concept --
+
+  ``focused_id``    -- the single Entry the bottom detail pane currently
+                       shows (set by a plain row click); drives Edit.
+  ``checked_ids``   -- the batch-selection truth the checkbox column and
+                       header "select all" write to; drives Delete/Add to
+                       Collection/Star (batch). Never derived from, or
+                       required to depend on, native Ctrl/Shift row
+                       selection.
+
+Each row also carries a ``starred`` flag (attached in ``refresh()`` via
+the batched ``get_entry_ids_in_system_collection`` read) so the table can
+render a direct per-row Star affordance without a second N+1 read.
 """
 
 SCOPE_ALL = "all"
@@ -53,7 +71,8 @@ SCOPE_ALL = "all"
 
 class EntriesController(QObject):
     rows_changed = Signal(int)
-    selection_changed = Signal(object)  # list[dict] of currently selected entries
+    checked_changed = Signal(object)  # list[dict] of currently checked (batch) entries
+    focused_changed = Signal(object)  # dict | None -- the focused Entry, or None
     scopes_changed = Signal()
 
     def __init__(self) -> None:
@@ -65,7 +84,8 @@ class EntriesController(QObject):
         self.status = "All"
         self.template_id: int | str | None = None
         self.scope = SCOPE_ALL
-        self.selected_ids: set[int] = set()
+        self.checked_ids: set[int] = set()
+        self.focused_id: int | None = None
         self.scopes: list[dict] = []
 
     # -- scope pane ------------------------------------------------------
@@ -117,15 +137,21 @@ class EntriesController(QObject):
         if scope_ids is not None:
             rows = [row for row in rows if row["id"] in scope_ids]
 
-        collection_names = get_collection_names_for_entries([row["id"] for row in rows])
+        row_ids = [row["id"] for row in rows]
+        collection_names = get_collection_names_for_entries(row_ids)
+        starred_ids = get_entry_ids_in_system_collection(row_ids, "starred")
         for row in rows:
             row["collection_names"] = collection_names.get(row["id"], [])
+            row["starred"] = row["id"] in starred_ids
         self.model.set_rows(rows)
 
         visible_ids = {row["id"] for row in rows}
-        if not self.selected_ids <= visible_ids:
-            self.selected_ids &= visible_ids
-        self.selection_changed.emit(self.selected_entries())
+        if not self.checked_ids <= visible_ids:
+            self.checked_ids &= visible_ids
+        if self.focused_id is not None and self.focused_id not in visible_ids:
+            self.focused_id = None
+        self.checked_changed.emit(self.checked_entries())
+        self.focused_changed.emit(self.focused_entry())
         self.rows_changed.emit(len(rows))
         return len(rows)
 
@@ -145,18 +171,34 @@ class EntriesController(QObject):
         self.status = value
         return self.refresh()
 
-    # -- selection ---------------------------------------------------------
+    # -- focused Entry (inspection truth) -------------------------------
 
-    def set_selected_ids(self, ids: set[int]) -> None:
-        self.selected_ids = set(ids)
-        self.selection_changed.emit(self.selected_entries())
+    def set_focused_id(self, entry_id: int | None) -> None:
+        if entry_id == self.focused_id:
+            return
+        self.focused_id = entry_id
+        self.focused_changed.emit(self.focused_entry())
 
-    def selected_entries(self) -> list[dict]:
+    def focused_entry(self) -> dict | None:
+        if self.focused_id is None:
+            return None
+        return next((row for row in self.model.rows() if row["id"] == self.focused_id), None)
+
+    # -- checked Entries (batch-selection truth) -------------------------
+
+    def set_checked_ids(self, ids: set[int]) -> None:
+        self.checked_ids = set(ids)
+        self.checked_changed.emit(self.checked_entries())
+
+    def checked_entries(self) -> list[dict]:
         by_id = {row["id"]: row for row in self.model.rows()}
-        return [by_id[entry_id] for entry_id in self.selected_ids if entry_id in by_id]
+        return [by_id[entry_id] for entry_id in self.checked_ids if entry_id in by_id]
 
-    def primary_selected_entry_id(self) -> int | None:
-        return next(iter(self.selected_ids)) if len(self.selected_ids) == 1 else None
+    def select_all_visible(self) -> None:
+        self.set_checked_ids({row["id"] for row in self.model.rows()})
+
+    def clear_checked(self) -> None:
+        self.set_checked_ids(set())
 
     def entry_detail(self, entry_id: int) -> dict | None:
         return get_entry_with_template_values(entry_id)
@@ -270,27 +312,48 @@ class EntriesController(QObject):
     def delete_selected(self, *, confirm_cross_card: bool = False) -> int:
         """May raise ``CrossCardMoveConfirmationRequired`` -- never caught
         here (M17 Feature 4 prompt § 9: "never bypass the core's
-        confirmation gate")."""
-        count = delete_entries(list(self.selected_ids), confirm_cross_card=confirm_cross_card)
-        self.selected_ids = set()
+        confirmation gate"). Operates on ``checked_ids`` (batch truth),
+        never ``focused_id``."""
+        count = delete_entries(list(self.checked_ids), confirm_cross_card=confirm_cross_card)
+        self.checked_ids = set()
         self.refresh_scopes()
         self.refresh()
         return count
 
     def add_selected_to_starred(self) -> int:
-        count = add_entries_to_system_collection(list(self.selected_ids), "starred")
+        count = add_entries_to_system_collection(list(self.checked_ids), "starred")
         self.refresh_scopes()
         self.refresh()
         return count
 
     def add_selected_to_proficient_pool(self) -> int:
-        count = add_entries_to_system_collection(list(self.selected_ids), "proficient_pool")
+        count = add_entries_to_system_collection(list(self.checked_ids), "proficient_pool")
         self.refresh_scopes()
         self.refresh()
         return count
 
     def add_selected_to_collection(self, collection_id: int) -> int:
-        count = add_entries_to_collection(list(self.selected_ids), collection_id)
+        count = add_entries_to_collection(list(self.checked_ids), collection_id)
         self.refresh_scopes()
         self.refresh()
         return count
+
+    # -- direct per-row Star affordance (§ 9/§ 10) ---------------------------
+
+    def toggle_star(self, entry_id: int, *, confirm_cross_card: bool = False) -> bool:
+        """Toggles one Entry's Starred membership directly (independent of
+        ``checked_ids``). May raise ``CrossCardMoveConfirmationRequired``
+        on unstar -- never caught here, same raise-then-retry contract as
+        delete/collection-removal (§ 10). Reuses the exact system-
+        Collection core already used everywhere else Starred is
+        touched -- no duplicated membership logic. Returns the new
+        Starred state."""
+        row = next((r for r in self.model.rows() if r["id"] == entry_id), None)
+        currently_starred = bool(row.get("starred")) if row is not None else False
+        if currently_starred:
+            remove_entries_from_system_collection([entry_id], "starred", confirm_cross_card=confirm_cross_card)
+        else:
+            add_entries_to_system_collection([entry_id], "starred")
+        self.refresh_scopes()
+        self.refresh()
+        return not currently_starred

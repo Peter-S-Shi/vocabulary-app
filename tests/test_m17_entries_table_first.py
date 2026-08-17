@@ -168,35 +168,48 @@ class EntriesControllerBrowseTests(_SyntheticDatabaseTestCase):
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
 class EntriesControllerSelectionTests(_SyntheticDatabaseTestCase):
-    def test_single_selection_exposes_primary_entry(self) -> None:
+    def test_single_checked_entry_is_reported_via_checked_entries(self) -> None:
         entry_ids = self._make_entries([("chat", "cat"), ("chien", "dog")])
         controller = EntriesController()
         controller.refresh()
 
-        controller.set_selected_ids({entry_ids[0]})
+        controller.set_checked_ids({entry_ids[0]})
 
-        self.assertEqual(controller.primary_selected_entry_id(), entry_ids[0])
-        self.assertEqual([e["term"] for e in controller.selected_entries()], ["chat"])
+        self.assertEqual([e["term"] for e in controller.checked_entries()], ["chat"])
 
-    def test_multi_selection_has_no_single_primary_entry(self) -> None:
+    def test_multi_checked_entries_all_reported(self) -> None:
         entry_ids = self._make_entries([("chat", "cat"), ("chien", "dog")])
         controller = EntriesController()
         controller.refresh()
 
-        controller.set_selected_ids(set(entry_ids))
+        controller.set_checked_ids(set(entry_ids))
 
-        self.assertIsNone(controller.primary_selected_entry_id())
-        self.assertEqual(len(controller.selected_entries()), 2)
+        self.assertEqual(len(controller.checked_entries()), 2)
+
+    def test_focused_id_is_independent_of_checked_ids(self) -> None:
+        """§ 5/§ 6: focused_id (inspection) and checked_ids (batch) are
+        two independent truths -- setting one must never mutate the
+        other."""
+        entry_ids = self._make_entries([("chat", "cat"), ("chien", "dog")])
+        controller = EntriesController()
+        controller.refresh()
+
+        controller.set_checked_ids({entry_ids[0]})
+        controller.set_focused_id(entry_ids[1])
+
+        self.assertEqual(controller.checked_ids, {entry_ids[0]})
+        self.assertEqual(controller.focused_id, entry_ids[1])
+        self.assertEqual(controller.focused_entry()["term"], "chien")
 
     def test_refresh_prunes_selection_no_longer_visible_but_keeps_the_rest(self) -> None:
         entry_ids = self._make_entries([("chat", "cat"), ("chien", "dog")])
         controller = EntriesController()
         controller.refresh()
-        controller.set_selected_ids(set(entry_ids))
+        controller.set_checked_ids(set(entry_ids))
 
         controller.set_search_text("chat")
 
-        self.assertEqual(controller.selected_ids, {entry_ids[0]})
+        self.assertEqual(controller.checked_ids, {entry_ids[0]})
 
     def test_entry_detail_includes_template_values(self) -> None:
         entry_id = self._make_entries([("chat", "cat")])[0]
@@ -431,20 +444,20 @@ class EntriesControllerDeleteTests(_SyntheticDatabaseTestCase):
         entry_ids = self._make_entries([("chat", "cat"), ("chien", "dog")])
         controller = EntriesController()
         controller.refresh()
-        controller.set_selected_ids({entry_ids[0]})
+        controller.set_checked_ids({entry_ids[0]})
 
         count = controller.delete_selected()
 
         self.assertEqual(count, 1)
         self.assertIsNone(get_entry_by_id(entry_ids[0]))
         self.assertIsNotNone(get_entry_by_id(entry_ids[1]))
-        self.assertEqual(controller.selected_ids, set())
+        self.assertEqual(controller.checked_ids, set())
 
     def test_batch_delete_removes_all_selected(self) -> None:
         entry_ids = self._make_entries([("un", "one"), ("deux", "two"), ("trois", "three")])
         controller = EntriesController()
         controller.refresh()
-        controller.set_selected_ids(set(entry_ids))
+        controller.set_checked_ids(set(entry_ids))
 
         count = controller.delete_selected()
 
@@ -456,7 +469,7 @@ class EntriesControllerDeleteTests(_SyntheticDatabaseTestCase):
         collection_id, entry_ids = self._collection_with_entries(4, card_size=3)
         controller = EntriesController()
         controller.refresh()
-        controller.set_selected_ids({entry_ids[0]})
+        controller.set_checked_ids({entry_ids[0]})
 
         with self.assertRaises(CrossCardMoveConfirmationRequired):
             controller.delete_selected()
@@ -476,7 +489,7 @@ class EntriesControllerDeleteTests(_SyntheticDatabaseTestCase):
         entry_ids = self._make_entries([("chat", "cat")])
         controller = EntriesController()
         controller.refresh()
-        controller.set_selected_ids(set(entry_ids))
+        controller.set_checked_ids(set(entry_ids))
 
         controller.add_selected_to_starred()
         controller.add_selected_to_proficient_pool()
@@ -544,7 +557,7 @@ class EntriesViewStructureTests(_SyntheticDatabaseTestCase):
         self.assertEqual(controller.model.rowCount(), 2)
         self.assertIn("collection:", "".join(view._scope_pane._buttons.keys()))
 
-    def test_selecting_a_row_updates_detail_and_reveals_batch_actions(self) -> None:
+    def test_checking_a_row_reveals_batch_actions(self) -> None:
         entry_ids = self._make_entries([("chat", "cat")])
         controller = EntriesController()
         view = EntriesView(controller)
@@ -553,13 +566,25 @@ class EntriesViewStructureTests(_SyntheticDatabaseTestCase):
         self.app.processEvents()
         view.refresh()
 
-        controller.set_selected_ids({entry_ids[0]})
+        controller.set_checked_ids({entry_ids[0]})
 
         # isVisible() needs the whole ancestor chain shown; view.show() above
         # makes that reliable here (isHidden() alone would not require it).
         self.assertTrue(view._batch_bar.isVisible())
         self.assertTrue(view._star_button.isVisible())
         self.assertTrue(view._delete_button.isVisible())
+
+    def test_focusing_a_row_updates_bottom_detail(self) -> None:
+        entry_ids = self._make_entries([("chat", "cat")])
+        controller = EntriesController()
+        view = EntriesView(controller)
+        self.addCleanup(view.deleteLater)
+        view.show()
+        self.app.processEvents()
+        view.refresh()
+
+        controller.set_focused_id(entry_ids[0])
+
         values = [w.text() for w in view._detail_container.findChildren(QWidget) if w.objectName() == "entries-detail-value"]
         self.assertIn("chat", values)
 
@@ -606,7 +631,7 @@ class EntriesViewStructureTests(_SyntheticDatabaseTestCase):
         view = EntriesView(controller)
         self.addCleanup(view.deleteLater)
         view.refresh()
-        controller.set_selected_ids({entry_ids[0]})
+        controller.set_checked_ids({entry_ids[0]})
 
         with patch("src.ui_desktop.views.entries_view._confirm_cross_card_reorganization", return_value=True):
             view._delete_selected(confirm_cross_card=False)
@@ -674,9 +699,9 @@ if PYSIDE6_AVAILABLE:
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
 class EntriesCorrectivePassCheckboxSelectionTests(_SyntheticDatabaseTestCase):
     """M17_Feature4_Entries_Corrective_Pass.md § 7/§ 11: explicit checkbox
-    selection stays synchronized with EntriesController.selected_ids --
-    the single selection truth -- from both the checkbox column and the
-    header "select all visible" affordance."""
+    selection stays synchronized with EntriesController.checked_ids --
+    the single batch-selection truth -- from both the checkbox column and
+    the header "select all visible" affordance."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -694,7 +719,7 @@ class EntriesCorrectivePassCheckboxSelectionTests(_SyntheticDatabaseTestCase):
         index = model.index(0, model.COLUMNS.index(model.SELECT_COLUMN))
         model.setData(index, Qt.CheckState.Checked, Qt.ItemDataRole.CheckStateRole)
 
-        self.assertEqual(controller.selected_ids, {target_id})
+        self.assertEqual(controller.checked_ids, {target_id})
         self.assertEqual(model.data(index, Qt.ItemDataRole.CheckStateRole), Qt.CheckState.Checked)
 
     def test_checkbox_unchecked_removes_from_selection(self) -> None:
@@ -703,13 +728,13 @@ class EntriesCorrectivePassCheckboxSelectionTests(_SyntheticDatabaseTestCase):
         view = EntriesView(controller)
         self.addCleanup(view.deleteLater)
         view.refresh()
-        controller.set_selected_ids({entry_ids[0]})
+        controller.set_checked_ids({entry_ids[0]})
 
         model = controller.model
         index = model.index(0, model.COLUMNS.index(model.SELECT_COLUMN))
         model.setData(index, Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole)
 
-        self.assertEqual(controller.selected_ids, set())
+        self.assertEqual(controller.checked_ids, set())
 
     def test_ctrl_click_style_selection_also_checks_the_box(self) -> None:
         """Native selectionModel changes (ctrl/shift-click) and checkbox
@@ -722,7 +747,7 @@ class EntriesCorrectivePassCheckboxSelectionTests(_SyntheticDatabaseTestCase):
         self.addCleanup(view.deleteLater)
         view.refresh()
 
-        controller.set_selected_ids({entry_ids[0]})
+        controller.set_checked_ids({entry_ids[0]})
 
         model = controller.model
         index = model.index(0, model.COLUMNS.index(model.SELECT_COLUMN))
@@ -740,7 +765,7 @@ class EntriesCorrectivePassCheckboxSelectionTests(_SyntheticDatabaseTestCase):
 
         visible_ids = {row["id"] for row in controller.model.rows()}
         self.assertTrue(visible_ids)
-        self.assertEqual(controller.selected_ids, visible_ids)
+        self.assertEqual(controller.checked_ids, visible_ids)
         self.assertLess(len(visible_ids), len(entry_ids))
 
     def test_header_select_all_toggled_off_clears_selection(self) -> None:
@@ -750,11 +775,11 @@ class EntriesCorrectivePassCheckboxSelectionTests(_SyntheticDatabaseTestCase):
         self.addCleanup(view.deleteLater)
         view.refresh()
         view._on_header_toggled(True)
-        self.assertEqual(controller.selected_ids, set(entry_ids))
+        self.assertEqual(controller.checked_ids, set(entry_ids))
 
         view._on_header_toggled(False)
 
-        self.assertEqual(controller.selected_ids, set())
+        self.assertEqual(controller.checked_ids, set())
 
     def test_header_checkbox_state_reflects_full_selection(self) -> None:
         entry_ids = self._make_entries([("chat", "cat"), ("chien", "dog")])
@@ -763,10 +788,10 @@ class EntriesCorrectivePassCheckboxSelectionTests(_SyntheticDatabaseTestCase):
         self.addCleanup(view.deleteLater)
         view.refresh()
 
-        controller.set_selected_ids(set(entry_ids))
+        controller.set_checked_ids(set(entry_ids))
         self.assertTrue(view._checkable_header._checked)
 
-        controller.set_selected_ids({entry_ids[0]})
+        controller.set_checked_ids({entry_ids[0]})
         self.assertFalse(view._checkable_header._checked)
 
 
@@ -872,7 +897,7 @@ class EntriesCorrectivePassAddToCollectionTests(_SyntheticDatabaseTestCase):
         view = EntriesView(controller)
         self.addCleanup(view.deleteLater)
         view.refresh()
-        controller.set_selected_ids({entry_ids[0]})
+        controller.set_checked_ids({entry_ids[0]})
 
         menu = view._build_add_to_collection_menu()
         self.addCleanup(menu.deleteLater)
@@ -891,7 +916,7 @@ class EntriesCorrectivePassAddToCollectionTests(_SyntheticDatabaseTestCase):
         view = EntriesView(controller)
         self.addCleanup(view.deleteLater)
         view.refresh()
-        controller.set_selected_ids({entry_ids[0]})
+        controller.set_checked_ids({entry_ids[0]})
 
         menu = view._build_add_to_collection_menu()
         self.addCleanup(menu.deleteLater)
@@ -909,7 +934,7 @@ class EntriesCorrectivePassAddToCollectionTests(_SyntheticDatabaseTestCase):
         view = EntriesView(controller)
         self.addCleanup(view.deleteLater)
         view.refresh()
-        controller.set_selected_ids({entry_ids[0]})
+        controller.set_checked_ids({entry_ids[0]})
 
         menu = view._build_add_to_collection_menu()
         self.addCleanup(menu.deleteLater)
@@ -935,7 +960,7 @@ class EntriesCorrectivePassDeleteWordingTests(_SyntheticDatabaseTestCase):
         view = EntriesView(controller)
         self.addCleanup(view.deleteLater)
         view.refresh()
-        controller.set_selected_ids({entry_ids[0]})
+        controller.set_checked_ids({entry_ids[0]})
 
         with patch("src.ui_desktop.views.entries_view.QMessageBox.question") as mock_question:
             mock_question.return_value = QMessageBox.StandardButton.No
@@ -953,7 +978,7 @@ class EntriesCorrectivePassDeleteWordingTests(_SyntheticDatabaseTestCase):
         view = EntriesView(controller)
         self.addCleanup(view.deleteLater)
         view.refresh()
-        controller.set_selected_ids(set(entry_ids))
+        controller.set_checked_ids(set(entry_ids))
 
         with patch("src.ui_desktop.views.entries_view.QMessageBox.question") as mock_question:
             mock_question.return_value = QMessageBox.StandardButton.No
@@ -968,7 +993,7 @@ class EntriesCorrectivePassDeleteWordingTests(_SyntheticDatabaseTestCase):
         view = EntriesView(controller)
         self.addCleanup(view.deleteLater)
         view.refresh()
-        controller.set_selected_ids({entry_ids[0]})
+        controller.set_checked_ids({entry_ids[0]})
 
         with patch("src.ui_desktop.views.entries_view._confirm_cross_card_reorganization", return_value=False) as mock_confirm:
             view._delete_selected(confirm_cross_card=False)

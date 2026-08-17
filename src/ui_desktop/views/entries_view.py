@@ -4,6 +4,7 @@ from PySide6.QtCore import QItemSelectionModel, QRect, QSortFilterProxyModel, Qt
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QButtonGroup,
     QCheckBox,
     QComboBox,
@@ -139,9 +140,12 @@ above:
                              checkbox column and a header-level "select
                              all visible" affordance (`_CheckableHeaderView`);
                              both are pure views onto
-                             `EntriesController.selected_ids` -- toggling
-                             a checkbox or the header updates that same
-                             set, never a second selection state (§ 7).
+                             `EntriesController.checked_ids` (renamed from
+                             `selected_ids` in the Minimum Collection
+                             Integration corrective pass below) --
+                             toggling a checkbox or the header updates
+                             that same set, never a second selection
+                             state (§ 7).
   Add to Collection         -> the menu is now anchored below the button
                              (`mapToGlobal(...bottomLeft())`) instead of
                              at `QCursor.pos()`, which on Windows could
@@ -149,6 +153,55 @@ above:
                              before a click landed on an item -- a real
                              interaction defect, not merely a contrast
                              one (§ 6).
+
+M17 Minimum Collection Integration corrective pass
+(M17_Minimum_Collection_Integration_Corrective_Pass.md), on top of both
+of the above:
+
+  focused vs checked        -> row inspection and batch selection are now
+                             two independent truths
+                             (`EntriesController.focused_id`/`checked_ids`,
+                             § 5/§ 6). A plain click sets `focused_id` via
+                             `QItemSelectionModel.currentRowChanged`
+                             (native "current row", never the multi-row
+                             "selected" set) and never touches
+                             `checked_ids`. The checkbox column/header
+                             remain the primary way to build `checked_ids`
+                             non-contiguously; Ctrl/Shift native selection
+                             is kept only as an optional convenience that
+                             *unions* into `checked_ids` (gated on
+                             `QApplication.keyboardModifiers()` so a plain
+                             click never auto-checks a row) -- native
+                             selection itself is always driven back out of
+                             `checked_ids` (`_restore_table_selection`),
+                             never a second competing truth.
+  visual states              -> checked rows keep the existing strong
+                             `::item:selected` QSS treatment (native
+                             selection mirrors `checked_ids` exactly);
+                             focused-but-unchecked rows get a distinct,
+                             lighter translucent tint painted by the model
+                             itself via `Qt.ItemDataRole.BackgroundRole`
+                             (§ 7) -- the two states can never be
+                             confused, and a row that is both simply shows
+                             the stronger checked treatment.
+  bottom detail              -> now follows `focused_id`, independent of
+                             how many Entries are checked (§ 8): it never
+                             collapses into a bare "N selected" message
+                             again. A compact "N checked" line appears
+                             only as secondary status alongside the real
+                             focused-Entry detail. Edit acts on
+                             `focused_id`; batch actions act on
+                             `checked_ids`.
+  Star column                -> a direct per-row Starred toggle (§ 9/§ 10)
+                             next to the checkbox column, reusing the
+                             existing `add_entries_to_system_collection`/
+                             `remove_entries_from_system_collection`
+                             core (never a duplicated membership write),
+                             including the `CrossCardMoveConfirmationRequired`
+                             safety gate on unstar. "Starred" scope/
+                             Collections-Navigator/Today labels get a "★ "
+                             prefix as a presentation-only touch (§ 12) --
+                             `system_type = "starred"` is untouched.
 """
 
 SCOPE_PANE_DEFAULT_WIDTH = 220
@@ -200,8 +253,12 @@ class EntriesView(QWidget):
         self._table.setSortingEnabled(True)
         self._table.setMouseTracking(True)
         self._table.horizontalHeader().setStretchLastSection(True)
-        self._table.horizontalHeader().resizeSection(0, 32)
-        self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        select_column = self._controller.model.COLUMNS.index(self._controller.model.SELECT_COLUMN)
+        self._star_column = self._controller.model.COLUMNS.index(self._controller.model.STAR_COLUMN)
+        self._table.horizontalHeader().resizeSection(select_column, 32)
+        self._table.horizontalHeader().setSectionResizeMode(select_column, QHeaderView.ResizeMode.Fixed)
+        self._table.horizontalHeader().resizeSection(self._star_column, 32)
+        self._table.horizontalHeader().setSectionResizeMode(self._star_column, QHeaderView.ResizeMode.Fixed)
         self._table.verticalHeader().setVisible(False)
         main_layout.addWidget(self._table, 1)
 
@@ -222,12 +279,15 @@ class EntriesView(QWidget):
 
         selection_model = self._table.selectionModel()
         if selection_model is not None:
+            selection_model.currentRowChanged.connect(self._on_table_current_row_changed)
             selection_model.selectionChanged.connect(self._on_table_selection_changed)
         controller.model.checkbox_toggled.connect(self._on_row_checkbox_toggled)
+        self._table.clicked.connect(self._on_table_cell_clicked)
 
         controller.rows_changed.connect(self._on_rows_changed)
         controller.scopes_changed.connect(self._on_scopes_changed)
-        controller.selection_changed.connect(self._on_selection_changed)
+        controller.checked_changed.connect(self._on_checked_changed)
+        controller.focused_changed.connect(self._on_focused_changed)
 
     def refresh(self) -> None:
         self._controller.refresh_scopes()
@@ -331,9 +391,9 @@ class EntriesView(QWidget):
     def _set_batch_actions_visible(self, visible: bool) -> None:
         self._batch_bar.setVisible(visible)
         if visible:
-            count = len(self._controller.selected_ids)
+            count = len(self._controller.checked_ids)
             noun = "Entry" if count == 1 else "Entries"
-            self._batch_count_label.setText(f"{count} {noun} selected")
+            self._batch_count_label.setText(f"{count} {noun} checked")
 
     # -- scope / filter reactions --------------------------------------------
 
@@ -349,28 +409,50 @@ class EntriesView(QWidget):
     def _on_rows_changed(self, _count: int) -> None:
         self._restore_table_selection()
 
-    # -- table selection -------------------------------------------------
+    # -- table selection: focused_id vs checked_ids (M17 Minimum
+    # Collection Integration corrective pass § 5/§ 6) -----------------------
+
+    def _on_table_current_row_changed(self, current, _previous) -> None:
+        """A plain row click/keyboard-navigation change (Qt's "current
+        index", independent of the multi-row "selected" set) sets
+        ``focused_id`` only -- it never touches ``checked_ids``."""
+        if not current.isValid():
+            return
+        source_index = self._proxy.mapToSource(current)
+        entry = self._controller.model.row_at(source_index.row())
+        if entry is not None:
+            self._controller.set_focused_id(entry["id"])
 
     def _on_table_selection_changed(self, *_args: object) -> None:
+        """Ctrl/Shift native multi-row selection remains an *optional*
+        convenience that unions into ``checked_ids`` -- gated on an actual
+        modifier being held, so a plain click (which Qt also reports here
+        as a 1-row "selection") never silently checks a row (§ 5/§ 6)."""
+        modifiers = QApplication.keyboardModifiers()
+        if not (modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier)):
+            return
         selection_model = self._table.selectionModel()
         if selection_model is None:
             return
-        ids: set[int] = set()
+        ids = set(self._controller.checked_ids)
         for proxy_index in selection_model.selectedRows():
             source_index = self._proxy.mapToSource(proxy_index)
             entry = self._controller.model.row_at(source_index.row())
             if entry is not None:
                 ids.add(entry["id"])
-        self._controller.set_selected_ids(ids)
+        self._controller.set_checked_ids(ids)
 
     def _restore_table_selection(self) -> None:
+        """Native ``QItemSelectionModel`` selection is always driven back
+        out of ``checked_ids`` -- it is presentation only, never a second
+        competing batch-selection truth (§ 6)."""
         selection_model = self._table.selectionModel()
         if selection_model is None:
             return
         selection_model.blockSignals(True)
         selection_model.clearSelection()
         for source_row, entry in enumerate(self._controller.model.rows()):
-            if entry["id"] in self._controller.selected_ids:
+            if entry["id"] in self._controller.checked_ids:
                 source_index = self._controller.model.index(source_row, 0)
                 proxy_index = self._proxy.mapFromSource(source_index)
                 selection_model.select(
@@ -380,52 +462,68 @@ class EntriesView(QWidget):
         selection_model.blockSignals(False)
 
     def _on_row_checkbox_toggled(self, entry_id: int, checked: bool) -> None:
-        """Checkbox column click (M17 Feature 4 corrective pass § 7) --
-        folds into the same ``EntriesController.selected_ids`` truth as
-        native ctrl/shift row clicks; there is no second selection
-        state."""
-        ids = set(self._controller.selected_ids)
+        """Checkbox column click -- the primary way to build
+        ``checked_ids`` non-contiguously, with no Ctrl/Shift required
+        (§ 5)."""
+        ids = set(self._controller.checked_ids)
         if checked:
             ids.add(entry_id)
         else:
             ids.discard(entry_id)
-        self._controller.set_selected_ids(ids)
+        self._controller.set_checked_ids(ids)
+
+    def _on_table_cell_clicked(self, proxy_index) -> None:
+        source_index = self._proxy.mapToSource(proxy_index)
+        if source_index.column() != self._star_column:
+            return
+        entry = self._controller.model.row_at(source_index.row())
+        if entry is not None:
+            self._toggle_star(entry["id"], confirm_cross_card=False)
 
     def _on_header_toggled(self, checked: bool) -> None:
-        """Header "select all" affordance (§ 7): selects/clears every row
+        """Header "select all" affordance (§ 5): checks/clears every row
         currently visible under the active scope/search/filters, not the
         entire database."""
         if checked:
             ids = {row["id"] for row in self._controller.model.rows()}
         else:
             ids = set()
-        self._controller.set_selected_ids(ids)
+        self._controller.set_checked_ids(ids)
 
     def _update_header_checkbox_state(self) -> None:
         rows = self._controller.model.rows()
-        all_selected = bool(rows) and all(row["id"] in self._controller.selected_ids for row in rows)
-        self._checkable_header.set_checked(all_selected)
+        all_checked = bool(rows) and all(row["id"] in self._controller.checked_ids for row in rows)
+        self._checkable_header.set_checked(all_checked)
 
-    def _on_selection_changed(self, entries: list[dict]) -> None:
-        self._set_batch_actions_visible(bool(entries))
-        self._render_detail(entries)
-        self._controller.model.set_selected_ids(self._controller.selected_ids)
+    def _on_checked_changed(self, _entries: list[dict]) -> None:
+        self._set_batch_actions_visible(bool(self._controller.checked_ids))
+        self._controller.model.set_checked_ids(self._controller.checked_ids)
         self._restore_table_selection()
         self._update_header_checkbox_state()
+        self._render_detail()
+
+    def _on_focused_changed(self, _entry: dict | None) -> None:
+        self._controller.model.set_focused_id(self._controller.focused_id)
+        self._render_detail()
 
     # -- bottom detail -------------------------------------------------------
 
-    def _render_detail(self, entries: list[dict]) -> None:
+    def _render_detail(self) -> None:
+        """Follows ``focused_id`` only -- never collapses into a bare "N
+        checked" message regardless of how many Entries are checked (§ 8).
+        A compact checked-count line appears as secondary status
+        alongside the real focused-Entry detail, not instead of it."""
         _clear_layout(self._detail_layout)
 
-        if not entries:
+        entry = self._controller.focused_entry()
+        checked_count = len(self._controller.checked_ids)
+
+        if entry is None:
             self._detail_layout.addWidget(_message_label("Choose a row to see details."))
-            return
-        if len(entries) > 1:
-            self._detail_layout.addWidget(_message_label(f"{len(entries)} entries selected."))
+            if checked_count:
+                self._detail_layout.addWidget(_message_label(f"{checked_count} checked."))
             return
 
-        entry = entries[0]
         self._detail_layout.addWidget(_detail_field("Term", str(entry.get("term") or "")))
         self._detail_layout.addWidget(
             _detail_field("Meaning & Example", str(entry.get("meaning") or ""), secondary=str(entry.get("example") or ""))
@@ -439,12 +537,24 @@ class EntriesView(QWidget):
         self._detail_layout.addWidget(_detail_field("Reviews", str(review_count), secondary=f"Accuracy {accuracy}"))
         self._detail_layout.addWidget(_detail_field("Notes", str(entry.get("notes") or "") or "—"))
 
+        if checked_count > 1:
+            self._detail_layout.addWidget(_detail_field("Checked", f"{checked_count} Entries"))
+
         self._detail_layout.addStretch(1)
 
         edit_button = QPushButton("Edit", self._detail_container)
         edit_button.setObjectName("entries-detail-edit-button")
         edit_button.clicked.connect(lambda: self._open_edit_entry(entry["id"]))
         self._detail_layout.addWidget(edit_button, 0, Qt.AlignmentFlag.AlignVCenter)
+
+    # -- Star (§ 9/§ 10) -------------------------------------------------
+
+    def _toggle_star(self, entry_id: int, *, confirm_cross_card: bool) -> None:
+        try:
+            self._controller.toggle_star(entry_id, confirm_cross_card=confirm_cross_card)
+        except CrossCardMoveConfirmationRequired:
+            if _confirm_cross_card_reorganization(self):
+                self._toggle_star(entry_id, confirm_cross_card=True)
 
     # -- Add / Edit / Quick Add ----------------------------------------------
 
@@ -498,7 +608,7 @@ class EntriesView(QWidget):
         menu.exec(global_point)
 
     def _on_delete_selected(self) -> None:
-        count = len(self._controller.selected_ids)
+        count = len(self._controller.checked_ids)
         if not count:
             return
         # Copy explicitly distinguishes a permanent Vocabulary App delete
@@ -585,7 +695,10 @@ class _ScopePane(QWidget):
                 self._add_scope_button(scope, active_key)
 
     def _add_scope_button(self, scope: dict, active_key: str) -> None:
-        label = scope["label"]
+        # "★ " prefix on the Starred scope is presentation-only (M17
+        # Minimum Collection Integration corrective pass § 12) --
+        # system_type "starred" is untouched.
+        label = f"★ {scope['label']}" if scope["key"] == "system:starred" else scope["label"]
         count = scope.get("count")
         text = f"{label}    {count}" if count is not None else label
         button = QPushButton(text, self)
@@ -616,8 +729,8 @@ def _scope_divider() -> QWidget:
 class _CheckableHeaderView(QHeaderView):
     """Header-level "select all visible" affordance for the checkbox
     column (M17 Feature 4 corrective pass § 7). Paints/toggles a checkbox
-    over section 0; the real selection truth stays in
-    ``EntriesController.selected_ids`` -- this view only mirrors/requests
+    over section 0; the real batch-selection truth stays in
+    ``EntriesController.checked_ids`` -- this view only mirrors/requests
     it through the ``toggled`` signal, never owns it."""
 
     toggled = Signal(bool)

@@ -160,8 +160,8 @@ class CollectionsControllerTests(_SyntheticDatabaseTestCase):
         self.assertEqual(detail["entry_count"], 2)
         self.assertEqual(detail["card_size"], 8)
 
-    def test_selected_card_groups_come_from_existing_core(self) -> None:
-        from src.collections import add_entries_to_collection, get_card_groups_for_collection
+    def test_current_card_page_comes_from_existing_core(self) -> None:
+        from src.collections import add_entries_to_collection, get_card_page_for_collection
 
         entry_ids = self._make_entries([(f"term{i}", f"meaning{i}") for i in range(3)])
         collection_id = create_collection("Numbers", card_size=2)
@@ -170,10 +170,13 @@ class CollectionsControllerTests(_SyntheticDatabaseTestCase):
         controller.refresh()
         controller.select_collection(collection_id, is_system=False)
 
-        self.assertEqual(controller.selected_card_groups(), get_card_groups_for_collection(collection_id))
-        self.assertEqual(len(controller.selected_card_groups()), 2)  # card_size=2, 3 entries -> 2 Cards
+        self.assertEqual(
+            controller.current_card_page(),
+            get_card_page_for_collection(collection_id, page=1, page_size=controller.card_page_size, sort_by="card_number"),
+        )
+        self.assertEqual(controller.current_card_page()["total_cards"], 2)  # card_size=2, 3 entries -> 2 Cards
 
-    def test_system_pool_selection_has_no_card_groups(self) -> None:
+    def test_system_pool_selection_has_no_card_page(self) -> None:
         entry_ids = self._make_entries([("chat", "cat")])
         add_entries_to_system_collection(entry_ids, "starred")
         controller = CollectionsController()
@@ -182,7 +185,7 @@ class CollectionsControllerTests(_SyntheticDatabaseTestCase):
 
         controller.select_collection(starred_id, is_system=True)
 
-        self.assertEqual(controller.selected_card_groups(), [])
+        self.assertEqual(controller.current_card_page()["cards"], [])
         self.assertEqual(controller.system_type_for_selected(), "starred")
 
     def test_browsing_does_not_mutate_the_database(self) -> None:
@@ -196,7 +199,7 @@ class CollectionsControllerTests(_SyntheticDatabaseTestCase):
         controller = CollectionsController()
         controller.refresh()
         controller.select_collection(collection_id, is_system=False)
-        controller.selected_card_groups()
+        controller.current_card_page()
         controller.system_type_for_selected()
         controller.refresh()
 
@@ -211,7 +214,7 @@ class CollectionsControllerTests(_SyntheticDatabaseTestCase):
 
         self.assertEqual(controller.collections, [])
         self.assertIsNone(controller.selected_collection())
-        self.assertEqual(controller.selected_card_groups(), [])
+        self.assertEqual(controller.current_card_page()["cards"], [])
 
     def test_stale_selection_is_cleared_on_refresh_if_collection_disappears(self) -> None:
         collection_id = create_collection("Temp", card_size=8)

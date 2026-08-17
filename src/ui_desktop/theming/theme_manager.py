@@ -1419,6 +1419,54 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {accent.soft.foreground};
         border: 1px solid {accent.border};
     }}
+
+    /* Card pagination controls (M17 Minimum Collection Integration
+    corrective pass § 2). Pinned above the scrollable Card page. */
+    QLabel#collections-card-controls-label {{
+        color: {neutral.text_muted};
+        font-size: 12px;
+    }}
+    QComboBox#collections-card-sort-combo,
+    QComboBox#collections-card-page-size-combo {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 3px 8px;
+        font-size: 12px;
+    }}
+    QPushButton#collections-card-previous-button,
+    QPushButton#collections-card-next-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 4px 10px;
+        font-size: 12px;
+    }}
+    QPushButton#collections-card-previous-button:hover:enabled,
+    QPushButton#collections-card-next-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QPushButton#collections-card-previous-button:disabled,
+    QPushButton#collections-card-next-button:disabled {{
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QLabel#collections-card-page-label {{
+        color: {neutral.text_secondary};
+        font-size: 12px;
+        font-weight: 600;
+    }}
+    QScrollArea#collections-card-scroll {{
+        background-color: transparent;
+        border: none;
+    }}
+    QScrollArea#collections-card-scroll > QWidget#qt_scrollarea_viewport {{
+        background-color: transparent;
+    }}
     """.strip()
 
 

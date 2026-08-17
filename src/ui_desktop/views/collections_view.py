@@ -1,8 +1,18 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QButtonGroup, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QButtonGroup,
+    QComboBox,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
+from src.collections import CARD_PAGE_SIZE_OPTIONS
 from src.ui_desktop.controllers.collections_controller import CollectionsController
 from src.ui_desktop.state.handoff import EntriesScopeIntent, StudyTargetIntent
 from src.ui_desktop.theming.metrics import SPACING
@@ -51,9 +61,23 @@ DESIGN.md § 6.8):
                              existing Quick Quiz / Choose Quiz Type
                              affordances after "Open in Study" -- this
                              surface never talks to src.quiz directly.
+
+Corrective pass (M17_Minimum_Collection_Integration_Corrective_Pass.md
+§ 2-4): a Collection's Card list is no longer rendered in full. A compact
+control row (Sort by / Cards per page / Previous / page indicator / Next)
+sits above a `QScrollArea` holding only the current page's Card rows --
+`CollectionsController.current_card_page()` reads exactly one page
+through the new paged core query, so opening a Collection with thousands
+of Entries never constructs a widget (or reads an Entry row) for every
+Card up front.
 """
 
 LIST_PANE_WIDTH = 240
+_SORT_LABELS: tuple[tuple[str, str], ...] = (
+    ("card_number", "Card #"),
+    ("card_created_at", "Created"),
+    ("card_updated_at", "Updated"),
+)
 
 
 class CollectionsView(QWidget):
@@ -94,6 +118,7 @@ class CollectionsView(QWidget):
 
         controller.collections_changed.connect(self._on_collections_changed)
         controller.selection_changed.connect(self._on_selection_changed)
+        controller.card_page_changed.connect(self._on_card_page_changed)
 
         self._render_detail()
 
@@ -111,6 +136,9 @@ class CollectionsView(QWidget):
     def _on_selection_changed(self) -> None:
         self._render_detail()
 
+    def _on_card_page_changed(self) -> None:
+        self._render_detail()
+
     # -- detail -----------------------------------------------------------
 
     def _render_detail(self) -> None:
@@ -126,7 +154,8 @@ class CollectionsView(QWidget):
             self._render_collection_detail(collection)
 
     def _render_system_pool_detail(self, collection: dict) -> None:
-        name = QLabel(str(collection.get("name") or ""), self._detail_container)
+        display_name = _pool_display_name(collection.get("name"))
+        name = QLabel(display_name, self._detail_container)
         name.setObjectName("collections-detail-name")
         self._detail_layout.addWidget(name)
 
@@ -182,16 +211,90 @@ class CollectionsView(QWidget):
         cards_heading.setObjectName("collections-cards-heading")
         self._detail_layout.addWidget(cards_heading)
 
-        card_groups = self._controller.selected_card_groups()
-        if not card_groups:
-            self._detail_layout.addWidget(_message_label("No Cards yet."))
-        for group in card_groups:
-            self._detail_layout.addWidget(self._build_card_row(collection_id, group))
+        self._detail_layout.addWidget(self._build_card_page_controls())
 
-        self._detail_layout.addStretch(1)
+        page = self._controller.current_card_page()
+        cards = page["cards"]
 
-    def _build_card_row(self, collection_id: int, group: dict) -> QWidget:
-        card_number = int(group["card_number"])
+        scroll = QScrollArea(self._detail_container)
+        scroll.setObjectName("collections-card-scroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        body = QWidget(scroll)
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(2)
+        if not cards:
+            body_layout.addWidget(_message_label("No Cards yet."))
+        for card in cards:
+            body_layout.addWidget(self._build_card_row(collection_id, card))
+        body_layout.addStretch(1)
+        scroll.setWidget(body)
+        self._detail_layout.addWidget(scroll, 1)
+
+    def _build_card_page_controls(self) -> QWidget:
+        """Compact control row (§ 2): Sort by / Cards per page / Previous
+        / page indicator / Next -- pinned above the scrollable Card page,
+        never scrolls away with it."""
+        controller = self._controller
+        page = controller.current_card_page()
+
+        row = QWidget(self._detail_container)
+        row.setObjectName("collections-card-controls")
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(SPACING.sm)
+
+        sort_label = QLabel("Sort by", row)
+        sort_label.setObjectName("collections-card-controls-label")
+        layout.addWidget(sort_label, 0)
+
+        sort_combo = QComboBox(row)
+        sort_combo.setObjectName("collections-card-sort-combo")
+        for sort_key, sort_text in _SORT_LABELS:
+            sort_combo.addItem(sort_text, sort_key)
+        sort_combo.setCurrentIndex(sort_combo.findData(controller.card_sort))
+        sort_combo.currentIndexChanged.connect(
+            lambda index: controller.set_card_sort(sort_combo.itemData(index))
+        )
+        layout.addWidget(sort_combo, 0)
+
+        size_label = QLabel("Cards per page", row)
+        size_label.setObjectName("collections-card-controls-label")
+        layout.addWidget(size_label, 0)
+
+        size_combo = QComboBox(row)
+        size_combo.setObjectName("collections-card-page-size-combo")
+        for size in CARD_PAGE_SIZE_OPTIONS:
+            size_combo.addItem(str(size), size)
+        size_combo.setCurrentIndex(size_combo.findData(controller.card_page_size))
+        size_combo.currentIndexChanged.connect(
+            lambda index: controller.set_card_page_size(size_combo.itemData(index))
+        )
+        layout.addWidget(size_combo, 0)
+
+        layout.addStretch(1)
+
+        previous_button = QPushButton("Previous", row)
+        previous_button.setObjectName("collections-card-previous-button")
+        previous_button.setEnabled(page["page"] > 1)
+        previous_button.clicked.connect(lambda: controller.set_card_page(page["page"] - 1))
+        layout.addWidget(previous_button, 0)
+
+        page_label = QLabel(f"Page {page['page']} of {page['total_pages']}", row)
+        page_label.setObjectName("collections-card-page-label")
+        layout.addWidget(page_label, 0)
+
+        next_button = QPushButton("Next", row)
+        next_button.setObjectName("collections-card-next-button")
+        next_button.setEnabled(page["page"] < page["total_pages"])
+        next_button.clicked.connect(lambda: controller.set_card_page(page["page"] + 1))
+        layout.addWidget(next_button, 0)
+
+        return row
+
+    def _build_card_row(self, collection_id: int, card: dict) -> QWidget:
+        card_number = int(card["card_number"])
         row = QWidget(self._detail_container)
         row.setObjectName("collections-card-row")
         row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -199,13 +302,13 @@ class CollectionsView(QWidget):
         layout.setContentsMargins(SPACING.sm, SPACING.xs, SPACING.sm, SPACING.xs)
         layout.setSpacing(SPACING.sm)
 
-        card_name = str(group.get("card_name") or "")
+        card_name = str(card.get("card_name") or "")
         label_text = f"Card #{card_number}" + (f" · {card_name}" if card_name else "")
         label = QLabel(label_text, row)
         label.setObjectName("collections-card-label")
         layout.addWidget(label, 1)
 
-        count_label = QLabel(f"{len(group.get('entries') or [])} Entries", row)
+        count_label = QLabel(f"{int(card.get('entry_count') or 0)} Entries", row)
         count_label.setObjectName("collections-card-count")
         layout.addWidget(count_label, 0)
 
@@ -265,7 +368,8 @@ class _CollectionsListPane(QWidget):
     def _add_item(self, collection: dict, active_id: int | None, *, is_system: bool) -> None:
         collection_id = int(collection["id"])
         count = int(collection.get("entry_count") or 0)
-        text = f"{collection.get('name') or ''}    {count}"
+        name = _pool_display_name(collection.get("name")) if is_system else str(collection.get("name") or "")
+        text = f"{name}    {count}"
         button = QPushButton(text, self)
         button.setObjectName("collections-list-item")
         button.setCheckable(True)
@@ -291,6 +395,14 @@ def _list_divider() -> QWidget:
     divider.setFixedHeight(1)
     divider.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
     return divider
+
+
+def _pool_display_name(name: str | None) -> str:
+    """"★ " prefix on the Starred pool is presentation-only (M17 Minimum
+    Collection Integration corrective pass § 12) -- the underlying
+    ``name``/``system_type`` persistence keys are untouched."""
+    clean_name = str(name or "")
+    return f"★ {clean_name}" if clean_name == "Starred" else clean_name
 
 
 def _message_label(text: str) -> QLabel:
