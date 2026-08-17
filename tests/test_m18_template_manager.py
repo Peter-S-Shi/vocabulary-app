@@ -133,6 +133,26 @@ class TemplatesControllerTests(_SyntheticDatabaseTestCase):
         self.assertTrue(deleted)
         self.assertEqual(len(controller.selected_fields()), 0)
 
+    def test_create_field_refreshes_cached_template_field_count(self) -> None:
+        """Regression for an independent-review finding on this
+        checkpoint: create_field()/delete_field() must refresh
+        `self.templates` (not just re-announce it stale), since
+        TemplatesView._render_table's Fields column reads the cached
+        `field_count` from that list."""
+        controller = TemplatesController()
+        controller.refresh()
+        template_id = controller.create_new_template("Seasons", "", "French", "custom")
+        self.assertEqual(next(t for t in controller.templates if t["id"] == template_id)["field_count"], 0)
+
+        controller.create_field("season_name", "Season Name", "text", True, 0)
+
+        self.assertEqual(next(t for t in controller.templates if t["id"] == template_id)["field_count"], 1)
+
+        field = controller.selected_fields()[0]
+        controller.delete_field(int(field["id"]))
+
+        self.assertEqual(next(t for t in controller.templates if t["id"] == template_id)["field_count"], 0)
+
     def test_create_field_rejects_duplicate_key(self) -> None:
         controller = TemplatesController()
         controller.refresh()

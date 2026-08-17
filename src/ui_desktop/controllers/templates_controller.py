@@ -118,8 +118,12 @@ class TemplatesController(QObject):
             required=required,
             display_order=display_order,
         )
-        self.selection_changed.emit()
-        self.templates_changed.emit()
+        # refresh() (not a bare selection_changed/templates_changed emit)
+        # so `self.templates`' cached `field_count` -- what
+        # TemplatesView._render_table's Fields column reads -- is
+        # actually re-fetched, not just re-announced stale (independent
+        # review finding on this checkpoint).
+        self.refresh()
         return field_id
 
     def update_field(self, field_id: int, field_label: str, field_type: str, required: bool, display_order: int) -> None:
@@ -135,6 +139,5 @@ class TemplatesController(QObject):
     def delete_field(self, field_id: int) -> bool:
         deleted = delete_template_field(field_id)
         if deleted:
-            self.selection_changed.emit()
-            self.templates_changed.emit()
+            self.refresh()
         return deleted
