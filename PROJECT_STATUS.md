@@ -37,16 +37,16 @@ acceptance. See `ROADMAP.md` § Milestone 16 for exit criteria and
 [Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md) for full
 evidence.
 
-Milestone 17 — Desktop Core Workflow Migration is **in progress** on the
-single long-lived branch `agent/m17-desktop-core-workflow-migration`. It
-remains one milestone: one branch, one Draft PR, and an ordered feature
-migration sequence (Today, Review, Quiz, Entries, minimum Collection
-integration, then parity/exit verification) rather than independent
-sub-milestone branches or PRs. From M17 onward, functional workflow
-migration and that workflow's approved `DESIGN.md` archetype implementation
-are one feature-level engineering closure — see `ROADMAP.md` § Milestone 17
-for the full operating model, frozen semantic boundaries, and verification
-model.
+**Milestone 17 — Desktop Core Workflow Migration is complete on `main`**
+(merged via PR #25), developed on the single long-lived branch
+`agent/m17-desktop-core-workflow-migration`. It ran as one milestone: one
+branch, one PR, and an ordered feature migration sequence (Today, Review,
+Quiz, Quiz Presentation Choice, Entries, Minimum Collection Integration,
+Theme Completion & Cross-Screen Validation, then Parity + Exit
+Verification) rather than independent sub-milestone branches or PRs —
+see `ROADMAP.md` § Milestone 17 for the full operating model, frozen
+semantic boundaries, verification model, and per-checkpoint acceptance
+record.
 
 **Feature 1 — Today.** Its non-visual groundwork is implemented and
 retained. A **third, fresh presentation** was implemented from the
@@ -1604,7 +1604,7 @@ engine, two presentations. `VR-STUDY-002` explicitly does not propagate
 outside Quiz (DESIGN.md § 6.4). **Native human visual acceptance PASSED
 2026-08-16 at head `c54468e`** — Quiz Presentation Choice is complete and
 Human Accepted (DESIGN.md § 2 Level 4), Milestone 17's fourth accepted
-feature. See the M17 Draft PR for the full acceptance record.
+feature. See PR #25 (merged) for the full acceptance record.
 
 M17 Feature 4 — Entries (`VR-ENTRIES-001`, `Entries & Collections
 Manager.pdf` p3 Variant B, parent pattern P2) replaces the M16.2
@@ -1647,7 +1647,7 @@ Windows popup-dismissal interaction bug) with explicit `QMenu` QSS, added
 the checkbox column/header-select-all affordance, and reworded the hard-
 delete confirmation. **Native human visual acceptance PASSED 2026-08-16
 at head `2cc3332`** — Entries is complete and Human Accepted (DESIGN.md
-§ 2 Level 4), Milestone 17's fifth accepted feature. See the M17 Draft PR
+§ 2 Level 4), Milestone 17's fifth accepted feature. See PR #25 (merged)
 for the full corrective-pass and acceptance history.
 
 ## Repository State
@@ -1734,7 +1734,7 @@ for the full corrective-pass and acceptance history.
   presentations were rejected at human visual review and are preserved as
   history, not restored. **Native human visual acceptance for this third
   presentation PASSED 2026-08-16 at head `fdd9cc0`** — Today is complete
-  and Human Accepted (DESIGN.md § 2 Level 4). See the M17 Draft PR for the
+  and Human Accepted (DESIGN.md § 2 Level 4). See PR #25 (merged) for the
   exact head SHA and the full reject/reset/fresh-implementation/
   acceptance history.
 - M17 feature 2 (Review): `ReviewController` + `ReviewView` implement the
@@ -1748,7 +1748,7 @@ for the full corrective-pass and acceptance history.
   legacy `src/review.py` SRS scheduler. **Native human visual acceptance
   PASSED 2026-08-16 at head `38d53d2`** — Review is complete and Human
   Accepted (DESIGN.md § 2 Level 4), Milestone 17's second accepted
-  feature. See the M17 Draft PR for the full corrective-patch and
+  feature. See PR #25 (merged) for the full corrective-patch and
   acceptance history.
 - M17 feature 3 (Quiz): `QuizController` + `QuizView` implement the
   native session/grading/completion workflow against `VR-STUDY-001`
@@ -1771,7 +1771,7 @@ for the full corrective-pass and acceptance history.
   feature, after a typography/spacing visual-calibration corrective pass
   (`0660214`) and a UX-defect corrective pass (`311762c`: long-content
   clipping, Matching wheel/selection stability, a real post-Quiz
-  mistake-review state). See the M17 Draft PR for the full corrective-
+  mistake-review state). See PR #25 (merged) for the full corrective-
   pass and acceptance history.
 - M17 feature 3B (Quiz Presentation Choice, `VR-STUDY-002`, Quiz-only):
   adds an optional Flip Card + Filmstrip Quiz presentation
@@ -1783,8 +1783,8 @@ for the full corrective-pass and acceptance history.
   always falls back to the existing Immersive Matching presentation.
   **Native human visual acceptance PASSED 2026-08-16 at head `c54468e`**
   -- Quiz Presentation Choice is complete and Human Accepted (DESIGN.md
-  § 2 Level 4), Milestone 17's fourth accepted feature. See the M17 Draft
-  PR for the full acceptance record.
+  § 2 Level 4), Milestone 17's fourth accepted feature. See PR #25
+  (merged) for the full acceptance record.
 - M17 feature 4 (Entries, `VR-ENTRIES-001`, `Entries & Collections
   Manager.pdf` p3 Variant B, parent pattern P2): replaces the M16.2
   architecture-proof placeholder with the real Table-First Entries
@@ -1809,7 +1809,7 @@ for the full corrective-pass and acceptance history.
   selection. **Native human visual acceptance PASSED 2026-08-16 at head
   `2cc333256d2a831c3268c150a86935276117f1c8`** — Entries is complete and
   Human Accepted (DESIGN.md § 2 Level 4), Milestone 17's fifth accepted
-  feature. See the M17 Draft PR for the full corrective-pass and
+  feature. See PR #25 (merged) for the full corrective-pass and
   acceptance history.
 - M17 Minimum Collection Integration (DESIGN.md § 6.8, Class B --
   "inherited from the invoking A/B surface", explicitly not a full
@@ -1849,7 +1849,7 @@ for the full corrective-pass and acceptance history.
   human visual acceptance PASSED 2026-08-17 at head
   `6d8ed13c206018ece80277210abb858afd8930f9`** — Minimum Collection
   Integration is complete and Human Accepted (DESIGN.md § 2 Level 4),
-  Milestone 17's sixth accepted feature. See the M17 Draft PR for the
+  Milestone 17's sixth accepted feature. See PR #25 (merged) for the
   full corrective-pass and acceptance history.
 - M17 Theme Completion & Cross-Screen Validation: closes the Appearance
   axis (System/Light/Dark, Calm Blue) as a complete, live-switchable,
@@ -1880,7 +1880,7 @@ for the full corrective-pass and acceptance history.
   visual acceptance PASSED 2026-08-17 at head
   `48a171f6aaa7e7ce3b60be945024c8712e69ec64`** — Theme Completion &
   Cross-Screen Validation is complete and Human Accepted, Milestone 17's
-  seventh accepted feature. See the M17 Draft PR for the full
+  seventh accepted feature. See PR #25 (merged) for the full
   corrective-pass and acceptance history.
 - M17 Parity + Exit Verification (the final M17 checkpoint): closed the
   three frozen final corrective items and verified the seven prior
