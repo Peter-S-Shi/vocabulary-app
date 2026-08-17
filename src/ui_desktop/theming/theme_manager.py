@@ -1773,6 +1773,73 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         font-style: italic;
         font-size: 12px;
     }}
+
+    /* M18 Phase C3 -- Data Tools hub (P6 Utility Workflow). Title/
+    caption/action buttons live directly in the workspace, not a
+    QDialog, so each needs its own explicit rule (Human Gate 1 corrective
+    lesson); everything inside `_ImportDialog`/`_ExportDialog` inherits
+    the generic `QDialog` QLabel/QComboBox/QLineEdit/QSpinBox/QCheckBox/
+    QPushButton coverage already established, with primary-action
+    buttons given their own accent treatment for the same action-
+    hierarchy reason Templates' Save/Add Field buttons were. */
+    QLabel#data-tools-title {{
+        color: {neutral.text_primary};
+        font-size: 21px;
+        font-weight: 700;
+    }}
+    QLabel#data-tools-caption {{
+        color: {neutral.text_muted};
+        font-size: 13px;
+    }}
+    QPushButton#data-tools-import-button,
+    QPushButton#data-tools-export-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 16px;
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#data-tools-import-button:hover:enabled,
+    QPushButton#data-tools-export-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#data-tools-preview-button,
+    QPushButton#data-tools-confirm-import-button,
+    QPushButton#data-tools-export-confirm-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#data-tools-preview-button:hover:enabled,
+    QPushButton#data-tools-confirm-import-button:hover:enabled,
+    QPushButton#data-tools-export-confirm-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#data-tools-confirm-import-button:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QLabel#data-tools-preview-error {{
+        color: {danger.background};
+        font-size: 12px;
+    }}
+    QLabel#data-tools-summary-label {{
+        color: {neutral.text_primary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#data-tools-section-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
     """.strip()
 
 

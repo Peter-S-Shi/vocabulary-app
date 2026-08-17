@@ -81,7 +81,9 @@ class NavigationRailStructureTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.app = _qt_app()
 
-    def test_only_today_entries_collections_templates_review_calendar_study_and_settings_are_enabled(self) -> None:
+    def test_only_today_entries_collections_templates_review_calendar_data_tools_study_and_settings_are_enabled(
+        self,
+    ) -> None:
         """Updated for M17 Feature 2 (Review): "study" is the rail's real
         entry point into Study Mode / Review now that real Study content
         exists, per the M17 Feature 2 prompt's "smallest shared-shell
@@ -92,8 +94,9 @@ class NavigationRailStructureTests(unittest.TestCase):
         workspace (Collections Navigator), so it is enabled too. Updated
         for M18.1 Template Manager: Templates now has a real workspace
         too. Updated for M18 Phase C1: Review Calendar now has a real
-        workspace too -- analytics/data_tools remain honestly disabled
-        placeholders."""
+        workspace too. Updated for M18 Phase C3: Data Tools now has a
+        real workspace too -- analytics remains the one honestly disabled
+        placeholder."""
         rail = NavigationRail()
         self.addCleanup(rail.deleteLater)
 
@@ -106,7 +109,16 @@ class NavigationRailStructureTests(unittest.TestCase):
 
         self.assertEqual(
             enabled,
-            {"today", "entries", "collections", "templates", "review_calendar", "study", "settings"},
+            {
+                "today",
+                "entries",
+                "collections",
+                "templates",
+                "review_calendar",
+                "data_tools",
+                "study",
+                "settings",
+            },
         )
         for key in enabled:
             self.assertTrue(rail.is_enabled_destination(key), key)
@@ -179,7 +191,7 @@ class NavigationRailReliableStateTests(unittest.TestCase):
         rail = NavigationRail()
         self.addCleanup(rail.deleteLater)
 
-        for key in ("analytics", "data_tools"):
+        for key in ("analytics",):
             self.assertEqual(rail._labels[key].objectName(), "nav-rail-label-disabled")
             self.assertEqual(rail._marks[key].objectName(), "nav-rail-mark-disabled")
 
@@ -223,7 +235,7 @@ class NavigationRailReliableStateTests(unittest.TestCase):
         rail.set_active("today")
         rail.set_active("entries")
 
-        for key in ("analytics", "data_tools"):
+        for key in ("analytics",):
             self.assertIsNone(rail._labels[key].property("navActive"))
             self.assertIsNone(rail._marks[key].property("navActive"))
 

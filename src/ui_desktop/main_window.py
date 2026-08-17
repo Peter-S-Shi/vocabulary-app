@@ -6,6 +6,7 @@ from src.ui_desktop.controllers.collections_controller import CollectionsControl
 from src.ui_desktop.controllers.entries_controller import EntriesController
 from src.ui_desktop.controllers.quiz_controller import QuizController
 from src.ui_desktop.controllers.review_controller import ReviewController
+from src.ui_desktop.controllers.data_tools_controller import DataToolsController
 from src.ui_desktop.controllers.review_calendar_controller import ReviewCalendarController
 from src.ui_desktop.controllers.settings_controller import SettingsController
 from src.ui_desktop.controllers.templates_controller import TemplatesController
@@ -16,6 +17,7 @@ from src.ui_desktop.state.preferences import Preferences
 from src.ui_desktop.theming.theme_manager import ThemeManager
 from src.ui_desktop.views.collections_view import CollectionsView
 from src.ui_desktop.views.entries_view import EntriesView
+from src.ui_desktop.views.data_tools_view import DataToolsView
 from src.ui_desktop.views.quiz_view import QuizView
 from src.ui_desktop.views.review_calendar_view import ReviewCalendarView
 from src.ui_desktop.views.review_view import ReviewView
@@ -98,6 +100,7 @@ class MainWindow(QMainWindow):
         self.settings_controller = SettingsController(preferences, self.theme_manager)
         self.templates_controller = TemplatesController()
         self.review_calendar_controller = ReviewCalendarController()
+        self.data_tools_controller = DataToolsController()
 
         self.today_view = TodayView(self.today_controller)
         self.today_view.navigate_to_entries_requested.connect(
@@ -122,6 +125,7 @@ class MainWindow(QMainWindow):
         self.settings_view = SettingsView(self.settings_controller)
         self.templates_view = TemplatesView(self.templates_controller)
         self.review_calendar_view = ReviewCalendarView(self.review_calendar_controller)
+        self.data_tools_view = DataToolsView(self.data_tools_controller)
 
         self._workspace_stack = QStackedWidget(self)
         self._workspace_stack.addWidget(self.today_view)
@@ -129,6 +133,7 @@ class MainWindow(QMainWindow):
         self._workspace_stack.addWidget(self.collections_view)
         self._workspace_stack.addWidget(self.templates_view)
         self._workspace_stack.addWidget(self.review_calendar_view)
+        self._workspace_stack.addWidget(self.data_tools_view)
         self._workspace_stack.addWidget(self.review_view)
         self._workspace_stack.addWidget(self.quiz_view)
         self._workspace_stack.addWidget(self.settings_view)
@@ -195,6 +200,8 @@ class MainWindow(QMainWindow):
             self.app_state.request_navigation(Workspace.TEMPLATES)
         elif destination_key == "review_calendar":
             self.app_state.request_navigation(Workspace.REVIEW_CALENDAR)
+        elif destination_key == "data_tools":
+            self.app_state.request_navigation(Workspace.DATA_TOOLS)
         elif destination_key == "study":
             self._enter_review()
         elif destination_key == "settings":
@@ -326,6 +333,11 @@ class MainWindow(QMainWindow):
             widget = self.review_calendar_view
             self._workspace_stack.setCurrentWidget(widget)
             self.review_calendar_view.refresh()
+            self._last_management_workspace = workspace
+        elif workspace is Workspace.DATA_TOOLS:
+            widget = self.data_tools_view
+            self._workspace_stack.setCurrentWidget(widget)
+            self.data_tools_view.refresh()
             self._last_management_workspace = workspace
         elif workspace is Workspace.REVIEW:
             # No default-Card-open here: whichever caller requested this

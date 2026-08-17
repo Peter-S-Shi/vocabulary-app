@@ -24,6 +24,7 @@ class Workspace(str, Enum):
     COLLECTIONS = "collections"
     TEMPLATES = "templates"
     REVIEW_CALENDAR = "review_calendar"
+    DATA_TOOLS = "data_tools"
     REVIEW = "review"
     QUIZ = "quiz"
     SETTINGS = "settings"
