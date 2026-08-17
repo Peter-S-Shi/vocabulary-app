@@ -105,7 +105,7 @@ target.
 ## Current Phase
 
 **Milestone 16 — Desktop Architecture and UI Design Complete on `main`;
-Milestone 17 In Progress**
+Milestone 17 — Desktop Core Workflow Migration Complete on `main`**
 
 The trustworthy data/business-logic baseline, repository restructure, Import
 and Template Evolution foundation, and Learning Analytics and Insight Core are
@@ -178,10 +178,24 @@ reliability fix — is also complete and Human Accepted at native visual
 acceptance** (PASS recorded 2026-08-17 against
 `48a171f6aaa7e7ce3b60be945024c8712e69ec64`, after two corrective passes:
 a typography color-role hierarchy patch, and a Navigation Rail
-active/normal/disabled state-rendering reliability fix). Milestone 17
-overall is not complete; the next and final objective is **M17 Parity +
-Exit Verification**. See § Milestone 17 below for the operating model,
-the reset history, and the current feature-sequence position.
+active/normal/disabled state-rendering reliability fix). **M17 Parity +
+Exit Verification — the final M17 checkpoint: the three frozen final
+corrective items (Custom Entry Type, Entries sorting, Entries result
+count) plus integrated cross-feature regression proof that all seven
+prior checkpoints work together as one coherent product — is also
+complete and Human Accepted** (native Human Exit PASS recorded
+2026-08-17 against final accepted head
+`d232717b6b225e7c798c510ae8e87ce87fe5d8c8`, after one corrective fix for
+a parallel Entries-sorting mechanism the Sort by combo's own review
+caught: `QTableView.setSortingEnabled(True)` had left native header-click
+sorting wired directly to `QSortFilterProxyModel`'s own independent sort
+state, which could silently override the new SQL-level "Sort by" order;
+removed, with the proxy forced to `sort(-1)` so it stays a pure
+index-mapping adapter). **Milestone 17 — Desktop Core Workflow Migration
+is now COMPLETE.** See § Milestone 17 below for the full operating
+model, the reset history, and the per-feature acceptance record. The
+next milestone, **M18 — Desktop Management and Major Feature
+Completion, has not started.**
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -937,8 +951,10 @@ Recommended order, each verified before proceeding to the next:
    `48a171f6aaa7e7ce3b60be945024c8712e69ec64`, after a typography
    color-role hierarchy corrective patch and a Navigation Rail
    active/normal/disabled state-rendering reliability fix)
-7. M17 parity + exit verification — not started (the final M17
-   checkpoint)
+7. M17 parity + exit verification — **complete and Human Accepted**
+   (native Human Exit PASS recorded 2026-08-17 against
+   `d232717b6b225e7c798c510ae8e87ce87fe5d8c8`, after a corrective fix for
+   a parallel Entries-sorting mechanism; the final M17 checkpoint)
 
 #### Today
 
@@ -1220,6 +1236,54 @@ For each migrated workflow:
 - run relevant automated tests; and
 - record known parity gaps.
 
+**Status: complete and Human Accepted.** The final M17 checkpoint closed
+three frozen final corrective items and verified the seven prior
+accepted checkpoints as one integrated product, not isolated screens.
+
+- **Custom Entry Type** (Add/Edit Entry): a "Custom..." option on the
+  Entry Type field opens a native `QInputDialog` prompt; a confirmed
+  non-empty value saves through the exact same `entry_type` field every
+  predefined value already uses (`src/entries.py` already stored/
+  validated it as free text, not an enum/foreign key -- no core or
+  schema change needed). Cancel or an empty/whitespace-only confirm
+  leaves the existing value unchanged.
+- **Entries sorting**: `search_entries()` gained an allowlisted
+  `sort_by`/`sort_direction` capability (Term/Created/Updated) fulfilling
+  the toolbar spec this section's Entries subsection had already
+  documented but never implemented, rather than a second sort
+  implementation; a compact "Sort by" control composes with scope/
+  search/filter, preserving focused/checked state across a resort.
+- **Entries result count**: a subordinate "N entries" label reusing the
+  count `EntriesController.refresh()` already computes.
+- **Integrated workflow parity** verified and locked into regression
+  tests: Today/Collections -> Entries exact scope; Collection/Card ->
+  exact Review Card with no silent fallback; Review -> Quiz context
+  preservation; Study exit -> correct Management workspace and
+  Navigation Rail active state; Light/Dark/System theme switching never
+  mutates Entry data or resets Entries presentation state; repeated
+  Card navigation never duplicates learning evidence.
+
+One corrective fix followed initial implementation: the Entries table's
+pre-existing `QTableView.setSortingEnabled(True)` (M17 Feature 4) wired
+native header-click sorting directly to `QSortFilterProxyModel`'s own
+independent sort state -- a parallel sorting mechanism a real header
+click could use to silently override the new "Sort by" SQL-level order
+(confirmed empirically the proxy defaulted to `sortColumn() == 0`, not
+`-1`, the instant `setSortingEnabled(True)` ran, before any click).
+Removed; the proxy is forced to `sort(-1)` and remains a pure
+`QTableView`<->source-model index-mapping adapter, with "Sort by" as the
+one real sort entry point. New regression tests check the *visible*
+proxy/table order directly (not only `EntriesController.model.rows()`,
+the source model, which is exactly what let the original defect through
+a fully-green suite) -- confirmed to fail against the pre-fix code and
+pass against the fix.
+
+**Native Human Exit PASS recorded 2026-08-17 against final accepted head
+`d232717b6b225e7c798c510ae8e87ce87fe5d8c8`.** 592/592 local tests
+passing, architecture audit clean; no remote CI is configured in this
+repository. **Milestone 17 — Desktop Core Workflow Migration is
+COMPLETE.**
+
 ### Verification Model
 
 Avoid ritual repetition. At each feature checkpoint, normally run focused
@@ -1252,11 +1316,26 @@ M17 must not reopen or silently change:
 
 ### Milestone 17 Exit Criteria
 
-- The desktop application supports the primary daily learning loop.
-- Today, Review, Quiz, and Entries are usable without Streamlit.
-- No known parity defect threatens persisted user data.
-- Streamlit may remain as a legacy reference/fallback but is no longer the
-  primary development target.
+**Status: Complete on `main`.** Native Human Exit PASS recorded
+2026-08-17 against final accepted head
+`d232717b6b225e7c798c510ae8e87ce87fe5d8c8`.
+
+- [x] The desktop application supports the primary daily learning loop.
+      *(Today, Review, Quiz, and the Collections->Study handoff all
+      complete and Human Accepted; verified as connected journeys, not
+      isolated screens, at M17 Parity + Exit Verification.)*
+- [x] Today, Review, Quiz, and Entries are usable without Streamlit.
+      *(All four complete and Human Accepted at native visual
+      acceptance; Entries additionally gained Custom Entry Type,
+      sorting, and a result count at the final checkpoint.)*
+- [x] No known parity defect threatens persisted user data. *(Data/
+      learning invariants verified: theme/preferences stay outside
+      `vocab.db`; sort/filter/result-count are presentation/query state
+      only; repeated navigation does not duplicate learning evidence;
+      no schema change was introduced by M17.)*
+- [x] Streamlit may remain as a legacy reference/fallback but is no
+      longer the primary development target. *(Unchanged and still
+      true; no Streamlit code was removed during M17.)*
 
 ---
 

@@ -1,6 +1,6 @@
 # Vocabulary App Project Status
 
-Last reviewed: 2026-08-16
+Last reviewed: 2026-08-17
 
 This file is the authoritative evidence-based snapshot of the current project
 state.
@@ -13,11 +13,13 @@ Desktop-specific migration principles and workflow mapping are defined in
 ## Current Phase
 
 **Milestone 16 — Desktop Architecture and UI Design (Complete on `main`);
-Milestone 17 — Desktop Core Workflow Migration (In Progress)**
+Milestone 17 — Desktop Core Workflow Migration (Complete on `main`)**
 
 ## Current Milestone
 
-**Milestone 16 Complete on `main`; Milestone 17 In Progress**
+**Milestone 16 Complete on `main`; Milestone 17 Complete on `main`
+(merged via PR #25). Milestone 18 — Desktop Management and Major Feature
+Completion has not started.**
 
 M16.0 Desktop UI Design Baseline is complete and frozen: [DESIGN.md](DESIGN.md)
 records the approved desktop information architecture, theme architecture, and
@@ -381,7 +383,9 @@ Milestone 16 is complete on `main`; its M16.0 UI/Design Baseline is complete
 and frozen in `DESIGN.md`. M16.1 Desktop Architecture Foundation is complete
 on `main` (PR #21). M16.2 Minimal Desktop Vertical Slice & M16 Exit is
 complete on `main` (PR #23, `2e900d243950ca93aedf5cbde5b836dc6e378f25`).
-Milestone 17 — Desktop Core Workflow Migration is the next objective.
+(Historical note, as of this 2026-08-13 snapshot: Milestone 17 — Desktop
+Core Workflow Migration was the next objective and had not yet started.
+Milestone 17 is now complete on `main` -- see "Current Milestone" above.)
 
 Verification on 2026-08-13 passed:
 
@@ -1577,9 +1581,11 @@ passes: a typography/spacing visual-calibration pass against
 `VR-STUDY-001` (`0660214`), and a UX-defect pass fixing long-content
 clipping (a QScrollArea/box-layout heightForWidth negotiation
 imprecision), Matching wheel-scroll/selection-rebuild instability, and
-Review Mistakes routing (`311762c`). Milestone 17 is not complete: M17
+Review Mistakes routing (`311762c`). (Historical note: at this point in
+the M17 checkpoint sequence, Milestone 17 was not yet complete; M17
 Feature 3B (`VR-STUDY-002` Quiz presentation choice) is complete and
-Human Accepted; see below.
+Human Accepted; see below. Milestone 17 as a whole is now complete --
+see "Current Milestone" above.)
 
 M17 Feature 3B — Quiz Presentation Choice (`VR-STUDY-002`, Quiz-only) adds
 a second, optional Quiz presentation, Flip Card + Filmstrip
@@ -1876,6 +1882,42 @@ for the full corrective-pass and acceptance history.
   Cross-Screen Validation is complete and Human Accepted, Milestone 17's
   seventh accepted feature. See the M17 Draft PR for the full
   corrective-pass and acceptance history.
+- M17 Parity + Exit Verification (the final M17 checkpoint): closed the
+  three frozen final corrective items and verified the seven prior
+  checkpoints as one integrated product. Custom Entry Type (Add/Edit
+  Entry gains a "Custom..." option via a native `QInputDialog` prompt,
+  saved as ordinary Entry data through the existing `entry_type`
+  field -- no core/schema change, since `src/entries.py` already stored
+  it as free text). Entries sorting (`search_entries()` gained an
+  allowlisted `sort_by`/`sort_direction` capability -- Term/Created/
+  Updated -- fulfilling a toolbar spec DESIGN.md § 6.2 had already
+  documented but never implemented; a compact "Sort by" control composes
+  with scope/search/filter). Entries result count (a subordinate "N
+  entries" label reusing the count `EntriesController.refresh()` already
+  computes). Integrated workflow parity verified: Today/Collections ->
+  Entries exact scope, Collection/Card -> exact Review Card with no
+  silent fallback, Review -> Quiz context preservation, Study exit ->
+  correct Management workspace/Navigation Rail state, theme switching
+  never mutates learning data. Implemented at `b686a99`. One corrective
+  fix (`d232717`) followed: the Entries table's pre-existing
+  `QTableView.setSortingEnabled(True)` (M17 Feature 4) wired native
+  header-click sorting directly to `QSortFilterProxyModel`'s own
+  independent sort state -- a parallel sorting mechanism a header click
+  could use to silently override "Sort by"'s real SQL-level order
+  (confirmed empirically the proxy defaulted to `sortColumn() == 0`, not
+  `-1`, immediately on `setSortingEnabled(True)`, before any click).
+  Removed; the proxy is forced to `sort(-1)` and stays a pure
+  index-mapping adapter. New regression tests check the *visible*
+  proxy/table order directly, not only the source model, which is what
+  let the original defect through a fully-green suite -- confirmed to
+  fail against the pre-fix code and pass against the fix. **Native Human
+  Exit PASS recorded 2026-08-17 at final accepted head
+  `d232717b6b225e7c798c510ae8e87ce87fe5d8c8`** — M17 Parity + Exit
+  Verification is complete and Human Accepted, Milestone 17's eighth and
+  final checkpoint. 592/592 local tests passing, architecture audit
+  clean; no remote CI is configured in this repository. Full
+  corrective-pass and acceptance history recorded on the M17 PR (merged
+  into `main`); no separate `MILESTONE17_CLOSURE.md` was created.
 - Current lifecycle documents:
   - `ROADMAP.md`
   - `PROJECT_STATUS.md`
@@ -1903,8 +1945,9 @@ for the full corrective-pass and acceptance history.
   Vertical Slice & M16 Exit Complete on `main` (PR #23,
   `2e900d243950ca93aedf5cbde5b836dc6e378f25`). Post-M16 lifecycle
   reconciliation Complete on `main` (PR #24,
-  `c8842e0f77199ed9d3d0a2e3c48701d4289f137e`). Milestone 17 — Desktop Core
-  Workflow Migration In Progress: Today (feature 1) is **complete and
+  `c8842e0f77199ed9d3d0a2e3c48701d4289f137e`). **Milestone 17 — Desktop
+  Core Workflow Migration is COMPLETE on `main`** (merged via PR #25):
+  Today (feature 1) is **complete and
   Human Accepted** (native visual acceptance PASSED 2026-08-16 against
   `fdd9cc0`); Review (feature 2) is **complete and Human Accepted**
   (native visual acceptance PASSED 2026-08-16 against `38d53d2`, after one
@@ -1929,9 +1972,20 @@ for the full corrective-pass and acceptance history.
   PASSED 2026-08-17 against `48a171f6aaa7e7ce3b60be945024c8712e69ec64`,
   after a typography color-role hierarchy corrective pass and a
   Navigation Rail active/normal/disabled state-rendering reliability
-  fix); M17 not complete.**
+  fix); M17 Parity + Exit Verification (final checkpoint) is **complete
+  and Human Accepted** (native Human Exit PASS recorded 2026-08-17
+  against final accepted head
+  `d232717b6b225e7c798c510ae8e87ce87fe5d8c8`, after a corrective fix for
+  a parallel Entries-sorting mechanism). **Milestone 17 is COMPLETE.**
 - Exact next objective:
-  **Begin M17 Parity + Exit Verification on the M17 Draft PR (branch
-  `agent/m17-desktop-core-workflow-migration`) -- the final M17
-  checkpoint, following all seven accepted features. Do not mark
-  Milestone 17 complete until it closes.**
+  **Begin Milestone 18 — Desktop Management and Major Feature Completion.
+  M18 has not started; no branch/PR exists yet. Known M18 carryover from
+  M17: deferred Accent families (Sage/Teal, Indigo/Violet, Warm Neutral)
+  and the Quick Theme Control popover; full Collection Manager (create/
+  rename/delete Collections from the desktop UI); richer Settings/
+  Appearance UX beyond the current single Appearance row; advanced
+  Entries table personalization (saved sort/filter views, drag-
+  reordering, column customization); the Entries Entry Type filter combo
+  listing only the predefined set rather than live distinct values; and
+  non-blocking performance refinements. See ROADMAP.md § Milestone 18
+  for the full scope.**
