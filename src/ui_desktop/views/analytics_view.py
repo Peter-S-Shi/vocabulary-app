@@ -3,6 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QComboBox,
     QDialog,
     QHBoxLayout,
@@ -113,7 +114,16 @@ def _finding_label(item: dict) -> str:
     return _FINDING_LABELS.get(str(item.get("primary_finding")), str(item.get("primary_finding") or ""))
 
 
-def _scope_description(item: dict) -> str:
+def _scope_description(
+    item: dict, collection_names: dict[int, str] | None = None, template_names: dict[int, str] | None = None
+) -> str:
+    """Independent-review finding: a bare "Collection"/"Template" string
+    made multiple distinct Coverage Gap findings indistinguishable from
+    each other -- resolve the actual name (falling back to the numeric
+    id if the name lookup is stale/missing) the same way every other
+    scope already carries its own identity (Entry #, Card #)."""
+    collection_names = collection_names or {}
+    template_names = template_names or {}
     scope_type = str(item.get("scope_type") or "")
     if scope_type == "entry":
         return f"Entry #{item.get('scope_id')}"
@@ -123,11 +133,19 @@ def _scope_description(item: dict) -> str:
         )
         return f"{count} related Entries"
     if scope_type == "card":
-        return f"Card #{item.get('card_number')}" if item.get("card_number") else "Card"
+        card_text = f"Card #{item.get('card_number')}" if item.get("card_number") else "Card"
+        collection_id = item.get("collection_id")
+        if collection_id is not None and int(collection_id) in collection_names:
+            return f"{card_text} — {collection_names[int(collection_id)]}"
+        return card_text
     if scope_type == "collection":
-        return "Collection"
+        scope_id = item.get("scope_id")
+        name = collection_names.get(int(scope_id)) if scope_id is not None else None
+        return f"Collection: {name}" if name else f"Collection #{scope_id}"
     if scope_type == "template":
-        return "Template"
+        scope_id = item.get("scope_id")
+        name = template_names.get(int(scope_id)) if scope_id is not None else None
+        return f"Template: {name}" if name else f"Template #{scope_id}"
     return scope_type.title()
 
 
@@ -137,11 +155,19 @@ def _reason_text(item: dict) -> str:
 
 
 def _suggested_action_text(item: dict) -> str:
+    """Independent-review finding: src.insights sets action_type="none"
+    for a Strength finding's suggested_action (a real, present dict
+    signaling "no action needed", not the absence of one) -- rendering
+    that literally as "Suggested: None" misrepresented it as an actual
+    recommendation."""
     action = item.get("suggested_action")
     if not action:
         return ""
-    action_type = str(action.get("action_type") or "").replace("_", " ").capitalize()
-    return f"Suggested: {action_type}" if action_type else ""
+    raw_action_type = str(action.get("action_type") or "").strip().lower()
+    if raw_action_type in ("", "none"):
+        return ""
+    action_type = raw_action_type.replace("_", " ").capitalize()
+    return f"Suggested: {action_type}"
 
 
 class AnalyticsView(QWidget):
@@ -210,9 +236,12 @@ class AnalyticsView(QWidget):
         controller.state_changed.connect(self._reload)
 
     def refresh(self) -> None:
+        # controller.refresh() emits state_changed synchronously, which
+        # is connected to self._reload -- an explicit second call here
+        # was a redundant rebuild on every navigation to this workspace
+        # (independent-review finding).
         self._controller.refresh()
         self._reload_scope_combo()
-        self._reload()
 
     def _reload_scope_combo(self) -> None:
         self._scope_combo.blockSignals(True)
@@ -243,8 +272,14 @@ class AnalyticsView(QWidget):
             self._brief_layout.addWidget(
                 _message_label("No urgent findings right now. This may mean evidence is still building.")
             )
+        collection_names = self._controller.collection_names_by_id()
+        template_names = self._controller.template_names_by_id()
         for item in brief:
-            self._brief_layout.addWidget(_BriefCard(item, self._brief_container))
+            self._brief_layout.addWidget(
+                _BriefCard(
+                    item, self._brief_container, collection_names=collection_names, template_names=template_names
+                )
+            )
 
         _clear_layout(self._coverage_layout)
         coverage = self._controller.coverage
@@ -292,7 +327,14 @@ class _BriefCard(QWidget):
     scope, reason, and an optional recommendation. Never a button that
     mutates state (§ 6.5: "actions are recommendations")."""
 
-    def __init__(self, item: dict, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        item: dict,
+        parent: QWidget | None = None,
+        *,
+        collection_names: dict[int, str] | None = None,
+        template_names: dict[int, str] | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setObjectName("analytics-brief-card")
         priority = str(item.get("priority") or "low")
@@ -311,7 +353,7 @@ class _BriefCard(QWidget):
         finding_label.setObjectName("analytics-brief-finding")
         header.addWidget(finding_label, 0)
         header.addStretch(1)
-        scope_label = QLabel(_scope_description(item), self)
+        scope_label = QLabel(_scope_description(item, collection_names, template_names), self)
         scope_label.setObjectName("analytics-brief-scope")
         header.addWidget(scope_label, 0)
         layout.addLayout(header)
@@ -341,6 +383,10 @@ class _FullFindingsDialog(QDialog):
         self._rows: list[dict] = []
 
         layout = QVBoxLayout(self)
+
+        self._show_all_checkbox = QCheckBox("Show every current Entry (including no current Finding)", self)
+        self._show_all_checkbox.toggled.connect(self._on_show_all_toggled)
+        layout.addWidget(self._show_all_checkbox)
 
         self._table = QTableWidget(self)
         self._table.setObjectName("analytics-findings-table")
@@ -372,13 +418,27 @@ class _FullFindingsDialog(QDialog):
 
         self._reload_table()
 
+    def _on_show_all_toggled(self, _checked: bool) -> None:
+        self._reload_table()
+
     def _reload_table(self) -> None:
-        self._rows = self._controller.actionable_findings()
+        # Independent-review finding: this dialog's own Design Derivation
+        # Record documented a "Show every current Entry" checkbox as the
+        # one control besides row selection, but the table was hard-wired
+        # to actionable_findings() with no way to reveal "none"-Finding
+        # Entries -- the checkbox above now actually exists and drives
+        # this choice.
+        if self._show_all_checkbox.isChecked():
+            self._rows = self._controller.full_findings["full_findings"]
+        else:
+            self._rows = self._controller.actionable_findings()
+        collection_names = self._controller.collection_names_by_id()
+        template_names = self._controller.template_names_by_id()
         self._table.setRowCount(len(self._rows))
         for row, item in enumerate(self._rows):
             self._table.setItem(row, 0, QTableWidgetItem(_PRIORITY_LABELS.get(str(item.get("priority")), "")))
             self._table.setItem(row, 1, QTableWidgetItem(_finding_label(item)))
-            self._table.setItem(row, 2, QTableWidgetItem(_scope_description(item)))
+            self._table.setItem(row, 2, QTableWidgetItem(_scope_description(item, collection_names, template_names)))
             self._table.setItem(row, 3, QTableWidgetItem(_reason_text(item)))
 
     def _on_row_selected(self) -> None:
@@ -387,7 +447,10 @@ class _FullFindingsDialog(QDialog):
             self._detail_label.setText("Select a Finding above to inspect its evidence.")
             return
         item = self._rows[row]
-        lines = [f"{_finding_label(item)} — {_scope_description(item)} — {_PRIORITY_LABELS.get(str(item.get('priority')), '')} priority"]
+        scope_text = _scope_description(
+            item, self._controller.collection_names_by_id(), self._controller.template_names_by_id()
+        )
+        lines = [f"{_finding_label(item)} — {scope_text} — {_PRIORITY_LABELS.get(str(item.get('priority')), '')} priority"]
         if item.get("evidence_state"):
             lines.append(f"Evidence state: {item['evidence_state']}")
         metrics = item.get("metrics") or {}

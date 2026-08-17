@@ -4,6 +4,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -36,7 +37,12 @@ if PYSIDE6_AVAILABLE:
     from src.ui_desktop.controllers.analytics_controller import AnalyticsController
     from src.ui_desktop.theming.theme_manager import build_stylesheet
     from src.ui_desktop.theming.tokens import THEME_CALM_BLUE_DARK, THEME_CALM_BLUE_LIGHT
-    from src.ui_desktop.views.analytics_view import AnalyticsView, _FullFindingsDialog
+    from src.ui_desktop.views.analytics_view import (
+        AnalyticsView,
+        _FullFindingsDialog,
+        _scope_description,
+        _suggested_action_text,
+    )
     from src.ui_desktop.widgets.navigation_rail import NavigationRail
 
     def _qt_app() -> QApplication:
@@ -227,6 +233,106 @@ class AnalyticsViewStructureTests(_SyntheticDatabaseTestCase):
         self.addCleanup(dialog.deleteLater)
 
         self.assertIn("Select a Finding", dialog._detail_label.text())
+
+    def test_show_every_current_entry_checkbox_reveals_none_findings(self) -> None:
+        """Regression for an independent-review finding: this dialog's
+        own Design Derivation Record documented a "Show every current
+        Entry" checkbox, but the table was hard-wired to
+        actionable_findings() with no way to reveal "none"-Finding
+        Entries. Two Entries: one never-quizzed (actionable), one quizzed
+        to a "none" Finding is impractical to construct quickly here, so
+        this instead proves the checkbox actually switches data sources
+        by comparing row counts against the controller's own two
+        collections directly."""
+        add_entry("French", "English", "word", "pomme", "apple")
+        controller = AnalyticsController()
+        controller.refresh()
+        dialog = _FullFindingsDialog(controller, parent=None)
+        self.addCleanup(dialog.deleteLater)
+        unchecked_count = dialog._table.rowCount()
+        self.assertEqual(unchecked_count, len(controller.actionable_findings()))
+
+        dialog._show_all_checkbox.setChecked(True)
+
+        self.assertEqual(dialog._table.rowCount(), len(controller.full_findings["full_findings"]))
+
+    def test_scope_description_resolves_a_collection_name_not_a_bare_label(self) -> None:
+        """Regression for an independent-review finding: a bare
+        "Collection"/"Template" string made multiple distinct Coverage
+        Gap findings indistinguishable from each other."""
+        item = {"scope_type": "collection", "scope_id": 42}
+
+        bare = _scope_description(item)
+        resolved = _scope_description(item, collection_names={42: "Everyday Words"})
+
+        self.assertEqual(bare, "Collection #42")
+        self.assertEqual(resolved, "Collection: Everyday Words")
+
+    def test_scope_description_resolves_a_template_name(self) -> None:
+        item = {"scope_type": "template", "scope_id": 7}
+
+        resolved = _scope_description(item, template_names={7: "French Verb Present"})
+
+        self.assertEqual(resolved, "Template: French Verb Present")
+
+    def test_suggested_action_text_omits_a_none_action_type(self) -> None:
+        """Regression for an independent-review finding: src.insights
+        sets suggested_action.action_type="none" for a Strength finding
+        (a real, present dict signaling "no action needed", not the
+        absence of one). Rendering that literally produced the
+        nonsensical "Suggested: None" instead of omitting the line."""
+        item = {"suggested_action": {"action_type": "none"}}
+
+        self.assertEqual(_suggested_action_text(item), "")
+
+    def test_suggested_action_text_still_renders_a_real_action(self) -> None:
+        item = {"suggested_action": {"action_type": "quiz_uncovered_content"}}
+
+        self.assertEqual(_suggested_action_text(item), "Suggested: Quiz uncovered content")
+
+    def test_full_findings_scope_column_shows_a_real_collection_name(self) -> None:
+        """Integration proof (not just the pure-function unit tests
+        above) that a Coverage Gap finding's Scope column resolves to a
+        real Collection name from within the actual dialog flow."""
+        collection_id = create_collection("Everyday Words", "", card_size=8)
+        entry_id = add_entry("French", "English", "word", "pomme", "apple")
+        add_entries_to_collection([entry_id], collection_id)
+        controller = AnalyticsController()
+        controller.refresh()
+        dialog = _FullFindingsDialog(controller, parent=None)
+        self.addCleanup(dialog.deleteLater)
+
+        scope_texts = {dialog._table.item(row, 2).text() for row in range(dialog._table.rowCount())}
+
+        self.assertIn("Collection: Everyday Words", scope_texts)
+        self.assertFalse(any(text == "Collection" for text in scope_texts))
+
+    def test_view_refresh_rebuilds_the_brief_exactly_once(self) -> None:
+        """Regression for an independent-review finding: refresh()
+        called self._reload() explicitly in addition to the reload the
+        connected state_changed signal already triggers, rebuilding the
+        Brief/Coverage layout twice on every navigation. `_reload` must
+        be wrapped at the *class* level before construction: Qt's
+        `connect(self._reload)` call inside `__init__` captures a bound
+        method against whatever the class attribute resolves to at that
+        moment, so patching the instance afterward would not intercept
+        the signal-triggered call at all."""
+        call_count = 0
+        original_reload = AnalyticsView._reload
+
+        def _counting_reload(self):
+            nonlocal call_count
+            call_count += 1
+            original_reload(self)
+
+        with patch.object(AnalyticsView, "_reload", _counting_reload):
+            controller = AnalyticsController()
+            view = AnalyticsView(controller)
+            self.addCleanup(view.deleteLater)
+
+            view.refresh()
+
+        self.assertEqual(call_count, 1)
 
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")

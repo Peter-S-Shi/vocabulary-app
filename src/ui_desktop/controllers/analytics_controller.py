@@ -5,6 +5,7 @@ from PySide6.QtCore import QObject, Signal
 from src.analytics import get_collection_coverage_profile
 from src.collections import get_collections
 from src.db import get_connection
+from src.entry_templates import get_entry_templates
 from src.insights import build_learning_brief, get_all_findings
 
 """
@@ -33,12 +34,14 @@ class AnalyticsController(QObject):
         self.scope_type: str = "all"
         self.scope_id: int | None = None
         self.collections: list[dict] = []
+        self.templates: list[dict] = []
         self.brief: list[dict] = []
         self.full_findings: dict = {"entry_findings": [], "coverage_findings": [], "full_findings": []}
         self.coverage: dict | None = None
 
     def refresh(self) -> None:
         self.collections = [c for c in get_collections() if not c.get("is_system")]
+        self.templates = get_entry_templates()
         if self.scope_type == "collection" and self.scope_id is not None:
             if not any(int(c["id"]) == self.scope_id for c in self.collections):
                 self.scope_type = "all"
@@ -73,3 +76,9 @@ class AnalyticsController(QObject):
         return [
             item for item in self.full_findings["full_findings"] if item.get("primary_finding") != "none"
         ]
+
+    def collection_names_by_id(self) -> dict[int, str]:
+        return {int(c["id"]): str(c["name"]) for c in self.collections}
+
+    def template_names_by_id(self) -> dict[int, str]:
+        return {int(t["id"]): str(t["name"]) for t in self.templates}
