@@ -156,8 +156,20 @@ class TemplatesView(QWidget):
         self._controller.refresh()
 
     def _render_table(self) -> None:
+        # Selection is row-index-based (QTableWidget's own selection
+        # model), but rows are reshuffled by sort order every refresh --
+        # including a refresh that fires while a modal Template Editor is
+        # still open (e.g. renaming a Template moves it to a different
+        # alphabetical row). Capture the selected Template's stable id
+        # before repopulating and restore selection by id afterward, so a
+        # reorder can never silently leave a stale row "selected" (and
+        # Open Template pointed at the wrong Template) -- an independent
+        # review finding on this corrective checkpoint.
+        previously_selected_id = self._current_row_template_id()
+
         templates = self._controller.templates
         self._table.setRowCount(len(templates))
+        target_row = -1
         for row, template in enumerate(templates):
             self._table.setItem(row, 0, QTableWidgetItem(str(template.get("name") or "")))
             self._table.setItem(row, 1, QTableWidgetItem(str(template.get("template_type") or "")))
@@ -165,8 +177,25 @@ class TemplatesView(QWidget):
             self._table.setItem(row, 3, QTableWidgetItem("System" if template.get("is_system") else "Custom"))
             self._table.setItem(row, 4, QTableWidgetItem(str(int(template.get("field_count") or 0))))
             self._table.setItem(row, 5, QTableWidgetItem(str(template.get("updated_at") or "")))
-            self._table.item(row, 0).setData(Qt.ItemDataRole.UserRole, int(template["id"]))
+            template_id = int(template["id"])
+            self._table.item(row, 0).setData(Qt.ItemDataRole.UserRole, template_id)
+            if previously_selected_id is not None and template_id == previously_selected_id:
+                target_row = row
+
+        if target_row >= 0:
+            self._table.selectRow(target_row)
+        else:
+            self._table.clearSelection()
         self._on_table_selection_changed()
+
+    def _current_row_template_id(self) -> int | None:
+        row = self._table.currentRow()
+        if row < 0:
+            return None
+        item = self._table.item(row, 0)
+        if item is None:
+            return None
+        return int(item.data(Qt.ItemDataRole.UserRole))
 
     def _on_table_selection_changed(self) -> None:
         self._open_button.setEnabled(bool(self._table.selectedItems()))

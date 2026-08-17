@@ -8,6 +8,7 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
+    from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QApplication, QPushButton
 
     PYSIDE6_AVAILABLE = True
@@ -216,6 +217,54 @@ class TemplatesDiscoverableEditAffordanceTests(_SyntheticDatabaseTestCase):
 
         self.assertEqual(len(opened_dialogs), 1)
         self.assertEqual(opened_dialogs[0]._name_input.text(), "Click To Open")
+
+    def test_selection_follows_template_id_across_a_reordering_refresh(self) -> None:
+        """Regression for an independent-review finding on this
+        corrective checkpoint: selection is QTableWidget row-index-based,
+        but `templates_changed` can fire (reordering rows by name) while a
+        row is selected -- e.g. renaming the selected Template inside a
+        still-open Template Editor. The selection must follow the
+        Template's stable id, never a stale row index."""
+        create_entry_template(name="AAA First", description="", language="French", template_type="custom")
+        create_entry_template(name="MMM Middle", description="", language="French", template_type="custom")
+        controller = TemplatesController()
+        view = TemplatesView(controller)
+        self.addCleanup(view.deleteLater)
+        view.refresh()
+
+        middle_row = next(
+            row for row in range(view._table.rowCount()) if view._table.item(row, 0).text() == "MMM Middle"
+        )
+        view._table.selectRow(middle_row)
+        middle_id = view._table.item(middle_row, 0).data(Qt.ItemDataRole.UserRole)
+        self.assertTrue(view._open_button.isEnabled())
+
+        # Renaming "MMM Middle" ahead of "AAA First" reorders the table on
+        # the very next `templates_changed`-triggered refresh.
+        controller.select_template(middle_id)
+        controller.update_selected_template("AA Renamed Ahead", "", "French", "custom")
+
+        new_row = next(
+            row for row in range(view._table.rowCount()) if view._table.item(row, 0).text() == "AA Renamed Ahead"
+        )
+        self.assertEqual(view._table.currentRow(), new_row)
+        self.assertTrue(view._open_button.isEnabled())
+
+    def test_selection_clears_when_the_selected_template_no_longer_exists(self) -> None:
+        template_id = create_entry_template(name="Will Be Deleted", description="", language="French", template_type="custom")
+        controller = TemplatesController()
+        view = TemplatesView(controller)
+        self.addCleanup(view.deleteLater)
+        view.refresh()
+
+        row = next(row for row in range(view._table.rowCount()) if view._table.item(row, 0).text() == "Will Be Deleted")
+        view._table.selectRow(row)
+        self.assertTrue(view._open_button.isEnabled())
+
+        controller.select_template(template_id)
+        controller.delete_selected_template()
+
+        self.assertFalse(view._open_button.isEnabled())
 
     def test_custom_template_field_edits_actually_persist_through_the_editor(self) -> None:
         """End-to-end proof that a Custom Template opened through the
