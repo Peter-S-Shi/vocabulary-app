@@ -162,10 +162,14 @@ also complete and Human Accepted at native visual acceptance** (PASS
 recorded 2026-08-16 against `2cc333256d2a831c3268c150a86935276117f1c8`,
 after a corrective pass for typography, toolbar layout, Scope Pane
 resizing, editor scroll-safety, the "Add to Collection" menu interaction,
-and checkbox selection). Milestone 17 overall is not complete; the next
-objective is **Minimum Collection Integration**. See § Milestone 17 below
-for the operating model, the reset history, and the current
-feature-sequence position.
+and checkbox selection). **Minimum Collection Integration — a
+Collections Navigator (DESIGN.md § 6.8, Class B) plus typed handoffs
+from Collections/Today into Entries and from Collections into
+Review/Study — is implemented on the same branch and pending independent
+review and native human visual acceptance** (head
+`009645a7bcc56aa36295e2a61f29e89ab1909c81`). Milestone 17 overall is not
+complete. See § Milestone 17 below for the operating model, the reset
+history, and the current feature-sequence position.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -911,7 +915,9 @@ Recommended order, each verified before proceeding to the next:
 4. Entries — **complete and Human Accepted** (native visual acceptance
    PASSED 2026-08-16 against
    `2cc333256d2a831c3268c150a86935276117f1c8`, after a corrective pass)
-5. minimum Collection navigation/integration required by those workflows — not started
+5. minimum Collection navigation/integration required by those workflows —
+   **implemented, pending independent review and native human visual
+   acceptance** (head `009645a7bcc56aa36295e2a61f29e89ab1909c81`)
 6. M17 parity + exit verification — not started
 
 #### Today
@@ -1083,6 +1089,44 @@ Integration.**
 
 Port only the minimum Collection navigation/integration required by the four
 workflows above. Full Collection/Card management remains M18 scope.
+
+**Status: implemented on `agent/m17-desktop-core-workflow-migration` at
+head `009645a7bcc56aa36295e2a61f29e89ab1909c81`, pending independent
+review and native human visual acceptance** against DESIGN.md § 6.8
+(Class B, "inherited from the invoking A/B surface" -- explicitly not a
+full Collection Manager). A real `Workspace.COLLECTIONS` Management Mode
+workspace is now reachable through the previously-disabled `Collections`
+rail destination. `CollectionsController` is a read-only projection over
+`src.collections.get_collections`/`get_collection_by_id`/
+`get_card_groups_for_collection` -- no SQL, no mutation, no second Card
+model -- keeping normal Collections and system practice pools (Starred/
+Mistake Book/Proficient Pool) as two separate lists throughout, the same
+separation `EntriesController`/`_ScopePane` already established for the
+Entries Scope Pane. `CollectionsView` implements Management Rail -> left
+selector pane ("Collections"/"Practice Pools" sections) -> right
+read-only detail (factual metadata + compact Card list for a normal
+Collection, or a pool summary) with "Open Entries" / "Open in Study"
+handoff actions, its visual traits inherited from Entries' Scope Pane +
+detail vocabulary rather than a new visual language. Two typed handoffs
+in `state/handoff.py` -- `EntriesScopeIntent` (Entries' own existing
+`collection:<id>`/`system:<type>` scope key) and `StudyTargetIntent`
+(`collection_id`, `card_number`) -- are each consumed exactly once by
+`MainWindow`: `_open_entries_with_scope` hands the scope straight to
+`EntriesController.set_scope()`; `_open_review_at_card` calls the
+existing `ReviewController.open_card(...)` and fails honestly (no
+navigation, no fallback to `open_default()`) if the Card is gone. Today's
+"Collections Needing Attention" pool rows are now actionable, completing
+the same `EntriesScopeIntent` handoff. This checkpoint also fixed a
+real pre-existing latent bug: `_render_workspace(REVIEW)` was
+unconditionally calling `ReviewController.open_default()` on every
+render, which would have silently overwritten any specific
+Collection/Card handoff the instant it navigated -- `open_default()` now
+only runs from the generic entry points (`_enter_review`,
+`_on_quiz_next_card`), since `ReviewView` already re-renders reactively
+from `ReviewController.state_changed`. No reusable-core additions were
+needed. Do not mark Minimum Collection Integration or Milestone 17
+complete until independent review and native visual acceptance both
+close.
 
 #### M17 Parity + Exit Verification
 

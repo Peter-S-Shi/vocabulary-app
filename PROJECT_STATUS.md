@@ -1805,6 +1805,34 @@ for the full corrective-pass and acceptance history.
   Human Accepted (DESIGN.md § 2 Level 4), Milestone 17's fifth accepted
   feature. See the M17 Draft PR for the full corrective-pass and
   acceptance history.
+- M17 Minimum Collection Integration (DESIGN.md § 6.8, Class B --
+  "inherited from the invoking A/B surface", explicitly not a full
+  Collection Manager): a real `Workspace.COLLECTIONS` Management Mode
+  workspace, reached through the now-enabled `Collections` rail
+  destination. `CollectionsController` is a read-only projection over
+  `src.collections.get_collections`/`get_collection_by_id`/
+  `get_card_groups_for_collection` -- no SQL, no mutation, no second Card
+  model -- keeping normal Collections and system practice pools (Starred/
+  Mistake Book/Proficient Pool) as two separate lists, the same
+  separation `EntriesController`/`_ScopePane` already established for the
+  Entries Scope Pane. `CollectionsView`: Management Rail -> left selector
+  pane ("Collections"/"Practice Pools" sections) -> right read-only
+  detail (factual metadata + compact Card list, or a pool summary) with
+  "Open Entries"/"Open in Study" handoff actions, visual traits inherited
+  from Entries' Scope Pane + detail vocabulary. Two typed handoffs
+  (`state/handoff.py`) -- `EntriesScopeIntent` (Entries' own existing
+  scope key) and `StudyTargetIntent` (`collection_id`, `card_number`) --
+  are each consumed exactly once by `MainWindow`; `_open_review_at_card`
+  fails honestly (no navigation, no fallback to `open_default()`) if the
+  requested Card is gone. Today's "Collections Needing Attention" pool
+  rows are now actionable via the same `EntriesScopeIntent` handoff. This
+  checkpoint also fixed a real latent bug where
+  `_render_workspace(REVIEW)` unconditionally called
+  `ReviewController.open_default()` on every render, which would have
+  silently overwritten any specific Collection/Card handoff -- now only
+  the generic entry points call it. **Implemented at head
+  `009645a7bcc56aa36295e2a61f29e89ab1909c81`, pending independent review
+  and native human visual acceptance.**
 - Current lifecycle documents:
   - `ROADMAP.md`
   - `PROJECT_STATUS.md`
@@ -1847,11 +1875,15 @@ for the full corrective-pass and acceptance history.
   acceptance PASSED 2026-08-16 against
   `2cc333256d2a831c3268c150a86935276117f1c8`, after a corrective pass for
   typography, toolbar layout, Scope Pane resizing, editor scroll-safety,
-  the "Add to Collection" menu interaction, and checkbox selection); M17
-  not complete.**
+  the "Add to Collection" menu interaction, and checkbox selection);
+  Minimum Collection Integration is **implemented, pending independent
+  review and native human visual acceptance** (head
+  `009645a7bcc56aa36295e2a61f29e89ab1909c81`); M17 not complete.**
 - Exact next objective:
-  **Begin M17 — Minimum Collection Integration on the M17 Draft PR
-  (branch `agent/m17-desktop-core-workflow-migration`), the next feature
-  in the M17 sequence after Entries. Do not mark Milestone 17 complete
-  until Minimum Collection Integration and the remaining
-  parity/exit-verification work both close.**
+  **Independently review the M17 Minimum Collection Integration
+  checkpoint on the M17 Draft PR (branch
+  `agent/m17-desktop-core-workflow-migration`), then obtain native human
+  visual acceptance against DESIGN.md § 6.8. Do not mark Minimum
+  Collection Integration or Milestone 17 complete, and do not begin M17
+  Parity + Exit Verification, until that review and acceptance both
+  close.**
