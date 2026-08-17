@@ -163,6 +163,20 @@ class BackupRestoreDialogStructureTests(_SyntheticDatabaseTestCase):
     def setUpClass(cls) -> None:
         cls.app = _qt_app()
 
+    def test_construction_survives_a_broken_backup_summary(self) -> None:
+        """Independent-review finding: get_backup_summary() has no
+        internal try/except (unlike build_full_backup_workbook_bytes),
+        so a locked/unreadable database could otherwise propagate an
+        uncontrolled exception straight out of the dialog constructor."""
+        from unittest.mock import patch
+
+        controller = DataToolsController()
+        with patch.object(DataToolsController, "backup_summary", side_effect=RuntimeError("boom")):
+            dialog = _BackupRestoreDialog(controller, parent=None)
+        self.addCleanup(dialog.deleteLater)
+
+        self.assertIn("unavailable", dialog._summary_label.text().lower())
+
     def test_dialog_has_no_restore_confirm_button(self) -> None:
         """No button anywhere in this dialog may perform a destructive
         restore -- only Preview, Close, and the two Backup download

@@ -872,12 +872,23 @@ class _BackupRestoreDialog(QDialog):
         caption.setWordWrap(True)
         layout.addWidget(caption)
 
-        summary = controller.backup_summary()
-        self._summary_label = QLabel(
-            f"Entries {summary['entries']} · Collections {summary['collections']} · "
-            f"Templates {summary['templates']} · Quiz sessions {summary['quiz_sessions']}",
-            self,
-        )
+        # Independent-review finding: every other backup-producing call in
+        # this dialog is guarded with `except BackupError`; this summary
+        # read (src.backup.get_backup_summary(), unlike
+        # build_full_backup_workbook_bytes) has no internal try/except of
+        # its own, so a locked/unreadable database file could otherwise
+        # propagate an uncontrolled exception straight out of this
+        # constructor instead of the controlled inline message pattern
+        # used everywhere else here.
+        try:
+            summary = controller.backup_summary()
+            summary_text = (
+                f"Entries {summary['entries']} · Collections {summary['collections']} · "
+                f"Templates {summary['templates']} · Quiz sessions {summary['quiz_sessions']}"
+            )
+        except Exception:
+            summary_text = "Backup summary unavailable."
+        self._summary_label = QLabel(summary_text, self)
         self._summary_label.setObjectName("data-tools-summary-label")
         layout.addWidget(self._summary_label)
 
