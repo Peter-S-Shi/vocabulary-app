@@ -1727,6 +1727,48 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         font-style: italic;
         font-size: 12px;
     }}
+
+    /* M18 Phase C1 -- Review Calendar / Card History (P7 Evidence
+    Browser). Every control below lives directly in the workspace, not a
+    QDialog, so -- per the Human Gate 1 corrective lesson -- each needs
+    its own explicit rule rather than relying on any generic fallback. */
+    QLabel#review-calendar-title {{
+        color: {neutral.text_primary};
+        font-size: 21px;
+        font-weight: 700;
+    }}
+    QLabel#review-calendar-range-label {{
+        color: {neutral.text_muted};
+        font-size: 12px;
+    }}
+    QComboBox#review-calendar-range-combo {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 3px 8px;
+        font-size: 12px;
+    }}
+    QLabel#review-calendar-detail-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#review-calendar-detail-summary {{
+        color: {neutral.text_primary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#review-calendar-legacy-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#review-calendar-legacy-caption {{
+        color: {neutral.text_muted};
+        font-style: italic;
+        font-size: 12px;
+    }}
     """.strip()
 
 
