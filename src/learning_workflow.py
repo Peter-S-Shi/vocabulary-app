@@ -1243,8 +1243,8 @@ def _recent_entry_count(conn, today_iso: str, days: int = 7) -> int:
         """
         SELECT COUNT(*) AS entry_count
         FROM entries
-        WHERE DATE(created_at) >= DATE(?, ?)
-          AND DATE(created_at) <= DATE(?)
+        WHERE DATE(created_at, 'localtime') >= DATE(?, ?)
+          AND DATE(created_at, 'localtime') <= DATE(?)
         """,
         (today_iso, f"-{int(days) - 1} days", today_iso),
     ).fetchone()
