@@ -1524,14 +1524,18 @@ Quiz (feature 3)**, now implemented on the same branch against
 Immersive Study). Structural conformance and automated design guards are
 PASS; native visual acceptance is PENDING. Do not mark Quiz or Milestone
 17 complete, and do not begin Entries (feature 4), until that review and
-acceptance both close.
+acceptance both close. (Historical note: this directive was current as
+of the Quiz/feature-3 review point; Quiz was subsequently Human
+Accepted, and Milestone 17 as a whole is now complete on `main` -- see
+"Current Milestone" above.)
 
 Milestone 16 is complete on `main` (PR #23,
 `2e900d243950ca93aedf5cbde5b836dc6e378f25`). Post-M16 lifecycle
 reconciliation merged through PR #24 at
 `c8842e0f77199ed9d3d0a2e3c48701d4289f137e`. M17 is one milestone: one
-long-lived branch (`agent/m17-desktop-core-workflow-migration`), one Draft
-PR, and an ordered feature migration sequence — Today, Review, Quiz,
+long-lived branch (`agent/m17-desktop-core-workflow-migration`), one PR
+(PR #25, Draft throughout development, merged 2026-08-17), and an
+ordered feature migration sequence — Today, Review, Quiz,
 Entries, minimum Collection integration, then parity/exit verification —
 rather than independent sub-milestone branches or PRs. See `ROADMAP.md`
 § Milestone 17 for the full operating model, frozen semantic boundaries,
