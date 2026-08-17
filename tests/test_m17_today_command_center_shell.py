@@ -39,6 +39,8 @@ if PYSIDE6_AVAILABLE:
     from src.ui_desktop.theming.metrics import CONTEXT_RAIL_WIDTH, NAV_RAIL_WIDTH
     from src.ui_desktop.state.handoff import QuizLaunchIntent
     from src.ui_desktop.views.today_view import TodayView
+    from src.ui_desktop.theming.theme_manager import build_stylesheet
+    from src.ui_desktop.theming.tokens import THEME_CALM_BLUE_DARK, THEME_CALM_BLUE_LIGHT
     from src.ui_desktop.widgets.navigation_rail import (
         PRIMARY_DESTINATIONS,
         SETTINGS_DESTINATION,
@@ -150,6 +152,97 @@ class NavigationRailStructureTests(unittest.TestCase):
         rail._buttons["analytics"].click()
 
         self.assertEqual(received, [])
+
+
+@unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
+class NavigationRailReliableStateTests(unittest.TestCase):
+    """Corrective follow-up to the M17 Theme Completion Typography
+    Corrective Patch: the mark/label's active/normal/disabled color no
+    longer depends on a QSS descendant-pseudo-state selector against
+    `nav-rail-item`'s dynamic checked/disabled state (confirmed
+    unreliable -- see navigation_rail.py's module docstring). These
+    tests cover what actually determines the rendered color now: object
+    name (static, disabled) and the `navActive` dynamic property
+    (runtime, active vs normal), plus the QSS that resolves them."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _qt_app()
+
+    def test_disabled_destinations_get_static_disabled_object_names(self) -> None:
+        rail = NavigationRail()
+        self.addCleanup(rail.deleteLater)
+
+        for key in ("analytics", "data_tools"):
+            self.assertEqual(rail._labels[key].objectName(), "nav-rail-label-disabled")
+            self.assertEqual(rail._marks[key].objectName(), "nav-rail-mark-disabled")
+
+    def test_enabled_destinations_get_the_plain_object_names(self) -> None:
+        rail = NavigationRail()
+        self.addCleanup(rail.deleteLater)
+
+        for key in ("today", "entries", "collections", "study", "settings"):
+            self.assertEqual(rail._labels[key].objectName(), "nav-rail-label")
+            self.assertEqual(rail._marks[key].objectName(), "nav-rail-mark")
+
+    def test_set_active_sets_navActive_true_only_on_the_target_destination(self) -> None:
+        rail = NavigationRail()
+        self.addCleanup(rail.deleteLater)
+
+        rail.set_active("entries")
+
+        for key in ("today", "entries", "collections", "study", "settings"):
+            expected = key == "entries"
+            self.assertEqual(rail._labels[key].property("navActive"), expected, key)
+            self.assertEqual(rail._marks[key].property("navActive"), expected, key)
+
+    def test_set_active_moves_navActive_off_the_previously_active_destination(self) -> None:
+        rail = NavigationRail()
+        self.addCleanup(rail.deleteLater)
+
+        rail.set_active("today")
+        self.assertTrue(rail._labels["today"].property("navActive"))
+
+        rail.set_active("study")
+        self.assertFalse(rail._labels["today"].property("navActive"))
+        self.assertTrue(rail._labels["study"].property("navActive"))
+
+    def test_set_active_never_touches_disabled_destinations(self) -> None:
+        """Disabled destinations render statically and are never part of
+        the active/normal distinction (module docstring); ``navActive``
+        is never even set on them."""
+        rail = NavigationRail()
+        self.addCleanup(rail.deleteLater)
+
+        rail.set_active("today")
+        rail.set_active("entries")
+
+        for key in ("analytics", "data_tools"):
+            self.assertIsNone(rail._labels[key].property("navActive"))
+            self.assertIsNone(rail._marks[key].property("navActive"))
+
+    def test_navigation_rail_qss_no_longer_uses_the_unreliable_descendant_selectors(self) -> None:
+        """Regression guard against the fixed mechanism silently coming
+        back: the old `QPushButton:checked/:disabled/:hover
+        QLabel#nav-rail-*` compound selectors must not reappear."""
+        stylesheet = build_stylesheet(THEME_CALM_BLUE_LIGHT)
+        for broken_selector in (
+            "QPushButton#nav-rail-item:checked QLabel#nav-rail-mark",
+            "QPushButton#nav-rail-item:checked QLabel#nav-rail-label",
+            "QPushButton#nav-rail-item:disabled QLabel#nav-rail-mark",
+            "QPushButton#nav-rail-item:disabled QLabel#nav-rail-label",
+            "QPushButton#nav-rail-item:hover:enabled QLabel#nav-rail-mark",
+        ):
+            self.assertNotIn(broken_selector, stylesheet, broken_selector)
+
+    def test_navigation_rail_qss_resolves_active_normal_disabled_to_distinct_tokens(self) -> None:
+        for name, tokens in {"Light": THEME_CALM_BLUE_LIGHT, "Dark": THEME_CALM_BLUE_DARK}.items():
+            stylesheet = build_stylesheet(tokens)
+            self.assertIn(f'QLabel#nav-rail-label[navActive="true"] {{\n        color: {tokens.neutral.text_primary};', stylesheet, name)
+            self.assertIn(f"QLabel#nav-rail-label {{\n        background-color: transparent;\n        color: {tokens.neutral.text_secondary};", stylesheet, name)
+            self.assertIn(f"QLabel#nav-rail-label-disabled {{\n        background-color: transparent;\n        color: {tokens.neutral.text_disabled};", stylesheet, name)
+            self.assertIn(f'QLabel#nav-rail-mark[navActive="true"] {{\n        background-color: {tokens.accent.primary.background};\n        border-color: {tokens.accent.primary.background};', stylesheet, name)
+            self.assertIn(f"QLabel#nav-rail-mark-disabled {{\n        background-color: transparent;\n        border: 1.5px solid {tokens.neutral.border_subtle};", stylesheet, name)
 
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")

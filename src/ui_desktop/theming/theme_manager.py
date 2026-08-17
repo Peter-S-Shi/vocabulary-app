@@ -236,46 +236,45 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         background-color: {neutral.surface_primary};
         border-left: 3px solid {accent.primary.background};
     }}
-    /* Known limitation (M17 Theme Completion Typography Corrective Patch
-    audit finding, out of scope for this patch to redesign): the
-    `nav-rail-mark`/`nav-rail-label` descendant-pseudo-state rules below
-    are not reliably re-evaluated by Qt's style engine against
-    `nav-rail-item`'s *dynamic* hover/checked/disabled state (confirmed
-    empirically on both the offscreen and real native "windows" Qt
-    platforms). In practice this goes unnoticed because the primary
-    selection indicator -- `nav-rail-item`'s own single-level background-
-    color/border-left, which Qt resolves correctly -- already
-    communicates which item is active; only this secondary mark/label
-    text-color distinction is affected. Left as-is rather than
-    redesigned here; see `today-attention-label`'s static Python-decided
-    object names below for the pattern this patch used instead where a
-    reliable per-state distinction was actually required. */
+    /* Corrective follow-up to the M17 Theme Completion Typography
+    Corrective Patch: the previous descendant-pseudo-state rules here
+    (`QPushButton:checked/:disabled/:hover QLabel#nav-rail-mark`/
+    `#nav-rail-label`) were confirmed unreliable -- Qt's style engine
+    does not correctly re-evaluate a child QLabel's color against an
+    ancestor's *dynamic* pseudo-state for this selector shape. Replaced
+    with two mechanisms `navigation_rail.py` actually drives reliably:
+    a `navActive` dynamic property set directly on the mark/label
+    themselves (active vs normal, which changes at runtime via
+    `set_active()`), and distinct static `-disabled` object names
+    (disabled, which never changes at runtime) -- see that module's
+    docstring for the full rationale. */
     QLabel#nav-rail-mark {{
         background-color: transparent;
         border: 1.5px solid {neutral.border_strong};
         border-radius: 4px;
     }}
-    QPushButton#nav-rail-item:hover:enabled QLabel#nav-rail-mark {{
-        border-color: {accent.border};
-    }}
-    QPushButton#nav-rail-item:checked QLabel#nav-rail-mark {{
+    QLabel#nav-rail-mark[navActive="true"] {{
         background-color: {accent.primary.background};
         border-color: {accent.primary.background};
     }}
-    QPushButton#nav-rail-item:disabled QLabel#nav-rail-mark {{
-        border-color: {neutral.border_subtle};
+    QLabel#nav-rail-mark-disabled {{
+        background-color: transparent;
+        border: 1.5px solid {neutral.border_subtle};
+        border-radius: 4px;
     }}
     QLabel#nav-rail-label {{
         background-color: transparent;
         color: {neutral.text_secondary};
         font-size: 11px;
     }}
-    QPushButton#nav-rail-item:checked QLabel#nav-rail-label {{
+    QLabel#nav-rail-label[navActive="true"] {{
         color: {neutral.text_primary};
         font-weight: 600;
     }}
-    QPushButton#nav-rail-item:disabled QLabel#nav-rail-label {{
+    QLabel#nav-rail-label-disabled {{
+        background-color: transparent;
         color: {neutral.text_disabled};
+        font-size: 11px;
     }}
     QLabel#today-page-title {{
         color: {neutral.text_primary};

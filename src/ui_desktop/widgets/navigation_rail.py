@@ -27,11 +27,38 @@ text sidebar. No icon asset pipeline exists yet, so the "icon" is a
 QSS-styled square swatch (`nav-rail-mark`) -- the same generic-placeholder
 role the canonical wireframe itself uses (an empty checkbox glyph) --
 rather than fabricated iconography. It is a `QLabel` child laid out
-*inside* the `QPushButton`, not the button's own `setIcon()`/text: this
-lets both it and the label resolve theme tokens through ordinary QSS
-descendant selectors (`QPushButton:checked QLabel#nav-rail-mark`) that
-refresh automatically alongside the button's checked/disabled state, with
-no per-instance runtime icon generation or hardcoded color.
+*inside* the `QPushButton`, not the button's own `setIcon()`/text.
+
+M17 Theme Completion Typography Corrective Patch follow-up: the mark and
+label previously resolved their active/checked color through QSS
+descendant selectors combining the ancestor `QPushButton`'s *dynamic*
+pseudo-state with the child's object name (`QPushButton:checked
+QLabel#nav-rail-mark`). That mechanism was found to be unreliable --
+confirmed empirically on both the offscreen and real native "windows" Qt
+platforms, through the real `app.py` bootstrap path -- Qt's style engine
+does not correctly re-evaluate the child's resolved style against the
+ancestor's live pseudo-state for this selector shape; whichever
+descendant rule has the highest selector specificity wins
+unconditionally regardless of whether that pseudo-state actually holds.
+
+Two of the rail's three real states are resolved differently now:
+
+- **disabled** is static per destination (`NavDestination.enabled` never
+  changes at runtime) -- resolved once, in Python, by giving the mark
+  and label distinct `-disabled` object names at construction, exactly
+  like `EntriesTableModel`'s state-driven roles / `today_view.py`'s
+  `today-attention-label`/`-label-disabled` precedent. No live QSS
+  pseudo-state involved at all.
+- **active vs normal** genuinely changes at runtime (`set_active()`), so
+  it needs a mechanism Qt reliably re-evaluates: a Qt dynamic property
+  (`navActive`) set directly *on* the mark/label themselves (not
+  inferred from an ancestor's pseudo-state), paired with an explicit
+  `style().unpolish()`/`polish()` call to force re-evaluation --
+  confirmed empirically reliable, unlike the descendant-selector
+  approach it replaces. `theme_manager.py` targets it via
+  `QLabel#nav-rail-mark[navActive="true"]`/`QLabel#nav-rail-
+  label[navActive="true"]`, an attribute selector on the widget's own
+  property, not a compound ancestor-pseudo-state selector.
 """
 
 
@@ -74,6 +101,8 @@ class NavigationRail(QWidget):
         layout.setSpacing(2)
 
         self._buttons: dict[str, QPushButton] = {}
+        self._labels: dict[str, QLabel] = {}
+        self._marks: dict[str, QLabel] = {}
         self._group = QButtonGroup(self)
         self._group.setExclusive(True)
 
@@ -104,12 +133,10 @@ class NavigationRail(QWidget):
         content.setSpacing(2)
 
         mark = QLabel(button)
-        mark.setObjectName("nav-rail-mark")
         mark.setFixedSize(18, 18)
         content.addWidget(mark, 0, Qt.AlignmentFlag.AlignHCenter)
 
         label = QLabel(destination.label, button)
-        label.setObjectName("nav-rail-label")
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         # A safety net for a longer multi-word label ("Data tools") at
         # this narrow a rail width, not a requirement for the current
@@ -118,17 +145,47 @@ class NavigationRail(QWidget):
         content.addWidget(label, 0, Qt.AlignmentFlag.AlignHCenter)
 
         if not destination.enabled:
+            # Static: this destination's enabled/disabled state never
+            # changes at runtime, so the disabled object names are
+            # decided once, here, rather than through a live QSS
+            # pseudo-state (module docstring).
+            mark.setObjectName("nav-rail-mark-disabled")
+            label.setObjectName("nav-rail-label-disabled")
             button.setToolTip(f"{destination.label} is not implemented yet.")
         else:
+            mark.setObjectName("nav-rail-mark")
+            label.setObjectName("nav-rail-label")
+            label.setProperty("navActive", False)
+            mark.setProperty("navActive", False)
             button.clicked.connect(lambda _checked, key=destination.key: self.destination_activated.emit(key))
         self._buttons[destination.key] = button
+        self._labels[destination.key] = label
+        self._marks[destination.key] = mark
         self._group.addButton(button)
         return button
+
+    @staticmethod
+    def _set_nav_active(label: QLabel, mark: QLabel, active: bool) -> None:
+        """Reliable state-driven active/normal styling (module
+        docstring): sets the ``navActive`` dynamic property directly on
+        the mark/label themselves and forces Qt to re-evaluate their QSS
+        against it -- unlike a descendant-pseudo-state selector, this is
+        reliably re-applied on every call."""
+        for widget in (label, mark):
+            widget.setProperty("navActive", active)
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
 
     def set_active(self, key: str) -> None:
         button = self._buttons.get(key)
         if button is not None:
             button.setChecked(True)
+        for destination_key, target_button in self._buttons.items():
+            if not target_button.isEnabled():
+                continue  # disabled destinations render statically; not part of the active/normal distinction
+            self._set_nav_active(
+                self._labels[destination_key], self._marks[destination_key], destination_key == key
+            )
 
     def is_enabled_destination(self, key: str) -> bool:
         button = self._buttons.get(key)

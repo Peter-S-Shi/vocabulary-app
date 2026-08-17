@@ -53,22 +53,33 @@ text):
    rather than a QSS ``:disabled`` pseudo-state selector.
 
 A fifth defect was investigated and found *not* fixable within this
-patch's scope: ``QPushButton#nav-rail-item:hover:enabled`` sets an
-``accent-soft`` background with no paired foreground for its child
-label. Attempting the same descendant-selector pairing used elsewhere in
-this file (``QPushButton#nav-rail-item:hover:enabled QLabel#nav-rail-
-label { color: ...; }``) was empirically verified -- against both the
-``offscreen`` and the real native ``windows`` Qt platforms, through the
-real ``app.py`` bootstrap path -- to be unreliable: Qt's style engine
-does not correctly re-evaluate a child QLabel's color against an
-ancestor's *dynamic* pseudo-state here, so the highest-specificity
-descendant rule wins unconditionally regardless of whether that
-pseudo-state actually holds. This is a pre-existing limitation of
-``nav-rail-item``'s already-Human-Accepted ``nav-rail-mark``/``nav-rail-
-label`` rules (confirmed present, and unnoticed, before this patch too,
-just manifesting as a different always-wrong color) -- redesigning that
-mechanism is out of this narrow patch's scope (see
-``theme_manager.py``'s comment on ``nav-rail-mark``).
+patch's scope using a descendant-selector pairing: ``QPushButton#nav-
+rail-item:hover:enabled`` sets an ``accent-soft`` background with no
+paired foreground for its child label. Attempting the same descendant-
+selector pairing used elsewhere in this file (``QPushButton#nav-rail-
+item:hover:enabled QLabel#nav-rail-label { color: ...; }``) was
+empirically verified -- against both the ``offscreen`` and the real
+native ``windows`` Qt platforms, through the real ``app.py`` bootstrap
+path -- to be unreliable: Qt's style engine does not correctly
+re-evaluate a child QLabel's color against an ancestor's *dynamic*
+pseudo-state here, so the highest-specificity descendant rule wins
+unconditionally regardless of whether that pseudo-state actually holds.
+
+This was a pre-existing limitation of ``nav-rail-item``'s already-Human-
+Accepted ``nav-rail-mark``/``nav-rail-label`` rules too (confirmed
+present, and unnoticed, before this patch, just manifesting as a
+different always-wrong color for the *checked*/*disabled* states). A
+follow-up corrective fix (``tests/test_m17_today_command_center_shell.py``'s
+``NavigationRailReliableStateTests``) replaced those two states with a
+mechanism ``navigation_rail.py`` actually drives reliably -- a
+``navActive`` Qt dynamic property set directly on the mark/label
+themselves, plus static object names for the (runtime-constant) disabled
+case. Pure hover-only foreground pairing remains the one deliberately
+unaddressed case: the label stays ``text-primary`` during hover (still
+high-contrast against ``accent-soft``, see below), and fixing it would
+require the same per-state Python-driven property, tracking real mouse
+hover via an event filter, which was judged out of scope for a narrow
+color-hierarchy patch.
 """
 
 if PYSIDE6_AVAILABLE:
