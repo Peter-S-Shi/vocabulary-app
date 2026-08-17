@@ -1793,7 +1793,8 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     }}
     QPushButton#data-tools-import-button,
     QPushButton#data-tools-export-button,
-    QPushButton#data-tools-template-definition-button {{
+    QPushButton#data-tools-template-definition-button,
+    QPushButton#data-tools-backup-button {{
         background-color: {accent.primary.background};
         color: {accent.primary.foreground};
         border: none;
@@ -1804,7 +1805,8 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     }}
     QPushButton#data-tools-import-button:hover:enabled,
     QPushButton#data-tools-export-button:hover:enabled,
-    QPushButton#data-tools-template-definition-button:hover:enabled {{
+    QPushButton#data-tools-template-definition-button:hover:enabled,
+    QPushButton#data-tools-backup-button:hover:enabled {{
         background-color: {accent.hover.background};
         color: {accent.hover.foreground};
     }}
@@ -1813,7 +1815,10 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     QPushButton#data-tools-export-confirm-button,
     QPushButton#data-tools-template-definition-export-button,
     QPushButton#data-tools-template-definition-preview-button,
-    QPushButton#data-tools-template-definition-confirm-button {{
+    QPushButton#data-tools-template-definition-confirm-button,
+    QPushButton#data-tools-database-backup-button,
+    QPushButton#data-tools-workbook-backup-button,
+    QPushButton#data-tools-restore-preview-button {{
         background-color: {accent.primary.background};
         color: {accent.primary.foreground};
         border: none;
@@ -1825,7 +1830,10 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     QPushButton#data-tools-export-confirm-button:hover:enabled,
     QPushButton#data-tools-template-definition-export-button:hover:enabled,
     QPushButton#data-tools-template-definition-preview-button:hover:enabled,
-    QPushButton#data-tools-template-definition-confirm-button:hover:enabled {{
+    QPushButton#data-tools-template-definition-confirm-button:hover:enabled,
+    QPushButton#data-tools-database-backup-button:hover:enabled,
+    QPushButton#data-tools-workbook-backup-button:hover:enabled,
+    QPushButton#data-tools-restore-preview-button:hover:enabled {{
         background-color: {accent.hover.background};
         color: {accent.hover.foreground};
     }}
@@ -1848,6 +1856,10 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_secondary};
         font-size: 13px;
         font-weight: 600;
+    }}
+    QLabel#data-tools-restore-notice {{
+        color: {semantic.warning.background};
+        font-size: 12px;
     }}
     """.strip()
 

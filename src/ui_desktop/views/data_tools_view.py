@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.backup import BackupError
 from src.template_definitions import TemplateDefinitionError
 from src.ui_desktop.controllers.data_tools_controller import (
     EXPORT_SCOPE_LABELS,
@@ -158,6 +159,11 @@ class DataToolsView(QWidget):
         template_definition_button.setObjectName("data-tools-template-definition-button")
         template_definition_button.clicked.connect(self._on_template_definitions)
         actions.addWidget(template_definition_button)
+
+        backup_button = QPushButton("Backup & Restore Preview…", self)
+        backup_button.setObjectName("data-tools-backup-button")
+        backup_button.clicked.connect(self._on_backup)
+        actions.addWidget(backup_button)
         actions.addStretch(1)
         layout.addLayout(actions)
         layout.addStretch(1)
@@ -177,6 +183,11 @@ class DataToolsView(QWidget):
     def _on_template_definitions(self) -> None:
         self._controller.reset_template_definition_import()
         dialog = _TemplateDefinitionDialog(self._controller, parent=self)
+        dialog.exec()
+
+    def _on_backup(self) -> None:
+        self._controller.reset_restore_preview()
+        dialog = _BackupRestoreDialog(self._controller, parent=self)
         dialog.exec()
 
 
@@ -833,3 +844,192 @@ class _TemplateDefinitionDialog(QDialog):
             self._controller.confirm_template_definition_import()
         except TemplateDefinitionError as error:
             self._import_result_label.setText(str(error))
+
+
+class _BackupRestoreDialog(QDialog):
+    """P6 Backup + Restore Preview (DESIGN.md § 7.4 "Backup creation/
+    result: B, P6"; "Restore Preview: B, P6 preview-first"). Restore is
+    intentionally preview-only throughout this dialog: no core function
+    performs an actual database restore ("destructive/full database
+    restore" is an explicit ROADMAP.md deferred item), so this surface
+    only ever inspects an uploaded backup workbook -- it must not invent
+    a destructive restore capability the core does not support."""
+
+    def __init__(self, controller: DataToolsController, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("data-tools-backup-dialog")
+        self.setWindowTitle("Backup & Restore Preview")
+        self.setMinimumSize(520, 560)
+        self._controller = controller
+
+        layout = QVBoxLayout(self)
+
+        backup_heading = QLabel("Backup", self)
+        backup_heading.setObjectName("data-tools-section-heading")
+        layout.addWidget(backup_heading)
+
+        caption = QLabel("Download a read-only backup of your local vocabulary data.", self)
+        caption.setWordWrap(True)
+        layout.addWidget(caption)
+
+        summary = controller.backup_summary()
+        self._summary_label = QLabel(
+            f"Entries {summary['entries']} · Collections {summary['collections']} · "
+            f"Templates {summary['templates']} · Quiz sessions {summary['quiz_sessions']}",
+            self,
+        )
+        self._summary_label.setObjectName("data-tools-summary-label")
+        layout.addWidget(self._summary_label)
+
+        backup_buttons = QHBoxLayout()
+        database_backup_button = QPushButton("Download Database Backup (.sqlite3)", self)
+        database_backup_button.setObjectName("data-tools-database-backup-button")
+        database_backup_button.clicked.connect(self._on_database_backup)
+        backup_buttons.addWidget(database_backup_button)
+        workbook_backup_button = QPushButton("Download Full Backup Workbook (.xlsx)", self)
+        workbook_backup_button.setObjectName("data-tools-workbook-backup-button")
+        workbook_backup_button.clicked.connect(self._on_workbook_backup)
+        backup_buttons.addWidget(workbook_backup_button)
+        layout.addLayout(backup_buttons)
+
+        self._backup_result_label = QLabel("", self)
+        self._backup_result_label.setWordWrap(True)
+        layout.addWidget(self._backup_result_label)
+
+        restore_heading = QLabel("Restore Preview", self)
+        restore_heading.setObjectName("data-tools-section-heading")
+        layout.addWidget(restore_heading)
+
+        restore_notice = QLabel(
+            "This does not restore or import anything. It only inspects the uploaded backup "
+            "workbook. Full database restore is not implemented, to avoid accidental data loss.",
+            self,
+        )
+        restore_notice.setObjectName("data-tools-restore-notice")
+        restore_notice.setWordWrap(True)
+        layout.addWidget(restore_notice)
+
+        file_row = QHBoxLayout()
+        self._restore_file_label = QLabel("No file selected.", self)
+        file_row.addWidget(self._restore_file_label, 1)
+        choose_button = QPushButton("Choose Backup Workbook…", self)
+        choose_button.clicked.connect(self._on_choose_file)
+        file_row.addWidget(choose_button, 0)
+        layout.addLayout(file_row)
+
+        preview_row = QHBoxLayout()
+        preview_row.addStretch(1)
+        preview_button = QPushButton("Preview Backup", self)
+        preview_button.setObjectName("data-tools-restore-preview-button")
+        preview_button.clicked.connect(self._on_preview)
+        preview_row.addWidget(preview_button)
+        layout.addLayout(preview_row)
+
+        self._restore_summary_label = QLabel("", self)
+        self._restore_summary_label.setObjectName("data-tools-summary-label")
+        self._restore_summary_label.setWordWrap(True)
+        layout.addWidget(self._restore_summary_label)
+
+        self._restore_issues_label = QLabel("", self)
+        self._restore_issues_label.setObjectName("data-tools-preview-error")
+        self._restore_issues_label.setWordWrap(True)
+        layout.addWidget(self._restore_issues_label)
+
+        self._sheets_table = QTableWidget(self)
+        self._sheets_table.setObjectName("data-tools-backup-sheets-table")
+        self._sheets_table.setColumnCount(3)
+        self._sheets_table.setHorizontalHeaderLabels(["Sheet", "Rows", "Columns"])
+        self._sheets_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._sheets_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self._sheets_table.verticalHeader().setVisible(False)
+        self._sheets_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self._sheets_table, 1)
+
+        layout.addStretch(1)
+
+        close_row = QHBoxLayout()
+        close_row.addStretch(1)
+        close_button = QPushButton("Close", self)
+        close_button.clicked.connect(self.accept)
+        close_row.addWidget(close_button)
+        layout.addLayout(close_row)
+
+        controller.restore_preview_state_changed.connect(self._reload)
+        self._reload()
+
+    def _on_database_backup(self) -> None:
+        try:
+            data = self._controller.build_database_backup()
+        except BackupError as error:
+            self._backup_result_label.setText(str(error))
+            return
+        filename = self._controller.backup_filename("database", "sqlite3")
+        path, _filter = QFileDialog.getSaveFileName(self, "Download Database Backup", filename, "SQLite Files (*.sqlite3)")
+        if not path:
+            return
+        self._write_backup_file(path, data)
+
+    def _on_workbook_backup(self) -> None:
+        try:
+            data = self._controller.build_full_backup_workbook()
+        except BackupError as error:
+            self._backup_result_label.setText(str(error))
+            return
+        filename = self._controller.backup_filename("full", "xlsx")
+        path, _filter = QFileDialog.getSaveFileName(self, "Download Full Backup Workbook", filename, "Excel Files (*.xlsx)")
+        if not path:
+            return
+        self._write_backup_file(path, data)
+
+    def _write_backup_file(self, path: str, data: bytes) -> None:
+        try:
+            with open(path, "wb") as handle:
+                handle.write(data)
+        except OSError as error:
+            QMessageBox.warning(self, "Backup", f"Could not write this file: {error}")
+            return
+        self._backup_result_label.setText(f"Backup written to {path}.")
+
+    def _on_choose_file(self) -> None:
+        path, _filter = QFileDialog.getOpenFileName(self, "Choose a Backup Workbook", "", "Excel Files (*.xlsx)")
+        if not path:
+            return
+        try:
+            with open(path, "rb") as handle:
+                file_bytes = handle.read()
+        except OSError as error:
+            QMessageBox.warning(self, "Choose File", f"Could not read this file: {error}")
+            return
+        self._controller.load_restore_preview_file(file_bytes, os.path.basename(path))
+
+    def _on_preview(self) -> None:
+        if self._controller.restore_preview_file_bytes is None:
+            self._restore_issues_label.setText("Choose a backup workbook first.")
+            return
+        self._controller.run_restore_preview()
+
+    def _reload(self) -> None:
+        controller = self._controller
+        self._restore_file_label.setText(controller.restore_preview_filename or "No file selected.")
+
+        result = controller.restore_preview_result
+        if result is None:
+            self._restore_summary_label.setText("")
+            self._restore_issues_label.setText("")
+            self._sheets_table.setRowCount(0)
+            return
+
+        self._restore_summary_label.setText(
+            "This workbook contains supported backup metadata."
+            if result["valid_backup"]
+            else "This workbook does not look like a supported backup."
+        )
+        issues = [*result["errors"], *result["warnings"]]
+        self._restore_issues_label.setText("; ".join(issues))
+
+        sheets = result["sheets"]
+        self._sheets_table.setRowCount(len(sheets))
+        for row, sheet in enumerate(sheets):
+            self._sheets_table.setItem(row, 0, QTableWidgetItem(str(sheet["sheet_name"])))
+            self._sheets_table.setItem(row, 1, QTableWidgetItem(str(sheet["row_count"])))
+            self._sheets_table.setItem(row, 2, QTableWidgetItem(", ".join(sheet["columns"])))

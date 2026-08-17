@@ -2,6 +2,14 @@ from __future__ import annotations
 
 from PySide6.QtCore import QObject, Signal
 
+from src.backup import (
+    BackupError,
+    build_backup_filename,
+    build_full_backup_workbook_bytes,
+    get_backup_summary,
+    get_database_file_bytes,
+    preview_backup_workbook,
+)
 from src.entry_templates import get_entry_templates
 from src.import_export import (
     ImportPreviewError,
@@ -63,12 +71,14 @@ class DataToolsController(QObject):
     import_state_changed = Signal()
     export_collections_changed = Signal()
     template_definition_state_changed = Signal()
+    restore_preview_state_changed = Signal()
 
     def __init__(self) -> None:
         super().__init__()
         self.reset_import()
         self.export_collections: list[dict] = []
         self.reset_template_definition_import()
+        self.reset_restore_preview()
 
     # -- Import --------------------------------------------------------
 
@@ -289,3 +299,44 @@ class DataToolsController(QObject):
         self.template_definition_result = result
         self.template_definition_state_changed.emit()
         return result
+
+    # -- Backup / Restore Preview (M18 Phase C5) ----------------------------
+    # Delegates entirely to src.backup. Restore is intentionally
+    # PREVIEW-ONLY: no core function performs an actual database restore
+    # ("Full database restore is not implemented ... to avoid accidental
+    # data loss", the exact product truth the Streamlit Import/Export
+    # page's Restore Preview section already states) -- this desktop
+    # workflow must not invent a destructive restore capability the core
+    # does not support.
+
+    def backup_summary(self) -> dict:
+        return get_backup_summary()
+
+    def build_database_backup(self) -> bytes:
+        """May raise ``BackupError``."""
+        return get_database_file_bytes()
+
+    def build_full_backup_workbook(self) -> bytes:
+        """May raise ``BackupError``."""
+        return build_full_backup_workbook_bytes()
+
+    def backup_filename(self, kind: str, extension: str) -> str:
+        return build_backup_filename(kind, extension)
+
+    def reset_restore_preview(self) -> None:
+        self.restore_preview_file_bytes: bytes | None = None
+        self.restore_preview_filename: str = ""
+        self.restore_preview_result: dict | None = None
+        self.restore_preview_state_changed.emit()
+
+    def load_restore_preview_file(self, file_bytes: bytes, filename: str) -> None:
+        self.restore_preview_file_bytes = file_bytes
+        self.restore_preview_filename = filename
+        self.restore_preview_result = None
+        self.restore_preview_state_changed.emit()
+
+    def run_restore_preview(self) -> None:
+        if self.restore_preview_file_bytes is None:
+            return
+        self.restore_preview_result = preview_backup_workbook(self.restore_preview_file_bytes)
+        self.restore_preview_state_changed.emit()
