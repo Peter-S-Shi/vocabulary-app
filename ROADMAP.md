@@ -165,11 +165,15 @@ resizing, editor scroll-safety, the "Add to Collection" menu interaction,
 and checkbox selection). **Minimum Collection Integration — a
 Collections Navigator (DESIGN.md § 6.8, Class B) plus typed handoffs
 from Collections/Today into Entries and from Collections into
-Review/Study — is implemented on the same branch and pending independent
-review and native human visual acceptance** (head
-`009645a7bcc56aa36295e2a61f29e89ab1909c81`). Milestone 17 overall is not
-complete. See § Milestone 17 below for the operating model, the reset
-history, and the current feature-sequence position.
+Review/Study — is also complete and Human Accepted at native visual
+acceptance** (PASS recorded 2026-08-17 against
+`6d8ed13c206018ece80277210abb858afd8930f9`, after a corrective pass for
+paged/scrollable Card navigation, efficient large-Collection Card
+projection, the focused-Entry-vs-checked-Entries separation, and the
+persistent direct Star toggle). Milestone 17 overall is not complete;
+the next and final objective is **M17 Parity + Exit Verification**. See
+§ Milestone 17 below for the operating model, the reset history, and the
+current feature-sequence position.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -916,9 +920,12 @@ Recommended order, each verified before proceeding to the next:
    PASSED 2026-08-16 against
    `2cc333256d2a831c3268c150a86935276117f1c8`, after a corrective pass)
 5. minimum Collection navigation/integration required by those workflows —
-   **implemented, pending independent review and native human visual
-   acceptance** (head `009645a7bcc56aa36295e2a61f29e89ab1909c81`)
-6. M17 parity + exit verification — not started
+   **complete and Human Accepted** (native visual acceptance PASSED
+   2026-08-17 against `6d8ed13c206018ece80277210abb858afd8930f9`, after a
+   corrective pass for paged Card navigation and Entries selection-model
+   separation)
+6. M17 parity + exit verification — not started (the final M17
+   checkpoint)
 
 #### Today
 
@@ -1090,11 +1097,22 @@ Integration.**
 Port only the minimum Collection navigation/integration required by the four
 workflows above. Full Collection/Card management remains M18 scope.
 
-**Status: implemented on `agent/m17-desktop-core-workflow-migration` at
-head `009645a7bcc56aa36295e2a61f29e89ab1909c81`, pending independent
-review and native human visual acceptance** against DESIGN.md § 6.8
+**Status: complete and Human Accepted** on
+`agent/m17-desktop-core-workflow-migration` against DESIGN.md § 6.8
 (Class B, "inherited from the invoking A/B surface" -- explicitly not a
-full Collection Manager). A real `Workspace.COLLECTIONS` Management Mode
+full Collection Manager): native human visual acceptance PASSED
+2026-08-17 against head `6d8ed13c206018ece80277210abb858afd8930f9`, after
+one corrective pass (`6d8ed13`) for paged/scrollable Card navigation
+(a new read-only core query, `get_card_page_for_collection`, computes
+per-Card Entry counts via SQL aggregation rather than loading every
+Entry row, so opening a Collection with thousands of Entries only ever
+reads/renders one page), the Entries selection-model separation
+(`focused_id` for bottom-detail inspection vs `checked_ids` for batch
+actions, each with a distinct visual treatment), and a direct per-row
+Star toggle in Entries (reusing the existing Starred system-Collection
+core, including the `CrossCardMoveConfirmationRequired` safety gate on
+unstar), following a first native visual-acceptance FAIL at the initial
+implementation head (`009645a`). A real `Workspace.COLLECTIONS` Management Mode
 workspace is now reachable through the previously-disabled `Collections`
 rail destination. `CollectionsController` is a read-only projection over
 `src.collections.get_collections`/`get_collection_by_id`/
@@ -1123,10 +1141,10 @@ render, which would have silently overwritten any specific
 Collection/Card handoff the instant it navigated -- `open_default()` now
 only runs from the generic entry points (`_enter_review`,
 `_on_quiz_next_card`), since `ReviewView` already re-renders reactively
-from `ReviewController.state_changed`. No reusable-core additions were
-needed. Do not mark Minimum Collection Integration or Milestone 17
-complete until independent review and native visual acceptance both
-close.
+from `ReviewController.state_changed`. **Minimum Collection Integration
+is Milestone 17's sixth accepted feature; Milestone 17 overall is not
+complete. The next and final objective is M17 Parity + Exit
+Verification.**
 
 #### M17 Parity + Exit Verification
 

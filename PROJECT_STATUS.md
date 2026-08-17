@@ -1830,9 +1830,21 @@ for the full corrective-pass and acceptance history.
   `_render_workspace(REVIEW)` unconditionally called
   `ReviewController.open_default()` on every render, which would have
   silently overwritten any specific Collection/Card handoff -- now only
-  the generic entry points call it. **Implemented at head
-  `009645a7bcc56aa36295e2a61f29e89ab1909c81`, pending independent review
-  and native human visual acceptance.**
+  the generic entry points call it. Implemented at `009645a`. A
+  corrective pass at `6d8ed13` made Card browsing genuinely paged and
+  scrollable for large Collections (a new read-only core query,
+  `get_card_page_for_collection`, computes per-Card Entry counts via SQL
+  aggregation rather than loading every Entry row), split Entries'
+  single selection concept into independent `focused_id` (bottom
+  detail/Edit) and `checked_ids` (batch actions) truths with distinct
+  visual states, and added a direct per-row Star toggle reusing the
+  existing Starred system-Collection core (including the
+  `CrossCardMoveConfirmationRequired` safety gate on unstar). **Native
+  human visual acceptance PASSED 2026-08-17 at head
+  `6d8ed13c206018ece80277210abb858afd8930f9`** — Minimum Collection
+  Integration is complete and Human Accepted (DESIGN.md § 2 Level 4),
+  Milestone 17's sixth accepted feature. See the M17 Draft PR for the
+  full corrective-pass and acceptance history.
 - Current lifecycle documents:
   - `ROADMAP.md`
   - `PROJECT_STATUS.md`
@@ -1876,14 +1888,14 @@ for the full corrective-pass and acceptance history.
   `2cc333256d2a831c3268c150a86935276117f1c8`, after a corrective pass for
   typography, toolbar layout, Scope Pane resizing, editor scroll-safety,
   the "Add to Collection" menu interaction, and checkbox selection);
-  Minimum Collection Integration is **implemented, pending independent
-  review and native human visual acceptance** (head
-  `009645a7bcc56aa36295e2a61f29e89ab1909c81`); M17 not complete.**
+  Minimum Collection Integration is **complete and Human Accepted**
+  (native visual acceptance PASSED 2026-08-17 against
+  `6d8ed13c206018ece80277210abb858afd8930f9`, after a corrective pass for
+  paged/scrollable Card navigation, efficient large-Collection Card
+  projection, the focused-Entry-vs-checked-Entries separation, and the
+  persistent direct Star toggle); M17 not complete.**
 - Exact next objective:
-  **Independently review the M17 Minimum Collection Integration
-  checkpoint on the M17 Draft PR (branch
-  `agent/m17-desktop-core-workflow-migration`), then obtain native human
-  visual acceptance against DESIGN.md § 6.8. Do not mark Minimum
-  Collection Integration or Milestone 17 complete, and do not begin M17
-  Parity + Exit Verification, until that review and acceptance both
-  close.**
+  **Begin M17 Parity + Exit Verification on the M17 Draft PR (branch
+  `agent/m17-desktop-core-workflow-migration`) -- the final M17
+  checkpoint, following all six accepted features. Do not mark Milestone
+  17 complete until it closes.**
