@@ -1510,7 +1510,8 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         border: 1px solid {neutral.border_subtle};
     }}
     QPushButton#collections-edit-button,
-    QPushButton#collections-organize-button {{
+    QPushButton#collections-organize-button,
+    QPushButton#collections-linked-source-button {{
         background-color: {accent.primary.background};
         color: {accent.primary.foreground};
         border: none;
@@ -1520,7 +1521,8 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         font-weight: 600;
     }}
     QPushButton#collections-edit-button:hover:enabled,
-    QPushButton#collections-organize-button:hover:enabled {{
+    QPushButton#collections-organize-button:hover:enabled,
+    QPushButton#collections-linked-source-button:hover:enabled {{
         background-color: {accent.hover.background};
         color: {accent.hover.foreground};
     }}
@@ -1860,6 +1862,65 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     QLabel#data-tools-restore-notice {{
         color: {semantic.warning.background};
         font-size: 12px;
+    }}
+
+    /* M18 Phase C6 -- Linked Source (P6, within Collection context).
+    Launched from Collections' detail-pane actions row
+    (collections-linked-source-button, already covered above); every
+    control below lives inside its own QDialog and inherits the generic
+    QDialog QLabel/QComboBox/QCheckBox/QPushButton coverage, with
+    primary-action buttons given their own accent treatment matching
+    every other M18 P6 dialog's Preview/Confirm actions. Unlink is
+    metadata-only (Collection/Entries are never touched by it), so it
+    gets the same neutral-outlined secondary treatment as
+    collections-open-in-study-button rather than the destructive-red
+    property reserved for actions that delete user content. */
+    QLabel#linked-source-status-label {{
+        color: {neutral.text_primary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#linked-source-choose-file-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#linked-source-choose-file-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QPushButton#linked-source-preview-button,
+    QPushButton#linked-source-confirm-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#linked-source-preview-button:hover:enabled,
+    QPushButton#linked-source-confirm-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#linked-source-confirm-button:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QPushButton#linked-source-unlink-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#linked-source-unlink-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
     }}
     """.strip()
 

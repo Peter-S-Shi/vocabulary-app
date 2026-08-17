@@ -28,8 +28,10 @@ from src.collections import (
     CrossCardMoveConfirmationRequired,
 )
 from src.ui_desktop.controllers.collections_controller import CollectionsController
+from src.ui_desktop.controllers.linked_source_controller import LinkedSourceController
 from src.ui_desktop.state.handoff import EntriesScopeIntent, StudyTargetIntent
 from src.ui_desktop.theming.metrics import SPACING
+from src.ui_desktop.views.linked_source_view import LinkedSourceDialog
 
 """
 Collections Navigator / Collection Context -- Minimum M17 Collection
@@ -249,6 +251,12 @@ class CollectionsView(QWidget):
         dialog = _CardOrganizationDialog(self._controller, collection, parent=self)
         dialog.exec()
 
+    def _on_linked_source(self, collection: dict) -> None:
+        linked_source_controller = LinkedSourceController()
+        linked_source_controller.open_for_collection(int(collection["id"]), str(collection.get("name") or ""))
+        dialog = LinkedSourceDialog(linked_source_controller, parent=self)
+        dialog.exec()
+
     def _on_rename_card(self, card_number: int, current_name: str) -> None:
         text, confirmed = QInputDialog.getText(self, "Rename Card", "Card name:", text=current_name)
         if not confirmed:
@@ -346,6 +354,11 @@ class CollectionsView(QWidget):
         organize_button.setObjectName("collections-organize-button")
         organize_button.clicked.connect(lambda: self._on_organize_entries(collection))
         actions_layout.addWidget(organize_button, 0)
+
+        linked_source_button = QPushButton("Linked Source…", actions_row)
+        linked_source_button.setObjectName("collections-linked-source-button")
+        linked_source_button.clicked.connect(lambda: self._on_linked_source(collection))
+        actions_layout.addWidget(linked_source_button, 0)
 
         delete_button = QPushButton("Delete", actions_row)
         delete_button.setObjectName("collections-delete-button")
