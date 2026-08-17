@@ -69,14 +69,19 @@ Design -> Implementation trace:
                              not a reinvented one) + batch actions (shown
                              only while rows are selected) + Add Entry +
                              Quick Add.
-  table                   -> QTableView + QSortFilterProxyModel for real
-                             native header-click sorting, ExtendedSelection
-                             for real multi-row selection (ctrl/shift-click)
-                             -- not Streamlit-style checkbox emulation
-                             (M17 Feature 4 prompt § 9) -- and selection is
-                             restored by id after every refresh so editing/
-                             batch actions don't silently lose the user's
-                             place.
+  table                   -> QTableView + QSortFilterProxyModel purely as
+                             the view<->source-model index-mapping adapter
+                             selection/focus/checkbox handling needs, plus
+                             ExtendedSelection for real multi-row selection
+                             (ctrl/shift-click) -- not Streamlit-style
+                             checkbox emulation (M17 Feature 4 prompt § 9)
+                             -- and selection is restored by id after every
+                             refresh so editing/batch actions don't
+                             silently lose the user's place. Native
+                             header-click sorting (`setSortingEnabled`) is
+                             deliberately never enabled -- see "Sort by"
+                             below (M17 Final Parity + Exit Verification
+                             corrective fix).
   bottom detail            -> read-only factual summary of the single
                              selected Entry (Term / Meaning & Example /
                              Collections / Reviews & Accuracy / Notes) plus
@@ -241,6 +246,23 @@ top of all of the above:
                              already keeps both correct across a resort
                              for free, since reordering never removes an
                              Entry from the visible result set.
+                             Corrective fix: the table's own
+                             `setSortingEnabled(True)` (pre-existing, M17
+                             Feature 4) wired native header-click sorting
+                             directly to `self._proxy`'s own independent
+                             sort state -- a second, parallel sort
+                             mechanism a real header click would silently
+                             let override "Sort by"'s SQL-level order
+                             (confirmed empirically: the proxy's
+                             `sortColumn()` defaults to `0` the instant
+                             `setSortingEnabled(True)` runs, not `-1`, so
+                             this was live from construction, not only
+                             after a click). Removed; the proxy is now
+                             forced to `sort(-1)` (Qt's documented "no
+                             active sort column", reverting to the source
+                             model's natural order) and stays a pure
+                             index-mapping adapter -- "Sort by" is the one
+                             sort entry point.
   EXIT-BUG-003 Result count   -> a subordinate `entries-result-count`
                              label in the same new always-visible meta
                              row as Sort by, reusing the count
@@ -284,6 +306,17 @@ class EntriesView(QWidget):
 
         self._proxy = QSortFilterProxyModel(self)
         self._proxy.setSourceModel(controller.model)
+        # EXIT-BUG-002 corrective fix: the proxy exists only as the
+        # QTableView<->source-model index-mapping adapter every
+        # selection/focus/checkbox handler below already relies on
+        # (mapToSource/mapFromSource) -- it must never become a second,
+        # independent sort authority now that "Sort by" (the meta row
+        # below) is the one real sort entry point, sorting the actual
+        # SQL result set through EntriesController. sort(-1) is Qt's
+        # documented way to force a QSortFilterProxyModel back to "no
+        # active sort column", which reverts it to the source model's
+        # natural (already-correctly-ordered) row order.
+        self._proxy.sort(-1)
 
         self._checkable_header = _CheckableHeaderView(self)
         self._checkable_header.toggled.connect(self._on_header_toggled)
@@ -295,7 +328,14 @@ class EntriesView(QWidget):
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self._table.setSortingEnabled(True)
+        # Deliberately NOT setSortingEnabled(True): that call wires the
+        # header's click-to-sort behavior directly to this proxy's own
+        # independent sort state (Qt: "setSortingEnabled(true) ... will
+        # immediately trigger a call to sortByColumn()"), which would
+        # silently start overriding "Sort by"'s real SQL-level order the
+        # first time a user clicked any column header -- exactly the
+        # parallel sorting mechanism this checkpoint's corrective fix
+        # removes. "Sort by" is the one sort entry point.
         self._table.setMouseTracking(True)
         self._table.horizontalHeader().setStretchLastSection(True)
         select_column = self._controller.model.COLUMNS.index(self._controller.model.SELECT_COLUMN)

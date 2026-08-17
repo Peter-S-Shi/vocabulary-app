@@ -307,6 +307,104 @@ class EntriesViewSortAndResultCountTests(_SyntheticDatabaseTestCase):
         view._sort_combo.setCurrentIndex(index)
         self.assertEqual([r["term"] for r in controller.model.rows()], ["alpha", "gamma"])
 
+    # Corrective fix regression tests: a prior version of this checkpoint
+    # left QTableView.setSortingEnabled(True) in place alongside the new
+    # "Sort by" combo. QSortFilterProxyModel then owned an independent
+    # sort state Qt directly wires header clicks to (and which the proxy
+    # defaults to column 0 the instant setSortingEnabled(True) runs, not
+    # column -1) -- a parallel sorting mechanism that could silently
+    # override "Sort by"'s real order. These tests check the *visible*
+    # proxy/table order, not just EntriesController.model.rows() (the
+    # source model) -- checking only the source model is exactly what let
+    # the original defect through 587/587 green.
+
+    def _visible_terms(self, view: EntriesView) -> list[str]:
+        term_column = view._controller.model.COLUMNS.index("term")
+        return [view._proxy.index(row, term_column).data() for row in range(view._proxy.rowCount())]
+
+    def test_table_native_sorting_is_disabled(self) -> None:
+        controller = EntriesController()
+        view = EntriesView(controller)
+        self.addCleanup(view.deleteLater)
+        self.assertFalse(view._table.isSortingEnabled())
+
+    def test_proxy_has_no_active_sort_column_at_construction(self) -> None:
+        add_entry("English", "Chinese", "word", "gamma", "m")
+        controller = EntriesController()
+        view = EntriesView(controller)
+        self.addCleanup(view.deleteLater)
+        view.refresh()
+        self.assertEqual(view._proxy.sortColumn(), -1)
+
+    def test_visible_table_order_follows_sort_by_not_just_the_source_model(self) -> None:
+        """The exact check the original defect's test suite was missing:
+        the user-visible proxy order, not EntriesController.model.rows()."""
+        add_entry("English", "Chinese", "word", "gamma", "m")
+        add_entry("English", "Chinese", "word", "alpha", "m")
+        add_entry("English", "Chinese", "word", "beta", "m")
+        controller = EntriesController()
+        view = EntriesView(controller)
+        self.addCleanup(view.deleteLater)
+        view.refresh()
+
+        index = [label for label, _by, _direction in SORT_OPTIONS].index("Term (A-Z)")
+        view._sort_combo.setCurrentIndex(index)
+        self.assertEqual(self._visible_terms(view), ["alpha", "beta", "gamma"])
+
+    def test_a_native_header_click_does_not_create_a_parallel_sort_order(self) -> None:
+        from PySide6.QtCore import QPoint, Qt
+        from PySide6.QtTest import QTest
+
+        add_entry("English", "Chinese", "word", "gamma", "m")
+        add_entry("English", "Chinese", "word", "alpha", "m")
+        add_entry("English", "Chinese", "word", "beta", "m")
+        controller = EntriesController()
+        view = EntriesView(controller)
+        self.addCleanup(view.deleteLater)
+        view.show()
+        view.refresh()
+        self.app.processEvents()
+
+        before = self._visible_terms(view)
+
+        header = view._table.horizontalHeader()
+        term_column = controller.model.COLUMNS.index("term")
+        x = header.sectionViewportPosition(term_column) + header.sectionSize(term_column) // 2
+        y = header.height() // 2
+        QTest.mouseClick(header.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(x, y))
+        self.app.processEvents()
+
+        self.assertEqual(view._proxy.sortColumn(), -1)
+        self.assertEqual(self._visible_terms(view), before)
+
+    def test_sort_by_correctly_reorders_the_visible_table_even_after_a_header_click_attempt(self) -> None:
+        """The precise regression scenario reported: a header click must
+        never leave the proxy "stuck" on its own order such that a later
+        Sort by change stops visibly taking effect."""
+        from PySide6.QtCore import QPoint, Qt
+        from PySide6.QtTest import QTest
+
+        add_entry("English", "Chinese", "word", "gamma", "m")
+        add_entry("English", "Chinese", "word", "alpha", "m")
+        add_entry("English", "Chinese", "word", "beta", "m")
+        controller = EntriesController()
+        view = EntriesView(controller)
+        self.addCleanup(view.deleteLater)
+        view.show()
+        view.refresh()
+        self.app.processEvents()
+
+        header = view._table.horizontalHeader()
+        term_column = controller.model.COLUMNS.index("term")
+        x = header.sectionViewportPosition(term_column) + header.sectionSize(term_column) // 2
+        y = header.height() // 2
+        QTest.mouseClick(header.viewport(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(x, y))
+        self.app.processEvents()
+
+        sort_index = [label for label, _by, _direction in SORT_OPTIONS].index("Term (A-Z)")
+        view._sort_combo.setCurrentIndex(sort_index)
+        self.assertEqual(self._visible_terms(view), ["alpha", "beta", "gamma"])
+
 
 # --- EXIT-BUG-003: Result count ---------------------------------------------
 
