@@ -1600,6 +1600,35 @@ outside Quiz (DESIGN.md § 6.4). **Native human visual acceptance PASSED
 Human Accepted (DESIGN.md § 2 Level 4), Milestone 17's fourth accepted
 feature. See the M17 Draft PR for the full acceptance record.
 
+M17 Feature 4 — Entries (`VR-ENTRIES-001`, `Entries & Collections
+Manager.pdf` p3 Variant B, parent pattern P2) is **implemented, pending
+independent review and native human visual acceptance**: replaces the
+M16.2 architecture-proof placeholder with the real Table-First workflow.
+`EntriesController` owns scope/filter/selection/editor-orchestration
+state only, calling existing `src.entries`/`src.collections`/
+`src.entry_templates`/`src.text_parser` functions for every read/write
+(`search_entries`, `create_entry_with_template`,
+`update_entry_with_template`, `delete_entries`,
+`parse_and_validate_entry_card`, `update_entry_collections`) — no SQL, no
+duplicated template validation/canonical-field-resolution/Card-history-
+reconciliation logic. `EntriesView` implements the frozen composition
+(Management Rail → Scope Pane → compact toolbar → dominant Entries Table
+→ subordinate horizontal Entry Detail): the Scope Pane surfaces All
+Entries, the three system collections, and real user Collections; the
+table uses real native multi-row selection (not checkbox emulation) with
+selection restored by id across refresh; Add/Edit use one P5 focused
+`_EntryEditorDialog` (template-locked on Edit, dynamic per-template
+fields, manual canonical Term/Meaning only when the template's mapping
+needs them); Quick Add migrates the still-live structured-text-card flow;
+Delete/batch-collection-removal always go through the existing
+`CrossCardMoveConfirmationRequired` gate (`src.collections`), never
+bypassed. One small batched core query
+(`get_collection_names_for_entries`) was added to `src/collections.py` to
+avoid an N+1 per-row query for the table's Collections column — the only
+core addition, not raw SQL in the desktop layer. Structural conformance
+and automated design guards are PASS; native visual acceptance is
+PENDING.
+
 ## Repository State
 
 - Completed M14 branch: `agent/m14-learning-analytics-insight-core`
@@ -1735,6 +1764,23 @@ feature. See the M17 Draft PR for the full acceptance record.
   -- Quiz Presentation Choice is complete and Human Accepted (DESIGN.md
   § 2 Level 4), Milestone 17's fourth accepted feature. See the M17 Draft
   PR for the full acceptance record.
+- M17 feature 4 (Entries, `VR-ENTRIES-001`, `Entries & Collections
+  Manager.pdf` p3 Variant B, parent pattern P2): replaces the M16.2
+  architecture-proof placeholder with the real Table-First Entries
+  Manager -- Scope Pane (All Entries/Starred/Mistake Book/Proficient
+  Pool/real user Collections) -> compact toolbar -> dominant real-
+  multi-selection Entries Table -> subordinate horizontal Entry Detail.
+  `EntriesController` calls only existing `src.entries`/
+  `src.collections`/`src.entry_templates`/`src.text_parser` functions
+  (`search_entries`, `create_entry_with_template`,
+  `update_entry_with_template`, `delete_entries`,
+  `parse_and_validate_entry_card`, `update_entry_collections`); Add/Edit
+  share one P5 `_EntryEditorDialog`, Quick Add's structured-text-card flow
+  is preserved, and Delete/Collection-removal always honor the existing
+  `CrossCardMoveConfirmationRequired` gate. **Implemented on
+  `agent/m17-desktop-core-workflow-migration`, pending independent review
+  and native human visual acceptance.** See the M17 Draft PR for the
+  exact reviewed head SHA.
 - Current lifecycle documents:
   - `ROADMAP.md`
   - `PROJECT_STATUS.md`
@@ -1772,14 +1818,15 @@ feature. See the M17 Draft PR for the full acceptance record.
   2026-08-16 against `311762c`, after a visual-calibration corrective pass
   and a UX-defect corrective pass); Quiz Presentation Choice (feature 3B,
   `VR-STUDY-002`, Quiz-only) is **complete and Human Accepted** (native
-  visual acceptance PASSED 2026-08-16 against `c54468e`); M17 not
-  complete.**
+  visual acceptance PASSED 2026-08-16 against `c54468e`); Entries
+  (feature 4) is **implemented, pending independent review and native
+  human visual acceptance**; M17 not complete.**
 - Exact next objective:
-  **Begin Entries (feature 4) on the M17 Draft PR (branch
-  `agent/m17-desktop-core-workflow-migration`): functional workflow
-  migration (entry browsing, filtering, add/edit behavior, template-aware
-  fields, safe editing) plus the DESIGN.md Table-First archetype. Today,
-  Review, Quiz, and Quiz Presentation Choice are all complete and Human
-  Accepted; do not mark Milestone 17 complete until Entries and the
-  remaining M17 feature sequence (minimum Collection integration, then
-  parity/exit verification) also close.**
+  **Independently review the M17 Feature 4 Entries / Table-First Manager
+  checkpoint on the M17 Draft PR (branch
+  `agent/m17-desktop-core-workflow-migration`), then obtain native human
+  visual acceptance against `VR-ENTRIES-001` (`Entries & Collections
+  Manager.pdf` p3 Variant B). Do not mark Entries or Milestone 17
+  complete, and do not begin the remaining M17 feature sequence (minimum
+  Collection integration, then parity/exit verification), until that
+  review and acceptance both close.**

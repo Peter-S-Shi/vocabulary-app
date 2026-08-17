@@ -1022,6 +1022,176 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         font-size: 14px;
         min-width: 200px;
     }}
+
+    /* Entries -- Table-First Manager (DESIGN.md § 6.2 `VR-ENTRIES-001`,
+    M17 Feature 4). Ordinary Management Mode workspace -- Management Rail
+    stays visible, no Study-mode chrome swap. */
+    QWidget#entries-scope-pane {{
+        background-color: {neutral.surface_secondary};
+        border-right: 1px solid {neutral.border_default};
+    }}
+    QPushButton#entries-scope-item {{
+        background-color: transparent;
+        border: none;
+        border-left: 3px solid transparent;
+        text-align: left;
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        padding: 6px 8px;
+        border-radius: 0px;
+    }}
+    QPushButton#entries-scope-item:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+    }}
+    QPushButton#entries-scope-item:checked {{
+        background-color: {neutral.surface_primary};
+        border-left: 3px solid {accent.primary.background};
+        color: {neutral.text_primary};
+        font-weight: 600;
+    }}
+    QLabel#entries-title {{
+        color: {neutral.text_primary};
+        font-size: 18px;
+        font-weight: 700;
+    }}
+    QLineEdit#entries-search-input {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 10px;
+        font-size: 13px;
+    }}
+    QLineEdit#entries-search-input:focus {{
+        border: 1px solid {accent.border};
+    }}
+    QComboBox#entries-language-filter, QComboBox#entries-entry-type-filter, QComboBox#entries-status-filter {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 5px 8px;
+        font-size: 13px;
+    }}
+    QPushButton#entries-batch-star-button,
+    QPushButton#entries-batch-collection-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 5px 10px;
+        font-size: 13px;
+    }}
+    QPushButton#entries-batch-star-button:hover,
+    QPushButton#entries-batch-collection-button:hover {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QPushButton#entries-batch-delete-button {{
+        background-color: {neutral.surface_primary};
+        color: {danger.background};
+        border: 1px solid {danger.background};
+        border-radius: {radius}px;
+        padding: 5px 10px;
+        font-size: 13px;
+    }}
+    QPushButton#entries-batch-delete-button:hover {{
+        background-color: {semantic.danger_soft};
+    }}
+    QPushButton#entries-quick-add-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 5px 12px;
+        font-size: 13px;
+    }}
+    QPushButton#entries-quick-add-button:hover {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QPushButton#entries-add-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 14px;
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#entries-add-button:hover {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QWidget#entries-detail {{
+        background-color: {neutral.surface_secondary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+    }}
+    QLabel#entries-detail-caption {{
+        color: {neutral.text_muted};
+        font-size: 11px;
+        font-weight: 600;
+    }}
+    QLabel#entries-detail-value {{
+        color: {neutral.text_primary};
+        font-size: 14px;
+    }}
+    QLabel#entries-detail-secondary {{
+        color: {neutral.text_secondary};
+        font-size: 12px;
+    }}
+    QPushButton#entries-detail-edit-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 16px;
+        font-size: 13px;
+    }}
+    QPushButton#entries-detail-edit-button:hover {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QLabel#entries-empty-state {{
+        color: {neutral.text_muted};
+        font-style: italic;
+    }}
+    QLabel#entries-editor-collections-heading {{
+        color: {neutral.text_secondary};
+        font-size: 12px;
+        font-weight: 600;
+    }}
+    QLabel#entries-editor-error {{
+        color: {danger.background};
+        font-size: 12px;
+    }}
+    QPushButton#entries-editor-save-button,
+    QPushButton#entries-quick-add-create-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 16px;
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#entries-editor-save-button:hover,
+    QPushButton#entries-quick-add-create-button:hover {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QDialog QPlainTextEdit {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 8px;
+    }}
     """.strip()
 
 

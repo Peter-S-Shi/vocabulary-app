@@ -229,7 +229,7 @@ class MainWindow(QMainWindow):
         elif workspace is Workspace.ENTRIES:
             widget = self.entries_view
             self._workspace_stack.setCurrentWidget(widget)
-            self.entries_controller.refresh()
+            self.entries_view.refresh()
             self._last_management_workspace = workspace
         elif workspace is Workspace.REVIEW:
             widget = self.review_view

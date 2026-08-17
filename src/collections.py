@@ -563,6 +563,36 @@ def get_collection_ids_for_entry(entry_id: int) -> list[int]:
     return [int(row["collection_id"]) for row in rows]
 
 
+def get_collection_names_for_entries(entry_ids: list[int]) -> dict[int, list[str]]:
+    """Batched counterpart to ``get_collection_ids_for_entry`` (one query
+    for many entries instead of N+1) -- added for the M17 Feature 4
+    Entries table's Collections column, which needs this for every visible
+    row (M17 Feature 4 prompt § 11: "adding a small reusable core query is
+    acceptable if a canonical Entries scope genuinely requires data that
+    no reusable API currently exposes")."""
+    unique_ids = sorted({int(entry_id) for entry_id in entry_ids})
+    if not unique_ids:
+        return {}
+
+    placeholders = ",".join("?" for _ in unique_ids)
+    with get_connection() as connection:
+        rows = connection.execute(
+            f"""
+            SELECT ec.entry_id, c.name
+            FROM entry_collections ec
+            JOIN collections c ON c.id = ec.collection_id
+            WHERE ec.entry_id IN ({placeholders})
+            ORDER BY ec.entry_id ASC, c.name ASC
+            """,
+            unique_ids,
+        ).fetchall()
+
+    names_by_entry: dict[int, list[str]] = {entry_id: [] for entry_id in unique_ids}
+    for row in rows:
+        names_by_entry[int(row["entry_id"])].append(str(row["name"]))
+    return names_by_entry
+
+
 def update_entry_collections(
     entry_id: int,
     desired_collection_ids: list[int],

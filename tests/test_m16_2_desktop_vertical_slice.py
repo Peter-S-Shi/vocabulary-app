@@ -34,7 +34,6 @@ SQLite compatibility path built on top of that architecture.
 
 if PYSIDE6_AVAILABLE:
     from src.ui_desktop.app import build_application
-    from src.ui_desktop.controllers.entries_controller import EntriesController
     from src.ui_desktop.controllers.today_controller import TodayController
     from src.ui_desktop.main_window import MainWindow
     from src.ui_desktop.qt_models.entries_table_model import EntriesTableModel
@@ -291,58 +290,6 @@ class M162TodayControllerTests(_SyntheticDatabaseTestCase):
         self.assertIn("study_cards", overview)
         self.assertIn("recommendations", overview)
         self.assertGreaterEqual(overview["study_workload"]["total_entries"], 1)
-
-
-@unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
-class M162EntriesControllerAndModelTests(_SyntheticDatabaseTestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.app = _qt_app()
-
-    def test_refresh_populates_model_from_real_reusable_core_output(self) -> None:
-        add_entry("English", "Chinese", "word", "alpha", "first meaning")
-        add_entry("French", "Chinese", "word", "beta", "deuxième sens")
-
-        controller = EntriesController()
-        row_counts: list[int] = []
-        controller.rows_changed.connect(row_counts.append)
-
-        count = controller.refresh()
-
-        self.assertEqual(count, 2)
-        self.assertEqual(row_counts, [2])
-        self.assertEqual(controller.model.rowCount(), 2)
-        terms = {controller.model.row_at(row)["term"] for row in range(controller.model.rowCount())}
-        self.assertEqual(terms, {"alpha", "beta"})
-
-    def test_search_text_filters_through_real_core_query(self) -> None:
-        add_entry("English", "Chinese", "word", "alpha", "first meaning")
-        add_entry("French", "Chinese", "word", "beta", "deuxième sens")
-
-        controller = EntriesController()
-        controller.refresh()
-        count = controller.set_search_text("alpha")
-
-        self.assertEqual(count, 1)
-        self.assertEqual(controller.model.row_at(0)["term"], "alpha")
-
-    def test_select_row_emits_selection_and_exposes_entry(self) -> None:
-        add_entry("English", "Chinese", "word", "alpha", "first meaning")
-        controller = EntriesController()
-        controller.refresh()
-
-        selections: list[object] = []
-        controller.selection_changed.connect(selections.append)
-
-        entry = controller.select_row(0)
-
-        self.assertEqual(entry["term"], "alpha")
-        self.assertIs(controller.selected_entry, entry)
-        self.assertEqual(selections, [entry])
-
-        missing = controller.select_row(99)
-        self.assertIsNone(missing)
-        self.assertIsNone(controller.selected_entry)
 
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
