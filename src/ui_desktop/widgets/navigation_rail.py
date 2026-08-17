@@ -76,8 +76,8 @@ PRIMARY_DESTINATIONS: tuple[NavDestination, ...] = (
     NavDestination("templates", "Templates", True),
     NavDestination("review_calendar", "Review Calendar", True),
     NavDestination("data_tools", "Data tools", True),
+    NavDestination("analytics", "Analytics", True),
     NavDestination("study", "Study", True),
-    NavDestination("analytics", "Analytics", False),
 )
 
 SETTINGS_DESTINATION = NavDestination("settings", "Settings", True)

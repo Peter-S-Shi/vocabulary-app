@@ -44,6 +44,7 @@ if PYSIDE6_AVAILABLE:
     from src.ui_desktop.widgets.navigation_rail import (
         PRIMARY_DESTINATIONS,
         SETTINGS_DESTINATION,
+        NavDestination,
         NavigationRail,
     )
 
@@ -73,17 +74,20 @@ class _SyntheticDatabaseTestCase(unittest.TestCase):
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
 class NavigationRailStructureTests(unittest.TestCase):
-    """`VR-SHELL-001`: only implemented destinations are functional; every
-    other approved-IA destination is still represented, honestly disabled
-    (M17 Feature 1 fresh-implementation prompt § 6/§ 9)."""
+    """`VR-SHELL-001`: only implemented destinations were functional
+    while the desktop product was still being built, with every other
+    approved-IA destination still represented but honestly disabled
+    (M17 Feature 1 fresh-implementation prompt § 6/§ 9). As of M18 Phase
+    D, every destination in the approved product IA has a real
+    workspace; the disabled-rendering mechanism itself remains covered
+    via a synthetic destination for whenever a future IA item needs it
+    again."""
 
     @classmethod
     def setUpClass(cls) -> None:
         cls.app = _qt_app()
 
-    def test_only_today_entries_collections_templates_review_calendar_data_tools_study_and_settings_are_enabled(
-        self,
-    ) -> None:
+    def test_every_approved_ia_destination_is_now_enabled(self) -> None:
         """Updated for M17 Feature 2 (Review): "study" is the rail's real
         entry point into Study Mode / Review now that real Study content
         exists, per the M17 Feature 2 prompt's "smallest shared-shell
@@ -93,10 +97,14 @@ class NavigationRailStructureTests(unittest.TestCase):
         Collection Integration: Collections now has a real minimum
         workspace (Collections Navigator), so it is enabled too. Updated
         for M18.1 Template Manager: Templates now has a real workspace
-        too. Updated for M18 Phase C1: Review Calendar now has a real
-        workspace too. Updated for M18 Phase C3: Data Tools now has a
-        real workspace too -- analytics remains the one honestly disabled
-        placeholder."""
+        too. Updated for M18 Phase C1/C3: Review Calendar and Data Tools
+        now have real workspaces too. Updated for M18 Phase D: Analytics
+        now has a real workspace too -- every destination in the approved
+        product IA (DESIGN.md § 4.1) is now enabled; the "honestly
+        disabled placeholder" mechanism itself remains real product code
+        (see the synthetic-destination tests below) for whenever a future
+        IA item is added ahead of its own workspace, but has zero live
+        instances in the shipped rail as of this checkpoint."""
         rail = NavigationRail()
         self.addCleanup(rail.deleteLater)
 
@@ -116,20 +124,26 @@ class NavigationRailStructureTests(unittest.TestCase):
                 "templates",
                 "review_calendar",
                 "data_tools",
+                "analytics",
                 "study",
                 "settings",
             },
         )
+        self.assertEqual(disabled, set())
         for key in enabled:
             self.assertTrue(rail.is_enabled_destination(key), key)
-        for key in disabled:
-            self.assertFalse(rail.is_enabled_destination(key), key)
 
-    def test_disabled_destinations_carry_an_honest_tooltip(self) -> None:
+    def test_a_disabled_destination_carries_an_honest_tooltip(self) -> None:
+        """No destination is currently disabled (see the test above); this
+        exercises the still-real disabled-rendering mechanism directly via
+        a synthetic destination, the same way `_build_button` renders any
+        real one, so the contract stays covered for whenever it is next
+        needed."""
         rail = NavigationRail()
         self.addCleanup(rail.deleteLater)
 
-        button = rail._buttons["analytics"]
+        button = rail._build_button(NavDestination("synthetic_test_destination", "Synthetic", False))
+
         self.assertFalse(button.isEnabled())
         self.assertIn("not implemented yet", button.toolTip())
 
@@ -157,17 +171,18 @@ class NavigationRailStructureTests(unittest.TestCase):
         self.assertEqual(received, ["entries"])
 
     def test_clicking_disabled_button_emits_nothing(self) -> None:
+        """No destination is currently disabled; this documents Qt's
+        guarantee that a disabled QPushButton never delivers clicked()
+        using a synthetic destination, the same way the mechanism above
+        does."""
         rail = NavigationRail()
         self.addCleanup(rail.deleteLater)
 
         received: list[str] = []
         rail.destination_activated.connect(received.append)
+        button = rail._build_button(NavDestination("synthetic_test_destination", "Synthetic", False))
 
-        # Qt does not deliver clicked() to a disabled QPushButton; this
-        # documents that guarantee rather than assuming it. "analytics"
-        # remains disabled/not-implemented (Collections gained a real
-        # minimum workspace in M17 Minimum Collection Integration).
-        rail._buttons["analytics"].click()
+        button.click()
 
         self.assertEqual(received, [])
 
@@ -188,12 +203,17 @@ class NavigationRailReliableStateTests(unittest.TestCase):
         cls.app = _qt_app()
 
     def test_disabled_destinations_get_static_disabled_object_names(self) -> None:
+        """No destination is currently disabled; this exercises the
+        still-real static-object-name mechanism via a synthetic
+        destination, the same way `NavigationRailStructureTests` above
+        does for the tooltip/click-suppression contract."""
         rail = NavigationRail()
         self.addCleanup(rail.deleteLater)
 
-        for key in ("analytics",):
-            self.assertEqual(rail._labels[key].objectName(), "nav-rail-label-disabled")
-            self.assertEqual(rail._marks[key].objectName(), "nav-rail-mark-disabled")
+        rail._build_button(NavDestination("synthetic_test_destination", "Synthetic", False))
+
+        self.assertEqual(rail._labels["synthetic_test_destination"].objectName(), "nav-rail-label-disabled")
+        self.assertEqual(rail._marks["synthetic_test_destination"].objectName(), "nav-rail-mark-disabled")
 
     def test_enabled_destinations_get_the_plain_object_names(self) -> None:
         rail = NavigationRail()
@@ -228,16 +248,20 @@ class NavigationRailReliableStateTests(unittest.TestCase):
     def test_set_active_never_touches_disabled_destinations(self) -> None:
         """Disabled destinations render statically and are never part of
         the active/normal distinction (module docstring); ``navActive``
-        is never even set on them."""
+        is never even set on them. No destination is currently disabled,
+        so this registers a synthetic one first (`set_active()` iterates
+        whatever `self._buttons` actually holds, so a button registered
+        via `_build_button()` alone -- never added to the rail's layout --
+        still exercises the same live code path)."""
         rail = NavigationRail()
         self.addCleanup(rail.deleteLater)
+        rail._build_button(NavDestination("synthetic_test_destination", "Synthetic", False))
 
         rail.set_active("today")
         rail.set_active("entries")
 
-        for key in ("analytics",):
-            self.assertIsNone(rail._labels[key].property("navActive"))
-            self.assertIsNone(rail._marks[key].property("navActive"))
+        self.assertIsNone(rail._labels["synthetic_test_destination"].property("navActive"))
+        self.assertIsNone(rail._marks["synthetic_test_destination"].property("navActive"))
 
     def test_navigation_rail_qss_no_longer_uses_the_unreliable_descendant_selectors(self) -> None:
         """Regression guard against the fixed mechanism silently coming

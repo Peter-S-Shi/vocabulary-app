@@ -1922,6 +1922,121 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {accent.soft.foreground};
         border: 1px solid {accent.border};
     }}
+
+    /* M18 Phase D -- Analytics Landing (DESIGN.md § 6.5, CANONICAL,
+    `VR-ANALYTICS-001`) + Full Findings (§ 6.6, B "P4A"). Every control
+    below lives directly in the workspace (not a QDialog except the
+    Findings table/detail, which still get their own rules for the same
+    action-hierarchy consistency every other M18 dialog already
+    follows), so each needs explicit coverage per the Human Gate 1
+    corrective lesson. */
+    QLabel#analytics-title {{
+        color: {neutral.text_primary};
+        font-size: 21px;
+        font-weight: 700;
+    }}
+    QLabel#analytics-scope-label {{
+        color: {neutral.text_muted};
+        font-size: 12px;
+    }}
+    QComboBox#analytics-scope-combo {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 4px 10px;
+        font-size: 13px;
+        min-width: 180px;
+    }}
+    QLabel#analytics-brief-heading {{
+        color: {neutral.text_primary};
+        font-size: 16px;
+        font-weight: 700;
+    }}
+    QLabel#analytics-evidence-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#analytics-empty-state {{
+        color: {neutral.text_muted};
+        font-style: italic;
+        font-size: 13px;
+    }}
+    QPushButton#analytics-full-findings-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#analytics-full-findings-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QLabel#analytics-coverage-label {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+    }}
+    QLabel#analytics-coverage-value {{
+        color: {neutral.text_primary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+
+    /* Learning Brief cards: a restrained priority-colored left border
+    only -- never a filled color badge (§ 6.5 forbids a "rainbow
+    severity dashboard"). */
+    QWidget#analytics-brief-card {{
+        background-color: {neutral.surface_primary};
+        border: 1px solid {neutral.border_default};
+        border-left: 4px solid {neutral.border_default};
+        border-radius: {radius}px;
+    }}
+    QWidget#analytics-brief-card[priority="high"] {{
+        border-left: 4px solid {danger.background};
+    }}
+    QWidget#analytics-brief-card[priority="medium"] {{
+        border-left: 4px solid {semantic.warning.background};
+    }}
+    QWidget#analytics-brief-card[priority="low"] {{
+        border-left: 4px solid {neutral.border_default};
+    }}
+    QLabel#analytics-brief-priority {{
+        color: {neutral.text_secondary};
+        font-size: 11px;
+        font-weight: 700;
+    }}
+    QLabel#analytics-brief-finding {{
+        color: {neutral.text_primary};
+        font-size: 14px;
+        font-weight: 700;
+    }}
+    QLabel#analytics-brief-scope {{
+        color: {neutral.text_muted};
+        font-size: 12px;
+    }}
+    QLabel#analytics-brief-reason {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+    }}
+    QLabel#analytics-brief-action {{
+        color: {accent.primary.background};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+
+    /* Full Findings dialog (§ 6.6 P4A). */
+    QLabel#analytics-detail-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#analytics-detail-label {{
+        color: {neutral.text_primary};
+        font-size: 13px;
+    }}
     """.strip()
 
 
