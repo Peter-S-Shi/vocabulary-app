@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.template_definitions import TemplateDefinitionError
 from src.ui_desktop.controllers.data_tools_controller import (
     EXPORT_SCOPE_LABELS,
     IMPORT_MODE_LABELS,
@@ -152,6 +153,11 @@ class DataToolsView(QWidget):
         export_button.setObjectName("data-tools-export-button")
         export_button.clicked.connect(self._on_export)
         actions.addWidget(export_button)
+
+        template_definition_button = QPushButton("Template Definitions…", self)
+        template_definition_button.setObjectName("data-tools-template-definition-button")
+        template_definition_button.clicked.connect(self._on_template_definitions)
+        actions.addWidget(template_definition_button)
         actions.addStretch(1)
         layout.addLayout(actions)
         layout.addStretch(1)
@@ -166,6 +172,11 @@ class DataToolsView(QWidget):
 
     def _on_export(self) -> None:
         dialog = _ExportDialog(self._controller, parent=self)
+        dialog.exec()
+
+    def _on_template_definitions(self) -> None:
+        self._controller.reset_template_definition_import()
+        dialog = _TemplateDefinitionDialog(self._controller, parent=self)
         dialog.exec()
 
 
@@ -613,3 +624,184 @@ class _ExportDialog(QDialog):
             return
 
         self._result_label.setText(f"Exported {len(rows)} rows to {path}.")
+
+
+class _TemplateDefinitionDialog(QDialog):
+    """P6 Template Definition portability (DESIGN.md § 7.4 "Template
+    definition import/export: B, P6"). A distinct concept from the
+    General/Template-Based/Collection Entry import above -- this moves a
+    Template's *field structure*, not Entries -- kept in its own P6
+    dialog rather than folded into `_ImportDialog`'s mode combo, since
+    the source/target object (Templates, not Entries) and the confirm
+    action's consequence (creates a new Template + Fields, never Entries)
+    are different enough to be a separate meaningful task."""
+
+    def __init__(self, controller: DataToolsController, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("data-tools-template-definition-dialog")
+        self.setWindowTitle("Template Definitions")
+        self.setMinimumSize(520, 520)
+        self._controller = controller
+
+        layout = QVBoxLayout(self)
+
+        export_heading = QLabel("Export", self)
+        export_heading.setObjectName("data-tools-section-heading")
+        layout.addWidget(export_heading)
+
+        export_form = QFormLayout()
+        self._export_template_combo = QComboBox(self)
+        for template in controller.exportable_templates():
+            self._export_template_combo.addItem(template["name"], int(template["id"]))
+        export_form.addRow("Template", self._export_template_combo)
+        layout.addLayout(export_form)
+
+        export_row = QHBoxLayout()
+        export_row.addStretch(1)
+        export_button = QPushButton("Export…", self)
+        export_button.setObjectName("data-tools-template-definition-export-button")
+        export_button.clicked.connect(self._on_export)
+        export_row.addWidget(export_button)
+        layout.addLayout(export_row)
+
+        self._export_result_label = QLabel("", self)
+        self._export_result_label.setWordWrap(True)
+        layout.addWidget(self._export_result_label)
+
+        import_heading = QLabel("Import", self)
+        import_heading.setObjectName("data-tools-section-heading")
+        layout.addWidget(import_heading)
+
+        file_row = QHBoxLayout()
+        self._import_file_label = QLabel("No file selected.", self)
+        file_row.addWidget(self._import_file_label, 1)
+        choose_button = QPushButton("Choose File…", self)
+        choose_button.clicked.connect(self._on_choose_file)
+        file_row.addWidget(choose_button, 0)
+        layout.addLayout(file_row)
+
+        preview_row = QHBoxLayout()
+        preview_row.addStretch(1)
+        self._preview_button = QPushButton("Preview Import", self)
+        self._preview_button.setObjectName("data-tools-template-definition-preview-button")
+        self._preview_button.clicked.connect(self._on_preview)
+        preview_row.addWidget(self._preview_button)
+        layout.addLayout(preview_row)
+
+        self._preview_summary_label = QLabel("", self)
+        self._preview_summary_label.setObjectName("data-tools-summary-label")
+        self._preview_summary_label.setWordWrap(True)
+        layout.addWidget(self._preview_summary_label)
+
+        self._preview_errors_label = QLabel("", self)
+        self._preview_errors_label.setObjectName("data-tools-preview-error")
+        self._preview_errors_label.setWordWrap(True)
+        layout.addWidget(self._preview_errors_label)
+
+        self._confirm_checkbox = QCheckBox("I understand this will create a new Template and its Fields.", self)
+        self._confirm_checkbox.toggled.connect(self._update_confirm_enabled)
+        layout.addWidget(self._confirm_checkbox)
+
+        confirm_row = QHBoxLayout()
+        confirm_row.addStretch(1)
+        self._confirm_button = QPushButton("Confirm Import", self)
+        self._confirm_button.setObjectName("data-tools-template-definition-confirm-button")
+        self._confirm_button.setEnabled(False)
+        self._confirm_button.clicked.connect(self._on_confirm)
+        confirm_row.addWidget(self._confirm_button)
+        layout.addLayout(confirm_row)
+
+        self._import_result_label = QLabel("", self)
+        self._import_result_label.setObjectName("data-tools-result-label")
+        self._import_result_label.setWordWrap(True)
+        layout.addWidget(self._import_result_label)
+
+        layout.addStretch(1)
+
+        close_row = QHBoxLayout()
+        close_row.addStretch(1)
+        close_button = QPushButton("Close", self)
+        close_button.clicked.connect(self.accept)
+        close_row.addWidget(close_button)
+        layout.addLayout(close_row)
+
+        controller.template_definition_state_changed.connect(self._reload)
+        self._reload()
+
+    def _on_export(self) -> None:
+        template_id = self._export_template_combo.currentData()
+        if template_id is None:
+            return
+        template_name = self._export_template_combo.currentText()
+        try:
+            data = self._controller.export_template_definition(int(template_id))
+        except TemplateDefinitionError as error:
+            self._export_result_label.setText(str(error))
+            return
+        default_name = self._controller.template_definition_export_filename(template_name)
+        path, _filter = QFileDialog.getSaveFileName(self, "Export Template Definition", default_name, "CSV Files (*.csv)")
+        if not path:
+            return
+        try:
+            with open(path, "wb") as handle:
+                handle.write(data)
+        except OSError as error:
+            QMessageBox.warning(self, "Export Template Definition", f"Could not write this file: {error}")
+            return
+        self._export_result_label.setText(f"Exported to {path}.")
+
+    def _on_choose_file(self) -> None:
+        path, _filter = QFileDialog.getOpenFileName(self, "Choose a Template Definition CSV file", "", "CSV Files (*.csv)")
+        if not path:
+            return
+        try:
+            with open(path, "rb") as handle:
+                file_bytes = handle.read()
+        except OSError as error:
+            QMessageBox.warning(self, "Choose File", f"Could not read this file: {error}")
+            return
+        self._controller.load_template_definition_file(file_bytes, os.path.basename(path))
+
+    def _on_preview(self) -> None:
+        if self._controller.template_definition_file_bytes is None:
+            self._preview_errors_label.setText("Choose a file first.")
+            return
+        self._controller.run_template_definition_preview()
+
+    def _reload(self) -> None:
+        controller = self._controller
+        self._import_file_label.setText(controller.template_definition_filename or "No file selected.")
+
+        preview = controller.template_definition_preview
+        if preview is None:
+            self._preview_summary_label.setText("")
+            self._preview_errors_label.setText("")
+        else:
+            template = preview.get("template") or {}
+            self._preview_summary_label.setText(
+                f"Template: {template.get('name') or '(unknown)'} · "
+                f"Fields: {len(preview.get('fields') or [])} · "
+                f"{'Ready to import' if preview['can_import'] else 'Cannot import'}"
+            )
+            self._preview_errors_label.setText("; ".join(preview.get("errors") or []))
+
+        if controller.template_definition_result is not None:
+            result = controller.template_definition_result
+            self._import_result_label.setText(
+                f"Imported Template '{result['template']['name']}' with {result['field_count']} Fields."
+            )
+        else:
+            self._import_result_label.setText("")
+
+        self._update_confirm_enabled()
+
+    def _update_confirm_enabled(self) -> None:
+        self._confirm_button.setEnabled(
+            self._controller.can_confirm_template_definition_import() and self._confirm_checkbox.isChecked()
+        )
+
+    def _on_confirm(self) -> None:
+        try:
+            self._controller.confirm_template_definition_import()
+        except TemplateDefinitionError as error:
+            self._import_result_label.setText(str(error))

@@ -1792,7 +1792,8 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         font-size: 13px;
     }}
     QPushButton#data-tools-import-button,
-    QPushButton#data-tools-export-button {{
+    QPushButton#data-tools-export-button,
+    QPushButton#data-tools-template-definition-button {{
         background-color: {accent.primary.background};
         color: {accent.primary.foreground};
         border: none;
@@ -1802,13 +1803,17 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         font-weight: 600;
     }}
     QPushButton#data-tools-import-button:hover:enabled,
-    QPushButton#data-tools-export-button:hover:enabled {{
+    QPushButton#data-tools-export-button:hover:enabled,
+    QPushButton#data-tools-template-definition-button:hover:enabled {{
         background-color: {accent.hover.background};
         color: {accent.hover.foreground};
     }}
     QPushButton#data-tools-preview-button,
     QPushButton#data-tools-confirm-import-button,
-    QPushButton#data-tools-export-confirm-button {{
+    QPushButton#data-tools-export-confirm-button,
+    QPushButton#data-tools-template-definition-export-button,
+    QPushButton#data-tools-template-definition-preview-button,
+    QPushButton#data-tools-template-definition-confirm-button {{
         background-color: {accent.primary.background};
         color: {accent.primary.foreground};
         border: none;
@@ -1817,11 +1822,15 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     }}
     QPushButton#data-tools-preview-button:hover:enabled,
     QPushButton#data-tools-confirm-import-button:hover:enabled,
-    QPushButton#data-tools-export-confirm-button:hover:enabled {{
+    QPushButton#data-tools-export-confirm-button:hover:enabled,
+    QPushButton#data-tools-template-definition-export-button:hover:enabled,
+    QPushButton#data-tools-template-definition-preview-button:hover:enabled,
+    QPushButton#data-tools-template-definition-confirm-button:hover:enabled {{
         background-color: {accent.hover.background};
         color: {accent.hover.foreground};
     }}
-    QPushButton#data-tools-confirm-import-button:disabled {{
+    QPushButton#data-tools-confirm-import-button:disabled,
+    QPushButton#data-tools-template-definition-confirm-button:disabled {{
         background-color: {neutral.surface_secondary};
         color: {neutral.text_disabled};
         border: 1px solid {neutral.border_subtle};

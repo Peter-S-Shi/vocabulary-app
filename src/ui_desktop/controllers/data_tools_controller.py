@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QObject, Signal
 
+from src.entry_templates import get_entry_templates
 from src.import_export import (
     ImportPreviewError,
     build_export_filename,
@@ -18,6 +19,13 @@ from src.import_export import (
     import_template_entry_rows,
     rows_to_csv_bytes,
     rows_to_xlsx_bytes,
+    sanitize_filename_component,
+)
+from src.template_definitions import (
+    TemplateDefinitionError,
+    export_template_definition_csv,
+    import_template_definition_csv,
+    preview_template_definition_csv,
 )
 
 """
@@ -54,11 +62,13 @@ EXPORT_SCOPE_LABELS: tuple[tuple[str, str], ...] = (
 class DataToolsController(QObject):
     import_state_changed = Signal()
     export_collections_changed = Signal()
+    template_definition_state_changed = Signal()
 
     def __init__(self) -> None:
         super().__init__()
         self.reset_import()
         self.export_collections: list[dict] = []
+        self.reset_template_definition_import()
 
     # -- Import --------------------------------------------------------
 
@@ -212,3 +222,61 @@ class DataToolsController(QObject):
 
     def export_filename(self, scope: str, label: str, file_format: str) -> str:
         return build_export_filename(scope, label, file_format)
+
+    # -- Template Definition import/export (M18 Phase C4) ------------------
+    # A distinct portability concept from Entry import above: this moves a
+    # Template's *field structure*, not Entries. Delegates entirely to
+    # src.template_definitions -- no SQL, no second Template-creation path.
+
+    def exportable_templates(self) -> list[dict]:
+        return get_entry_templates()
+
+    def export_template_definition(self, template_id: int) -> bytes:
+        """May raise ``TemplateDefinitionError`` (template not found, or
+        has no fields)."""
+        return export_template_definition_csv(template_id)
+
+    def template_definition_export_filename(self, template_name: str) -> str:
+        safe_name = sanitize_filename_component(template_name)
+        return f"{safe_name}_template_definition.csv"
+
+    def reset_template_definition_import(self) -> None:
+        self.template_definition_file_bytes: bytes | None = None
+        self.template_definition_filename: str = ""
+        self.template_definition_preview: dict | None = None
+        self.template_definition_result: dict | None = None
+        self.template_definition_error: str | None = None
+        self.template_definition_state_changed.emit()
+
+    def load_template_definition_file(self, file_bytes: bytes, filename: str) -> None:
+        """Only clears file-derived state, matching ``load_file()``'s
+        fix above -- there is no other persistent choice to preserve
+        here, but the same principle applies."""
+        self.template_definition_file_bytes = file_bytes
+        self.template_definition_filename = filename
+        self.template_definition_preview = None
+        self.template_definition_result = None
+        self.template_definition_error = None
+        self.template_definition_state_changed.emit()
+
+    def run_template_definition_preview(self) -> None:
+        if self.template_definition_file_bytes is None:
+            return
+        self.template_definition_preview = preview_template_definition_csv(self.template_definition_file_bytes)
+        self.template_definition_result = None
+        self.template_definition_state_changed.emit()
+
+    def can_confirm_template_definition_import(self) -> bool:
+        return (
+            bool(self.template_definition_preview and self.template_definition_preview["can_import"])
+            and self.template_definition_result is None
+        )
+
+    def confirm_template_definition_import(self) -> dict:
+        """May raise ``TemplateDefinitionError``."""
+        if not self.can_confirm_template_definition_import():
+            raise TemplateDefinitionError("Preview a valid Template Definition file before confirming.")
+        result = import_template_definition_csv(self.template_definition_file_bytes)
+        self.template_definition_result = result
+        self.template_definition_state_changed.emit()
+        return result
