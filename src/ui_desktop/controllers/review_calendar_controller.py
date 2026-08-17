@@ -59,9 +59,16 @@ class ReviewCalendarController(QObject):
         start_date = end_date - timedelta(days=self.range_days)
         with get_connection() as connection:
             self.entries = get_card_learning_sessions_between_dates(connection, start_date, end_date)
+        # The primary evidence table is a chronological *event* log, not a
+        # list of stable entities -- multiple rows can share the same
+        # (collection_id, card_number), so "the row that was selected" has
+        # no well-defined match after entries reload. Always clear
+        # selection here rather than trying to preserve it (independent
+        # review finding: the view's table previously left a stale
+        # row-index visually "selected" with detail data from whichever
+        # different entry now occupied that index after a refresh).
+        self.clear_selection()
         self.entries_changed.emit()
-        if self.selected_collection_id is not None and self.selected_card_number is not None:
-            self._reload_selection()
 
     def set_range_days(self, days: int) -> None:
         if days == self.range_days:

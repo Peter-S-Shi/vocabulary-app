@@ -137,6 +137,24 @@ class ReviewCalendarControllerTests(_SyntheticDatabaseTestCase):
         self.assertEqual(controller.card_history, [])
         self.assertEqual(controller.legacy_logs, [])
 
+    def test_refresh_clears_selection(self) -> None:
+        """Regression for an independent-review finding on this
+        checkpoint: refresh() (e.g. from a range-preset change) must
+        clear selection outright rather than trying to preserve it --
+        this evidence surface is an event log, not a stable-entity list,
+        so a stale row index could otherwise show detail from a
+        different completion than the one now visually highlighted."""
+        collection_id, _entry_id = self._make_completed_card("Fruits", "pomme", "apple")
+        controller = ReviewCalendarController()
+        controller.refresh()
+        controller.select_card(collection_id, 1, "Fruits")
+        self.assertIsNotNone(controller.selected_collection_id)
+
+        controller.refresh()
+
+        self.assertIsNone(controller.selected_collection_id)
+        self.assertEqual(controller.card_history, [])
+
     def test_set_range_days_reloads_entries(self) -> None:
         self._make_completed_card("Weather", "pluie", "rain")
         controller = ReviewCalendarController()
@@ -183,6 +201,27 @@ class ReviewCalendarViewStructureTests(_SyntheticDatabaseTestCase):
 
         self.assertEqual(view._history_table.rowCount(), 1)
         self.assertIn("Shapes", view._detail_summary.text())
+
+    def test_row_selection_and_detail_do_not_go_stale_after_a_range_change(self) -> None:
+        """Regression for an independent-review finding: selecting row 0
+        then triggering a refresh (range-preset change) must not leave
+        row 0 visually highlighted with detail data left over from a
+        completion that may no longer even be at that index."""
+        self._make_completed_card("Fruits", "pomme", "apple")
+        controller = ReviewCalendarController()
+        view = ReviewCalendarView(controller)
+        self.addCleanup(view.deleteLater)
+        view.refresh()
+        view._table.selectRow(0)
+        self.assertIn("Fruits", view._detail_summary.text())
+
+        self._make_completed_card("Colors", "rouge", "red")
+        controller.refresh()
+
+        self.assertEqual(len(view._table.selectedItems()), 0)
+        self.assertEqual(
+            view._detail_summary.text(), "Select a completion above to see its Card's full history."
+        )
 
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")

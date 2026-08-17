@@ -171,20 +171,39 @@ class ReviewCalendarView(QWidget):
         self._controller.refresh()
 
     def _render_table(self) -> None:
-        entries = self._controller.entries
-        self._table.setRowCount(len(entries))
-        for row, entry in enumerate(entries):
-            self._table.setItem(row, 0, QTableWidgetItem(str(entry.get("completed_at") or "")))
-            self._table.setItem(row, 1, QTableWidgetItem(str(entry.get("collection_name") or "")))
-            self._table.setItem(row, 2, QTableWidgetItem(f"#{entry.get('card_number')}"))
-            self._table.setItem(row, 3, QTableWidgetItem(str(entry.get("quiz_type") or "")))
-            self._table.setItem(row, 4, QTableWidgetItem(str(int(entry.get("correct_count") or 0))))
-            self._table.setItem(row, 5, QTableWidgetItem(str(int(entry.get("wrong_count") or 0))))
-            item = self._table.item(row, 0)
-            item.setData(Qt.ItemDataRole.UserRole, (int(entry["collection_id"]), int(entry["card_number"])))
-            item.setData(Qt.ItemDataRole.UserRole + 1, str(entry.get("collection_name") or ""))
-        if not entries:
-            self._controller.clear_selection()
+        # ReviewCalendarController.refresh() already clears selection
+        # state before emitting entries_changed (unlike Templates' stable-
+        # id table, this primary evidence surface is a chronological
+        # *event* log where "the same row identity" is not well-defined
+        # across a refresh -- an independent review finding on this
+        # checkpoint). Rebuilding the table's rows/selection must happen
+        # with signals blocked: `clearSelection()` fires
+        # `itemSelectionChanged` synchronously, and `_on_row_selected()`
+        # reads `currentRow()` (Qt's *current-index* concept, which
+        # `clearSelection()` alone does not reset) -- unblocked, that
+        # handler would re-read whatever old row data is still sitting at
+        # that index and immediately re-select it, undoing the clear
+        # (caught by this checkpoint's own regression test before it ever
+        # shipped).
+        self._table.blockSignals(True)
+        try:
+            self._table.clearSelection()
+            self._table.setCurrentCell(-1, -1)
+
+            entries = self._controller.entries
+            self._table.setRowCount(len(entries))
+            for row, entry in enumerate(entries):
+                self._table.setItem(row, 0, QTableWidgetItem(str(entry.get("completed_at") or "")))
+                self._table.setItem(row, 1, QTableWidgetItem(str(entry.get("collection_name") or "")))
+                self._table.setItem(row, 2, QTableWidgetItem(f"#{entry.get('card_number')}"))
+                self._table.setItem(row, 3, QTableWidgetItem(str(entry.get("quiz_type") or "")))
+                self._table.setItem(row, 4, QTableWidgetItem(str(int(entry.get("correct_count") or 0))))
+                self._table.setItem(row, 5, QTableWidgetItem(str(int(entry.get("wrong_count") or 0))))
+                item = self._table.item(row, 0)
+                item.setData(Qt.ItemDataRole.UserRole, (int(entry["collection_id"]), int(entry["card_number"])))
+                item.setData(Qt.ItemDataRole.UserRole + 1, str(entry.get("collection_name") or ""))
+        finally:
+            self._table.blockSignals(False)
 
     def _on_range_changed(self, index: int) -> None:
         days = self._range_combo.itemData(index)
