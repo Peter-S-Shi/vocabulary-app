@@ -394,12 +394,20 @@ class _ImportDialog(QDialog):
         self._controller.run_preview()
 
     def _reload_target_collections(self) -> None:
+        """Rebuilds the combo (independent-review finding: a Collection
+        created via "Create new Collection" import must become choosable
+        in the same dialog session, not just after reopening it) while
+        restoring the controller's current selection by id -- rebuilding
+        on every _reload() must never silently reset the user's already-
+        made destination choice back to "None"."""
         collections = self._controller.import_target_collections()
         self._target_collection_combo.blockSignals(True)
         self._target_collection_combo.clear()
         self._target_collection_combo.addItem("None", None)
         for collection in collections:
             self._target_collection_combo.addItem(collection["name"], int(collection["id"]))
+        index = self._target_collection_combo.findData(self._controller.target_collection_id)
+        self._target_collection_combo.setCurrentIndex(index if index >= 0 else 0)
         self._target_collection_combo.blockSignals(False)
 
     def _update_destination_visibility(self) -> None:
@@ -446,6 +454,18 @@ class _ImportDialog(QDialog):
 
     def _reload(self) -> None:
         controller = self._controller
+
+        # Independent-review finding: the confirmation checkbox must
+        # require fresh acknowledgment for every state change this method
+        # reacts to (new file, new mode, a fresh preview, or a just-
+        # completed import) -- every trigger of import_state_changed
+        # means whatever Confirm would now do has changed since the
+        # checkbox was last ticked. Left checked, a user could re-click
+        # Confirm Import against a new file/mode with no genuine
+        # per-batch consent (with duplicate_handling="import_anyway", a
+        # second confirm on the same data creates duplicate Entries).
+        self._confirm_checkbox.setChecked(False)
+        self._reload_target_collections()
 
         self._file_label.setText(controller.filename or "No file selected.")
         has_multiple_sheets = len(controller.sheet_names) > 1
@@ -597,7 +617,15 @@ class _ExportDialog(QDialog):
             if collection_id is None:
                 self._result_label.setText("Choose a Collection to export.")
                 return
-            label = self._collection_combo.currentText().split(" (")[0]
+            # Independent-review finding: the combo's display text is
+            # "<name> (<n> entries)" -- naively splitting on " (" silently
+            # truncated any Collection name that itself legitimately
+            # contains that substring (e.g. "Everyday Words (French)").
+            # Look the real name up by id instead of parsing display text.
+            collection = next(
+                (c for c in self._controller.export_collections if int(c["id"]) == int(collection_id)), None
+            )
+            label = str(collection["name"]) if collection else self._collection_combo.currentText()
             filename_scope = "collection"
         elif scope == "summary":
             label = "summary"

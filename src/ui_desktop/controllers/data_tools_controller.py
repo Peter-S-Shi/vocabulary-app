@@ -103,13 +103,24 @@ class DataToolsController(QObject):
         self.filename = filename
         self.sheet_names = []
         self.selected_sheet = None
-        if detect_file_type(filename) == "xlsx":
-            self.sheet_names = get_xlsx_sheet_names(file_bytes)
-            self.selected_sheet = self.sheet_names[0] if self.sheet_names else None
         self.preview = None
-        self.preview_error = None
         self.import_result = None
         self.import_error = None
+        # Independent-review finding: get_xlsx_sheet_names() can raise
+        # ImportPreviewError for a malformed/corrupted/misnamed .xlsx file
+        # -- unlike run_preview() below, this used to propagate the
+        # exception straight out of the "Choose File" click handler
+        # instead of surfacing a controlled inline error the same way an
+        # equally-malformed file does during Preview.
+        if detect_file_type(filename) == "xlsx":
+            try:
+                self.sheet_names = get_xlsx_sheet_names(file_bytes)
+                self.selected_sheet = self.sheet_names[0] if self.sheet_names else None
+                self.preview_error = None
+            except ImportPreviewError as error:
+                self.preview_error = str(error)
+        else:
+            self.preview_error = None
         self.import_state_changed.emit()
 
     def set_mode(self, mode: str) -> None:
@@ -245,7 +256,6 @@ class DataToolsController(QObject):
         self.template_definition_filename: str = ""
         self.template_definition_preview: dict | None = None
         self.template_definition_result: dict | None = None
-        self.template_definition_error: str | None = None
         self.template_definition_state_changed.emit()
 
     def load_template_definition_file(self, file_bytes: bytes, filename: str) -> None:
@@ -256,7 +266,6 @@ class DataToolsController(QObject):
         self.template_definition_filename = filename
         self.template_definition_preview = None
         self.template_definition_result = None
-        self.template_definition_error = None
         self.template_definition_state_changed.emit()
 
     def run_template_definition_preview(self) -> None:

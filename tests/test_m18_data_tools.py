@@ -4,6 +4,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -39,7 +40,7 @@ if PYSIDE6_AVAILABLE:
     from src.ui_desktop.controllers.data_tools_controller import DataToolsController
     from src.ui_desktop.theming.theme_manager import build_stylesheet
     from src.ui_desktop.theming.tokens import THEME_CALM_BLUE_DARK, THEME_CALM_BLUE_LIGHT
-    from src.ui_desktop.views.data_tools_view import DataToolsView, _ImportDialog
+    from src.ui_desktop.views.data_tools_view import DataToolsView, _ExportDialog, _ImportDialog
     from src.ui_desktop.widgets.navigation_rail import NavigationRail
 
     def _qt_app() -> QApplication:
@@ -314,6 +315,106 @@ class DataToolsViewStructureTests(_SyntheticDatabaseTestCase):
         view = DataToolsView(controller)
         self.addCleanup(view.deleteLater)
         view.refresh()  # must not raise
+
+    def test_confirm_checkbox_resets_after_a_successful_import(self) -> None:
+        """Independent-review finding: a checked confirmation checkbox
+        must never silently survive a state change that changes what
+        Confirm would now do -- otherwise re-previewing/re-loading a file
+        could re-arm Confirm Import with no fresh per-batch consent."""
+        controller = DataToolsController()
+        controller.set_duplicate_handling("import_anyway")
+        dialog = _ImportDialog(controller, parent=None)
+        self.addCleanup(dialog.deleteLater)
+        controller.load_file(GENERAL_CSV, "entries.csv")
+        controller.run_preview()
+        dialog._confirm_checkbox.setChecked(True)
+        dialog._on_confirm()
+        self.assertEqual(len(search_entries()), 1)
+
+        controller.load_file(GENERAL_CSV, "entries.csv")
+        controller.run_preview()
+
+        self.assertFalse(dialog._confirm_checkbox.isChecked())
+        self.assertFalse(dialog._confirm_button.isEnabled())
+
+    def test_choosing_a_malformed_xlsx_file_shows_a_controlled_error(self) -> None:
+        """Independent-review finding: get_xlsx_sheet_names() can raise
+        ImportPreviewError for a corrupted/misnamed .xlsx file; this must
+        surface as a normal inline error, not an uncaught exception out
+        of the Choose File handler."""
+        controller = DataToolsController()
+
+        controller.load_file(b"not a real xlsx workbook", "broken.xlsx")
+
+        self.assertIsNotNone(controller.preview_error)
+        self.assertEqual(controller.sheet_names, [])
+
+    def test_target_collection_selection_survives_a_reload(self) -> None:
+        """Independent-review finding: _reload_target_collections() must
+        restore the controller's current selection by id, not silently
+        reset the combo to "None" every time _reload() runs."""
+        collection_id = create_collection("Fruits", "", card_size=8)
+        controller = DataToolsController()
+        dialog = _ImportDialog(controller, parent=None)
+        self.addCleanup(dialog.deleteLater)
+        index = dialog._target_collection_combo.findData(collection_id)
+        dialog._target_collection_combo.setCurrentIndex(index)
+
+        controller.load_file(GENERAL_CSV, "entries.csv")
+        controller.run_preview()
+
+        self.assertEqual(dialog._target_collection_combo.currentData(), collection_id)
+
+    def test_a_newly_created_collection_appears_in_the_target_combo_without_reopening(self) -> None:
+        """Independent-review finding: a Collection created via "Create
+        new Collection" import must become selectable in the same dialog
+        session."""
+        controller = DataToolsController()
+        controller.set_mode("collection")
+        dialog = _ImportDialog(controller, parent=None)
+        self.addCleanup(dialog.deleteLater)
+        controller.load_file(GENERAL_CSV, "entries.csv")
+        controller.set_collection_import_mode("create_new_collection")
+        controller.set_new_collection_fields("Freshly Created", "", 8)
+        controller.run_preview()
+        result = controller.confirm_import()
+
+        names = {
+            dialog._target_collection_combo.itemText(i) for i in range(dialog._target_collection_combo.count())
+        }
+        self.assertIn("Freshly Created", names)
+        self.assertTrue(result["created_collection"])
+
+
+@unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
+class ExportDialogFilenameTests(_SyntheticDatabaseTestCase):
+    """Independent-review finding: the export filename label must come
+    from the real Collection name, not a naive split of combo display
+    text (which truncates any name containing " (")."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _qt_app()
+
+    def test_collection_name_containing_the_split_substring_is_not_truncated(self) -> None:
+        create_collection("Everyday Words (French)", "", card_size=8)
+        controller = DataToolsController()
+        dialog = _ExportDialog(controller, parent=None)
+        self.addCleanup(dialog.deleteLater)
+
+        collection_index = 1  # index 0 in EXPORT_SCOPE_LABELS is "all"; select "collection"
+        dialog._scope_combo.setCurrentIndex(collection_index)
+        target_index = dialog._collection_combo.findText("Everyday Words (French) (0 entries)")
+        self.assertGreaterEqual(target_index, 0)
+        dialog._collection_combo.setCurrentIndex(target_index)
+
+        with patch("src.ui_desktop.views.data_tools_view.QFileDialog.getSaveFileName", return_value=("", "")) as mock_save:
+            dialog._on_export()
+
+        default_name = mock_save.call_args.args[2]
+        # A pre-fix naive `.split(" (")[0]` would drop "(French)" entirely,
+        # sanitizing to "everyday_words" -- "french" must still appear.
+        self.assertIn("french", default_name.lower())
 
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
