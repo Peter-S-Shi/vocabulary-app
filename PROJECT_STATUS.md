@@ -1578,8 +1578,8 @@ passes: a typography/spacing visual-calibration pass against
 clipping (a QScrollArea/box-layout heightForWidth negotiation
 imprecision), Matching wheel-scroll/selection-rebuild instability, and
 Review Mistakes routing (`311762c`). Milestone 17 is not complete: M17
-Feature 3B (`VR-STUDY-002` Quiz presentation choice) is in progress; see
-below.
+Feature 3B (`VR-STUDY-002` Quiz presentation choice) is complete and
+Human Accepted; see below.
 
 M17 Feature 3B — Quiz Presentation Choice (`VR-STUDY-002`, Quiz-only) adds
 a second, optional Quiz presentation, Flip Card + Filmstrip
@@ -1595,8 +1595,10 @@ regardless of the preference (a compatibility fallback that never alters
 the saved preference). Completion and mistake review remain the single
 shared Immersive-styled surfaces for both presentations — one Quiz
 engine, two presentations. `VR-STUDY-002` explicitly does not propagate
-outside Quiz (DESIGN.md § 6.4). Structural conformance and automated
-design guards are PASS; native visual acceptance is PENDING.
+outside Quiz (DESIGN.md § 6.4). **Native human visual acceptance PASSED
+2026-08-16 at head `c54468e`** — Quiz Presentation Choice is complete and
+Human Accepted (DESIGN.md § 2 Level 4), Milestone 17's fourth accepted
+feature. See the M17 Draft PR for the full acceptance record.
 
 ## Repository State
 
@@ -1729,9 +1731,10 @@ design guards are PASS; native visual acceptance is PENDING.
   `quiz_presentation`; `SettingsController`/`SettingsView`, P8 Settings
   Form). Both presentations share the same `QuizController`; Matching
   always falls back to the existing Immersive Matching presentation.
-  **Implemented on `agent/m17-desktop-core-workflow-migration`, pending
-  independent review and native human visual acceptance.** See the M17
-  Draft PR for the exact reviewed head SHA.
+  **Native human visual acceptance PASSED 2026-08-16 at head `c54468e`**
+  -- Quiz Presentation Choice is complete and Human Accepted (DESIGN.md
+  § 2 Level 4), Milestone 17's fourth accepted feature. See the M17 Draft
+  PR for the full acceptance record.
 - Current lifecycle documents:
   - `ROADMAP.md`
   - `PROJECT_STATUS.md`
@@ -1768,15 +1771,15 @@ design guards are PASS; native visual acceptance is PENDING.
   **complete and Human Accepted** (native visual acceptance PASSED
   2026-08-16 against `311762c`, after a visual-calibration corrective pass
   and a UX-defect corrective pass); Quiz Presentation Choice (feature 3B,
-  `VR-STUDY-002`, Quiz-only) is **implemented, pending independent review
-  and native human visual acceptance**; M17 not complete.**
+  `VR-STUDY-002`, Quiz-only) is **complete and Human Accepted** (native
+  visual acceptance PASSED 2026-08-16 against `c54468e`); M17 not
+  complete.**
 - Exact next objective:
-  **Independently review the M17 Feature 3B Quiz Presentation Choice
-  checkpoint on the M17 Draft PR (branch
-  `agent/m17-desktop-core-workflow-migration`), then obtain native human
-  visual acceptance against `VR-STUDY-002` (`Review - Quiz.pdf` p5 Variant
-  D) for the new Flip Card + Filmstrip Quiz presentation, confirming
-  Immersive Focus is unaffected, Matching correctly falls back, the
-  Settings preference persists across a restart, and Review has not
-  adopted Flip Card / Filmstrip. Do not mark Milestone 17 complete, and do
-  not begin Entries (feature 4), until this closes.**
+  **Begin Entries (feature 4) on the M17 Draft PR (branch
+  `agent/m17-desktop-core-workflow-migration`): functional workflow
+  migration (entry browsing, filtering, add/edit behavior, template-aware
+  fields, safe editing) plus the DESIGN.md Table-First archetype. Today,
+  Review, Quiz, and Quiz Presentation Choice are all complete and Human
+  Accepted; do not mark Milestone 17 complete until Entries and the
+  remaining M17 feature sequence (minimum Collection integration, then
+  parity/exit verification) also close.**

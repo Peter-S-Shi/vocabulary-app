@@ -154,10 +154,11 @@ complete and Human Accepted at native visual acceptance** (PASS recorded
 typography/spacing visual-calibration corrective pass and a UX-defect
 corrective pass). **Quiz Presentation Choice (Feature 3B) — an optional
 Flip Card + Filmstrip Quiz presentation against `VR-STUDY-002`, explicitly
-scoped to Quiz only — is implemented on the same branch and pending
-independent review and native human visual acceptance.** Milestone 17
-overall is not complete. See § Milestone 17 below for the operating
-model, the reset history, and the current feature-sequence position.
+scoped to Quiz only — is also complete and Human Accepted at native
+visual acceptance** (PASS recorded 2026-08-16 against `c54468e`).
+Milestone 17 overall is not complete: Entries (feature 4) has not yet
+started. See § Milestone 17 below for the operating model, the reset
+history, and the current feature-sequence position.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -1006,9 +1007,9 @@ DESIGN.md archetype = `VR-STUDY-002` Flip Card + Filmstrip
 (DESIGN.md § 6.4) -- it does not propagate to Review, Today, Entries,
 Collections, Analytics, or Management Mode.
 
-**Status: implemented on `agent/m17-desktop-core-workflow-migration`,
-pending independent review and native human visual acceptance** against
-`VR-STUDY-002`. One durable preference (`quiz_presentation`,
+**Status: complete and Human Accepted.** Native human visual acceptance
+PASSED 2026-08-16 at head `c54468e`, against `VR-STUDY-002`. One durable
+preference (`quiz_presentation`,
 `state/preferences.py`, never `vocab.db`; default `immersive_focus`) is
 set from a new minimum Settings vertical slice (Settings → Quiz → Quiz
 presentation -- the P8 Settings Form pattern, DESIGN.md § 8) and resolved
@@ -1023,8 +1024,7 @@ wider Immersive Matching presentation regardless of the saved preference
 (a genuinely simultaneous whole-set interaction, not a linear one), and
 this fallback never alters the saved preference. Completion and the
 read-only mistake review remain the single shared Immersive-styled
-surfaces for both presentations. Do not mark Milestone 17 complete until
-independent review and native visual acceptance close.
+surfaces for both presentations.
 
 #### Entries
 
