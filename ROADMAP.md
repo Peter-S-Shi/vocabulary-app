@@ -207,10 +207,16 @@ native visual acceptance PASSED 2026-08-17 against head
 corrective passes (Light Mode contrast root-cause fix across every new
 M18 control, a discoverable "Open Template" affordance replacing an
 undocumented double-click gesture, and a Templates-table
-selection-by-id integrity fix). See § Milestone 18 below for the
-operating model and per-checkpoint acceptance record. The next
-objective is **Phase C — Remaining Management/Data Workflows + Linked
-Source**.
+selection-by-id integrity fix). **Phase C — Remaining Management/Data
+Workflows + Linked Source is also complete**: Review Calendar / Card
+History, Settings storage information, Data Tools (Import/Export,
+Template Definition CSV import/export, Backup / Restore Preview), and
+the Linked Source desktop workflow (the feature's first UI; M13 closed
+the reusable core only). Every checkpoint's own independent review found
+and fixed real findings before the next one began. See § Milestone 18
+below for the operating model, per-checkpoint acceptance record, and the
+Streamlit disposition table. The next objective is **Phase D —
+Analytics**.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -1409,9 +1415,65 @@ evidence at that head: focused Collection Manager/Template Manager/
 corrective tests all green (16/16, 15/15, 11/11), full repository suite
 634/634, architecture audit 77 files / 0 violations, two independent
 code reviews each with one real finding, both fixed and
-regression-tested. Milestone 18 overall is not complete; the next
-objective is **Phase C — Remaining Management/Data Workflows + Linked
-Source**, per the M18 contract's default workstream strategy.
+regression-tested.
+
+**Phase C — Remaining Management/Data Workflows + Linked Source: complete.**
+Six checkpoints, each following the same implement -> focused verify ->
+commit -> independent review -> repair -> continue loop, every one of
+which found and fixed at least one real defect before the next
+checkpoint began:
+
+- **C1 Review Calendar / Card History** (`c141dcc`) — read-only P7
+  Evidence Browser: a chronological table of completed Card-scoped Quiz
+  sessions (the authoritative learning-completion evidence) with a
+  range-preset filter, and selecting one shows that Card's full history
+  plus its legacy Review compatibility records, kept visibly separate.
+  Corrective pass `604a443` fixed a stale-selection bug (a previously
+  selected row could keep showing old detail after a range change).
+- **C2 Settings storage information** (`3be1da7`) — a read-only Storage
+  section (database/backup/audio-cache paths, path source) added to the
+  existing Appearance/Quiz Settings Form, a thin passthrough to
+  `src.app_config.get_app_storage_summary()`.
+- **C3 Data Tools hub + Import/Export** (`541870d`) — General/
+  Template-Based/Collection Entry import (Upload -> Validate -> Preview
+  -> Confirm -> Import, DESIGN.md § 12.3) and Export (All entries /
+  Collection / summary, CSV/XLSX), reusing `src.import_export` entirely;
+  this repository's first `QFileDialog` usage. Corrective pass `08012b1`
+  fixed four issues an independent review found, most seriously a
+  confirmation checkbox that never reset, which could have re-armed
+  Confirm Import against a new file/mode with no fresh per-batch
+  consent.
+- **C4 Template Definition CSV import/export** (`511d644`) — portable
+  Template *field structure* (distinct from Entry import), reusing
+  `src.template_definitions` entirely.
+- **C5 Backup / Restore Preview** (`103b211`) — local backup generation
+  (.sqlite3 file copy, full .xlsx workbook) and read-only backup
+  inspection; Restore is intentionally preview-only throughout, since no
+  core function performs an actual database restore. Corrective pass
+  `e87d06c` guarded a dialog-constructor call an independent review
+  found could crash on a locked/unreadable database.
+- **C6 Linked Source** (`549dfb6`) — the feature's first UI (M13 closed
+  the reusable core only): link a Collection to a local CSV/XLSX
+  append-only source, refresh it, and recover from a missing/unreadable
+  source via Unlink (metadata only) + a fresh link, reusing
+  `src.linked_sources` entirely; no desktop-only "relink in place"
+  shortcut was invented. Corrective pass `dc5401f` fixed three issues an
+  independent review found: changing the staged import mode/sheet after
+  a preview didn't invalidate it (letting a stale Confirm write Entries
+  under an unreviewed mode), the mode combo didn't resync after Unlink,
+  and a failed Unlink produced no visible feedback.
+
+Full repository suite green (677/677 at the C3 checkpoint; re-verified
+after C6's corrective pass) and architecture audit clean (83 files, 0
+violations) throughout. See the Draft PR #29 body for the complete
+Streamlit disposition table -- every M18-scoped legacy surface is now
+migrated, explicitly deprecated, or documented as out of scope, except
+`statistics_page.py`/`dashboard_page.py`, whose disposition (DESIGN.md
+§ 7.7: integrate into Analytics/Today, not recreate for parity) is
+pending Phase D.
+
+Milestone 18 overall is not complete; the next objective is **Phase D —
+Analytics**, per the M18 contract's default workstream strategy.
 
 ### 18.1 Management Workflow Migration
 

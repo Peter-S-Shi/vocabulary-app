@@ -45,9 +45,19 @@ review of pass 1 found). **Native human visual acceptance PASSED
 2026-08-17 against final accepted head
 `283ab6f9298a7f64d2d311ffc11c01b2a186d2cf`.** See `ROADMAP.md` §
 Milestone 18 for the full operating model and per-checkpoint acceptance
-record. The next objective is **Phase C — Remaining Management/Data
-Workflows + Linked Source**; per the M18 contract, that work does not
-begin until separately authorized.
+record.
+
+**Phase C — Remaining Management/Data Workflows + Linked Source is also
+complete.** Six checkpoints (Review Calendar / Card History; Settings
+storage information; Data Tools Import/Export; Template Definition CSV
+import/export; Backup / Restore Preview; Linked Source, the last
+feature's first UI since M13 closed only its reusable core), each
+independently reviewed and corrected before the next began -- see
+`ROADMAP.md` § Milestone 18 for the full per-checkpoint record and the
+Streamlit disposition table. Verified: full repository suite 723/723 at
+final head `dc5401f461e8bef20f971910c40db587abd74144`; architecture
+audit 83 files, 0 violations. The next objective is **Phase D —
+Analytics**, which continues directly per the active `/goal` horizon.
 
 M16.0 Desktop UI Design Baseline is complete and frozen: [DESIGN.md](DESIGN.md)
 records the approved desktop information architecture, theme architecture, and
