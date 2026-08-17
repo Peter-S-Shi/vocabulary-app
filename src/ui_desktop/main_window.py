@@ -7,6 +7,7 @@ from src.ui_desktop.controllers.entries_controller import EntriesController
 from src.ui_desktop.controllers.quiz_controller import QuizController
 from src.ui_desktop.controllers.review_controller import ReviewController
 from src.ui_desktop.controllers.settings_controller import SettingsController
+from src.ui_desktop.controllers.templates_controller import TemplatesController
 from src.ui_desktop.controllers.today_controller import TodayController
 from src.ui_desktop.motion.transitions import TransitionManager
 from src.ui_desktop.state.app_state import AppState, ShellMode, Workspace
@@ -17,6 +18,7 @@ from src.ui_desktop.views.entries_view import EntriesView
 from src.ui_desktop.views.quiz_view import QuizView
 from src.ui_desktop.views.review_view import ReviewView
 from src.ui_desktop.views.settings_view import SettingsView
+from src.ui_desktop.views.templates_view import TemplatesView
 from src.ui_desktop.views.today_view import TodayView
 from src.ui_desktop.widgets.navigation_rail import NavigationRail
 
@@ -92,6 +94,7 @@ class MainWindow(QMainWindow):
         self.review_controller = ReviewController()
         self.quiz_controller = QuizController()
         self.settings_controller = SettingsController(preferences, self.theme_manager)
+        self.templates_controller = TemplatesController()
 
         self.today_view = TodayView(self.today_controller)
         self.today_view.navigate_to_entries_requested.connect(
@@ -114,11 +117,13 @@ class MainWindow(QMainWindow):
         self.quiz_view.return_to_today_requested.connect(self._on_quiz_return_to_today)
         self.quiz_view.next_card_requested.connect(self._on_quiz_next_card)
         self.settings_view = SettingsView(self.settings_controller)
+        self.templates_view = TemplatesView(self.templates_controller)
 
         self._workspace_stack = QStackedWidget(self)
         self._workspace_stack.addWidget(self.today_view)
         self._workspace_stack.addWidget(self.entries_view)
         self._workspace_stack.addWidget(self.collections_view)
+        self._workspace_stack.addWidget(self.templates_view)
         self._workspace_stack.addWidget(self.review_view)
         self._workspace_stack.addWidget(self.quiz_view)
         self._workspace_stack.addWidget(self.settings_view)
@@ -181,6 +186,8 @@ class MainWindow(QMainWindow):
             self.app_state.request_navigation(Workspace.ENTRIES)
         elif destination_key == "collections":
             self.app_state.request_navigation(Workspace.COLLECTIONS)
+        elif destination_key == "templates":
+            self.app_state.request_navigation(Workspace.TEMPLATES)
         elif destination_key == "study":
             self._enter_review()
         elif destination_key == "settings":
@@ -302,6 +309,11 @@ class MainWindow(QMainWindow):
             widget = self.collections_view
             self._workspace_stack.setCurrentWidget(widget)
             self.collections_view.refresh()
+            self._last_management_workspace = workspace
+        elif workspace is Workspace.TEMPLATES:
+            widget = self.templates_view
+            self._workspace_stack.setCurrentWidget(widget)
+            self.templates_view.refresh()
             self._last_management_workspace = workspace
         elif workspace is Workspace.REVIEW:
             # No default-Card-open here: whichever caller requested this

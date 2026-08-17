@@ -791,6 +791,9 @@ class _CardOrganizationDialog(QDialog):
             if _confirm_cross_card(self):
                 self._on_remove(confirm_cross_card=True)
             return
+        except ValueError as error:
+            self._error_label.setText(str(error))
+            return
         self._reload()
 
     def _on_move(self, *, confirm_cross_card: bool) -> None:

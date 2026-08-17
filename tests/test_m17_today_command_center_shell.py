@@ -81,7 +81,7 @@ class NavigationRailStructureTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.app = _qt_app()
 
-    def test_only_today_entries_collections_study_and_settings_are_enabled(self) -> None:
+    def test_only_today_entries_collections_templates_study_and_settings_are_enabled(self) -> None:
         """Updated for M17 Feature 2 (Review): "study" is the rail's real
         entry point into Study Mode / Review now that real Study content
         exists, per the M17 Feature 2 prompt's "smallest shared-shell
@@ -89,8 +89,9 @@ class NavigationRailStructureTests(unittest.TestCase):
         M17 Feature 3B: Settings now has a real minimum workspace (Quiz
         presentation), so it is enabled too. Updated for M17 Minimum
         Collection Integration: Collections now has a real minimum
-        workspace (Collections Navigator), so it is enabled too --
-        analytics/data_tools remain honestly disabled placeholders."""
+        workspace (Collections Navigator), so it is enabled too. Updated
+        for M18.1 Template Manager: Templates now has a real workspace too
+        -- analytics/data_tools remain honestly disabled placeholders."""
         rail = NavigationRail()
         self.addCleanup(rail.deleteLater)
 
@@ -101,7 +102,7 @@ class NavigationRailStructureTests(unittest.TestCase):
             set() if SETTINGS_DESTINATION.enabled else {SETTINGS_DESTINATION.key}
         )
 
-        self.assertEqual(enabled, {"today", "entries", "collections", "study", "settings"})
+        self.assertEqual(enabled, {"today", "entries", "collections", "templates", "study", "settings"})
         for key in enabled:
             self.assertTrue(rail.is_enabled_destination(key), key)
         for key in disabled:
