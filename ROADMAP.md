@@ -130,9 +130,10 @@ acceptance, and desktop-launcher/icon acceptance; see
 [Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md) for full
 evidence (see § Milestone 16 below).
 
-Milestone 17 — Desktop Core Workflow Migration is now **in progress** on
-the single long-lived branch `agent/m17-desktop-core-workflow-migration`.
-The **Motion / Transition Foundation** and Today's non-visual
+Milestone 17 — Desktop Core Workflow Migration was developed on the
+single long-lived branch `agent/m17-desktop-core-workflow-migration` and
+is now **complete on `main`** (merged via PR #25). The **Motion /
+Transition Foundation** and Today's non-visual
 controller/handoff groundwork are implemented and retained. Two earlier
 Today presentations were rejected at human visual review and
 controlled-reset to the M16.2 placeholder; the replacement
@@ -889,9 +890,10 @@ UI authority.
 ### Operating Model
 
 Milestone 17 is **one milestone**, developed on **one long-lived branch**
-through **one Draft PR** — expected
-`agent/m17-desktop-core-workflow-migration` — not a set of independent
-lifecycle units. The former `17.1`-`17.5` sub-milestone numbering is retired
+through **one PR** —
+`agent/m17-desktop-core-workflow-migration`, PR #25 (Draft throughout
+development, merged 2026-08-17) — not a set of independent lifecycle
+units. The former `17.1`-`17.5` sub-milestone numbering is retired
 in favor of an ordered **feature migration sequence** within this single
 milestone. Do not create a new branch or PR per feature; do not treat Today,
 Review, Quiz, or Entries as separate milestones, sub-milestones, branches, or
