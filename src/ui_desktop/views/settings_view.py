@@ -50,6 +50,16 @@ Design -> Implementation trace:
                           next Quiz launched in this session (M17 Feature
                           3B prompt § 7) or after a restart (§ 5) uses the
                           saved presentation value.
+
+M18 Phase C2 adds the third category this pattern was always meant to
+hold: read-only "Storage" (DESIGN.md § 7.3 "Storage / data-location
+information: B, P8") -- database/backup/audio-cache paths and path
+source, read straight from `src.app_config.get_app_storage_summary()`
+(the same function the Streamlit Settings/Data page already reads) via
+`SettingsController.storage_summary()`. Each row reuses the existing
+`settings-row`/`settings-row-label` grammar with a plain value label
+instead of an editable control -- purely informational, never a second
+path-resolution/configuration surface.
 """
 
 
@@ -117,10 +127,54 @@ class SettingsView(QWidget):
         row_layout.addWidget(self._quiz_presentation_combo, 0)
 
         root.addWidget(row)
+
+        storage_heading = QLabel("Storage", self)
+        storage_heading.setObjectName("settings-section-heading")
+        root.addWidget(storage_heading)
+
+        storage = controller.storage_summary()
+        for label_text, value in (
+            ("App version", str(storage["app_version"])),
+            ("Database path", str(storage["database_path"])),
+            ("Database file exists", "Yes" if storage["database_exists"] else "No"),
+            ("Data directory", str(storage["data_directory"])),
+            ("Backup directory", str(storage["backup_directory"])),
+            ("Audio cache directory", str(storage["audio_cache_directory"])),
+            ("Path source", str(storage["path_source"])),
+        ):
+            root.addWidget(self._build_info_row(label_text, value))
+
         root.addStretch(1)
 
         controller.state_changed.connect(self._sync_from_controller)
         self._sync_from_controller()
+
+    def _build_info_row(self, label_text: str, value: str) -> QWidget:
+        """A read-only P8 settings row (DESIGN.md § 7.3 "Storage /
+        data-location information: B, P8"): reuses the exact
+        `settings-row`/`settings-row-label` grammar the Appearance/Quiz
+        rows already established, with a plain value label in place of an
+        editable control -- storage/data-location information is
+        informational, not configurable, from this surface."""
+        row = QWidget(self)
+        row.setObjectName("settings-row")
+        row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(SPACING.md, SPACING.md, SPACING.md, SPACING.md)
+        layout.setSpacing(SPACING.md)
+
+        label = QLabel(label_text, row)
+        label.setObjectName("settings-row-label")
+        layout.addWidget(label, 0)
+        layout.addStretch(1)
+
+        value_label = QLabel(value, row)
+        value_label.setObjectName("settings-row-value")
+        value_label.setWordWrap(True)
+        value_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(value_label, 1)
+
+        return row
 
     def _sync_from_controller(self) -> None:
         current_appearance = self._controller.appearance()

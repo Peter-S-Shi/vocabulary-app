@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QObject, Signal
 
+from src.app_config import get_app_storage_summary
 from src.ui_desktop.state.preferences import Preferences, parse_quiz_presentation, save_preferences
 from src.ui_desktop.theming.theme_manager import ThemeManager, parse_accent, parse_appearance
 
@@ -59,3 +60,11 @@ class SettingsController(QObject):
         if self._theme_manager is not None:
             self._theme_manager.apply(normalized, parse_accent(self.preferences.accent))
         self.state_changed.emit()
+
+    def storage_summary(self) -> dict:
+        """M18 Phase C2: read-only storage/data-location information
+        (DESIGN.md § 7.3 "Storage / data-location information: B, P8").
+        A thin passthrough to the existing ``src.app_config`` summary the
+        Streamlit Settings/Data page already reads -- no second path-
+        resolution implementation, no mutation."""
+        return get_app_storage_summary()

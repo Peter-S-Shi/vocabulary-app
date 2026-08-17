@@ -1072,6 +1072,10 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_secondary};
         font-size: 14px;
     }}
+    QLabel#settings-row-value {{
+        color: {neutral.text_muted};
+        font-size: 12px;
+    }}
     QComboBox#settings-quiz-presentation-combo, QComboBox#settings-appearance-combo {{
         background-color: {neutral.surface_primary};
         color: {neutral.text_primary};
