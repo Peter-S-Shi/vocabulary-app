@@ -307,8 +307,9 @@ class M162EntriesTableModelTests(unittest.TestCase):
 
         self.assertEqual(model.rowCount(), 1)
         self.assertEqual(model.columnCount(), len(EntriesTableModel.COLUMNS))
-        self.assertEqual(model.data(model.index(0, 0)), "alpha")
-        self.assertEqual(model.headerData(0, Qt.Orientation.Horizontal), "Term")
+        term_column = EntriesTableModel.COLUMNS.index("term")
+        self.assertEqual(model.data(model.index(0, term_column)), "alpha")
+        self.assertEqual(model.headerData(term_column, Qt.Orientation.Horizontal), "Term")
 
     def test_row_at_returns_none_out_of_range(self) -> None:
         model = EntriesTableModel([])

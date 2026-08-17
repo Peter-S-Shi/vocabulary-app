@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QItemSelectionModel, QSortFilterProxyModel, Qt, Signal
-from PySide6.QtGui import QCursor
+from PySide6.QtCore import QItemSelectionModel, QRect, QSortFilterProxyModel, Qt, Signal
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
@@ -10,12 +10,17 @@ from PySide6.QtWidgets import (
     QDialog,
     QFormLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QMenu,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
+    QSplitter,
+    QStyle,
+    QStyleOptionButton,
     QTableView,
     QVBoxLayout,
     QWidget,
@@ -101,16 +106,54 @@ Design -> Implementation trace:
                              path always go through the existing
                              `delete_entries`/`update_entry_collections`
                              confirmation gate (`CrossCardMoveConfirmationRequired`,
-                             `src.collections`); a plain "Delete N Entries?"
-                             confirm always precedes the call, and if the
+                             `src.collections`); a first-stage confirm
+                             (copy distinguishes permanent Vocabulary-App
+                             deletion from removing an Entry only from the
+                             current Collection -- M17 Feature 4 corrective
+                             pass § 9) always precedes the call, and if the
                              core additionally requires Card-reorganization
                              confirmation, `CROSS_CARD_CONFIRMATION_MESSAGE`
                              (reused verbatim, not reworded) is shown before
                              retrying with ``confirm_cross_card=True``. There
                              is no silent-delete path.
+
+Corrective pass (M17_Feature4_Entries_Corrective_Pass.md), on top of the
+above:
+
+  scope/table boundary    -> a bounded, user-resizable `QSplitter`
+                             replaces the rigid fixed-width Scope Pane
+                             (§ 4); the pane still can never out-grow the
+                             Table (`SCOPE_PANE_MAX_WIDTH`).
+  Scope Pane sections      -> `_ScopePane` now renders an explicit
+                             "Scope" heading (All Entries + the three
+                             system collections), a divider, then an
+                             explicit "Collections" heading for real user
+                             Collections (§ 8) -- still read-only browse
+                             scopes, no Collection management here.
+  toolbar / batch bar      -> batch actions moved off the search row into
+                             their own conditional row beneath it, so
+                             selecting rows can never squeeze search into
+                             an unusable sliver (§ 3); the search field
+                             also keeps an explicit minimum width.
+  checkbox selection        -> `EntriesTableModel` renders a leading
+                             checkbox column and a header-level "select
+                             all visible" affordance (`_CheckableHeaderView`);
+                             both are pure views onto
+                             `EntriesController.selected_ids` -- toggling
+                             a checkbox or the header updates that same
+                             set, never a second selection state (§ 7).
+  Add to Collection         -> the menu is now anchored below the button
+                             (`mapToGlobal(...bottomLeft())`) instead of
+                             at `QCursor.pos()`, which on Windows could
+                             make the just-opened popup dismiss itself
+                             before a click landed on an item -- a real
+                             interaction defect, not merely a contrast
+                             one (§ 6).
 """
 
-SCOPE_PANE_WIDTH = 200
+SCOPE_PANE_DEFAULT_WIDTH = 220
+SCOPE_PANE_MIN_WIDTH = 160
+SCOPE_PANE_MAX_WIDTH = 420
 
 
 class EntriesView(QWidget):
@@ -123,10 +166,15 @@ class EntriesView(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
+        splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        splitter.setObjectName("entries-splitter")
+        splitter.setChildrenCollapsible(False)
+
         self._scope_pane = _ScopePane(self)
-        self._scope_pane.setFixedWidth(SCOPE_PANE_WIDTH)
+        self._scope_pane.setMinimumWidth(SCOPE_PANE_MIN_WIDTH)
+        self._scope_pane.setMaximumWidth(SCOPE_PANE_MAX_WIDTH)
         self._scope_pane.scope_selected.connect(self._on_scope_selected)
-        root.addWidget(self._scope_pane, 0)
+        splitter.addWidget(self._scope_pane)
 
         main = QWidget(self)
         main.setObjectName("entries-main-workspace")
@@ -139,14 +187,21 @@ class EntriesView(QWidget):
         self._proxy = QSortFilterProxyModel(self)
         self._proxy.setSourceModel(controller.model)
 
+        self._checkable_header = _CheckableHeaderView(self)
+        self._checkable_header.toggled.connect(self._on_header_toggled)
+
         self._table = QTableView(self)
         self._table.setObjectName("entries-table")
         self._table.setModel(self._proxy)
+        self._table.setHorizontalHeader(self._checkable_header)
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._table.setSortingEnabled(True)
+        self._table.setMouseTracking(True)
         self._table.horizontalHeader().setStretchLastSection(True)
+        self._table.horizontalHeader().resizeSection(0, 32)
+        self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self._table.verticalHeader().setVisible(False)
         main_layout.addWidget(self._table, 1)
 
@@ -158,11 +213,17 @@ class EntriesView(QWidget):
         self._detail_layout.setSpacing(SPACING.lg)
         main_layout.addWidget(self._detail_container, 0)
 
-        root.addWidget(main, 1)
+        splitter.addWidget(main)
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
+        splitter.setCollapsible(0, False)
+        splitter.setSizes([SCOPE_PANE_DEFAULT_WIDTH, 800])
+        root.addWidget(splitter, 1)
 
         selection_model = self._table.selectionModel()
         if selection_model is not None:
             selection_model.selectionChanged.connect(self._on_table_selection_changed)
+        controller.model.checkbox_toggled.connect(self._on_row_checkbox_toggled)
 
         controller.rows_changed.connect(self._on_rows_changed)
         controller.scopes_changed.connect(self._on_scopes_changed)
@@ -175,7 +236,18 @@ class EntriesView(QWidget):
     # -- toolbar -------------------------------------------------------------
 
     def _build_toolbar(self) -> QWidget:
-        bar = QWidget(self)
+        """Two-row toolbar (M17 Feature 4 corrective pass § 3): row 1 is
+        always visible (title/search/filters/Quick Add/Add Entry) and
+        never competes for space with batch actions, which live in
+        ``self._batch_bar`` -- a second row shown only while rows are
+        selected, so search never collapses into an unusable sliver."""
+        container = QWidget(self)
+        container.setObjectName("entries-toolbar-container")
+        outer = QVBoxLayout(container)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(SPACING.sm)
+
+        bar = QWidget(container)
         bar.setObjectName("entries-toolbar")
         layout = QHBoxLayout(bar)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -188,6 +260,7 @@ class EntriesView(QWidget):
         self._search_input = QLineEdit(bar)
         self._search_input.setObjectName("entries-search-input")
         self._search_input.setPlaceholderText("Search term, meaning, tags…")
+        self._search_input.setMinimumWidth(220)
         self._search_input.returnPressed.connect(self._on_search_submitted)
         layout.addWidget(self._search_input, 1)
 
@@ -203,24 +276,6 @@ class EntriesView(QWidget):
         self._status_combo.currentTextChanged.connect(lambda value: self._controller.set_status(value))
         layout.addWidget(self._status_combo, 0)
 
-        self._star_button = QPushButton("★ Star", bar)
-        self._star_button.setObjectName("entries-batch-star-button")
-        self._star_button.clicked.connect(self._on_add_to_starred)
-        layout.addWidget(self._star_button, 0)
-
-        self._collection_button = QPushButton("Add to Collection ▾", bar)
-        self._collection_button.setObjectName("entries-batch-collection-button")
-        self._collection_button.clicked.connect(self._open_add_to_collection_menu)
-        layout.addWidget(self._collection_button, 0)
-
-        self._delete_button = QPushButton("Delete", bar)
-        self._delete_button.setObjectName("entries-batch-delete-button")
-        self._delete_button.setProperty("destructive", "true")
-        self._delete_button.clicked.connect(self._on_delete_selected)
-        layout.addWidget(self._delete_button, 0)
-
-        self._set_batch_actions_visible(False)
-
         quick_add_button = QPushButton("Quick Add", bar)
         quick_add_button.setObjectName("entries-quick-add-button")
         quick_add_button.clicked.connect(self._open_quick_add)
@@ -231,7 +286,39 @@ class EntriesView(QWidget):
         add_button.clicked.connect(self._open_add_entry)
         layout.addWidget(add_button, 0)
 
-        return bar
+        outer.addWidget(bar)
+
+        self._batch_bar = QWidget(container)
+        self._batch_bar.setObjectName("entries-batch-bar")
+        batch_layout = QHBoxLayout(self._batch_bar)
+        batch_layout.setContentsMargins(SPACING.sm, SPACING.xs, SPACING.sm, SPACING.xs)
+        batch_layout.setSpacing(SPACING.sm)
+
+        self._batch_count_label = QLabel("", self._batch_bar)
+        self._batch_count_label.setObjectName("entries-batch-count-label")
+        batch_layout.addWidget(self._batch_count_label, 0)
+        batch_layout.addStretch(1)
+
+        self._star_button = QPushButton("★ Star", self._batch_bar)
+        self._star_button.setObjectName("entries-batch-star-button")
+        self._star_button.clicked.connect(self._on_add_to_starred)
+        batch_layout.addWidget(self._star_button, 0)
+
+        self._collection_button = QPushButton("Add to Collection ▾", self._batch_bar)
+        self._collection_button.setObjectName("entries-batch-collection-button")
+        self._collection_button.clicked.connect(self._open_add_to_collection_menu)
+        batch_layout.addWidget(self._collection_button, 0)
+
+        self._delete_button = QPushButton("Delete", self._batch_bar)
+        self._delete_button.setObjectName("entries-batch-delete-button")
+        self._delete_button.setProperty("destructive", "true")
+        self._delete_button.clicked.connect(self._on_delete_selected)
+        batch_layout.addWidget(self._delete_button, 0)
+
+        outer.addWidget(self._batch_bar)
+        self._set_batch_actions_visible(False)
+
+        return container
 
     @staticmethod
     def _build_filter_combo(object_name: str, values: set[str] | frozenset[str]) -> QComboBox:
@@ -242,9 +329,11 @@ class EntriesView(QWidget):
         return combo
 
     def _set_batch_actions_visible(self, visible: bool) -> None:
-        self._star_button.setVisible(visible)
-        self._collection_button.setVisible(visible)
-        self._delete_button.setVisible(visible)
+        self._batch_bar.setVisible(visible)
+        if visible:
+            count = len(self._controller.selected_ids)
+            noun = "Entry" if count == 1 else "Entries"
+            self._batch_count_label.setText(f"{count} {noun} selected")
 
     # -- scope / filter reactions --------------------------------------------
 
@@ -290,9 +379,39 @@ class EntriesView(QWidget):
                 )
         selection_model.blockSignals(False)
 
+    def _on_row_checkbox_toggled(self, entry_id: int, checked: bool) -> None:
+        """Checkbox column click (M17 Feature 4 corrective pass § 7) --
+        folds into the same ``EntriesController.selected_ids`` truth as
+        native ctrl/shift row clicks; there is no second selection
+        state."""
+        ids = set(self._controller.selected_ids)
+        if checked:
+            ids.add(entry_id)
+        else:
+            ids.discard(entry_id)
+        self._controller.set_selected_ids(ids)
+
+    def _on_header_toggled(self, checked: bool) -> None:
+        """Header "select all" affordance (§ 7): selects/clears every row
+        currently visible under the active scope/search/filters, not the
+        entire database."""
+        if checked:
+            ids = {row["id"] for row in self._controller.model.rows()}
+        else:
+            ids = set()
+        self._controller.set_selected_ids(ids)
+
+    def _update_header_checkbox_state(self) -> None:
+        rows = self._controller.model.rows()
+        all_selected = bool(rows) and all(row["id"] in self._controller.selected_ids for row in rows)
+        self._checkable_header.set_checked(all_selected)
+
     def _on_selection_changed(self, entries: list[dict]) -> None:
         self._set_batch_actions_visible(bool(entries))
         self._render_detail(entries)
+        self._controller.model.set_selected_ids(self._controller.selected_ids)
+        self._restore_table_selection()
+        self._update_header_checkbox_state()
 
     # -- bottom detail -------------------------------------------------------
 
@@ -346,26 +465,65 @@ class EntriesView(QWidget):
     def _on_add_to_starred(self) -> None:
         self._controller.add_selected_to_starred()
 
-    def _open_add_to_collection_menu(self) -> None:
+    def _build_add_to_collection_menu(self) -> QMenu:
+        """Split out from ``_open_add_to_collection_menu`` so tests can
+        build and trigger actions without going through the blocking
+        ``QMenu.exec()`` call (M17 Feature 4 corrective pass § 6/§ 11)."""
         menu = QMenu(self)
+        menu.setObjectName("entries-add-to-collection-menu")
         options = self._controller.collection_options()
         if not options:
             action = menu.addAction("No Collections yet")
             action.setEnabled(False)
         for collection in options:
             action = menu.addAction(collection["name"])
-            action.triggered.connect(lambda _checked=False, collection_id=collection["id"]: self._controller.add_selected_to_collection(collection_id))
-        menu.exec(QCursor.pos())
+            action.triggered.connect(
+                lambda _checked=False, collection_id=collection["id"]: self._on_add_to_collection_triggered(collection_id)
+            )
+        return menu
+
+    def _on_add_to_collection_triggered(self, collection_id: int) -> None:
+        self._controller.add_selected_to_collection(collection_id)
+
+    def _open_add_to_collection_menu(self) -> None:
+        menu = self._build_add_to_collection_menu()
+        # Anchored below the button rather than at QCursor.pos(): exec()-ing
+        # a popup directly under a mouse position that was *just* released
+        # is a known Qt/Windows interaction bug where the popup opens and
+        # immediately dismisses itself before any item can be clicked --
+        # this read to human review as "the actions cannot actually be
+        # selected" even though every enabled QAction was fully wired and
+        # functional (M17 Feature 4 corrective pass § 6).
+        global_point = self._collection_button.mapToGlobal(self._collection_button.rect().bottomLeft())
+        menu.exec(global_point)
 
     def _on_delete_selected(self) -> None:
         count = len(self._controller.selected_ids)
         if not count:
             return
-        noun = "Entry" if count == 1 else "Entries"
+        # Copy explicitly distinguishes a permanent Vocabulary App delete
+        # (removes the Entry from every Collection) from merely removing
+        # it from the current Collection -- inside a Collection-scoped
+        # Entries view "Delete" alone reads ambiguously (M17 Feature 4
+        # corrective pass § 9).
+        if count == 1:
+            message = (
+                "Permanently delete this Entry from Vocabulary App?\n\n"
+                "This removes it from all Collections. This is not the same "
+                "as removing it only from the current Collection.\n\n"
+                "This action cannot be undone."
+            )
+        else:
+            message = (
+                f"Permanently delete these {count} Entries from Vocabulary App?\n\n"
+                "This removes them from all Collections. This is not the same "
+                "as removing them only from the current Collection.\n\n"
+                "This action cannot be undone."
+            )
         confirmed = QMessageBox.question(
             self,
             "Delete Entries",
-            f"Delete {count} selected {noun}? This cannot be undone.",
+            message,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if confirmed != QMessageBox.StandardButton.Yes:
@@ -384,7 +542,12 @@ class _ScopePane(QWidget):
     """Read-only left-of-table browse scopes (DESIGN.md § 6.2 Scope Pane):
     All Entries, the three system collections, then real user Collections.
     Never Collection create/rename/delete -- that belongs to the following
-    M17 minimum Collection Integration checkpoint."""
+    M17 minimum Collection Integration checkpoint.
+
+    Corrective pass § 8: system scopes render under an explicit "Scope"
+    heading and real user Collections under a separate "Collections"
+    heading with a divider between them, matching the canonical
+    reference's information hierarchy instead of one flat list."""
 
     scope_selected = Signal(str)
 
@@ -408,19 +571,96 @@ class _ScopePane(QWidget):
             self._group.removeButton(button)
         self._buttons = {}
 
-        for scope in scopes:
-            label = scope["label"]
-            count = scope.get("count")
-            text = f"{label}    {count}" if count is not None else label
-            button = QPushButton(text, self)
-            button.setObjectName("entries-scope-item")
-            button.setCheckable(True)
-            button.setFlat(True)
-            button.setChecked(scope["key"] == active_key)
-            button.clicked.connect(lambda _checked=False, key=scope["key"]: self.scope_selected.emit(key))
-            self._group.addButton(button)
-            self._buttons[scope["key"]] = button
-            self._layout.addWidget(button)
+        system_scopes = [scope for scope in scopes if scope["key"] == SCOPE_ALL or scope["key"].startswith("system:")]
+        collection_scopes = [scope for scope in scopes if scope["key"].startswith("collection:")]
+
+        self._layout.addWidget(_scope_heading("Scope"))
+        for scope in system_scopes:
+            self._add_scope_button(scope, active_key)
+
+        if collection_scopes:
+            self._layout.addWidget(_scope_divider())
+            self._layout.addWidget(_scope_heading("Collections"))
+            for scope in collection_scopes:
+                self._add_scope_button(scope, active_key)
+
+    def _add_scope_button(self, scope: dict, active_key: str) -> None:
+        label = scope["label"]
+        count = scope.get("count")
+        text = f"{label}    {count}" if count is not None else label
+        button = QPushButton(text, self)
+        button.setObjectName("entries-scope-item")
+        button.setCheckable(True)
+        button.setFlat(True)
+        button.setChecked(scope["key"] == active_key)
+        button.clicked.connect(lambda _checked=False, key=scope["key"]: self.scope_selected.emit(key))
+        self._group.addButton(button)
+        self._buttons[scope["key"]] = button
+        self._layout.addWidget(button)
+
+
+def _scope_heading(text: str) -> QLabel:
+    label = QLabel(text)
+    label.setObjectName("entries-scope-heading")
+    return label
+
+
+def _scope_divider() -> QWidget:
+    divider = QWidget()
+    divider.setObjectName("entries-scope-divider")
+    divider.setFixedHeight(1)
+    divider.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+    return divider
+
+
+class _CheckableHeaderView(QHeaderView):
+    """Header-level "select all visible" affordance for the checkbox
+    column (M17 Feature 4 corrective pass § 7). Paints/toggles a checkbox
+    over section 0; the real selection truth stays in
+    ``EntriesController.selected_ids`` -- this view only mirrors/requests
+    it through the ``toggled`` signal, never owns it."""
+
+    toggled = Signal(bool)
+
+    _BOX_SIZE = 16
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(Qt.Orientation.Horizontal, parent)
+        self._checked = False
+        self.setSectionsClickable(True)
+
+    def set_checked(self, checked: bool) -> None:
+        if checked != self._checked:
+            self._checked = checked
+            self.updateSection(0)
+
+    def _checkbox_rect(self, section_rect: QRect) -> QRect:
+        return QRect(
+            section_rect.x() + max(0, (section_rect.width() - self._BOX_SIZE) // 2),
+            section_rect.y() + max(0, (section_rect.height() - self._BOX_SIZE) // 2),
+            self._BOX_SIZE,
+            self._BOX_SIZE,
+        )
+
+    def paintSection(self, painter, rect, logicalIndex) -> None:  # noqa: N802 (Qt API)
+        super().paintSection(painter, rect, logicalIndex)
+        if logicalIndex != 0:
+            return
+        option = QStyleOptionButton()
+        option.rect = self._checkbox_rect(rect)
+        option.state = QStyle.StateFlag.State_Enabled | (
+            QStyle.StateFlag.State_On if self._checked else QStyle.StateFlag.State_Off
+        )
+        self.style().drawControl(QStyle.ControlElement.CE_CheckBox, option, painter)
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802 (Qt API)
+        position = event.position().toPoint() if hasattr(event, "position") else event.pos()
+        if self.logicalIndexAt(position) == 0:
+            section_rect = QRect(self.sectionViewportPosition(0), 0, self.sectionSize(0), self.height())
+            if self._checkbox_rect(section_rect).contains(position):
+                self.toggled.emit(not self._checked)
+                return
+        super().mousePressEvent(event)
 
 
 class _EntryEditorDialog(QDialog):
@@ -429,7 +669,14 @@ class _EntryEditorDialog(QDialog):
     One class handles both Add (``entry_id is None``) and Edit -- the
     template picker is only editable while adding; current core has no
     template-switch operation, so Edit always keeps the entry's existing
-    template (M17 Feature 4 prompt § 8)."""
+    template (M17 Feature 4 prompt § 8).
+
+    Corrective pass § 5: the form body (template/meta fields, dynamic
+    template fields, manual canonical fields, Collections checklist) lives
+    inside a ``QScrollArea`` so a template with many fields/long-text
+    fields/many Collections can exceed the screen height without pushing
+    Save/Cancel off-screen -- only the scrollable body grows or shrinks;
+    the error label and Save/Cancel footer stay pinned outside it."""
 
     def __init__(self, controller: EntriesController, entry_id: int | None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -444,6 +691,17 @@ class _EntryEditorDialog(QDialog):
         self._detail = controller.entry_detail(entry_id) if entry_id is not None else None
 
         layout = QVBoxLayout(self)
+
+        scroll = QScrollArea(self)
+        scroll.setObjectName("entries-editor-scroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        body = QWidget(scroll)
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(SPACING.md)
+        scroll.setWidget(body)
+        layout.addWidget(scroll, 1)
 
         top_form = QFormLayout()
         self._template_combo = QComboBox(self)
@@ -466,10 +724,10 @@ class _EntryEditorDialog(QDialog):
         self._status_combo = QComboBox(self)
         self._status_combo.addItems(sorted(VALID_STATUSES))
         top_form.addRow("Status", self._status_combo)
-        layout.addLayout(top_form)
+        body_layout.addLayout(top_form)
 
         self._fields_form = QFormLayout()
-        layout.addLayout(self._fields_form)
+        body_layout.addLayout(self._fields_form)
 
         self._manual_term_input = QLineEdit(self)
         self._manual_term_row_label = QLabel("Canonical term", self)
@@ -478,11 +736,11 @@ class _EntryEditorDialog(QDialog):
         manual_form = QFormLayout()
         manual_form.addRow(self._manual_term_row_label, self._manual_term_input)
         manual_form.addRow(self._manual_meaning_row_label, self._manual_meaning_input)
-        layout.addLayout(manual_form)
+        body_layout.addLayout(manual_form)
 
         collections_heading = QLabel("Collections", self)
         collections_heading.setObjectName("entries-editor-collections-heading")
-        layout.addWidget(collections_heading)
+        body_layout.addWidget(collections_heading)
         self._collections_container = QWidget(self)
         collections_layout = QVBoxLayout(self._collections_container)
         collections_layout.setContentsMargins(0, 0, 0, 0)
@@ -496,7 +754,8 @@ class _EntryEditorDialog(QDialog):
             checkbox.setChecked(collection["id"] in current_collection_ids)
             self._collection_checks[collection["id"]] = checkbox
             collections_layout.addWidget(checkbox)
-        layout.addWidget(self._collections_container)
+        body_layout.addWidget(self._collections_container)
+        body_layout.addStretch(1)
 
         self._error_label = QLabel("", self)
         self._error_label.setObjectName("entries-editor-error")
@@ -513,6 +772,8 @@ class _EntryEditorDialog(QDialog):
         save_button.clicked.connect(self._on_save)
         buttons.addWidget(save_button)
         layout.addLayout(buttons)
+
+        self._bound_height_to_screen()
 
         if entry_id is None:
             default_id = controller.default_template_id()
@@ -532,6 +793,22 @@ class _EntryEditorDialog(QDialog):
             self._status_combo.setCurrentText(self._detail.get("status") or "")
 
         self._rebuild_template_fields()
+
+    def _bound_height_to_screen(self) -> None:
+        """Respects available screen geometry (§ 5): the dialog never
+        requests a height beyond what the current screen can show, so the
+        scroll area -- not the window -- absorbs long template/Collections
+        content."""
+        screen = self.screen() if hasattr(self, "screen") else None
+        if screen is None:
+            screen = QGuiApplication.primaryScreen()
+        if screen is None:
+            self.resize(560, 640)
+            return
+        available = screen.availableGeometry()
+        max_height = max(360, int(available.height() * 0.9))
+        self.setMaximumHeight(max_height)
+        self.resize(560, min(700, max_height))
 
     def _current_template_id(self) -> int:
         return self._template_combo.currentData()

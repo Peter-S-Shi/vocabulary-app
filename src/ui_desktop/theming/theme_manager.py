@@ -607,6 +607,7 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     }}
     QDialog QLabel {{
         color: {neutral.text_primary};
+        font-size: 13px;
     }}
     QDialog QComboBox {{
         background-color: {neutral.surface_primary};
@@ -1025,10 +1026,38 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
 
     /* Entries -- Table-First Manager (DESIGN.md § 6.2 `VR-ENTRIES-001`,
     M17 Feature 4). Ordinary Management Mode workspace -- Management Rail
-    stays visible, no Study-mode chrome swap. */
+    stays visible, no Study-mode chrome swap.
+
+    Corrective pass (M17_Feature4_Entries_Corrective_Pass.md): typography
+    recalibrated against the canonical hierarchy (workspace/title > table
+    content > toolbar/scope navigation > detail values > muted metadata),
+    a resizable Scope/Table `QSplitter` replaces the rigid fixed-width
+    pane, batch actions moved to their own conditional row so search
+    keeps a usable minimum width, explicit checkbox-column/selected-row/
+    header-checkbox styling makes native multi-selection visible, and
+    `QMenu` gets its own explicit rule -- the "Add to Collection" menu
+    previously inherited only the bare QPalette once the application
+    stylesheet was set, which human review correctly read as looking
+    unavailable even though every enabled action was fully clickable
+    (§ 6/§ 12 of that prompt). */
+    QSplitter#entries-splitter::handle {{
+        background-color: {neutral.border_default};
+    }}
+    QSplitter#entries-splitter::handle:hover {{
+        background-color: {accent.border};
+    }}
     QWidget#entries-scope-pane {{
         background-color: {neutral.surface_secondary};
         border-right: 1px solid {neutral.border_default};
+    }}
+    QLabel#entries-scope-heading {{
+        color: {neutral.text_muted};
+        font-size: 11px;
+        font-weight: 700;
+        padding: 6px 8px 2px 8px;
+    }}
+    QWidget#entries-scope-divider {{
+        background-color: {neutral.border_subtle};
     }}
     QPushButton#entries-scope-item {{
         background-color: transparent;
@@ -1052,7 +1081,7 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     }}
     QLabel#entries-title {{
         color: {neutral.text_primary};
-        font-size: 18px;
+        font-size: 21px;
         font-weight: 700;
     }}
     QLineEdit#entries-search-input {{
@@ -1061,7 +1090,7 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         border: 1px solid {neutral.border_default};
         border-radius: {radius}px;
         padding: 6px 10px;
-        font-size: 13px;
+        font-size: 14px;
     }}
     QLineEdit#entries-search-input:focus {{
         border: 1px solid {accent.border};
@@ -1073,6 +1102,17 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         border-radius: {radius}px;
         padding: 5px 8px;
         font-size: 13px;
+    }}
+    QWidget#entries-batch-bar {{
+        background-color: {accent.soft.background};
+        border: 1px solid {accent.border};
+        border-radius: {radius}px;
+    }}
+    QLabel#entries-batch-count-label {{
+        color: {accent.soft.foreground};
+        font-size: 13px;
+        font-weight: 600;
+        padding: 4px 10px;
     }}
     QPushButton#entries-batch-star-button,
     QPushButton#entries-batch-collection-button {{
@@ -1126,6 +1166,33 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         background-color: {accent.hover.background};
         color: {accent.hover.foreground};
     }}
+    QTableView#entries-table {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        gridline-color: {neutral.border_subtle};
+        border: 1px solid {neutral.border_default};
+        font-size: 14px;
+    }}
+    QTableView#entries-table::item {{
+        padding: 6px 8px;
+    }}
+    QTableView#entries-table::item:hover {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+    }}
+    QTableView#entries-table::item:selected {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        font-weight: 600;
+    }}
+    QTableView#entries-table QHeaderView::section {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_secondary};
+        border: 1px solid {neutral.border_default};
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: 600;
+    }}
     QWidget#entries-detail {{
         background-color: {neutral.surface_secondary};
         border: 1px solid {neutral.border_default};
@@ -1138,7 +1205,7 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     }}
     QLabel#entries-detail-value {{
         color: {neutral.text_primary};
-        font-size: 14px;
+        font-size: 15px;
     }}
     QLabel#entries-detail-secondary {{
         color: {neutral.text_secondary};
@@ -1160,10 +1227,11 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     QLabel#entries-empty-state {{
         color: {neutral.text_muted};
         font-style: italic;
+        font-size: 13px;
     }}
     QLabel#entries-editor-collections-heading {{
         color: {neutral.text_secondary};
-        font-size: 12px;
+        font-size: 13px;
         font-weight: 600;
     }}
     QLabel#entries-editor-error {{
@@ -1185,12 +1253,43 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         background-color: {accent.hover.background};
         color: {accent.hover.foreground};
     }}
+    QScrollArea#entries-editor-scroll {{
+        background-color: transparent;
+        border: none;
+    }}
+    QScrollArea#entries-editor-scroll > QWidget#qt_scrollarea_viewport {{
+        background-color: transparent;
+    }}
     QDialog QPlainTextEdit {{
         background-color: {neutral.surface_primary};
         color: {neutral.text_primary};
         border: 1px solid {neutral.border_default};
         border-radius: {radius}px;
         padding: 6px 8px;
+        font-size: 13px;
+    }}
+    QMenu {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        font-size: 13px;
+        padding: 4px;
+    }}
+    QMenu::item {{
+        padding: 6px 20px;
+        border-radius: 4px;
+    }}
+    QMenu::item:selected {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+    }}
+    QMenu::item:disabled {{
+        color: {neutral.text_disabled};
+    }}
+    QMenu::separator {{
+        height: 1px;
+        background-color: {neutral.border_subtle};
+        margin: 4px 0px;
     }}
     """.strip()
 

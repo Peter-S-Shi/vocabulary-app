@@ -9,7 +9,8 @@ from unittest.mock import patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
-    from PySide6.QtWidgets import QApplication, QPlainTextEdit, QWidget
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication, QMessageBox, QPlainTextEdit, QWidget
 
     PYSIDE6_AVAILABLE = True
 except ImportError:  # pragma: no cover - exercised only when PySide6 is absent
@@ -43,6 +44,8 @@ if PYSIDE6_AVAILABLE:
     from src.ui_desktop.main_window import MainWindow
     from src.ui_desktop.state.app_state import Workspace
     from src.ui_desktop.views.entries_view import (
+        SCOPE_PANE_MAX_WIDTH,
+        SCOPE_PANE_MIN_WIDTH,
         EntriesView,
         _EntryEditorDialog,
         _QuickAddDialog,
@@ -554,6 +557,7 @@ class EntriesViewStructureTests(_SyntheticDatabaseTestCase):
 
         # isVisible() needs the whole ancestor chain shown; view.show() above
         # makes that reliable here (isHidden() alone would not require it).
+        self.assertTrue(view._batch_bar.isVisible())
         self.assertTrue(view._star_button.isVisible())
         self.assertTrue(view._delete_button.isVisible())
         values = [w.text() for w in view._detail_container.findChildren(QWidget) if w.objectName() == "entries-detail-value"]
@@ -565,8 +569,7 @@ class EntriesViewStructureTests(_SyntheticDatabaseTestCase):
         self.addCleanup(view.deleteLater)
         view.refresh()
 
-        self.assertTrue(view._star_button.isHidden())
-        self.assertTrue(view._delete_button.isHidden())
+        self.assertTrue(view._batch_bar.isHidden())
 
     def test_add_entry_dialog_saves_a_new_entry(self) -> None:
         controller = EntriesController()
@@ -666,6 +669,332 @@ if PYSIDE6_AVAILABLE:
             widget.setPlainText(value)
         else:
             widget.setText(value)
+
+
+@unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
+class EntriesCorrectivePassCheckboxSelectionTests(_SyntheticDatabaseTestCase):
+    """M17_Feature4_Entries_Corrective_Pass.md § 7/§ 11: explicit checkbox
+    selection stays synchronized with EntriesController.selected_ids --
+    the single selection truth -- from both the checkbox column and the
+    header "select all visible" affordance."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _qt_app()
+
+    def test_checkbox_toggle_updates_controller_selection(self) -> None:
+        self._make_entries([("chat", "cat"), ("chien", "dog")])
+        controller = EntriesController()
+        view = EntriesView(controller)
+        self.addCleanup(view.deleteLater)
+        view.refresh()
+
+        model = controller.model
+        target_id = model.row_at(0)["id"]
+        index = model.index(0, model.COLUMNS.index(model.SELECT_COLUMN))
+        model.setData(index, Qt.CheckState.Checked, Qt.ItemDataRole.CheckStateRole)
+
+        self.assertEqual(controller.selected_ids, {target_id})
+        self.assertEqual(model.data(index, Qt.ItemDataRole.CheckStateRole), Qt.CheckState.Checked)
+
+    def test_checkbox_unchecked_removes_from_selection(self) -> None:
+        entry_ids = self._make_entries([("chat", "cat")])
+        controller = EntriesController()
+        view = EntriesView(controller)
+        self.addCleanup(view.deleteLater)
+        view.refresh()
+        controller.set_selected_ids({entry_ids[0]})
+
+        model = controller.model
+        index = model.index(0, model.COLUMNS.index(model.SELECT_COLUMN))
+        model.setData(index, Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole)
+
+        self.assertEqual(controller.selected_ids, set())
+
+    def test_ctrl_click_style_selection_also_checks_the_box(self) -> None:
+        """Native selectionModel changes (ctrl/shift-click) and checkbox
+        clicks both fold into the same truth -- selecting a row via
+        controller.set_selected_ids must also render its checkbox as
+        checked (§ 7: "no second independent selection state")."""
+        entry_ids = self._make_entries([("chat", "cat")])
+        controller = EntriesController()
+        view = EntriesView(controller)
+        self.addCleanup(view.deleteLater)
+        view.refresh()
+
+        controller.set_selected_ids({entry_ids[0]})
+
+        model = controller.model
+        index = model.index(0, model.COLUMNS.index(model.SELECT_COLUMN))
+        self.assertEqual(model.data(index, Qt.ItemDataRole.CheckStateRole), Qt.CheckState.Checked)
+
+    def test_header_select_all_selects_every_visible_row(self) -> None:
+        entry_ids = self._make_entries([("un", "one"), ("deux", "two"), ("trois", "three")])
+        controller = EntriesController()
+        view = EntriesView(controller)
+        self.addCleanup(view.deleteLater)
+        view.refresh()
+        controller.set_search_text("u")  # matches "un" and "deux" (both contain "u"), not "trois"
+
+        view._on_header_toggled(True)
+
+        visible_ids = {row["id"] for row in controller.model.rows()}
+        self.assertTrue(visible_ids)
+        self.assertEqual(controller.selected_ids, visible_ids)
+        self.assertLess(len(visible_ids), len(entry_ids))
+
+    def test_header_select_all_toggled_off_clears_selection(self) -> None:
+        entry_ids = self._make_entries([("chat", "cat"), ("chien", "dog")])
+        controller = EntriesController()
+        view = EntriesView(controller)
+        self.addCleanup(view.deleteLater)
+        view.refresh()
+        view._on_header_toggled(True)
+        self.assertEqual(controller.selected_ids, set(entry_ids))
+
+        view._on_header_toggled(False)
+
+        self.assertEqual(controller.selected_ids, set())
+
+    def test_header_checkbox_state_reflects_full_selection(self) -> None:
+        entry_ids = self._make_entries([("chat", "cat"), ("chien", "dog")])
+        controller = EntriesController()
+        view = EntriesView(controller)
+        self.addCleanup(view.deleteLater)
+        view.refresh()
+
+        controller.set_selected_ids(set(entry_ids))
+        self.assertTrue(view._checkable_header._checked)
+
+        controller.set_selected_ids({entry_ids[0]})
+        self.assertFalse(view._checkable_header._checked)
+
+
+@unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
+class EntriesCorrectivePassScopeSectionsTests(_SyntheticDatabaseTestCase):
+    """§ 8: Scope Pane renders explicit "Scope" and "Collections" sections
+    rather than one flat list."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _qt_app()
+
+    def test_scope_and_collections_headings_present(self) -> None:
+        create_collection("IELTS Core", card_size=8)
+        controller = EntriesController()
+        view = EntriesView(controller)
+        self.addCleanup(view.deleteLater)
+        controller.refresh_scopes()
+
+        headings = [
+            widget.text()
+            for widget in view._scope_pane.findChildren(QWidget)
+            if widget.objectName() == "entries-scope-heading"
+        ]
+        self.assertEqual(headings, ["Scope", "Collections"])
+
+    def test_no_collections_heading_when_no_user_collections_exist(self) -> None:
+        controller = EntriesController()
+        view = EntriesView(controller)
+        self.addCleanup(view.deleteLater)
+        controller.refresh_scopes()
+
+        headings = [
+            widget.text()
+            for widget in view._scope_pane.findChildren(QWidget)
+            if widget.objectName() == "entries-scope-heading"
+        ]
+        self.assertEqual(headings, ["Scope"])
+
+
+@unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
+class EntriesCorrectivePassSplitterTests(_SyntheticDatabaseTestCase):
+    """§ 4: a bounded, user-resizable Scope/Table boundary replaces the
+    rigid fixed-width pane."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _qt_app()
+
+    def test_scope_pane_has_bounded_resizable_width(self) -> None:
+        controller = EntriesController()
+        view = EntriesView(controller)
+        self.addCleanup(view.deleteLater)
+
+        self.assertEqual(view._scope_pane.minimumWidth(), SCOPE_PANE_MIN_WIDTH)
+        self.assertEqual(view._scope_pane.maximumWidth(), SCOPE_PANE_MAX_WIDTH)
+        self.assertGreater(SCOPE_PANE_MAX_WIDTH, SCOPE_PANE_MIN_WIDTH)
+
+
+@unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
+class EntriesCorrectivePassEditorScrollTests(_SyntheticDatabaseTestCase):
+    """§ 5: Add/Edit uses a scrollable form body and keeps Save/Cancel
+    reachable regardless of template size."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _qt_app()
+
+    def test_dialog_has_a_scroll_area_and_bounded_height(self) -> None:
+        controller = EntriesController()
+        dialog = _EntryEditorDialog(controller, None, None)
+        self.addCleanup(dialog.deleteLater)
+
+        scroll_areas = [w for w in dialog.findChildren(QWidget) if w.objectName() == "entries-editor-scroll"]
+        self.assertEqual(len(scroll_areas), 1)
+        self.assertGreater(dialog.maximumHeight(), 0)
+        self.assertLess(dialog.maximumHeight(), 100_000)
+
+    def test_save_cancel_buttons_are_not_inside_the_scroll_area(self) -> None:
+        controller = EntriesController()
+        dialog = _EntryEditorDialog(controller, None, None)
+        self.addCleanup(dialog.deleteLater)
+
+        scroll_area = next(w for w in dialog.findChildren(QWidget) if w.objectName() == "entries-editor-scroll")
+        save_button = next(w for w in dialog.findChildren(QWidget) if w.objectName() == "entries-editor-save-button")
+        self.assertNotIn(save_button, scroll_area.findChildren(QWidget))
+
+
+@unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
+class EntriesCorrectivePassAddToCollectionTests(_SyntheticDatabaseTestCase):
+    """§ 6/§ 11: "Add to Collection" actions are genuinely enabled/wired,
+    reach the controller with the correct Collection id, and persist
+    membership -- verified without the blocking QMenu.exec() call."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _qt_app()
+
+    def test_menu_action_is_enabled_and_triggers_controller_with_correct_id(self) -> None:
+        entry_ids = self._make_entries([("chat", "cat")])
+        collection_id = create_collection("IELTS Core", card_size=8)
+        controller = EntriesController()
+        view = EntriesView(controller)
+        self.addCleanup(view.deleteLater)
+        view.refresh()
+        controller.set_selected_ids({entry_ids[0]})
+
+        menu = view._build_add_to_collection_menu()
+        self.addCleanup(menu.deleteLater)
+        actions = menu.actions()
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0].text(), "IELTS Core")
+        self.assertTrue(actions[0].isEnabled())
+
+        actions[0].trigger()
+
+        self.assertIn(entry_ids[0], [row["id"] for row in get_entries_in_collection(collection_id)])
+
+    def test_menu_disabled_only_when_no_collections_exist(self) -> None:
+        entry_ids = self._make_entries([("chat", "cat")])
+        controller = EntriesController()
+        view = EntriesView(controller)
+        self.addCleanup(view.deleteLater)
+        view.refresh()
+        controller.set_selected_ids({entry_ids[0]})
+
+        menu = view._build_add_to_collection_menu()
+        self.addCleanup(menu.deleteLater)
+        actions = menu.actions()
+
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0].text(), "No Collections yet")
+        self.assertFalse(actions[0].isEnabled())
+
+    def test_menu_lists_every_valid_target_collection_as_enabled(self) -> None:
+        entry_ids = self._make_entries([("chat", "cat")])
+        create_collection("IELTS Core", card_size=8)
+        create_collection("French Verbs", card_size=8)
+        controller = EntriesController()
+        view = EntriesView(controller)
+        self.addCleanup(view.deleteLater)
+        view.refresh()
+        controller.set_selected_ids({entry_ids[0]})
+
+        menu = view._build_add_to_collection_menu()
+        self.addCleanup(menu.deleteLater)
+        actions = menu.actions()
+
+        self.assertEqual({action.text() for action in actions}, {"IELTS Core", "French Verbs"})
+        self.assertTrue(all(action.isEnabled() for action in actions))
+
+
+@unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
+class EntriesCorrectivePassDeleteWordingTests(_SyntheticDatabaseTestCase):
+    """§ 9: hard-delete confirmation copy must distinguish permanent
+    deletion from removing an Entry only from the current Collection, and
+    the CrossCardMoveConfirmationRequired second gate must still fire."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _qt_app()
+
+    def test_single_entry_delete_message_distinguishes_from_collection_removal(self) -> None:
+        entry_ids = self._make_entries([("chat", "cat")])
+        controller = EntriesController()
+        view = EntriesView(controller)
+        self.addCleanup(view.deleteLater)
+        view.refresh()
+        controller.set_selected_ids({entry_ids[0]})
+
+        with patch("src.ui_desktop.views.entries_view.QMessageBox.question") as mock_question:
+            mock_question.return_value = QMessageBox.StandardButton.No
+            view._on_delete_selected()
+
+        message = mock_question.call_args[0][2]
+        self.assertIn("Permanently delete", message)
+        self.assertIn("all Collections", message)
+        self.assertIn("not the same as removing", message)
+        self.assertIn("cannot be undone", message)
+
+    def test_batch_delete_message_is_pluralized(self) -> None:
+        entry_ids = self._make_entries([("chat", "cat"), ("chien", "dog")])
+        controller = EntriesController()
+        view = EntriesView(controller)
+        self.addCleanup(view.deleteLater)
+        view.refresh()
+        controller.set_selected_ids(set(entry_ids))
+
+        with patch("src.ui_desktop.views.entries_view.QMessageBox.question") as mock_question:
+            mock_question.return_value = QMessageBox.StandardButton.No
+            view._on_delete_selected()
+
+        message = mock_question.call_args[0][2]
+        self.assertIn("these 2 Entries", message)
+
+    def test_cross_card_confirmation_gate_still_fires_after_wording_change(self) -> None:
+        collection_id, entry_ids = self._collection_with_entries(4, card_size=3)
+        controller = EntriesController()
+        view = EntriesView(controller)
+        self.addCleanup(view.deleteLater)
+        view.refresh()
+        controller.set_selected_ids({entry_ids[0]})
+
+        with patch("src.ui_desktop.views.entries_view._confirm_cross_card_reorganization", return_value=False) as mock_confirm:
+            view._delete_selected(confirm_cross_card=False)
+            mock_confirm.assert_called_once()
+
+        self.assertEqual(
+            [row["id"] for row in get_entries_in_collection(collection_id)],
+            entry_ids,
+        )
+
+
+@unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
+class EntriesCorrectivePassStylesheetTests(unittest.TestCase):
+    """§ 7/§ 11: selected-row/hover/checkbox-menu style hooks exist so the
+    QSS can actually paint the states the corrective pass requires."""
+
+    def test_stylesheet_defines_selected_and_hover_row_treatment(self) -> None:
+        from src.ui_desktop.theming.theme_manager import build_stylesheet
+        from src.ui_desktop.theming.tokens import THEME_CALM_BLUE_LIGHT
+
+        sheet = build_stylesheet(THEME_CALM_BLUE_LIGHT)
+
+        self.assertIn("QTableView#entries-table::item:selected", sheet)
+        self.assertIn("QTableView#entries-table::item:hover", sheet)
+        self.assertIn("QMenu::item:disabled", sheet)
+        self.assertIn("QSplitter#entries-splitter::handle", sheet)
 
 
 if __name__ == "__main__":
