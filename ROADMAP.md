@@ -215,8 +215,17 @@ the Linked Source desktop workflow (the feature's first UI; M13 closed
 the reusable core only). Every checkpoint's own independent review found
 and fixed real findings before the next one began. See § Milestone 18
 below for the operating model, per-checkpoint acceptance record, and the
-Streamlit disposition table. The next objective is **Phase D —
-Analytics**.
+Streamlit disposition table. **Phase D — Analytics is also complete**:
+the Analytics Landing workspace ("Learning Brief First", DESIGN.md § 6.5
+CANONICAL `VR-ANALYTICS-001`) and the Full Findings drill-down (§ 6.6
+`VR-ANALYTICS-002`), built entirely on the M14 core with no invented
+thresholds or scores. This flips the last disabled Navigation Rail
+placeholder -- every destination in the approved product IA (DESIGN.md
+§ 4.1) now has a real workspace. Independent review found and fixed four
+real findings before Human Gate 2. **Human Gate 2 -- Analytics Product
+Acceptance is READY**, waiting for native human acceptance; see
+§ Milestone 18 below for the full checkpoint record and the acceptance
+brief.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -1464,16 +1473,49 @@ checkpoint began:
   and a failed Unlink produced no visible feedback.
 
 Full repository suite green (677/677 at the C3 checkpoint; re-verified
-after C6's corrective pass) and architecture audit clean (83 files, 0
-violations) throughout. See the Draft PR #29 body for the complete
-Streamlit disposition table -- every M18-scoped legacy surface is now
-migrated, explicitly deprecated, or documented as out of scope, except
-`statistics_page.py`/`dashboard_page.py`, whose disposition (DESIGN.md
-§ 7.7: integrate into Analytics/Today, not recreate for parity) is
-pending Phase D.
+at 723/723 after C6's corrective pass, reflecting the tests added across
+C4-C6) and architecture audit clean (83 files, 0 violations) throughout.
 
-Milestone 18 overall is not complete; the next objective is **Phase D —
-Analytics**, per the M18 contract's default workstream strategy.
+**Phase D — Analytics: complete.** One checkpoint, same implement ->
+verify -> commit -> independent review -> repair loop as Phase C:
+
+- **D1 Analytics Landing + Full Findings** (`c8e4f40`, corrected at
+  `9b2b2c1`) — the Analytics Landing workspace (DESIGN.md § 6.5
+  CANONICAL `VR-ANALYTICS-001`, "Learning Brief First"): an
+  interpretation-first Learning Brief built directly on
+  `src.insights.build_learning_brief`, an "all Entries" / per-Collection
+  scope switch, and a Coverage panel that only appears for a selected
+  Collection (there is no core-defined global coverage metric, so "all"
+  scope intentionally omits it rather than inventing one). The Full
+  Findings drill-down (§ 6.6 `VR-ANALYTICS-002`) is a modal table over
+  every Finding `src.insights.get_all_findings` returns, with a "Show
+  every current Entry (including no current Finding)" toggle. Both
+  finish the M18-scoped statistics_page.py/dashboard_page.py disposition
+  (DESIGN.md § 7.7: integrate into Analytics/Today, not recreate for
+  parity) and flip "analytics" -- the last disabled Navigation Rail
+  placeholder -- to enabled, so every destination in the approved
+  product IA (DESIGN.md § 4.1) now has a real workspace. No SQL, invented
+  score, or mutation was added: the controller only calls existing
+  `src.insights`/`src.analytics` reads. Independent review of the first
+  pass found four issues, all fixed in `9b2b2c1`: a "Suggested: None"
+  label misrepresenting findings with no suggested action as if one
+  existed, bare "Collection"/"Template" scope labels losing the actual
+  Collection/Template identity, a documented-but-unwired "show every
+  current Entry" checkbox, and a redundant double data-reload on every
+  Analytics navigation.
+
+Full repository suite green (744/744 at the pre-corrective D1 checkpoint;
+751/751 re-verified at final head `9b2b2c1937b71d5b7932077f8f10f6f3f4266ea1`
+after its corrective pass) and architecture audit clean throughout. See the Draft PR #29 body for the complete Streamlit
+disposition table -- every M18-scoped legacy surface is now migrated,
+explicitly deprecated, or documented as out of scope.
+
+Milestone 18 management/data workflows and Phase D Analytics are
+complete. **Human Gate 2 -- Analytics Product Acceptance is READY**,
+waiting for native human acceptance. The remaining scope before Feature
+Freeze is Phase E (per the M18 contract's default workstream strategy)
+and Card Audio Export, neither of which may begin before Human Gate 2
+passes.
 
 ### 18.1 Management Workflow Migration
 

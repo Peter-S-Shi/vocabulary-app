@@ -56,8 +56,24 @@ independently reviewed and corrected before the next began -- see
 `ROADMAP.md` § Milestone 18 for the full per-checkpoint record and the
 Streamlit disposition table. Verified: full repository suite 723/723 at
 final head `dc5401f461e8bef20f971910c40db587abd74144`; architecture
-audit 83 files, 0 violations. The next objective is **Phase D —
-Analytics**, which continues directly per the active `/goal` horizon.
+audit 83 files, 0 violations.
+
+**Phase D — Analytics is also complete.** The Analytics Landing
+workspace ("Learning Brief First", DESIGN.md § 6.5 CANONICAL
+`VR-ANALYTICS-001`) and the Full Findings drill-down (§ 6.6
+`VR-ANALYTICS-002`) (`c8e4f40`, corrected at `9b2b2c1`), built entirely
+on the existing `src.insights`/`src.analytics` M14 core with no invented
+scores or thresholds. This flips "analytics" -- the last disabled
+Navigation Rail placeholder -- to enabled, so every destination in the
+approved product IA (DESIGN.md § 4.1) now has a real workspace, and
+finishes the M18-scoped `statistics_page.py`/`dashboard_page.py`
+Streamlit disposition. Independent review found and fixed four real
+issues before Human Gate 2 (a misleading "Suggested: None" label, scope
+labels that lost Collection/Template identity, an unwired "show every
+current Entry" toggle, and a redundant double reload) -- see
+`ROADMAP.md` § Milestone 18 for the full record. **Human Gate 2 —
+Analytics Product Acceptance is READY**, waiting for native human
+acceptance.
 
 M16.0 Desktop UI Design Baseline is complete and frozen: [DESIGN.md](DESIGN.md)
 records the approved desktop information architecture, theme architecture, and
