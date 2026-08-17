@@ -168,6 +168,21 @@ def add_entry(
     )
 
 
+# M17 Final Parity + Exit Verification (EXIT-BUG-002): the only three
+# sort columns the desktop Entries manager exposes. Values are an
+# allowlist mapped to trusted, literal SQL fragments -- ``sort_by``/
+# ``sort_direction`` are never interpolated into the query directly, so
+# an unrecognized value degrades safely to the default order rather than
+# risking SQL injection or a crash.
+SORT_COLUMNS = {
+    "term": "entries.term COLLATE NOCASE",
+    "created_at": "entries.created_at",
+    "updated_at": "entries.updated_at",
+}
+DEFAULT_SORT_BY = "created_at"
+DEFAULT_SORT_DIRECTION = "desc"
+
+
 def list_entries() -> list[dict]:
     return search_entries()
 
@@ -178,6 +193,8 @@ def search_entries(
     entry_type: str = "All",
     status: str = "All",
     template_id: int | str | None = None,
+    sort_by: str = DEFAULT_SORT_BY,
+    sort_direction: str = DEFAULT_SORT_DIRECTION,
 ) -> list[dict]:
     where_clauses = []
     params = []
@@ -232,6 +249,10 @@ def search_entries(
     if where_clauses:
         where_sql = "WHERE " + " AND ".join(where_clauses)
 
+    order_column = SORT_COLUMNS.get(sort_by, SORT_COLUMNS[DEFAULT_SORT_BY])
+    order_direction = "ASC" if str(sort_direction).strip().lower() == "asc" else "DESC"
+    order_sql = f"ORDER BY {order_column} {order_direction}, entries.id {order_direction}"
+
     with get_connection() as connection:
         rows = connection.execute(
             f"""
@@ -240,7 +261,7 @@ def search_entries(
             LEFT JOIN entry_templates
                 ON entry_templates.id = entries.template_id
             {where_sql}
-            ORDER BY entries.created_at DESC, entries.id DESC
+            {order_sql}
             """,
             params,
         ).fetchall()

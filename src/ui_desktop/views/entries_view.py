@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
     QHeaderView,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMenu,
@@ -29,7 +30,7 @@ from PySide6.QtWidgets import (
 
 from src.collections import CROSS_CARD_CONFIRMATION_MESSAGE, CrossCardMoveConfirmationRequired
 from src.text_parser import VALID_ENTRY_TYPES, VALID_EXPLANATION_LANGUAGES, VALID_LANGUAGES, VALID_STATUSES
-from src.ui_desktop.controllers.entries_controller import SCOPE_ALL, EntriesController
+from src.ui_desktop.controllers.entries_controller import SCOPE_ALL, SORT_OPTIONS, EntriesController
 from src.ui_desktop.theming.metrics import SPACING
 
 """
@@ -202,6 +203,50 @@ of the above:
                              Collections-Navigator/Today labels get a "★ "
                              prefix as a presentation-only touch (§ 12) --
                              `system_type = "starred"` is untouched.
+
+M17 Final Parity + Exit Verification, three frozen corrective items on
+top of all of the above:
+
+  EXIT-BUG-001 Custom Entry Type -> `_EntryEditorDialog`'s Entry Type
+                             combo gains a trailing "Custom..." sentinel
+                             item; picking it opens a native
+                             `QInputDialog.getText` prompt, and a
+                             confirmed non-empty value becomes a real,
+                             selectable item in the combo (inserted just
+                             before the sentinel) -- Cancel or an empty/
+                             whitespace-only confirm reverts to whatever
+                             was selected before, never leaving a blank
+                             Entry Type. Reopening an Entry whose stored
+                             `entry_type` is not one of the predefined
+                             values inserts it the same way, so it always
+                             displays and re-saves correctly. No new
+                             taxonomy/Settings surface; the value is
+                             ordinary Entry data through the existing
+                             `create_entry_with_template`/
+                             `update_entry_with_template` core path (`
+                             src/entries.py` already stores/validates
+                             `entry_type` as free text, not an
+                             enum/foreign key).
+  EXIT-BUG-002 Sorting        -> a compact "Sort by" combo
+                             (`SORT_OPTIONS`, `entries_controller.py`)
+                             composes with the existing scope/search/
+                             filter read (`EntriesController.set_sort()`
+                             -> `search_entries(sort_by=..., sort_
+                             direction=...)`, a new allowlisted ORDER BY
+                             capability added to that same core function
+                             rather than a second sort implementation).
+                             Presentation/query state only -- never
+                             mutates Entry data, and `refresh()`'s
+                             existing checked/focused-preservation logic
+                             already keeps both correct across a resort
+                             for free, since reordering never removes an
+                             Entry from the visible result set.
+  EXIT-BUG-003 Result count   -> a subordinate `entries-result-count`
+                             label in the same new always-visible meta
+                             row as Sort by, reusing the count
+                             `EntriesController.refresh()` already
+                             computes and emits via `rows_changed` --
+                             no new query.
 """
 
 SCOPE_PANE_DEFAULT_WIDTH = 220
@@ -357,6 +402,8 @@ class EntriesView(QWidget):
 
         outer.addWidget(bar)
 
+        outer.addWidget(self._build_meta_bar(container))
+
         self._batch_bar = QWidget(container)
         self._batch_bar.setObjectName("entries-batch-bar")
         batch_layout = QHBoxLayout(self._batch_bar)
@@ -389,6 +436,43 @@ class EntriesView(QWidget):
 
         return container
 
+    def _build_meta_bar(self, container: QWidget) -> QWidget:
+        """Always-visible row (unlike the conditional batch bar) for the
+        two remaining M17 Final Parity + Exit Verification corrective
+        items: EXIT-BUG-002 Sort by, and EXIT-BUG-003's result count,
+        kept visually subordinate to the title/table above and below it
+        (muted styling, compact controls)."""
+        meta_bar = QWidget(container)
+        meta_bar.setObjectName("entries-meta-bar")
+        layout = QHBoxLayout(meta_bar)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(SPACING.sm)
+
+        sort_label = QLabel("Sort by", meta_bar)
+        sort_label.setObjectName("entries-meta-label")
+        layout.addWidget(sort_label, 0)
+
+        self._sort_combo = QComboBox(meta_bar)
+        self._sort_combo.setObjectName("entries-sort-combo")
+        for label, _sort_by, _sort_direction in SORT_OPTIONS:
+            self._sort_combo.addItem(label)
+        self._sort_combo.currentIndexChanged.connect(self._on_sort_changed)
+        layout.addWidget(self._sort_combo, 0)
+
+        layout.addStretch(1)
+
+        self._result_count_label = QLabel("", meta_bar)
+        self._result_count_label.setObjectName("entries-result-count")
+        layout.addWidget(self._result_count_label, 0)
+
+        return meta_bar
+
+    def _on_sort_changed(self, index: int) -> None:
+        if index < 0:
+            return
+        _label, sort_by, sort_direction = SORT_OPTIONS[index]
+        self._controller.set_sort(sort_by, sort_direction)
+
     @staticmethod
     def _build_filter_combo(object_name: str, values: set[str] | frozenset[str]) -> QComboBox:
         combo = QComboBox()
@@ -415,8 +499,10 @@ class EntriesView(QWidget):
     def _on_scopes_changed(self) -> None:
         self._scope_pane.render(self._controller.scopes, self._controller.scope)
 
-    def _on_rows_changed(self, _count: int) -> None:
+    def _on_rows_changed(self, count: int) -> None:
         self._restore_table_selection()
+        noun = "entry" if count == 1 else "entries"
+        self._result_count_label.setText(f"{count} {noun}")
 
     # -- table selection: focused_id vs checked_ids (M17 Minimum
     # Collection Integration corrective pass § 5/§ 6) -----------------------
@@ -798,7 +884,25 @@ class _EntryEditorDialog(QDialog):
     inside a ``QScrollArea`` so a template with many fields/long-text
     fields/many Collections can exceed the screen height without pushing
     Save/Cancel off-screen -- only the scrollable body grows or shrinks;
-    the error label and Save/Cancel footer stay pinned outside it."""
+    the error label and Save/Cancel footer stay pinned outside it.
+
+    EXIT-BUG-001 (M17 Final Parity + Exit Verification): the Entry Type
+    combo gains a trailing ``CUSTOM_ENTRY_TYPE_SENTINEL`` item. Picking it
+    (``_on_entry_type_activated``, connected to ``activated`` rather than
+    ``currentIndexChanged`` specifically so the programmatic item-insert-
+    and-select this triggers never re-enters itself) opens a native
+    ``QInputDialog.getText`` prompt; a confirmed non-empty value is
+    inserted as a real, selectable item just before the sentinel and
+    selected (``_ensure_entry_type_item``), so it saves through the exact
+    same ``entry_type`` field every other value does -- no second code
+    path. Cancel or an empty/whitespace-only confirm re-selects whatever
+    was current before (``_entry_type_previous_value``), never leaving a
+    blank Entry Type. The same ``_ensure_entry_type_item`` call also
+    handles reopening an existing Entry whose stored ``entry_type`` isn't
+    one of the predefined values -- it is inserted and selected exactly
+    like a freshly-typed custom value."""
+
+    CUSTOM_ENTRY_TYPE_SENTINEL = "Custom…"
 
     def __init__(self, controller: EntriesController, entry_id: int | None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -841,6 +945,9 @@ class _EntryEditorDialog(QDialog):
 
         self._entry_type_combo = QComboBox(self)
         self._entry_type_combo.addItems(sorted(VALID_ENTRY_TYPES))
+        self._entry_type_combo.addItem(self.CUSTOM_ENTRY_TYPE_SENTINEL)
+        self._entry_type_combo.activated.connect(self._on_entry_type_activated)
+        self._entry_type_previous_value = self._entry_type_combo.itemText(0)
         top_form.addRow("Entry type", self._entry_type_combo)
 
         self._status_combo = QComboBox(self)
@@ -911,7 +1018,11 @@ class _EntryEditorDialog(QDialog):
                 self._template_combo.setCurrentIndex(index)
             self._language_combo.setCurrentText(self._detail.get("language") or "")
             self._explanation_language_combo.setCurrentText(self._detail.get("explanation_language") or "")
-            self._entry_type_combo.setCurrentText(self._detail.get("entry_type") or "")
+            # EXIT-BUG-001: a stored entry_type that predates this Entry's
+            # predefined choices (or was itself saved as a custom value)
+            # is inserted as a real selectable item rather than silently
+            # failing to select anything on a non-editable combo.
+            self._ensure_entry_type_item(str(self._detail.get("entry_type") or ""))
             self._status_combo.setCurrentText(self._detail.get("status") or "")
 
         self._rebuild_template_fields()
@@ -976,6 +1087,40 @@ class _EntryEditorDialog(QDialog):
         if isinstance(widget, QPlainTextEdit):
             return widget.toPlainText()
         return widget.text()
+
+    # -- Custom Entry Type (EXIT-BUG-001) -----------------------------------
+
+    def _ensure_entry_type_item(self, value: str) -> None:
+        """Selects ``value`` in the Entry Type combo, inserting it as a
+        real item just before the Custom sentinel first if it isn't
+        already present. Used both for a freshly-confirmed custom value
+        and for reopening an Entry whose stored value predates/bypasses
+        the predefined set -- the same safe path either way."""
+        index = self._entry_type_combo.findText(value)
+        if index < 0:
+            sentinel_index = self._entry_type_combo.findText(self.CUSTOM_ENTRY_TYPE_SENTINEL)
+            self._entry_type_combo.insertItem(sentinel_index, value)
+            index = sentinel_index
+        self._entry_type_combo.setCurrentIndex(index)
+        self._entry_type_previous_value = value
+
+    def _on_entry_type_activated(self, index: int) -> None:
+        """Connected to ``activated`` (fires only on real user interaction,
+        never on the programmatic ``setCurrentIndex``/``insertItem`` calls
+        ``_ensure_entry_type_item`` makes) so confirming a custom value
+        can never re-trigger this handler."""
+        if self._entry_type_combo.itemText(index) != self.CUSTOM_ENTRY_TYPE_SENTINEL:
+            self._entry_type_previous_value = self._entry_type_combo.itemText(index)
+            return
+        text, confirmed = QInputDialog.getText(self, "Custom Entry Type", "Entry type:")
+        cleaned = text.strip()
+        if confirmed and cleaned:
+            self._ensure_entry_type_item(cleaned)
+        else:
+            # Cancel, or an empty/whitespace-only confirm: leave the
+            # existing Entry Type unchanged rather than saving a blank
+            # value (EXIT-BUG-001 requirement).
+            self._ensure_entry_type_item(self._entry_type_previous_value)
 
     def _on_save(self) -> None:
         self._error_label.setText("")

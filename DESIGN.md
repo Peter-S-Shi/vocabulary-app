@@ -425,6 +425,15 @@ The bottom detail supports current selection. It is not the main editor and must
 - management density supports long scanning sessions;
 - Dark Mode preserves separation among app background, scope pane, table, selected row, detail region, and overlay/dialog surfaces.
 
+M17 Final Parity + Exit Verification closed the last gap between this
+section's frozen "search/filter/sort/batch/add actions" toolbar spec and
+the implementation: a compact Sort by control (Term/Created/Updated,
+composing with existing scope/search/filter) and a subordinate result-
+count indicator, in an always-visible meta row beneath the toolbar --
+plus a Custom option on the Entry Type field (a native text prompt; the
+value is ordinary Entry data through the existing create/update path,
+not a new taxonomy surface).
+
 #### Forbidden composition substitutions
 
 - bottom detail replaced by a permanent large right inspector as the default design;

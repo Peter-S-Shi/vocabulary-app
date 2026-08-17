@@ -68,6 +68,25 @@ render a direct per-row Star affordance without a second N+1 read.
 
 SCOPE_ALL = "all"
 
+# M17 Final Parity + Exit Verification (EXIT-BUG-002): (label, sort_by,
+# sort_direction) triples for the desktop "Sort by" control, in display
+# order. sort_by/sort_direction values match
+# ``src.entries.SORT_COLUMNS``'s allowlist -- this combo is a desktop
+# presentation convenience over that core capability, not a duplicated
+# sort implementation. The first option matches the pre-existing default
+# order exactly, so a freshly opened Entries workspace looks unchanged
+# until the user actually picks something else.
+SORT_OPTIONS: tuple[tuple[str, str, str], ...] = (
+    ("Newest first", "created_at", "desc"),
+    ("Oldest first", "created_at", "asc"),
+    ("Term (A-Z)", "term", "asc"),
+    ("Term (Z-A)", "term", "desc"),
+    ("Recently updated", "updated_at", "desc"),
+    ("Least recently updated", "updated_at", "asc"),
+)
+DEFAULT_SORT_BY = SORT_OPTIONS[0][1]
+DEFAULT_SORT_DIRECTION = SORT_OPTIONS[0][2]
+
 
 class EntriesController(QObject):
     rows_changed = Signal(int)
@@ -83,6 +102,8 @@ class EntriesController(QObject):
         self.entry_type = "All"
         self.status = "All"
         self.template_id: int | str | None = None
+        self.sort_by = DEFAULT_SORT_BY
+        self.sort_direction = DEFAULT_SORT_DIRECTION
         self.scope = SCOPE_ALL
         self.checked_ids: set[int] = set()
         self.focused_id: int | None = None
@@ -132,6 +153,8 @@ class EntriesController(QObject):
             entry_type=self.entry_type,
             status=self.status,
             template_id=self.template_id,
+            sort_by=self.sort_by,
+            sort_direction=self.sort_direction,
         )
         scope_ids = self._scope_entry_ids()
         if scope_ids is not None:
@@ -169,6 +192,19 @@ class EntriesController(QObject):
 
     def set_status(self, value: str) -> int:
         self.status = value
+        return self.refresh()
+
+    def set_sort(self, sort_by: str, sort_direction: str) -> int:
+        """EXIT-BUG-002: presentation/query state only -- reorders the
+        same result set through the existing ``search_entries()`` read;
+        never mutates Entry identity, checked/focused truths, Star, or
+        Collection membership (``refresh()`` already preserves
+        ``checked_ids``/``focused_id`` whenever the reordered result set
+        still contains them, which a pure resort always does)."""
+        if sort_by == self.sort_by and sort_direction == self.sort_direction:
+            return len(self.model.rows())
+        self.sort_by = sort_by
+        self.sort_direction = sort_direction
         return self.refresh()
 
     # -- focused Entry (inspection truth) -------------------------------

@@ -1143,6 +1143,28 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         padding: 5px 8px;
         font-size: 13px;
     }}
+
+    /* Sort by / result count meta row (M17 Final Parity + Exit
+    Verification, EXIT-BUG-002/EXIT-BUG-003) -- always visible, kept
+    visually subordinate to the title/table above and below it, the same
+    muted/12px treatment already established for Collections' Card
+    pagination controls label. */
+    QLabel#entries-meta-label {{
+        color: {neutral.text_muted};
+        font-size: 12px;
+    }}
+    QComboBox#entries-sort-combo {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 3px 8px;
+        font-size: 12px;
+    }}
+    QLabel#entries-result-count {{
+        color: {neutral.text_muted};
+        font-size: 12px;
+    }}
     QWidget#entries-batch-bar {{
         background-color: {accent.soft.background};
         border: 1px solid {accent.border};
