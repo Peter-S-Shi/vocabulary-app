@@ -118,6 +118,19 @@ class TemplatesView(QWidget):
         title.setObjectName("templates-title")
         toolbar.addWidget(title)
         toolbar.addStretch(1)
+        # Human Gate 1 corrective: double-click alone was not a discoverable
+        # entry point into an existing Template (undiscoverable gesture,
+        # not the established P2 grammar). "Open Template" is the explicit,
+        # always-visible affordance -- enabled only once a row is selected,
+        # the same selection-gates-the-action pattern Entries' bottom
+        # "Edit" action already uses -- while double-click remains a
+        # convenience shortcut onto the exact same code path, not a second
+        # implementation.
+        self._open_button = QPushButton("Open Template", self)
+        self._open_button.setObjectName("templates-open-button")
+        self._open_button.setEnabled(False)
+        self._open_button.clicked.connect(self._on_open_selected)
+        toolbar.addWidget(self._open_button)
         new_button = QPushButton("New Template", self)
         new_button.setObjectName("templates-new-button")
         new_button.clicked.connect(self._on_new_template)
@@ -133,6 +146,7 @@ class TemplatesView(QWidget):
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._table.verticalHeader().setVisible(False)
         self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self._table.itemSelectionChanged.connect(self._on_table_selection_changed)
         self._table.doubleClicked.connect(self._on_row_activated)
         layout.addWidget(self._table, 1)
 
@@ -152,9 +166,13 @@ class TemplatesView(QWidget):
             self._table.setItem(row, 4, QTableWidgetItem(str(int(template.get("field_count") or 0))))
             self._table.setItem(row, 5, QTableWidgetItem(str(template.get("updated_at") or "")))
             self._table.item(row, 0).setData(Qt.ItemDataRole.UserRole, int(template["id"]))
+        self._on_table_selection_changed()
 
-    def _on_row_activated(self, index) -> None:
-        item = self._table.item(index.row(), 0)
+    def _on_table_selection_changed(self) -> None:
+        self._open_button.setEnabled(bool(self._table.selectedItems()))
+
+    def _open_editor_for_row(self, row: int) -> None:
+        item = self._table.item(row, 0)
         if item is None:
             return
         template_id = int(item.data(Qt.ItemDataRole.UserRole))
@@ -162,6 +180,15 @@ class TemplatesView(QWidget):
         dialog = _TemplateEditorDialog(self._controller, parent=self)
         dialog.exec()
         self._controller.clear_selection()
+
+    def _on_row_activated(self, index) -> None:
+        self._open_editor_for_row(index.row())
+
+    def _on_open_selected(self) -> None:
+        row = self._table.currentRow()
+        if row < 0:
+            return
+        self._open_editor_for_row(row)
 
     def _on_new_template(self) -> None:
         dialog = _NewTemplateDialog(self._controller, parent=self)
@@ -304,6 +331,7 @@ class _TemplateEditorDialog(QDialog):
         field_buttons.addWidget(self._edit_field_button)
         self._delete_field_button = QPushButton("Delete Field", self)
         self._delete_field_button.setObjectName("templates-editor-delete-field-button")
+        self._delete_field_button.setProperty("destructive", "true")
         self._delete_field_button.clicked.connect(self._on_delete_field)
         field_buttons.addWidget(self._delete_field_button)
         field_buttons.addStretch(1)
@@ -311,6 +339,7 @@ class _TemplateEditorDialog(QDialog):
 
         self._delete_template_button = QPushButton("Delete Template", self)
         self._delete_template_button.setObjectName("templates-editor-delete-template-button")
+        self._delete_template_button.setProperty("destructive", "true")
         self._delete_template_button.clicked.connect(self._on_delete_template)
         layout.addWidget(self._delete_template_button, 0, Qt.AlignmentFlag.AlignRight)
 

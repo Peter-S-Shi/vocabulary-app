@@ -218,6 +218,14 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         border-radius: 4px;
         padding: 4px 10px;
     }}
+    QPushButton[destructive="true"]:hover:enabled {{
+        background-color: {semantic.danger_soft};
+    }}
+    QPushButton[destructive="true"]:disabled {{
+        color: {neutral.text_disabled};
+        background-color: {neutral.surface_secondary};
+        border: 1px solid {neutral.border_subtle};
+    }}
     #nav-rail {{
         background-color: {neutral.surface_secondary};
         border-right: 1px solid {neutral.border_default};
@@ -654,6 +662,16 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         padding: 4px 8px;
     }}
     QDialog QComboBox:disabled {{
+        color: {neutral.text_disabled};
+    }}
+    QDialog QSpinBox {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 4px 8px;
+    }}
+    QDialog QSpinBox:disabled {{
         color: {neutral.text_disabled};
     }}
     QDialog QPushButton {{
@@ -1412,6 +1430,20 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     QWidget#collections-list-divider {{
         background-color: {neutral.border_subtle};
     }}
+    QPushButton#collections-new-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        margin: 8px;
+        padding: 6px 12px;
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#collections-new-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
     QPushButton#collections-list-item {{
         background-color: transparent;
         border: none;
@@ -1473,6 +1505,21 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_disabled};
         border: 1px solid {neutral.border_subtle};
     }}
+    QPushButton#collections-edit-button,
+    QPushButton#collections-organize-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 16px;
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#collections-edit-button:hover:enabled,
+    QPushButton#collections-organize-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
     QLabel#collections-cards-heading {{
         color: {neutral.text_secondary};
         font-size: 13px;
@@ -1500,6 +1547,19 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         font-size: 12px;
     }}
     QPushButton#collections-open-in-study-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QPushButton#collections-card-rename-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 4px 12px;
+        font-size: 12px;
+    }}
+    QPushButton#collections-card-rename-button:hover:enabled {{
         background-color: {accent.soft.background};
         color: {accent.soft.foreground};
         border: 1px solid {accent.border};
@@ -1551,6 +1611,121 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     }}
     QScrollArea#collections-card-scroll > QWidget#qt_scrollarea_viewport {{
         background-color: transparent;
+    }}
+
+    /* M18.1 Collection Manager + Card Organization dialogs. Every button
+    below lives inside a QDialog and would otherwise only get the generic
+    `QDialog QPushButton` treatment (module docstring above `QDialog {{`);
+    explicit rules restore the same primary/secondary/destructive action
+    hierarchy documented in collections_view.py's Design Derivation
+    Record rather than leaving every dialog action visually identical. */
+    QPushButton#collections-editor-save-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#collections-editor-save-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#collections-organize-move-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#collections-organize-move-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+
+    /* M18.1 Template Manager + Template Editor (templates_view.py Design
+    Derivation Record). Templates' "New Template" button lives directly in
+    the workspace (not a QDialog) and would otherwise be fully unstyled --
+    the same class of defect the M16.2 closure found for Today/Entries
+    navigation actions (module docstring above `QDialog {{`: an unstyled
+    widget under a global QApplication stylesheet silently loses its
+    QPalette-resolved foreground). Every Editor/Field-dialog action below
+    gets the same explicit primary/secondary/destructive treatment
+    Collections' equivalents just received, so no new M18 control is left
+    relying on generic/default Qt button painting. */
+    QLabel#templates-title {{
+        color: {neutral.text_primary};
+        font-size: 21px;
+        font-weight: 700;
+    }}
+    QPushButton#templates-new-button,
+    QPushButton#templates-open-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 16px;
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#templates-new-button:hover:enabled,
+    QPushButton#templates-open-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#templates-open-button:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QPushButton#templates-new-create-button,
+    QPushButton#templates-field-save-button,
+    QPushButton#templates-editor-save-button,
+    QPushButton#templates-editor-add-field-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#templates-new-create-button:hover:enabled,
+    QPushButton#templates-field-save-button:hover:enabled,
+    QPushButton#templates-editor-save-button:hover:enabled,
+    QPushButton#templates-editor-add-field-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#templates-editor-save-button:disabled,
+    QPushButton#templates-editor-add-field-button:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QPushButton#templates-editor-edit-field-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#templates-editor-edit-field-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QPushButton#templates-editor-edit-field-button:disabled {{
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QLabel#templates-editor-fields-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#templates-editor-system-notice {{
+        color: {neutral.text_muted};
+        font-style: italic;
+        font-size: 12px;
     }}
     """.strip()
 

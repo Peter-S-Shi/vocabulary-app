@@ -349,6 +349,7 @@ class CollectionsView(QWidget):
 
         delete_button = QPushButton("Delete", actions_row)
         delete_button.setObjectName("collections-delete-button")
+        delete_button.setProperty("destructive", "true")
         delete_button.clicked.connect(lambda: self._on_delete_collection(collection))
         actions_layout.addWidget(delete_button, 0)
 
@@ -666,6 +667,7 @@ class _DeleteCollectionDialog(QDialog):
         buttons.addStretch(1)
         self._delete_button = QPushButton("Delete Collection", self)
         self._delete_button.setObjectName("collections-delete-confirm-button")
+        self._delete_button.setProperty("destructive", "true")
         self._delete_button.setEnabled(False)
         self._delete_button.clicked.connect(self._on_delete)
         buttons.addWidget(self._delete_button)
@@ -717,6 +719,7 @@ class _CardOrganizationDialog(QDialog):
         remove_row = QHBoxLayout()
         remove_button = QPushButton("Remove Selected from Collection", self)
         remove_button.setObjectName("collections-organize-remove-button")
+        remove_button.setProperty("destructive", "true")
         remove_button.clicked.connect(lambda: self._on_remove(confirm_cross_card=False))
         remove_row.addWidget(remove_button)
         remove_row.addStretch(1)
