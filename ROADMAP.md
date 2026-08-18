@@ -1840,6 +1840,59 @@ Provide:
 - Streamlit-exclusive functionality is either migrated, explicitly deprecated,
   or documented as out of scope.
 
+### Mandatory M19 / M20 Productization Handoff — Card Audio Export
+
+M18 proved the **Card Audio Export capability** end-to-end against a real
+retained M15 shared TTS runtime: frozen EN/FR/ZH provider preflights
+succeeded, real Cards became export-ready, real native export succeeded, and
+generated WAV files satisfied the canonical WAV contract.
+
+This does **not** mean a fresh public user can currently clone, download, or
+install Vocabulary App and receive working Audio Export out-of-the-box. The
+current product still depends on an externally available shared TTS runtime
+exposed through `VOCAB_APP_SHARED_TTS_DIR`. This environment contract is
+sufficient for M18 functional acceptance, but runtime discovery,
+configuration, provisioning, and distribution have not yet been productized
+for a clean end-user machine.
+
+**M19 — Desktop Product Hardening** must evaluate and harden at least:
+
+- shared TTS runtime discovery;
+- persistent application/runtime configuration;
+- behavior when the runtime is absent, incomplete, moved, or broken;
+- actionable provider-preflight and recovery UX;
+- first-run / Settings experience where appropriate;
+- elimination of any expectation that a normal end user manually sets a shell
+  environment variable merely to use Audio Export.
+
+M19 should determine the durable product-facing runtime configuration
+contract, but must not prematurely choose a packaging mechanism that
+properly belongs to M20.
+
+**M20 — Packaging and Release Candidate** must resolve how a clean external
+user's installation obtains a usable TTS runtime, models, voices, and
+required dependencies, explicitly evaluating:
+
+- bundle-with-installer vs. first-run/on-demand download vs. another
+  justified provisioning strategy;
+- installer/runtime location and application discovery;
+- package/download size;
+- Windows/runtime dependencies;
+- model/provider/voice redistribution and licensing constraints;
+- upgrade/uninstall behavior;
+- offline expectations;
+- clean-machine installation verification;
+- real Audio Export verification from an installation that does not inherit
+  the developer machine's pre-existing TTS environment.
+
+Release Candidate acceptance must not infer Audio Export deployability
+merely from the developer machine's retained M15 runtime; a clean-user
+installation must be verified independently.
+
+**Lifecycle distinction:** M18 closes *Audio Export capability*. M19/M20
+must close *Audio Export productization and deployability*. This is a
+forward productization concern, not an M18 acceptance blocker.
+
 ---
 
 ## Milestone 19: Desktop Product Hardening

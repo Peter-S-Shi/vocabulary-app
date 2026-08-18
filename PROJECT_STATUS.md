@@ -14,37 +14,38 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 **Milestone 16 — Desktop Architecture and UI Design (Complete on `main`);
 Milestone 17 — Desktop Core Workflow Migration (Complete on `main`);
-Milestone 18 — Desktop Management and Major Feature Completion (IN
-PROGRESS — Human Gate 3 FAILed once, corrective applied, runtime
-recovered and re-verified, READY for native acceptance but NOT yet
-re-presented/accepted)**
+Milestone 18 — Desktop Management and Major Feature Completion (Human
+Gate 1, 2, and 3 all Human Accepted — M18 READY FOR MERGE, awaiting
+operator merge authorization)**
 
 ## Current Milestone
 
 **Milestone 16 Complete on `main`; Milestone 17 Complete on `main`
 (merged via PR #25). Milestone 18 — Desktop Management and Major Feature
-Completion is IN PROGRESS**, developed under the M18 Autonomous
-Execution Contract on branch
+Completion has passed all three Human Gates**, developed under the M18
+Autonomous Execution Contract on branch
 `agent/m18-desktop-management-major-feature-completion` through Draft PR
-#29 (unmerged). Phases B through F (Human Gates 1 and 2 Human Accepted;
-Card Audio Export; integrated exit verification) were complete with no
-known blocking defect at head `aa0ad72`/`df78286`, and the milestone was
-called an EXIT CANDIDATE with Human Gate 3 READY.
+#29 (unmerged). Phases A through F (Human Gates 1, 2, and 3 all Human
+Accepted; Card Audio Export; integrated exit verification) are complete
+with no known blocking defect.
 
-**Human Gate 3 — Final M18 Native Acceptance FAILed** (see "Human Gate 3
-corrective" and "Human Gate 3 runtime recovery" below for the full
-record). A corrective has since been applied, verified, and
-independently reviewed. The retained M15 shared TTS runtime was then
-rediscovered on this machine, audited read-only against the exact paths
+**Human Gate 3 — Final M18 Native Acceptance: PASS (Human Accepted).**
+Final native acceptance initially FAILed (see "Human Gate 3 corrective"
+and "Human Gate 3 runtime recovery" below for the full record); a
+diagnostic corrective was applied, verified, and independently
+reviewed, and the retained M15 shared TTS runtime was then rediscovered
+on this machine, audited read-only against the exact paths
 `src/tts_providers.py` expects, bound temporarily via
 `VOCAB_APP_SHARED_TTS_DIR` for verification only, and used to run a
 real end-to-end Card Audio Export against the real production database
 -- 2 of 2 Cards ready, 2 of 2 exported successfully to valid canonical
-WAV files. **Human Gate 3's runtime acceptance dependency is resolved
-and Human Gate 3 is READY for native human acceptance, but it has not
-yet been re-presented/accepted, and M18 is not currently an EXIT
-CANDIDATE.** The agent will not merge to `main` without explicit human
-authorization.
+WAV files. The operator then independently launched the real desktop
+application with the retained runtime bound the same way, verified the
+real Card Audio Export happy path natively (legitimate Cards became
+ready, `Start Export` became available, export succeeded), and recorded
+**Human Gate 3 PASS**. **All three Human Gates are now Human Accepted
+and M18 is READY FOR MERGE.** The agent will not merge to `main`
+without explicit human authorization.
 
 **Human Gate 1 — Management Grammar Calibration is complete and Human
 Accepted.** Phase B implemented Collection Manager + Card Organization
@@ -299,10 +300,24 @@ the verification process only (no permanent User/Machine change made):
 repository code changed as part of this recovery. The temporary env
 binding is process-scoped only; a permanent User/Machine
 `VOCAB_APP_SHARED_TTS_DIR` value has **not** been set and is
-left for the operator to configure (or re-bind per-session) before
-native acceptance. **Human Gate 3 is READY to be re-presented for
-native human acceptance; it has not been marked PASS by the agent, and
-M18 is still not an EXIT CANDIDATE pending that acceptance.**
+left for the operator to configure (or re-bind per-session) as needed.
+This resolved the runtime dependency and made Human Gate 3 READY for
+native human acceptance (see "Human Gate 3 — Final PASS" below for the
+operator's authoritative acceptance decision).
+
+### Human Gate 3 — Final PASS (Human Accepted)
+
+The operator independently launched the real desktop application with
+the retained M15 shared TTS runtime temporarily bound through
+`VOCAB_APP_SHARED_TTS_DIR` and verified the real Card Audio Export
+happy path in native use: legitimate Cards became ready, `Start Export`
+became available, and the real Audio Export workflow operated
+successfully end to end. The operator recorded **Human Gate 3 PASS**.
+This is the authoritative Human Gate 3 decision.
+
+**Human Gate 1, Human Gate 2, and Human Gate 3 are all Human Accepted.
+M18's product-acceptance exit criteria are satisfied. M18 is READY FOR
+MERGE, pending explicit operator merge authorization into `main`.**
 
 M16.0 Desktop UI Design Baseline is complete and frozen: [DESIGN.md](DESIGN.md)
 records the approved desktop information architecture, theme architecture, and
