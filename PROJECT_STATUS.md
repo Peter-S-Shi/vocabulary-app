@@ -68,12 +68,29 @@ Navigation Rail placeholder -- to enabled, so every destination in the
 approved product IA (DESIGN.md § 4.1) now has a real workspace, and
 finishes the M18-scoped `statistics_page.py`/`dashboard_page.py`
 Streamlit disposition. Independent review found and fixed four real
-issues before Human Gate 2 (a misleading "Suggested: None" label, scope
-labels that lost Collection/Template identity, an unwired "show every
-current Entry" toggle, and a redundant double reload) -- see
-`ROADMAP.md` § Milestone 18 for the full record. **Human Gate 2 —
-Analytics Product Acceptance is READY**, waiting for native human
-acceptance.
+issues before the first Human Gate 2 attempt (a misleading "Suggested:
+None" label, scope labels that lost Collection/Template identity, an
+unwired "show every current Entry" toggle, and a redundant double
+reload).
+
+**Human Gate 2 initially FAILed**: on a real production database,
+opening Analytics made the app "Not Responding" (benchmarked root
+cause: 137s in `get_all_findings`, from independently reloading and
+recomputing the whole database's evidence profiles once per Collection
+and again once per Card). Corrective pass `50597e7` fixed the root
+cause with a shared `EvidenceProfileCache` (re-benchmarked at 0.71s,
+~193x) and added a background `QThread` with staged progress/error UI
+and stale-result guarding as defense-in-depth; independent review of
+that pass found and fixed three more real defects (a cross-thread
+signal race, a narrow-filter cache regression on an unrelated call
+path, and a QThread shutdown-safety gap), and a fourth (a test-harness
+segfault) was self-caught during re-verification. Full repository suite
+re-verified green at `50597e7` (the same 5 pre-existing, unrelated
+`test_m18_review_calendar.py` failures confirmed present on the clean
+pre-corrective HEAD remain, out of scope for this corrective) and
+architecture audit clean -- see `ROADMAP.md` § Milestone 18 for the
+full record. **Human Gate 2 — Analytics Product Acceptance is READY**
+again, waiting for native human acceptance.
 
 M16.0 Desktop UI Design Baseline is complete and frozen: [DESIGN.md](DESIGN.md)
 records the approved desktop information architecture, theme architecture, and

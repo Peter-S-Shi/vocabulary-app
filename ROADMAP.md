@@ -222,10 +222,27 @@ CANONICAL `VR-ANALYTICS-001`) and the Full Findings drill-down (§ 6.6
 thresholds or scores. This flips the last disabled Navigation Rail
 placeholder -- every destination in the approved product IA (DESIGN.md
 § 4.1) now has a real workspace. Independent review found and fixed four
-real findings before Human Gate 2. **Human Gate 2 -- Analytics Product
-Acceptance is READY**, waiting for native human acceptance; see
-§ Milestone 18 below for the full checkpoint record and the acceptance
-brief.
+real findings before the first Human Gate 2 attempt. **Human Gate 2 --
+Analytics Product Acceptance initially FAILed**: on a real production
+database, opening Analytics made the app "Not Responding" -- root cause
+was `get_scope_coverage_findings` reloading and recomputing the *entire*
+database's evidence profiles once per Collection and again once per
+Card, synchronously on the Qt UI thread (confirmed by benchmark: 137s vs
+0.7s after the fix, on a synthetic 2000-entry/30,000-event database). A
+corrective pass introduced `EvidenceProfileCache` (compute the
+whole-database evidence snapshot once per Analytics refresh, reused
+everywhere instead of reloaded per scope) plus a background `QThread`
+with staged progress/error UI and stale-result guarding as
+defense-in-depth. Independent review of that corrective pass found and
+fixed three more real findings (a cross-thread signal race from
+lambda-wrapped callbacks that PySide6 could not correctly queue, a
+narrow-filter cache regression reintroducing whole-database cost on an
+unrelated `src.statistics` call path, and a QThread shutdown-safety gap);
+a fourth defect (a test-harness segfault from not waiting for the
+background thread to fully stop) was self-caught during re-verification.
+**Human Gate 2 -- Analytics Product Acceptance is READY** again, waiting
+for native human acceptance; see § Milestone 18 below for the full
+checkpoint record and the acceptance brief.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -1510,12 +1527,61 @@ after its corrective pass) and architecture audit clean throughout. See the Draf
 disposition table -- every M18-scoped legacy surface is now migrated,
 explicitly deprecated, or documented as out of scope.
 
+**Human Gate 2 corrective: Analytics performance/responsiveness
+(`50597e7`).** Native human testing found that opening Analytics on a
+real production-sized database made the app "Not Responding" --
+**Human Gate 2 FAILed.** Investigated with profiling rather than
+guessing: benchmarked the exact code path against a synthetic
+2000-entry/30,000-event database and confirmed `get_all_findings`
+("All Entries" scope) took **137.15s**. Root cause:
+`get_scope_coverage_findings` looped over every Collection and, within
+each, every Card, calling functions that each independently reloaded
+and recomputed the *entire* database's evidence profiles from scratch
+(`_load_current_entry_metadata` + `load_eligible_evidence_events` + an
+O(entries) personal-baseline pass) -- all synchronously on the Qt UI
+thread. Root-cause fix: a new `EvidenceProfileCache`
+(`src/analytics.py`) computes that whole-database snapshot exactly
+*once* per Analytics pass and is threaded through every Collection/Card/
+Template read that used to reload it independently; re-benchmarked at
+**0.71s** (~193x), with `get_entry_evidence_profiles`'s no-cache default
+path deliberately kept at its original filter-then-compute shape so
+narrow single-call lookups elsewhere in the codebase see no regression.
+As defense-in-depth (per this corrective's own added requirement: "if
+Analytics legitimately requires noticeable computation time even after
+the performance work, do not leave the user looking at a frozen
+workspace"), the M14 read also moved off the Qt UI thread onto a
+background `QThread`, with a monotonic generation token guarding against
+a stale superseded load overwriting a newer one, and `AnalyticsView`
+gained a staged/determinate `QProgressBar` + status label loading state
+plus an actionable error state (Retry), built from existing theme/accent
+tokens (DESIGN.md § 12.4/§ 23) -- never a fabricated percentage.
+Independent review of this corrective pass found and fixed three more
+real defects: worker signals connected to lambdas rather than bound
+methods, which PySide6 cannot detect as cross-thread and so ran
+unsynchronized on the worker thread instead of being queued onto the Qt
+UI thread (undermining the stale-result guard itself); the cache
+refactor's first draft unconditionally built the whole-database cache
+even for callers that never asked for one (e.g. `src.statistics`'s
+per-Collection lookups), reintroducing the same class of unnecessary
+global recomputation on a different call path; and no shutdown hook
+meant closing the app mid-load could destroy a still-running `QThread`
+(fatal in Qt). A fourth defect -- a segfault in the test suite itself
+from not waiting for the background thread to fully stop before
+`tearDown` deleted the database -- was self-caught during
+re-verification and fixed in the test helper (now reused via the
+controller's own `shutdown()`). Full repository suite re-verified green
+at final head `50597e7` (762 tests; the same 5 pre-existing failures in
+`test_m18_review_calendar.py` -- confirmed present on the clean
+pre-corrective HEAD, a relative-date-window test-data flake unrelated to
+Analytics -- remain the only non-passing tests, out of scope for this
+corrective) and architecture audit clean (85 files, 0 violations).
+
 Milestone 18 management/data workflows and Phase D Analytics are
-complete. **Human Gate 2 -- Analytics Product Acceptance is READY**,
-waiting for native human acceptance. The remaining scope before Feature
-Freeze is Phase E (per the M18 contract's default workstream strategy)
-and Card Audio Export, neither of which may begin before Human Gate 2
-passes.
+complete. **Human Gate 2 -- Analytics Product Acceptance is READY**
+again, waiting for native human acceptance. The remaining scope before
+Feature Freeze is Phase E (per the M18 contract's default workstream
+strategy) and Card Audio Export, neither of which may begin before
+Human Gate 2 passes.
 
 ### 18.1 Management Workflow Migration
 
