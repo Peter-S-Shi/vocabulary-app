@@ -31,21 +31,23 @@ the Inno Setup decision — that directive's `/ALLUSERS` escape hatch would
 have permitted administrative install mode, contradicting the frozen
 per-user-only decision (§ 2.5, § 3 decision 2), (2) corrected § 2.7's
 claim that EV certificates grant instant SmartScreen reputation (Microsoft
-retired that carve-out), added Azure Trusted Signing (≈US$9.99/month
+retired that carve-out), added Azure Artifact Signing (≈US$9.99/month
 Basic, no hardware token) as the current Microsoft-recommended low-cost
 option, and un-froze the sign/unsigned choice as a later M20 decision
 rather than settling on "unsigned" now (§ 2.7, § 3 decision 6, § 6),
 (3) identified that the frozen TTS provider contract requires a private
-`venv\Scripts\python.exe` a clean end-user machine does not have, replaced
-the "download via `pip`" framing with two named self-contained
-architecture alternatives for Phase B to choose between, and strengthened
-the integrity contract to require pinned versions/revisions and a
+`venv\Scripts\python.exe`-shaped interpreter a clean end-user machine does
+not have, replaced the "download via `pip`" framing with two named
+self-contained architectures built around a portable/embeddable Python
+runtime rather than a copied ordinary `venv` (an ordinary `venv` is not
+itself a portable/relocatable artifact — § 2.3), and strengthened the
+integrity contract to require pinned versions/revisions and a
 project-authored trusted-hash manifest rather than relying on `pip`/
 Hugging Face Hub default verification alone (§ 2.3, § 3 decisions 4–5,
-OB-2), and (4) replaced the "Inno Setup uninstall custom wizard page"
-claim with the required product behavior only (explicit, unchecked
-destructive-data opt-in at uninstall time), leaving the exact UI mechanism
-to Phase B (§ 2.5, § 2.6).
+OB-2), and (4) froze only the required uninstall behavior (explicit,
+unchecked destructive-data opt-in through a supported Inno Setup
+uninstall-time code path) without naming a specific implementation
+mechanism, leaving that entirely to Phase B (§ 2.5, § 2.6).
 
 ---
 
@@ -168,11 +170,11 @@ deliberately-pruned "exactly what the shipped downloader needs" set. The
 size is driven almost entirely by the `venv` (mainly `torch`,
 `transformers`, `spacy` — Kokoro's actual runtime dependency chain, not
 padding this project added). Phase B must derive the actual minimum
-manifest in a clean directory (a fresh venv with only the packages the
-shipped `kokoro`/`sherpa-onnx` adapters import at runtime, dependency-
-resolved from scratch rather than copied from this dev environment) and
-verify its real size before the final payload size is accepted — it may
-turn out smaller than 1.46 GB once dev-only extras are excluded, or it may
+manifest in the relocatable, portable-Python runtime tree described below
+(not a copy of this dev `venv`) with only the packages the shipped
+`kokoro`/`sherpa-onnx` adapters import at runtime, dependency-resolved
+from scratch, and verify its real size before the final payload size is
+accepted — it may turn out smaller than 1.46 GB once dev-only extras are excluded, or it may
 confirm close to this figure; either is acceptable within the 1–1.5 GB
 frozen target. No provider/model substitution is implied — the same
 already-selected, license-cleared, frozen (M15.0) `kokoro`/`sherpa-onnx`
@@ -194,34 +196,67 @@ not have.** `build_shared_runtime_registry()`
 "python.exe"` and shells out to it for both the Kokoro and sherpa-onnx
 adapters — the frozen (M15.0) product contract is not "call `kokoro`/
 `sherpa-onnx` as importable Python packages," it is specifically "invoke a
-private venv's `python.exe` as a subprocess." A clean Windows end-user
-machine has **no system Python at all** by default, so a first-run
-provisioning step that simply runs `pip install kokoro sherpa-onnx ...`
-has nothing to run `pip` *with* — there is no interpreter to install into
-until one exists. **This was not resolved by the original draft's "download
-via `pip`" framing, which implicitly assumed a system Python was already
-present.** Phase B must choose and prove one of two self-contained
+private interpreter's `python.exe` as a subprocess." A clean Windows
+end-user machine has **no system Python at all** by default, so a
+first-run provisioning step that simply runs `pip install kokoro
+sherpa-onnx ...` has nothing to run `pip` *with* — there is no interpreter
+to install into until one exists. **This was not resolved by the original
+draft's "download via `pip`" framing, which implicitly assumed a system
+Python was already present.**
+
+**Correction: a normal `python -m venv` environment is also not itself a
+valid answer, and must not be proposed as one.** An ordinary `venv` is not
+a portable/copyable distribution artifact — its `pyvenv.cfg` records an
+absolute `home` path back to the base Python installation that created it,
+and its `Scripts\` launcher `.exe`s and `.pth`/config files can embed
+absolute paths tied to the machine that built it. Building a dev-machine
+`venv` and zip/unzipping it onto an end-user machine is not a supported
+or reliable redistribution mechanism and is not proposed here. Both
+architecture options below are instead built around a **self-contained,
+relocatable private Python runtime** — a portable/embeddable Python
+distribution (e.g. the official `python.org` Windows embeddable ZIP),
+which is designed to be relocated as a plain directory tree with no
+baked-in absolute-path dependency on the machine that assembled it — not
+a standard `venv`. Phase B must choose and prove one of two such
 architectures, neither of which depends on a preinstalled Python/pip on
 the end-user machine:
 
-1. **Versioned, pre-built optional TTS runtime pack:** build the private
-   `venv\` once (in a controlled build environment, not on the end-user
-   machine), zip it as a versioned release artifact alongside the app's
-   own GitHub Releases, and have the in-app downloader fetch and unpack
-   that pre-built archive verbatim. No `pip install` or dependency
-   resolution ever runs on the end-user machine; the venv arrives already
-   built.
-2. **Self-bootstrapping downloader with an embedded/portable Python:**
-   ship the first-run downloader with (or have it first fetch) a portable/
-   embeddable Python distribution (e.g. the official
-   `python.org` Windows embeddable package), use *that* private
-   interpreter to create the venv and run `pip install` against pinned,
-   hash-verified requirements, entirely under `%LOCALAPPDATA%`, never
-   touching or depending on anything system-wide.
+1. **Pre-built, versioned self-contained TTS runtime pack:** in a
+   controlled build environment, assemble the target directory tree from
+   a portable/embeddable Python runtime plus pinned dependencies, the
+   Kokoro/sherpa-onnx adapters, and the voice/model assets; package that
+   already-relocatable tree as a versioned archive published as a GitHub
+   Release asset; have the in-app downloader fetch and unpack it verbatim.
+   No dependency resolution, `pip install`, or Python installation step
+   ever runs on the end-user machine — the runtime tree arrives already
+   built and is relocatable by construction because it is a portable
+   interpreter, not a `venv`.
+2. **Self-bootstrapping downloader with a portable/embeddable Python:**
+   the first-run downloader first acquires the same portable/embeddable
+   Python runtime (fetched pinned/hash-verified, e.g. from the official
+   `python.org` embeddable-ZIP releases), then uses *that* private,
+   already-relocatable interpreter — never a system Python — to construct
+   the identical deterministic runtime tree on the end-user machine from
+   pinned, hash-verified wheels/model assets, entirely under
+   `%LOCALAPPDATA%`.
 
-**Neither is selected here — this is Phase B's architecture decision to
+Both converge on the same target artifact shape (a relocatable portable-
+Python tree, not a `venv`); Phase B must also confirm whether
+`build_shared_runtime_registry()`'s `root / "venv" / "Scripts" /
+"python.exe"` path resolution needs a corresponding small code update to
+match whatever directory name the chosen architecture actually produces,
+or whether Phase B provisioning simply names its output directory `venv\`
+to match the existing frozen path unchanged — either is a Phase B
+implementation detail, not decided here.
+
+**Neither architecture is selected here — this is Phase B's decision to
 make and prove against a real clean machine, not Phase A's** (§ 3 decision
-4, § 4 OB-2 restated accordingly below).
+4, § 4 OB-2 restated accordingly below). The 1–1.5 GB payload target (§ 1)
+and the frozen English/French/Mandarin (`kokoro`/`sherpa-onnx`/Windows
+Yaoyao) provider selection (M15.0) are unaffected by this correction —
+this is purely about *how* that already-selected runtime reaches the
+user's machine as a working, relocatable artifact, not about replacing
+any provider, model, or language.
 
 **Integrity contract correction:** the original draft's "verifies each
 downloaded package/model against its origin's own integrity mechanism
@@ -331,13 +366,10 @@ not a packaging-tool detail.
   is left untouched unless the user explicitly opts in to also deleting it,
   through an unchecked-by-default control presented at uninstall time. The
   **required product behavior** is frozen — an explicit, unchecked
-  destructive-data opt-in the user must actively select, never a default or
-  ambiguous action — but the **exact UI mechanism is a Phase B
-  implementation decision**, not committed here. Inno Setup supports more
-  than one way to present this (e.g. a custom uninstall wizard page, or an
-  `MsgBox` confirmation invoked from `[UninstallRun]`/`CurrentUninstallStepChanged`);
-  Phase B selects and implements whichever fits the rest of the uninstaller
-  script cleanly.
+  destructive-data opt-in the user must actively select, through a
+  supported Inno Setup uninstall-time code path, never a default or
+  ambiguous action. The **exact implementation mechanism is Phase B
+  scope**, not committed here.
 - **Rollback (frozen: manual, via reinstall):** document the rollback
   procedure as: (1) download the prior version's installer from GitHub
   Releases, (2) install over/alongside, (3) if the new version's schema
@@ -363,9 +395,9 @@ not a packaging-tool detail.
   buys instant reputation was wrong and is corrected here rather than
   silently dropped.
 - **Current Microsoft-recommended low-cost signing option (researched,
-  not purchased):** **Azure Trusted Signing** (Microsoft's current
-  low-cost non-Store code-signing service, formerly previewed as "Azure
-  Artifact Signing"), Basic tier, **≈US$9.99/month**. Individual
+  not purchased):** **Azure Artifact Signing** (Microsoft's current
+  low-cost non-Store code-signing service; also referred to as "Trusted
+  Signing" in some Microsoft documentation), Basic tier, **≈US$9.99/month**. Individual
   developers are eligible (Microsoft's eligibility criteria include
   individual developers based in Canada, among other qualifying
   countries/entities), and it does **not** require a physical hardware
@@ -379,7 +411,7 @@ not a packaging-tool detail.
   budget was frozen as a decision"), but the sign/unsigned choice is left
   open for a later M20 decision, to be made once a real RC installer
   artifact exists and the operator can weigh actual SmartScreen friction
-  (or Azure Trusted Signing's ~$10/month) against a concrete build,
+  (or Azure Artifact Signing's ~$10/month) against a concrete build,
   rather than against a hypothetical one now.
 - **Mitigation regardless of the eventual sign/unsigned decision:**
   (1) publish SHA-256 checksums for every release asset directly in the
@@ -498,16 +530,21 @@ Phase B implementation planning:
    (§ 1), derived and measured fresh in Phase B rather than assumed equal
    to the ~1.46 GB dev-environment measurement (§ 2.3, OB-2). **Not
    selected in Phase A:** which of the two self-contained provisioning
-   architectures identified in § 2.3 (a versioned pre-built runtime pack
-   vs. a downloader that bootstraps its own private/embeddable Python)
-   Phase B implements — a live `pip install` step alone is not viable
-   against a clean end-user machine with no system Python, so it is not
-   frozen as the architecture. Whichever is chosen, packages/models come
-   from the same upstream sources already selected and license-cleared at
-   M15.0 (PyPI for the pinned dependency set, Hugging Face Hub for Kokoro
-   weights, the existing `piper-voices` Hugging Face repo for the French
-   voice) — not a new redistribution channel, not a re-hosted mirror,
-   preserving "no silent provider/model/license substitution."
+   architectures identified in § 2.3 (a pre-built, versioned runtime pack
+   built around a portable/embeddable Python runtime, vs. a downloader
+   that first bootstraps that same kind of portable/embeddable Python and
+   then constructs the runtime tree itself) Phase B implements. Neither a
+   live `pip install` against a system Python nor a copied ordinary
+   `python -m venv` environment is viable against a clean end-user machine
+   — the former has no system Python to run against, the latter is not a
+   portable/relocatable artifact (§ 2.3) — so neither is frozen as the
+   architecture. Whichever of the two named alternatives is chosen,
+   packages/models come from the same upstream sources already selected
+   and license-cleared at M15.0 (PyPI for the pinned dependency set,
+   Hugging Face Hub for Kokoro weights, the existing `piper-voices`
+   Hugging Face repo for the French voice) — not a new redistribution
+   channel, not a re-hosted mirror, preserving "no silent provider/model/
+   license substitution."
 5. **Checksum/integrity:** publish SHA-256 for every GitHub Release
    installer asset in the release notes. The TTS provisioning integrity
    contract is **not** "rely on `pip`/Hugging Face Hub's own default
@@ -519,7 +556,7 @@ Phase B implementation planning:
    behavior), and document how the manifest itself is produced/regenerated
    on a deliberate dependency update.
 6. **Code-signing:** **not decided in Phase A.** Unsigned remains
-   acceptable and zero-cost; Azure Trusted Signing (≈US$9.99/month Basic,
+   acceptable and zero-cost; Azure Artifact Signing (≈US$9.99/month Basic,
    no hardware token, individual-developer-eligible) is the current
    Microsoft-recommended low-cost option if signing is adopted (§ 2.7).
    The choice is deferred to a later M20 decision point, made against a
@@ -582,14 +619,19 @@ Ranked by what actually blocks Phase B start:
   derived — blocks Phase B's TTS provisioning work directly, not the rest
   of Phase B):** two compounding gaps, both surfaced in § 2.3:
   - **Architecture:** the frozen (M15.0) TTS provider contract requires a
-    private `venv\Scripts\python.exe` (`build_shared_runtime_registry()`
-    in `src/tts_providers.py`), and a clean end-user machine has no system
-    Python to bootstrap that venv with. Phase B must select and prove one
-    of the two self-contained architectures identified in § 2.3 — a
-    versioned pre-built runtime pack, or a downloader that bootstraps its
-    own embeddable Python — before any provisioning code is written. A
-    plain `pip install` step is not viable as-is against a clean machine
-    and must not be assumed.
+    private `venv\Scripts\python.exe`-shaped interpreter
+    (`build_shared_runtime_registry()` in `src/tts_providers.py`), and a
+    clean end-user machine has no system Python to bootstrap one with. A
+    plain `pip install` step is not viable as-is against a clean machine,
+    and an ordinary `python -m venv` environment copied from a dev machine
+    is not a portable/relocatable artifact either (§ 2.3 — its
+    `pyvenv.cfg` and launcher scripts carry absolute paths back to the
+    machine that created it). Phase B must select and prove one of the two
+    self-contained architectures identified in § 2.3, both built around a
+    portable/embeddable Python runtime rather than a `venv` — a pre-built
+    versioned runtime pack, or a downloader that first bootstraps that
+    same portable/embeddable Python and then constructs the runtime tree
+    itself — before any provisioning code is written.
   - **Manifest size:** the frozen payload target is approximately 1–1.5 GB
     (§ 1), and the measured ~1.46 GB dev `venv` (§ 2.3) is an upper-bound
     observation that fits inside that range but is not yet the actual
