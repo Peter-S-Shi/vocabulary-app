@@ -87,7 +87,10 @@ class MainWindow(QMainWindow):
         theme_manager: ThemeManager | None = None,
     ) -> None:
         super().__init__()
-        self.setWindowTitle("Vocabulary App (Desktop Preview)")
+        # M19 product truthfulness: the desktop application has been the
+        # accepted primary product surface since M17/M18 -- it is no
+        # longer a "(Desktop Preview)" of anything.
+        self.setWindowTitle("Vocabulary App")
         self.resize(1280, 800)
 
         self.app_state = app_state or AppState()

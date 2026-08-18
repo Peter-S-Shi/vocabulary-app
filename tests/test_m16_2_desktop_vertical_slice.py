@@ -141,7 +141,9 @@ class M162BootstrapTests(_SyntheticDatabaseTestCase):
         self.addCleanup(window.close)
 
         self.assertIsInstance(window, MainWindow)
-        self.assertEqual(window.windowTitle(), "Vocabulary App (Desktop Preview)")
+        # M19: the "(Desktop Preview)" suffix was retired once the desktop
+        # app became the accepted primary product surface (M17/M18).
+        self.assertEqual(window.windowTitle(), "Vocabulary App")
         self.assertIs(window.current_workspace(), Workspace.TODAY)
         self.assertIsNotNone(theme_manager.current)
 
