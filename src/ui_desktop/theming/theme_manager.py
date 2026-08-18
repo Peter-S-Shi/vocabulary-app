@@ -1129,6 +1129,20 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_muted};
         font-size: 12px;
     }}
+    /* Final Human Acceptance Gate corrective: Settings > Audio's
+    initial-load busy indicator, matching analytics-progress-bar's
+    established indeterminate treatment (DESIGN.md § 12.4). */
+    QProgressBar#settings-audio-loading-spinner {{
+        background-color: {neutral.surface_sunken};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        min-height: 8px;
+        max-height: 8px;
+    }}
+    QProgressBar#settings-audio-loading-spinner::chunk {{
+        background-color: {accent.primary.background};
+        border-radius: {radius}px;
+    }}
 
     /* Entries -- Table-First Manager (DESIGN.md § 6.2 `VR-ENTRIES-001`,
     M17 Feature 4). Ordinary Management Mode workspace -- Management Rail

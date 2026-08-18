@@ -1,10 +1,11 @@
 # Milestone 19 — Desktop Product Hardening: Hardening / Acceptance Evidence Record
 
 **Status: Engineering Exit Candidate, Agent Verified, Human Acceptance
-Pending.** This is a living evidence record, not a pre-hardening
-questionnaire. It documents what was audited, what was found, what was
-fixed, and what was verified during M19 — kept current with
-`PROJECT_STATUS.md`, the authoritative evidence-based snapshot.
+Pending (corrective applied after Attempt 1 FAIL — see § 9).** This is
+a living evidence record, not a pre-hardening questionnaire. It
+documents what was audited, what was found, what was fixed, and what
+was verified during M19 — kept current with `PROJECT_STATUS.md`, the
+authoritative evidence-based snapshot.
 
 - **Branch:** `agent/m19-desktop-product-hardening`
 - **Draft PR:** #30
@@ -234,10 +235,79 @@ Against `ROADMAP.md` § "Milestone 19 Exit Criteria":
       and this M19 QA record agree.
 - [x] Exact local branch/head and remote branch/head are verified.
 
-## 9. Remaining Human-Only Item
+## 9. Final Human Acceptance Gate — Attempt 1: FAIL, narrow UX corrective
 
-**Final Human Acceptance Gate** (ROADMAP § 17 / `AGENTS.md`'s Human UI
-Acceptance Delivery Pattern): launch the real native desktop application
-from this branch, leave it open for the operator's own inspection, and
-obtain an explicit PASS/FAIL. Not yet performed — this record declares
-Engineering Exit Candidate / Agent Verified only.
+The operator launched the real native application from Engineering Exit
+Candidate head `2dc0893` and recorded **FAIL** with two narrow UX
+correctives (explicitly not a reopening of broader M19 scope):
+
+1. Settings → Audio had no visible feedback during its load (~5–6s
+   observed natively).
+2. Navigation Rail order should be Today → Study → Entries →
+   Collections → Review Calendar → Templates → Data Tools → Analytics
+   (Settings unchanged, separate bottom position).
+
+### Corrective 1 — Settings → Audio loading feedback
+
+**Investigation before changing code:** timed `SettingsController`/
+`SettingsView` construction directly (including with the real
+environment-configured shared TTS runtime present) — 6ms, not 5–6s.
+Grepped the entire desktop layer for `.preflight(`/`build_provider_registry`
+call sites: the only live per-language preflight (the genuinely slow,
+subprocess-spawning check — kokoro/sherpa-onnx/Yaoyao PowerShell) lives
+in `AudioExportController` (Data Tools → Card Audio Export), which
+Settings → Audio's existing note text already points to and does not
+call. The root cause of the operator's observed real-machine delay
+could not be conclusively isolated in this environment.
+
+**Fix (robust regardless of root cause):** Settings → Audio's status
+rows are now populated behind a deferred, spinner-first load —
+`src/ui_desktop/views/settings_view.py` shows an indeterminate
+`QProgressBar` (`settings-audio-loading-spinner`, styled to match the
+existing `analytics-progress-bar` pattern) immediately on construction;
+the real rows are built up front but hidden; a `QTimer.singleShot(0, ...)`
+defers the actual `shared_tts_dir_setting()`/`shared_tts_status()` calls
+by one event-loop tick so the spinner has a chance to paint first, then
+swaps to the real content. A later Browse/Clear update (already-loaded,
+user-initiated, fast) updates the visible rows directly without
+re-showing the spinner. This is correct whether the underlying call
+takes 6ms or 6 seconds on a given machine.
+
+**Verification:** 3 tests in `tests/test_m19_tts_runtime_config.py`
+(`SettingsViewAudioSectionTests`) — the busy indicator is shown and the
+content hidden immediately at construction; after the deferred load
+runs, the content is shown and the indicator hidden; a later update
+never re-shows the indicator. (`QWidget.isVisible()` requires a shown
+top-level window and is unusable in an offscreen test harness;
+`isHidden()` — the widget's own explicit visibility flag, independent
+of ancestor state — is used instead.)
+
+### Corrective 2 — Navigation Rail order
+
+**Fix:** `PRIMARY_DESTINATIONS` in
+`src/ui_desktop/widgets/navigation_rail.py` reordered to Today → Study
+→ Entries → Collections → Review Calendar → Templates → Data tools →
+Analytics. `SETTINGS_DESTINATION` is appended separately after
+`layout.addStretch(1)` and was already unaffected by this tuple's
+order.
+
+**Verification:** existing structural tests (`test_m17_today_command_center_shell.py`)
+assert rail contents as sets, not order, so they remained valid
+unchanged; the new order was confirmed programmatically
+(`[d.key for d in PRIMARY_DESTINATIONS]`).
+
+### Regression evidence for this corrective pass
+
+```text
+Affected navigation/Settings/desktop regression: 378/378
+Full repository suite:                           860/860 (offscreen)
+Architecture audit:                               94 Python files, 0 serious, 0 warnings
+Privacy/tracked-file scan:                        clean
+```
+
+## 10. Remaining Human-Only Item
+
+**Final Human Acceptance Gate, re-presentation** (ROADMAP § 17 /
+`AGENTS.md`'s Human UI Acceptance Delivery Pattern): the real native
+desktop application is launched from this corrective head and left open
+for the operator's own re-inspection, pending an explicit PASS/FAIL.

@@ -132,10 +132,37 @@ Entries table personalization (M17-era, unchanged). No known
 release-blocking defect, data-integrity/privacy/security defect, or
 architecture-boundary violation remains open.
 
+### Final Human Acceptance Gate — Attempt 1: FAIL (narrow UX corrective)
+
+The operator launched the real native application from Exit Candidate
+head `2dc0893` and recorded **FAIL** with two explicitly narrow UX
+correctives (not a reopening of broader M19 scope): (1) Settings →
+Audio's status load (~5-6s observed natively) had no visible loading
+feedback; (2) the Navigation Rail order should read Today → Study →
+Entries → Collections → Review Calendar → Templates → Data Tools →
+Analytics (Settings unchanged, separate bottom position).
+
+**Corrective applied.** Settings → Audio now shows an indeterminate
+busy indicator immediately on load and swaps to real content once the
+(deferred-by-one-tick) status resolution completes, regardless of how
+long that resolution actually takes on a given machine
+(`src/ui_desktop/views/settings_view.py`, styled via a new
+`settings-audio-loading-spinner` QSS rule matching the existing
+`analytics-progress-bar` pattern). The Navigation Rail's
+`PRIMARY_DESTINATIONS` order was corrected to match exactly
+(`src/ui_desktop/widgets/navigation_rail.py`); `SETTINGS_DESTINATION`
+was already separate and unaffected. See `docs/qa/MILESTONE19_HARDENING_QA.md`
+§ 9 for full investigation and verification detail.
+
+Verification: affected navigation/Settings/desktop regression 378/378;
+full repository suite 860/860; architecture audit clean (94 files, 0
+violations); privacy scan clean.
+
 **M19 status: Engineering Exit Candidate, Agent Verified, Human
-Acceptance Pending.** Not Human Accepted; not Complete; the branch
-remains Draft and unmerged pending the operator's explicit PASS at the
-Final Human Acceptance Gate.
+Acceptance Pending (corrective applied, re-presenting for re-check).**
+Not Human Accepted; not Complete; the branch remains Draft and unmerged
+pending the operator's explicit PASS at the re-presented Final Human
+Acceptance Gate.
 
 **Milestone 18 — Desktop Management and Major Feature Completion is
 Complete on `main`** (merged via PR #29 at

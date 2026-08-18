@@ -229,7 +229,28 @@ class SettingsViewAudioSectionTests(_EnvIsolationMixin):
 
         cls.app = QApplication.instance() or QApplication([])
 
+    def test_audio_section_shows_a_busy_indicator_before_the_deferred_load_runs(self) -> None:
+        """Final Human Acceptance Gate corrective: construction must show
+        a visible loading state immediately, before the one-event-loop-
+        tick-deferred population runs -- not silently populate with no
+        feedback."""
+        from src.ui_desktop.views.settings_view import SettingsView
+
+        controller = SettingsController(Preferences())
+        view = SettingsView(controller)
+        self.addCleanup(view.deleteLater)
+
+        # QWidget.isVisible() requires the whole ancestor chain (including
+        # a shown top-level window) to be True; this test never shows the
+        # view, so isHidden() -- the widget's own explicit visibility
+        # flag, independent of ancestor state -- is the correct check.
+        self.assertFalse(view._audio_loading_row.isHidden())
+        self.assertTrue(view._audio_content.isHidden())
+        self.assertFalse(view._audio_loaded)
+        self.assertEqual(view._tts_dir_value.text(), "")
+
     def test_audio_rows_render_and_reflect_controller_state(self) -> None:
+        from PySide6.QtCore import QEventLoop, QTimer
         from PySide6.QtWidgets import QPushButton
 
         from src.ui_desktop.views.settings_view import SettingsView
@@ -237,6 +258,16 @@ class SettingsViewAudioSectionTests(_EnvIsolationMixin):
         controller = SettingsController(Preferences())
         view = SettingsView(controller)
         self.addCleanup(view.deleteLater)
+
+        # Let the deferred QTimer.singleShot(0, ...) load fire, matching
+        # what a real event loop does after the initial paint.
+        loop = QEventLoop()
+        QTimer.singleShot(50, loop.quit)
+        loop.exec()
+
+        self.assertTrue(view._audio_loaded)
+        self.assertTrue(view._audio_loading_row.isHidden())
+        self.assertFalse(view._audio_content.isHidden())
 
         browse = view.findChildren(QPushButton, "settings-tts-browse-button")
         clear = view.findChildren(QPushButton, "settings-tts-clear-button")
@@ -253,6 +284,9 @@ class SettingsViewAudioSectionTests(_EnvIsolationMixin):
         self.assertTrue(clear[0].isEnabled())
         self.assertIn("D:/tts-runtime", view._tts_source_value.text())
         self.assertIn("App setting", view._tts_source_value.text())
+        # A later update (Browse/Clear) never re-shows the busy indicator.
+        self.assertTrue(view._audio_loading_row.isHidden())
+        self.assertFalse(view._audio_content.isHidden())
 
     def test_audio_controls_have_explicit_qss_coverage_in_both_themes(self) -> None:
         """M18 Human Gate 1 lesson: a workspace control without explicit

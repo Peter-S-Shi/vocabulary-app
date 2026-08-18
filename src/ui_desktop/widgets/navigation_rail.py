@@ -70,14 +70,19 @@ class NavDestination:
 
 
 PRIMARY_DESTINATIONS: tuple[NavDestination, ...] = (
+    # Final Human Acceptance Gate corrective: reordered per native
+    # review to Today -> Study -> Entries -> Collections -> Review
+    # Calendar -> Templates -> Data tools -> Analytics. Settings remains
+    # a separate destination appended after `layout.addStretch(1)` below
+    # -- unaffected by this tuple's order.
     NavDestination("today", "Today", True),
+    NavDestination("study", "Study", True),
     NavDestination("entries", "Entries", True),
     NavDestination("collections", "Collections", True),
-    NavDestination("templates", "Templates", True),
     NavDestination("review_calendar", "Review Calendar", True),
+    NavDestination("templates", "Templates", True),
     NavDestination("data_tools", "Data tools", True),
     NavDestination("analytics", "Analytics", True),
-    NavDestination("study", "Study", True),
 )
 
 SETTINGS_DESTINATION = NavDestination("settings", "Settings", True)

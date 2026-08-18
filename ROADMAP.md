@@ -1927,9 +1927,13 @@ confirmed release-relevant defect (duplicate active Quiz sessions on a
 repeated launch) was root-caused and fixed; the mandatory M19/M20 Card
 Audio Export productization handoff (shared TTS runtime configuration)
 was closed; every other investigated hardening area was verified
-already correct. Full repository suite 859/859, architecture audit
-clean (94 files), native platform launch health agent-verified. See
-`PROJECT_STATUS.md` § "M19 Engineering Exit Candidate summary" for the
+already correct. Full repository suite 860/860, architecture audit
+clean (94 files), native platform launch health agent-verified. Final
+Human Acceptance Gate Attempt 1 recorded FAIL with two narrow UX
+correctives (Settings > Audio loading feedback; Navigation Rail order);
+both applied and re-verified. See `PROJECT_STATUS.md` § "M19 Engineering
+Exit Candidate summary" and "Final Human Acceptance Gate — Attempt 1"
+for the
 complete evidence record. Not Human Accepted; not Complete; unmerged
 pending the Final Human Acceptance Gate.
 
