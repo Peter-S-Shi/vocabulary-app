@@ -25,7 +25,8 @@ evidence the P8 composition was visually realized.
 """
 
 if PYSIDE6_AVAILABLE:
-    from PySide6.QtWidgets import QComboBox, QLabel
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QComboBox, QLabel, QScrollArea
 
     from src.ui_desktop.controllers.settings_controller import SettingsController
     from src.ui_desktop.theming.theme_manager import build_stylesheet
@@ -95,15 +96,77 @@ class SettingsViewStorageStructureTests(unittest.TestCase):
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
 class M18SettingsTokenQssStructuralCoverageTests(unittest.TestCase):
-    def _assert_selector_present(self, tokens) -> None:
+    REPRESENTATIVE_SELECTORS = ("#settings-row-value", "#settings-scroll")
+
+    def _assert_selectors_present(self, tokens) -> None:
         stylesheet = build_stylesheet(tokens)
-        self.assertIn("#settings-row-value", stylesheet)
+        for selector in self.REPRESENTATIVE_SELECTORS:
+            self.assertIn(selector, stylesheet, f"missing themed selector: {selector}")
 
     def test_light_calm_blue_covers_settings_row_value(self) -> None:
-        self._assert_selector_present(THEME_CALM_BLUE_LIGHT)
+        self._assert_selectors_present(THEME_CALM_BLUE_LIGHT)
 
     def test_dark_calm_blue_covers_settings_row_value(self) -> None:
-        self._assert_selector_present(THEME_CALM_BLUE_DARK)
+        self._assert_selectors_present(THEME_CALM_BLUE_DARK)
+
+
+@unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
+class SettingsScrollAreaTests(unittest.TestCase):
+    """Human Gate 2 corrective: the Settings page's content lives inside a
+    native vertical QScrollArea (so a growing Storage section scrolls
+    instead of compressing the Appearance/Quiz combos), never horizontal."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _qt_app()
+
+    def test_content_is_wrapped_in_a_resizable_vertical_only_scroll_area(self) -> None:
+        controller = SettingsController()
+        view = SettingsView(controller)
+        self.addCleanup(view.deleteLater)
+
+        scroll = view.findChild(QScrollArea, "settings-scroll")
+        self.assertIsNotNone(scroll)
+        self.assertTrue(scroll.widgetResizable())
+        self.assertEqual(scroll.horizontalScrollBarPolicy(), Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.assertIsNotNone(scroll.widget())
+
+    def test_appearance_and_quiz_combos_keep_their_natural_width_when_the_window_is_narrow(self) -> None:
+        """Regression for the Human Gate 2 layout defect: at a real
+        production window size the combos were compressed/clipped. A
+        narrow-width min-width workaround was tried and reverted in favor
+        of this scroll area, which removes the pressure that caused the
+        squeeze in the first place -- confirmed here by forcing a width
+        far narrower than any realistic desktop window and checking the
+        combos are never squeezed below their natural size hint."""
+        controller = SettingsController()
+        view = SettingsView(controller)
+        self.addCleanup(view.deleteLater)
+
+        natural_appearance_width = view._appearance_combo.sizeHint().width()
+        natural_quiz_width = view._quiz_presentation_combo.sizeHint().width()
+
+        view.resize(400, 800)
+        view.show()
+        self.app.processEvents()
+        self.app.processEvents()
+
+        self.assertEqual(view._appearance_combo.width(), natural_appearance_width)
+        self.assertEqual(view._quiz_presentation_combo.width(), natural_quiz_width)
+
+    def test_a_short_window_shows_a_vertical_scrollbar_not_a_horizontal_one(self) -> None:
+        controller = SettingsController()
+        view = SettingsView(controller)
+        self.addCleanup(view.deleteLater)
+        scroll = view.findChild(QScrollArea, "settings-scroll")
+
+        view.resize(1280, 300)
+        view.show()
+        self.app.processEvents()
+        self.app.processEvents()
+
+        self.assertTrue(scroll.verticalScrollBar().isVisible())
+        self.assertFalse(scroll.horizontalScrollBar().isVisible())
 
 
 if __name__ == "__main__":

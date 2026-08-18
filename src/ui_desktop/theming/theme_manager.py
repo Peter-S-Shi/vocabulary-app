@@ -1052,7 +1052,21 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     }}
 
     /* Settings -- P8 Settings Form (DESIGN.md § 8), M17 Feature 3B bounded
-    vertical slice: Quiz presentation only. */
+    vertical slice: Quiz presentation only. Human Gate 2 corrective: the
+    page's content now lives inside a native vertical QScrollArea (never
+    horizontal -- `settings_view.py` disables the horizontal scrollbar and
+    relies on `setWidgetResizable(True)` for width-responsiveness) so
+    growing Settings/Storage content scrolls instead of compressing the
+    Appearance/Quiz combos; the transparent/borderless treatment below
+    mirrors the existing `#entries-editor-scroll` pattern so the scroll
+    area reads as part of the page, not a nested panel. */
+    QScrollArea#settings-scroll {{
+        background-color: transparent;
+        border: none;
+    }}
+    QScrollArea#settings-scroll > QWidget#qt_scrollarea_viewport {{
+        background-color: transparent;
+    }}
     QLabel#settings-page-title {{
         color: {neutral.text_primary};
         font-size: 20px;
@@ -1083,7 +1097,7 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         border-radius: {radius}px;
         padding: 6px 10px;
         font-size: 14px;
-        min-width: 300px;
+        min-width: 200px;
     }}
 
     /* Entries -- Table-First Manager (DESIGN.md § 6.2 `VR-ENTRIES-001`,
