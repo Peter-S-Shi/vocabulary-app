@@ -7,6 +7,8 @@ from typing import Iterable
 
 from src.analytics import (
     EVIDENCE_STATE_ORDER,
+    EvidenceProfileCache,
+    build_evidence_profile_cache,
     get_card_coverage_profile,
     get_collection_coverage_profile,
     get_entry_evidence_profiles,
@@ -174,6 +176,7 @@ def get_entry_findings(
     language: str | None = None,
     template_id: int | None = None,
     collection_id: int | None = None,
+    cache: EvidenceProfileCache | None = None,
 ) -> list[dict]:
     """Return exactly one deterministic Primary Finding per current Entry."""
 
@@ -183,6 +186,7 @@ def get_entry_findings(
         language=language,
         template_id=template_id,
         collection_id=collection_id,
+        cache=cache,
     )
     return [_entry_finding(profile) for profile in profiles]
 
@@ -254,6 +258,7 @@ def _add_coverage_targets(
     profile: dict,
     *,
     as_of_date: str | date | datetime | None = None,
+    cache: EvidenceProfileCache | None = None,
 ) -> dict:
     scope_type = profile["scope_type"]
     if scope_type == "card":
@@ -272,7 +277,7 @@ def _add_coverage_targets(
         entry_ids = _entry_ids_for_scope(conn, scope_type, int(profile["scope_id"]))
     entry_profiles = {
         int(item["entry_id"]): item
-        for item in get_entry_evidence_profiles(conn, as_of_date=as_of_date)
+        for item in get_entry_evidence_profiles(conn, as_of_date=as_of_date, cache=cache)
         if int(item["entry_id"]) in set(entry_ids)
     }
     return {
@@ -298,11 +303,25 @@ def get_scope_coverage_findings(
     collection_id: int | None = None,
     template_id: int | None = None,
     include_cards: bool = True,
+    cache: EvidenceProfileCache | None = None,
 ) -> list[dict]:
-    """Return all current Card, Collection, and Template Coverage Gaps."""
+    """Return all current Card, Collection, and Template Coverage Gaps.
+
+    This scans every current Collection (and, when ``include_cards``, every
+    current Card within it) plus every current Template, so it is the
+    dominant cost of a whole-database Analytics pass. ``cache`` -- an
+    ``EvidenceProfileCache`` -- lets a caller that will make many such
+    scoped reads in one pass (e.g. ``get_all_findings``) supply one
+    already-loaded snapshot; when omitted, one is still built once here
+    (not per Collection/Card/Template) so this function alone no longer
+    reloads the whole database once per scope the way it used to (M18
+    Phase D Human Gate 2 corrective).
+    """
 
     if collection_id is not None and template_id is not None:
         raise ValueError("Choose either collection_id or template_id, not both.")
+    if cache is None:
+        cache = build_evidence_profile_cache(conn, as_of_date=as_of_date)
     findings = []
     collections = []
     if template_id is None:
@@ -315,9 +334,9 @@ def get_scope_coverage_findings(
     for collection in collections:
         current_collection_id = int(collection["id"])
         profile = get_collection_coverage_profile(
-            conn, current_collection_id, as_of_date=as_of_date
+            conn, current_collection_id, as_of_date=as_of_date, cache=cache
         )
-        profile = _add_coverage_targets(conn, profile, as_of_date=as_of_date)
+        profile = _add_coverage_targets(conn, profile, as_of_date=as_of_date, cache=cache)
         finding = _coverage_finding(profile)
         if finding is not None:
             findings.append(finding)
@@ -329,10 +348,10 @@ def get_scope_coverage_findings(
             card_size = max(int(collection["card_size"]), 1)
             for card_number in range(1, (entry_count + card_size - 1) // card_size + 1):
                 card_profile = get_card_coverage_profile(
-                    conn, current_collection_id, card_number, as_of_date=as_of_date
+                    conn, current_collection_id, card_number, as_of_date=as_of_date, cache=cache
                 )
                 card_profile = _add_coverage_targets(
-                    conn, card_profile, as_of_date=as_of_date
+                    conn, card_profile, as_of_date=as_of_date, cache=cache
                 )
                 card_finding = _coverage_finding(card_profile)
                 if card_finding is not None:
@@ -349,9 +368,9 @@ def get_scope_coverage_findings(
     for template in templates:
         current_template_id = int(template["id"])
         profile = get_template_coverage_profile(
-            conn, current_template_id, as_of_date=as_of_date
+            conn, current_template_id, as_of_date=as_of_date, cache=cache
         )
-        profile = _add_coverage_targets(conn, profile, as_of_date=as_of_date)
+        profile = _add_coverage_targets(conn, profile, as_of_date=as_of_date, cache=cache)
         finding = _coverage_finding(profile)
         if finding is not None:
             findings.append(finding)
@@ -364,18 +383,31 @@ def get_all_findings(
     as_of_date: str | date | datetime | None = None,
     collection_id: int | None = None,
     template_id: int | None = None,
+    cache: EvidenceProfileCache | None = None,
 ) -> dict:
+    """Return every current entry-level and coverage Finding.
+
+    Builds (or reuses, if ``cache`` is supplied) exactly one whole-database
+    ``EvidenceProfileCache`` and shares it between the entry-level and
+    coverage passes below, instead of each independently reloading the
+    same snapshot (M18 Phase D Human Gate 2 corrective -- see
+    ``EvidenceProfileCache``'s docstring).
+    """
+    if cache is None:
+        cache = build_evidence_profile_cache(conn, as_of_date=as_of_date)
     entry_findings = get_entry_findings(
         conn,
         as_of_date=as_of_date,
         collection_id=collection_id,
         template_id=template_id,
+        cache=cache,
     )
     coverage_findings = get_scope_coverage_findings(
         conn,
         as_of_date=as_of_date,
         collection_id=collection_id,
         template_id=template_id,
+        cache=cache,
     )
     return {
         "entry_findings": entry_findings,

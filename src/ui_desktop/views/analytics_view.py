@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QProgressBar,
     QPushButton,
     QScrollArea,
     QTableWidget,
@@ -92,6 +93,18 @@ from the parent pattern alone:
                                  showing a populated Findings table and a
                                  selected row's Evidence Inspector detail,
                                  in Light and Dark Mode.
+
+Human Gate 2 corrective (M18 Phase D, DESIGN.md § 12.4 "Long-running
+work"): on a real production database, Analytics computation was slow
+enough on the Qt UI thread to make the whole app stop responding.
+``AnalyticsController`` now runs that computation on a background
+``QThread`` (see its module docstring); this view reflects that with a
+loading state -- a determinate, staged ``QProgressBar`` (truthful,
+step-based progress; never a fabricated percentage within a step) plus a
+status label naming the current stage -- shown in place of the Brief/
+Coverage content while a load is in flight, and an actionable error state
+(message + Retry) if the load fails. Exactly one of the loading row, the
+error state, or the content scroll area is visible at a time.
 """
 
 _FINDING_LABELS = {
@@ -194,7 +207,52 @@ class AnalyticsView(QWidget):
         toolbar.addWidget(self._scope_combo)
         layout.addLayout(toolbar)
 
-        scroll = QScrollArea(self)
+        # Long-running work loading state (DESIGN.md § 12.4; Human Gate 2
+        # corrective). Determinate once a truthful stage/total is known
+        # (a staged QProgressBar reflecting *completed steps*, never a
+        # fabricated within-step percentage); indeterminate only in the
+        # brief window before the first stage signal arrives. Exactly one
+        # of this row, the error row below, or the content scroll area is
+        # visible at a time.
+        self._loading_widget = QWidget(self)
+        self._loading_widget.setObjectName("analytics-loading-row")
+        loading_layout = QHBoxLayout(self._loading_widget)
+        loading_layout.setContentsMargins(0, 0, 0, 0)
+        loading_layout.setSpacing(SPACING.sm)
+        self._progress_bar = QProgressBar(self._loading_widget)
+        self._progress_bar.setObjectName("analytics-progress-bar")
+        self._progress_bar.setRange(0, 0)
+        self._progress_bar.setTextVisible(False)
+        loading_layout.addWidget(self._progress_bar, 1)
+        self._status_label = QLabel("Loading…", self._loading_widget)
+        self._status_label.setObjectName("analytics-status-label")
+        loading_layout.addWidget(self._status_label, 0)
+        layout.addWidget(self._loading_widget)
+        self._loading_widget.setVisible(False)
+
+        # Actionable error state (DESIGN.md § 12.6 state language: what
+        # happened, what was not changed, what the user can do next --
+        # nothing was changed, since Analytics is read-only, and Retry is
+        # the next action).
+        self._error_widget = QWidget(self)
+        self._error_widget.setObjectName("analytics-error-row")
+        self._error_widget.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        error_layout = QHBoxLayout(self._error_widget)
+        error_layout.setContentsMargins(0, 0, 0, 0)
+        error_layout.setSpacing(SPACING.sm)
+        self._error_label = QLabel("", self._error_widget)
+        self._error_label.setObjectName("analytics-error-label")
+        self._error_label.setWordWrap(True)
+        error_layout.addWidget(self._error_label, 1)
+        self._retry_button = QPushButton("Retry", self._error_widget)
+        self._retry_button.setObjectName("analytics-retry-button")
+        self._retry_button.clicked.connect(self._on_retry)
+        error_layout.addWidget(self._retry_button, 0)
+        layout.addWidget(self._error_widget)
+        self._error_widget.setVisible(False)
+
+        self._scroll = QScrollArea(self)
+        scroll = self._scroll
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         body = QWidget(scroll)
@@ -234,14 +292,41 @@ class AnalyticsView(QWidget):
         body_layout.addStretch(1)
 
         controller.state_changed.connect(self._reload)
+        controller.loading_started.connect(self._on_loading_started)
+        controller.loading_stage.connect(self._on_loading_stage)
+        controller.loading_failed.connect(self._on_loading_failed)
 
     def refresh(self) -> None:
-        # controller.refresh() emits state_changed synchronously, which
-        # is connected to self._reload -- an explicit second call here
-        # was a redundant rebuild on every navigation to this workspace
-        # (independent-review finding).
+        # controller.refresh() starts a background load and returns
+        # immediately (Human Gate 2 corrective: this used to run
+        # synchronously on the Qt UI thread and could freeze the app on a
+        # large database) -- loading_started/loading_stage/state_changed/
+        # loading_failed drive this view's loading/content/error states
+        # from here on, so no explicit second reload call belongs here
+        # (independent-review finding from the prior synchronous version).
         self._controller.refresh()
         self._reload_scope_combo()
+
+    def _on_loading_started(self) -> None:
+        self._error_widget.setVisible(False)
+        self._scroll.setVisible(False)
+        self._progress_bar.setRange(0, 0)
+        self._status_label.setText("Loading…")
+        self._loading_widget.setVisible(True)
+
+    def _on_loading_stage(self, step: int, total: int, label: str) -> None:
+        self._progress_bar.setRange(0, total)
+        self._progress_bar.setValue(step)
+        self._status_label.setText(label)
+
+    def _on_loading_failed(self, message: str) -> None:
+        self._loading_widget.setVisible(False)
+        self._scroll.setVisible(False)
+        self._error_label.setText(f"Analytics couldn't finish loading: {message}. Nothing was changed.")
+        self._error_widget.setVisible(True)
+
+    def _on_retry(self) -> None:
+        self._controller.refresh()
 
     def _reload_scope_combo(self) -> None:
         self._scope_combo.blockSignals(True)
@@ -266,6 +351,9 @@ class AnalyticsView(QWidget):
         dialog.exec()
 
     def _reload(self) -> None:
+        self._loading_widget.setVisible(False)
+        self._error_widget.setVisible(False)
+        self._scroll.setVisible(True)
         _clear_layout(self._brief_layout)
         brief = self._controller.brief
         if not brief:

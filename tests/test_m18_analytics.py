@@ -51,6 +51,51 @@ if PYSIDE6_AVAILABLE:
             app = QApplication([])
         return app
 
+    def _wait_for_load(controller: "AnalyticsController", timeout_ms: int = 5000) -> None:
+        """Pump the Qt event loop until the controller's background
+        Analytics load finishes (success or failure), then block until
+        its QThread has *actually* stopped running.
+
+        Human Gate 2 corrective: ``refresh()``/``set_scope()`` now start a
+        background ``QThread`` and return immediately instead of blocking
+        the Qt UI thread, so tests that assert on loaded data must wait
+        for ``state_changed``/``loading_failed`` the same way the real UI
+        does, rather than assuming the data is ready synchronously.
+
+        The second step (``controller.shutdown()``, a real blocking
+        ``QThread.wait()`` join -- not just more event-loop pumping) is
+        required, not just convenient: ``QEventLoop.quit()`` stops
+        processing *further* already-queued events once called, so the
+        sibling queued ``worker.succeeded/failed -> thread.quit``
+        connection (queued right after the one driving
+        ``state_changed``/``loading_failed``) is not guaranteed to have
+        run, let alone have let the underlying OS thread fully exit, by
+        the time the first ``loop.exec()`` returns. Returning to the test
+        (and its ``tearDown`` deleting the temporary database directory)
+        before the OS thread has truly stopped was found to segfault the
+        interpreter ("QThread: Destroyed while thread is still running"),
+        reproducibly, across consecutive tests.
+        """
+        from PySide6.QtCore import QEventLoop, QTimer
+
+        loop = QEventLoop()
+        controller.state_changed.connect(loop.quit)
+        controller.loading_failed.connect(loop.quit)
+        timer = QTimer()
+        timer.setSingleShot(True)
+        timer.timeout.connect(loop.quit)
+        timer.start(timeout_ms)
+        loop.exec()
+        timer.stop()
+        controller.state_changed.disconnect(loop.quit)
+        controller.loading_failed.disconnect(loop.quit)
+        if controller.is_loading:
+            raise AssertionError("Analytics background load did not complete within the timeout.")
+
+        controller.shutdown()
+        if controller._inflight:
+            raise AssertionError("Analytics background QThread did not fully stop within the timeout.")
+
 
 class _SyntheticDatabaseTestCase(unittest.TestCase):
     def setUp(self) -> None:
@@ -87,6 +132,7 @@ class AnalyticsControllerTests(_SyntheticDatabaseTestCase):
         controller = AnalyticsController()
 
         controller.refresh()
+        _wait_for_load(controller)
 
         self.assertEqual(controller.brief, [])
         self.assertEqual(controller.full_findings["entry_findings"], [])
@@ -97,6 +143,7 @@ class AnalyticsControllerTests(_SyntheticDatabaseTestCase):
         controller = AnalyticsController()
 
         controller.refresh()
+        _wait_for_load(controller)
 
         findings = controller.full_findings["entry_findings"]
         self.assertEqual(len(findings), 1)
@@ -107,7 +154,9 @@ class AnalyticsControllerTests(_SyntheticDatabaseTestCase):
         controller = AnalyticsController()
 
         controller.refresh()
+        _wait_for_load(controller)
         controller.refresh()
+        _wait_for_load(controller)
 
         self.assertEqual(len(controller.full_findings["entry_findings"]), 1)
         self.assertEqual(controller.full_findings["entry_findings"][0]["primary_finding"], "never_quizzed")
@@ -118,8 +167,10 @@ class AnalyticsControllerTests(_SyntheticDatabaseTestCase):
         add_entries_to_collection([entry_id], collection_id)
         controller = AnalyticsController()
         controller.refresh()
+        _wait_for_load(controller)
 
         controller.set_scope("all")
+        _wait_for_load(controller)
 
         self.assertIsNone(controller.coverage)
 
@@ -129,8 +180,10 @@ class AnalyticsControllerTests(_SyntheticDatabaseTestCase):
         add_entries_to_collection([entry_id], collection_id)
         controller = AnalyticsController()
         controller.refresh()
+        _wait_for_load(controller)
 
         controller.set_scope("collection", collection_id)
+        _wait_for_load(controller)
 
         self.assertIsNotNone(controller.coverage)
         self.assertEqual(controller.coverage["total_current_entries"], 1)
@@ -144,8 +197,10 @@ class AnalyticsControllerTests(_SyntheticDatabaseTestCase):
         add_entry("French", "English", "word", "poire", "pear")  # not in any Collection
         controller = AnalyticsController()
         controller.refresh()
+        _wait_for_load(controller)
 
         controller.set_scope("collection", collection_id)
+        _wait_for_load(controller)
 
         scope_ids = {item["scope_id"] for item in controller.full_findings["entry_findings"]}
         self.assertEqual(scope_ids, {in_scope_entry})
@@ -154,21 +209,109 @@ class AnalyticsControllerTests(_SyntheticDatabaseTestCase):
         collection_id = create_collection("Fruits", "", card_size=8)
         controller = AnalyticsController()
         controller.refresh()
+        _wait_for_load(controller)
         controller.set_scope("collection", collection_id)
+        _wait_for_load(controller)
         self.assertEqual(controller.scope_type, "collection")
 
         from src.collections import delete_collection
 
         delete_collection(collection_id)
         controller.refresh()
+        _wait_for_load(controller)
 
         self.assertEqual(controller.scope_type, "all")
         self.assertIsNone(controller.scope_id)
+
+    def test_stale_in_flight_load_is_discarded_when_scope_changes_again(self) -> None:
+        """Regression for the Human Gate 2 corrective's stale-result
+        guard: if the user changes scope again before an in-flight load
+        finishes, that superseded load's result must never overwrite the
+        newer scope's data once it lands."""
+        collection_id = create_collection("Fruits", "", card_size=8)
+        entry_id = add_entry("French", "English", "word", "pomme", "apple")
+        add_entries_to_collection([entry_id], collection_id)
+        controller = AnalyticsController()
+        controller.refresh()
+        _wait_for_load(controller)
+        first_generation = controller._generation
+
+        controller.set_scope("collection", collection_id)
+        second_generation = controller._generation
+        # Simulate the first (now-superseded) load finishing late: its
+        # generation token no longer matches, so it must be a no-op.
+        controller._on_succeeded(first_generation, {"entry_findings": [], "coverage_findings": [], "full_findings": []}, [], None)
+        self.assertNotEqual(controller._generation, first_generation)
+        self.assertTrue(controller.is_loading)  # the real (second) load hasn't landed yet
+
+        _wait_for_load(controller)
+
+        self.assertEqual(controller.scope_type, "collection")
+        self.assertIsNotNone(controller.coverage)  # the real scoped result, not the discarded stale one
+
+    def test_a_failed_load_reports_a_controlled_error_not_a_crash(self) -> None:
+        controller = AnalyticsController()
+        controller.refresh()
+        _wait_for_load(controller)
+
+        failures: list[str] = []
+        controller.loading_failed.connect(failures.append)
+        with patch(
+            "src.ui_desktop.controllers.analytics_controller.build_evidence_profile_cache",
+            side_effect=RuntimeError("synthetic database error"),
+        ):
+            controller.set_scope("all")
+            _wait_for_load(controller)
+
+        self.assertEqual(failures, ["synthetic database error"])
+        self.assertEqual(controller.load_error, "synthetic database error")
+        self.assertFalse(controller.is_loading)
+
+    def test_result_callbacks_run_on_the_qt_main_thread_not_the_worker_thread(self) -> None:
+        """Regression for an independent-review finding: the worker's
+        signals were originally connected to lambdas closing over
+        ``generation``. PySide6 can only detect a cross-thread receiver
+        (and therefore correctly queue delivery onto the receiver's own
+        thread) for a real bound method of a QObject -- a lambda has no
+        such identity, so PySide6 fell back to invoking it directly on
+        the *worker's* OS thread, racing unsynchronized against
+        ``_start_load``'s ``self._generation += 1`` on the main thread.
+        The fix connects the worker's signals directly to
+        ``AnalyticsController``'s bound methods; this proves the
+        callbacks that mutate controller state now genuinely execute on
+        the same thread the controller itself lives on."""
+        from PySide6.QtCore import QThread
+
+        main_thread = QThread.currentThread()
+        seen_threads: list[object] = []
+        controller = AnalyticsController()
+        controller.state_changed.connect(lambda: seen_threads.append(QThread.currentThread()))
+
+        controller.refresh()
+        _wait_for_load(controller)
+
+        self.assertEqual(len(seen_threads), 1)
+        self.assertIs(seen_threads[0], main_thread)
+
+    def test_shutdown_waits_for_an_in_flight_load_without_crashing(self) -> None:
+        """Regression for an independent-review finding: closing the app
+        while a load was still running could destroy the controller (and
+        the QThread it was the only reference keeping alive) while the
+        thread was still ``isRunning()`` -- fatal in Qt. ``shutdown()``
+        must block until any in-flight load has actually stopped."""
+        add_entry("French", "English", "word", "pomme", "apple")
+        controller = AnalyticsController()
+
+        controller.refresh()
+        controller.shutdown()
+
+        self.assertEqual(controller._inflight, [])
 
     def test_actionable_findings_excludes_none_findings(self) -> None:
         add_entry("French", "English", "word", "pomme", "apple")  # never_quizzed, not "none"
         controller = AnalyticsController()
         controller.refresh()
+        _wait_for_load(controller)
 
         actionable = controller.actionable_findings()
 
@@ -189,6 +332,7 @@ class AnalyticsViewStructureTests(_SyntheticDatabaseTestCase):
         self.addCleanup(view.deleteLater)
 
         view.refresh()
+        _wait_for_load(controller)
 
         self.assertEqual(view._brief_layout.count(), 1)  # the empty-state message
 
@@ -203,11 +347,13 @@ class AnalyticsViewStructureTests(_SyntheticDatabaseTestCase):
         names = {view._scope_combo.itemText(i) for i in range(view._scope_combo.count())}
         self.assertIn("All Entries", names)
         self.assertIn("Fruits", names)
+        _wait_for_load(controller)  # let the background load finish before tearDown
 
     def test_full_findings_dialog_lists_actionable_findings_and_shows_detail(self) -> None:
         add_entry("French", "English", "word", "pomme", "apple")
         controller = AnalyticsController()
         controller.refresh()
+        _wait_for_load(controller)
         dialog = _FullFindingsDialog(controller, parent=None)
         self.addCleanup(dialog.deleteLater)
 
@@ -229,6 +375,7 @@ class AnalyticsViewStructureTests(_SyntheticDatabaseTestCase):
     def test_full_findings_dialog_empty_selection_shows_a_prompt(self) -> None:
         controller = AnalyticsController()
         controller.refresh()
+        _wait_for_load(controller)
         dialog = _FullFindingsDialog(controller, parent=None)
         self.addCleanup(dialog.deleteLater)
 
@@ -247,6 +394,7 @@ class AnalyticsViewStructureTests(_SyntheticDatabaseTestCase):
         add_entry("French", "English", "word", "pomme", "apple")
         controller = AnalyticsController()
         controller.refresh()
+        _wait_for_load(controller)
         dialog = _FullFindingsDialog(controller, parent=None)
         self.addCleanup(dialog.deleteLater)
         unchecked_count = dialog._table.rowCount()
@@ -299,6 +447,7 @@ class AnalyticsViewStructureTests(_SyntheticDatabaseTestCase):
         add_entries_to_collection([entry_id], collection_id)
         controller = AnalyticsController()
         controller.refresh()
+        _wait_for_load(controller)
         dialog = _FullFindingsDialog(controller, parent=None)
         self.addCleanup(dialog.deleteLater)
 
@@ -331,8 +480,70 @@ class AnalyticsViewStructureTests(_SyntheticDatabaseTestCase):
             self.addCleanup(view.deleteLater)
 
             view.refresh()
+            _wait_for_load(controller)
 
         self.assertEqual(call_count, 1)
+
+    def test_loading_state_shows_progress_and_hides_content(self) -> None:
+        """DESIGN.md § 12.4 long-running-work / Human Gate 2 corrective:
+        the loading row must appear (indeterminate until a stage is
+        known) and the content/error areas must be hidden while a load
+        is in flight. Emits the controller's signals directly rather
+        than waiting on a real background load, so this proves the
+        view's reaction to the state machine independent of actual
+        thread timing."""
+        controller = AnalyticsController()
+        view = AnalyticsView(controller)
+        self.addCleanup(view.deleteLater)
+
+        controller.loading_started.emit()
+
+        self.assertFalse(view._loading_widget.isHidden())
+        self.assertTrue(view._scroll.isHidden())
+        self.assertTrue(view._error_widget.isHidden())
+        self.assertEqual(view._progress_bar.minimum(), 0)
+        self.assertEqual(view._progress_bar.maximum(), 0)  # indeterminate: no truthful stage yet
+
+    def test_loading_stage_switches_the_progress_bar_to_determinate(self) -> None:
+        """Progress must be determinate (real step/total, never a
+        fabricated percentage) once a truthful stage boundary is known."""
+        controller = AnalyticsController()
+        view = AnalyticsView(controller)
+        self.addCleanup(view.deleteLater)
+        controller.loading_started.emit()
+
+        controller.loading_stage.emit(2, 3, "Finding patterns…")
+
+        self.assertEqual(view._progress_bar.minimum(), 0)
+        self.assertEqual(view._progress_bar.maximum(), 3)
+        self.assertEqual(view._progress_bar.value(), 2)
+        self.assertEqual(view._status_label.text(), "Finding patterns…")
+
+    def test_loading_failure_shows_an_actionable_error_state_not_stale_content(self) -> None:
+        controller = AnalyticsController()
+        view = AnalyticsView(controller)
+        self.addCleanup(view.deleteLater)
+        controller.loading_started.emit()
+
+        controller.loading_failed.emit("synthetic failure")
+
+        self.assertTrue(view._loading_widget.isHidden())
+        self.assertTrue(view._scroll.isHidden())
+        self.assertFalse(view._error_widget.isHidden())
+        self.assertIn("synthetic failure", view._error_label.text())
+
+    def test_successful_load_restores_content_and_hides_loading_and_error(self) -> None:
+        add_entry("French", "English", "word", "pomme", "apple")
+        controller = AnalyticsController()
+        view = AnalyticsView(controller)
+        self.addCleanup(view.deleteLater)
+
+        view.refresh()
+        _wait_for_load(controller)
+
+        self.assertTrue(view._loading_widget.isHidden())
+        self.assertTrue(view._error_widget.isHidden())
+        self.assertFalse(view._scroll.isHidden())
 
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
@@ -356,6 +567,11 @@ class M18AnalyticsTokenQssStructuralCoverageTests(unittest.TestCase):
         "#analytics-brief-action",
         "#analytics-detail-heading",
         "#analytics-detail-label",
+        "#analytics-progress-bar",
+        "#analytics-status-label",
+        "#analytics-error-row",
+        "#analytics-error-label",
+        "#analytics-retry-button",
     )
 
     def _assert_all_selectors_present(self, tokens) -> None:

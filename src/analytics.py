@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import date, datetime
 from sqlite3 import Connection
 from typing import Iterable
@@ -410,6 +411,65 @@ def _entry_profile(
     return profile
 
 
+@dataclass(frozen=True)
+class EvidenceProfileCache:
+    """A reusable snapshot of every current Entry's evidence profile,
+    scoped to one ``as_of_date``.
+
+    M14's Personal Baseline is always compared against the *entire*
+    current-Entry evidence history regardless of which Collection/Card/
+    Template is being profiled (``_entry_profile`` takes ``all_metadata``/
+    ``all_events`` unconditionally) -- so ``metadata``/``events``/
+    ``profiles_by_entry_id`` are already meant to be identical across
+    every scope computed within one point-in-time Analytics pass. Building
+    this once per pass and reusing it for every Collection/Card/Template
+    coverage read below (instead of each independently reloading and
+    recomputing the same whole-database snapshot) is therefore purely a
+    performance change: it eliminates repeated global recomputation
+    without altering which Entries/events feed any profile or Finding
+    (M18 Phase D Human Gate 2 corrective: the previous per-scope reload
+    pattern made Analytics freeze the Qt UI thread on a real production
+    database, since ``get_scope_coverage_findings`` triggered one full
+    reload per Collection *and* per Card).
+    """
+
+    as_of_date: date
+    metadata: dict[int, dict]
+    events: list[dict]
+    profiles_by_entry_id: dict[int, dict]
+
+
+def build_evidence_profile_cache(
+    conn: Connection, *, as_of_date: str | date | datetime | None = None
+) -> EvidenceProfileCache:
+    """Compute the whole-database evidence snapshot exactly once.
+
+    Callers that will read more than one Collection/Card/Template/Entry
+    coverage or evidence profile within a single logical operation (e.g.
+    a full Analytics refresh) should build one cache and pass it to every
+    ``cache=`` parameter below, rather than letting each call rebuild its
+    own -- see ``EvidenceProfileCache``.
+    """
+    metadata = _load_current_entry_metadata(conn)
+    events = load_eligible_evidence_events(conn, as_of_date=as_of_date)
+    events_by_entry: dict[int, list[dict]] = defaultdict(list)
+    for event in events:
+        events_by_entry[int(event["entry_id"])].append(event)
+    reference_date = _to_date(as_of_date)
+    profiles_by_entry_id = {
+        int(item["entry_id"]): _entry_profile(
+            item, events_by_entry[int(item["entry_id"])], metadata, events, reference_date
+        )
+        for item in metadata.values()
+    }
+    return EvidenceProfileCache(
+        as_of_date=reference_date,
+        metadata=metadata,
+        events=events,
+        profiles_by_entry_id=profiles_by_entry_id,
+    )
+
+
 def get_entry_evidence_profiles(
     conn: Connection,
     *,
@@ -417,7 +477,36 @@ def get_entry_evidence_profiles(
     language: str | None = None,
     template_id: int | None = None,
     collection_id: int | None = None,
+    cache: EvidenceProfileCache | None = None,
 ) -> list[dict]:
+    """Return every matching current Entry's evidence profile.
+
+    Pass an ``EvidenceProfileCache`` built via ``build_evidence_profile_cache``
+    (with the same ``as_of_date``) to reuse an already-loaded whole-database
+    snapshot instead of reloading/recomputing one for this call alone.
+
+    Without an explicit ``cache``, this filters *before* computing each
+    profile (identical to the pre-cache implementation) rather than
+    building a whole-database ``EvidenceProfileCache`` and filtering
+    afterward -- independent-review finding: unconditionally building the
+    cache here made every narrow-filtered caller that does not pass an
+    explicit cache (e.g. ``src.statistics``'s per-Collection Entry
+    lookups) pay whole-database cost it never used to, reintroducing the
+    same class of unnecessary global recomputation this module exists to
+    eliminate, just on a different call path.
+    """
+    if cache is not None:
+        selected_ids = []
+        for entry_id, item in cache.metadata.items():
+            if language is not None and item["language"] != language:
+                continue
+            if template_id is not None and item["template_id"] != int(template_id):
+                continue
+            if collection_id is not None and int(collection_id) not in item["collection_ids"]:
+                continue
+            selected_ids.append(entry_id)
+        return [cache.profiles_by_entry_id[entry_id] for entry_id in selected_ids]
+
     metadata = _load_current_entry_metadata(conn)
     events = load_eligible_evidence_events(conn, as_of_date=as_of_date)
     events_by_entry: dict[int, list[dict]] = defaultdict(list)
@@ -560,11 +649,13 @@ def get_collection_coverage_profile(
     collection_id: int,
     *,
     as_of_date: str | date | datetime | None = None,
+    cache: EvidenceProfileCache | None = None,
 ) -> dict:
     profiles = get_entry_evidence_profiles(
         conn,
         as_of_date=as_of_date,
         collection_id=int(collection_id),
+        cache=cache,
     )
     activity = get_collection_scope_activity_profile(
         conn,
@@ -584,11 +675,13 @@ def get_template_coverage_profile(
     template_id: int,
     *,
     as_of_date: str | date | datetime | None = None,
+    cache: EvidenceProfileCache | None = None,
 ) -> dict:
     profiles = get_entry_evidence_profiles(
         conn,
         as_of_date=as_of_date,
         template_id=int(template_id),
+        cache=cache,
     )
     return _coverage_profile(
         profiles,
@@ -603,6 +696,7 @@ def get_card_coverage_profile(
     card_number: int,
     *,
     as_of_date: str | date | datetime | None = None,
+    cache: EvidenceProfileCache | None = None,
 ) -> dict:
     collection = conn.execute(
         "SELECT card_size FROM collections WHERE id = ?",
@@ -631,7 +725,7 @@ def get_card_coverage_profile(
     }
     profiles = [
         profile
-        for profile in get_entry_evidence_profiles(conn, as_of_date=as_of_date)
+        for profile in get_entry_evidence_profiles(conn, as_of_date=as_of_date, cache=cache)
         if int(profile["entry_id"]) in entry_ids
     ]
     identity = get_current_card_identity(conn, int(collection_id), int(card_number))

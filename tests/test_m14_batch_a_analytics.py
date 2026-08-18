@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 import tempfile
 import unittest
+import unittest.mock
 
 from src import analytics, db, quiz
 from src.analytics import (
@@ -688,6 +689,37 @@ class M14BatchAAnalyticsTests(unittest.TestCase):
             }
 
         self.assertEqual(after, before)
+
+    def test_narrow_filtered_call_without_a_cache_does_not_profile_the_whole_database(self) -> None:
+        """Regression for an independent-review finding: the first cache
+        refactor made ``get_entry_evidence_profiles`` unconditionally
+        build a whole-database ``EvidenceProfileCache`` -- computing
+        ``_entry_profile`` (including its personal-baseline scan) for
+        *every* current Entry -- before applying the caller's
+        language/template/collection filter, even when the caller never
+        passed an explicit ``cache`` and only wanted a small, narrowly
+        filtered subset (e.g. ``src.statistics``'s per-Collection Entry
+        lookups). Without an explicit cache, this must profile only the
+        entries the filter actually selects, exactly like the pre-cache
+        implementation."""
+        other_collection_id = create_collection("Other", card_size=10)
+        in_scope = self._entry("in-scope")
+        add_entries_to_collection([in_scope], self.default_collection_id)
+        for index in range(5):
+            add_entries_to_collection(
+                [self._entry(f"out-of-scope-{index}")], other_collection_id
+            )
+
+        with db.get_connection() as conn:
+            with unittest.mock.patch.object(
+                analytics, "_entry_profile", wraps=analytics._entry_profile
+            ) as spy:
+                profiles = get_entry_evidence_profiles(
+                    conn, as_of_date=AS_OF, collection_id=self.default_collection_id
+                )
+
+        self.assertEqual([p["entry_id"] for p in profiles], [in_scope])
+        self.assertEqual(spy.call_count, 1)  # only the one in-scope Entry, not all 6
 
 
 if __name__ == "__main__":

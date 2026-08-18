@@ -416,3 +416,14 @@ class MainWindow(QMainWindow):
 
     def _on_mode_changed(self, mode_value: str) -> None:
         self._render_mode(ShellMode(mode_value))
+
+    def closeEvent(self, event) -> None:
+        # Human Gate 2 corrective / independent-review finding: without
+        # this, closing the app while an Analytics background load was
+        # still in flight could destroy AnalyticsController (and the
+        # QThread it was the only reference keeping alive) while the
+        # thread was still running -- fatal in Qt ("QThread: Destroyed
+        # while thread is still running"). Blocks briefly so any in-
+        # flight load finishes cleanly first.
+        self.analytics_controller.shutdown()
+        super().closeEvent(event)

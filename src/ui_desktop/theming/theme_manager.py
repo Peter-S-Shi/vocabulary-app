@@ -2037,6 +2037,51 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_primary};
         font-size: 13px;
     }}
+
+    /* Analytics long-running-work loading/error state (DESIGN.md § 12.4/
+    § 12.6; Human Gate 2 corrective). An outlined track with an
+    accent-filled chunk -- the same restrained, neutral treatment § 23's
+    "Loading: restrained, neutral" and "Progress: determinate where the
+    workflow supports meaningful progress" call for, built entirely from
+    existing tokens (no ad-hoc color) so it reads correctly in both
+    Appearances automatically. */
+    QProgressBar#analytics-progress-bar {{
+        background-color: {neutral.surface_sunken};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        min-height: 8px;
+        max-height: 8px;
+    }}
+    QProgressBar#analytics-progress-bar::chunk {{
+        background-color: {accent.primary.background};
+        border-radius: {radius}px;
+    }}
+    QLabel#analytics-status-label {{
+        color: {neutral.text_muted};
+        font-size: 12px;
+    }}
+    QWidget#analytics-error-row {{
+        background-color: {semantic.danger_soft};
+        border: 1px solid {danger.background};
+        border-radius: {radius}px;
+        padding: 8px 10px;
+    }}
+    QLabel#analytics-error-label {{
+        color: {danger.background};
+        font-size: 13px;
+    }}
+    QPushButton#analytics-retry-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 4px 14px;
+    }}
+    QPushButton#analytics-retry-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
     """.strip()
 
 

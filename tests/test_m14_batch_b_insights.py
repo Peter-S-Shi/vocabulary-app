@@ -4,8 +4,10 @@ from datetime import date
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from src import db
+from src.analytics import build_evidence_profile_cache
 from src.collections import add_entries_to_collection, create_collection
 from src.entries import add_entry
 from src.insights import (
@@ -15,6 +17,7 @@ from src.insights import (
     build_learning_brief,
     get_all_findings,
     get_entry_findings,
+    get_scope_coverage_findings,
 )
 
 
@@ -462,6 +465,49 @@ class M14BatchBInsightsTests(unittest.TestCase):
         self.assertEqual([item["scope_id"] for item in result["entry_findings"]], [current])
         with db.get_connection() as conn:
             self.assertEqual(len(get_entry_findings(conn, as_of_date=AS_OF)), 1)
+
+    def test_evidence_cache_is_built_exactly_once_per_scope_coverage_pass(self) -> None:
+        """Human Gate 2 corrective regression: on a real production
+        database, ``get_scope_coverage_findings`` used to reload and
+        recompute the *entire* database's evidence profiles once per
+        Collection and again once per Card within it, all synchronously
+        -- this is what froze the Qt UI thread on navigation to
+        Analytics. It must now build exactly one ``EvidenceProfileCache``
+        for the whole pass and reuse it, regardless of how many
+        Collections/Cards exist."""
+        collection_a = create_collection("Collection A", "", card_size=2)
+        collection_b = create_collection("Collection B", "", card_size=2)
+        for index in range(4):
+            add_entries_to_collection([self._entry(f"a{index}")], collection_a)
+        for index in range(4):
+            add_entries_to_collection([self._entry(f"b{index}")], collection_b)
+        # 2 Collections x 2 Cards each = 4 Card-scoped coverage reads, plus
+        # 2 Collection-scoped reads -- 6 scopes total, every one of which
+        # used to trigger its own whole-database reload before this fix.
+
+        with db.get_connection() as conn:
+            with patch(
+                "src.insights.build_evidence_profile_cache", wraps=build_evidence_profile_cache
+            ) as spy:
+                get_scope_coverage_findings(conn, as_of_date=AS_OF)
+                self.assertEqual(spy.call_count, 1)
+
+    def test_get_all_findings_result_is_identical_with_or_without_an_explicit_cache(self) -> None:
+        """Reusing a pre-built ``EvidenceProfileCache`` (as
+        ``AnalyticsController`` now does) must be a pure performance
+        change -- identical output to letting ``get_all_findings`` build
+        its own cache internally, preserving frozen M14 semantics."""
+        collection_id = create_collection("Collection", "", card_size=2)
+        add_entries_to_collection([self._entry("cached")], collection_id)
+
+        with db.get_connection() as conn:
+            without_explicit_cache = get_all_findings(conn, as_of_date=AS_OF, collection_id=collection_id)
+            cache = build_evidence_profile_cache(conn, as_of_date=AS_OF)
+            with_explicit_cache = get_all_findings(
+                conn, as_of_date=AS_OF, collection_id=collection_id, cache=cache
+            )
+
+        self.assertEqual(without_explicit_cache, with_explicit_cache)
 
 
 if __name__ == "__main__":
