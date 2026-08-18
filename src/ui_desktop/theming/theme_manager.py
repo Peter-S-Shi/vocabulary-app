@@ -1129,19 +1129,13 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_muted};
         font-size: 12px;
     }}
-    /* Final Human Acceptance Gate corrective: Settings > Audio's
-    initial-load busy indicator, matching analytics-progress-bar's
-    established indeterminate treatment (DESIGN.md § 12.4). */
-    QProgressBar#settings-audio-loading-spinner {{
-        background-color: {neutral.surface_sunken};
-        border: 1px solid {neutral.border_default};
-        border-radius: {radius}px;
-        min-height: 8px;
-        max-height: 8px;
-    }}
-    QProgressBar#settings-audio-loading-spinner::chunk {{
-        background-color: {accent.primary.background};
-        border-radius: {radius}px;
+    /* Final Human Acceptance Gate corrective: the Data Tools hub's
+    Audio Export preflight status text beside its progress ring. (The
+    ring itself paints an arc, which QSS cannot express -- it takes its
+    colors from these same tokens via apply_theme_tokens.) */
+    QLabel#data-tools-audio-export-status {{
+        color: {neutral.text_muted};
+        font-size: 12px;
     }}
 
     /* Entries -- Table-First Manager (DESIGN.md § 6.2 `VR-ENTRIES-001`,

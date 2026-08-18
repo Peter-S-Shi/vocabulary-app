@@ -54,6 +54,28 @@ if PYSIDE6_AVAILABLE:
         QTimer.singleShot(ms, loop.quit)
         loop.exec()
 
+    def _pump_until_idle(controller, timeout_ms: int = 15000) -> None:
+        """Pump the event loop until the background load has finished
+        AND its QThread has actually been reaped, bounded by a timeout.
+
+        A fixed-duration pump is not a safe assumption here: how long a
+        real background load takes varies with machine load and with how
+        many other GUI tests already ran in the same process, so a
+        constant sleep makes the assertion flaky rather than meaningful.
+        The product invariant being checked is "it finishes and cleans
+        up", not "it finishes within N milliseconds".
+        """
+        import time as _time
+
+        from PySide6.QtCore import QCoreApplication
+
+        deadline = _time.monotonic() + timeout_ms / 1000
+        while _time.monotonic() < deadline:
+            if not controller.is_loading and not controller._inflight:
+                return
+            QCoreApplication.processEvents()
+            _time.sleep(0.01)
+
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
 class BackgroundAnalyticsNavigationTests(unittest.TestCase):
@@ -85,11 +107,11 @@ class BackgroundAnalyticsNavigationTests(unittest.TestCase):
         self.assertTrue(window.analytics_controller.is_loading)
 
         window.show_workspace(Workspace.TODAY)
-        _pump()
+        _pump_until_idle(window.analytics_controller)
 
         self.assertIs(window.current_workspace(), Workspace.TODAY)
         self.assertFalse(window.analytics_controller.is_loading)
-        self.assertEqual(window.analytics_controller._inflight, [])
+        self.assertEqual(len(window.analytics_controller._inflight), 0)
 
     def test_returning_before_the_first_load_finishes_lands_on_the_second_generation(self) -> None:
         """A second navigation into Analytics before the first load
@@ -106,11 +128,11 @@ class BackgroundAnalyticsNavigationTests(unittest.TestCase):
         second_generation = window.analytics_controller._generation
 
         self.assertGreater(second_generation, first_generation)
-        _pump()
+        _pump_until_idle(window.analytics_controller)
 
         self.assertFalse(window.analytics_controller.is_loading)
         self.assertEqual(len(window.analytics_controller.full_findings["entry_findings"]), 30)
-        self.assertEqual(window.analytics_controller._inflight, [])
+        self.assertEqual(len(window.analytics_controller._inflight), 0)
 
     def test_closing_the_window_while_a_load_is_in_flight_does_not_hang(self) -> None:
         window = MainWindow()
@@ -119,7 +141,7 @@ class BackgroundAnalyticsNavigationTests(unittest.TestCase):
 
         window.close()  # MainWindow.closeEvent blocks on analytics_controller.shutdown()
 
-        self.assertEqual(window.analytics_controller._inflight, [])
+        self.assertEqual(len(window.analytics_controller._inflight), 0)
         window.deleteLater()
 
     def test_rapid_workspace_bouncing_leaves_no_running_background_thread(self) -> None:
@@ -129,11 +151,11 @@ class BackgroundAnalyticsNavigationTests(unittest.TestCase):
         for _ in range(5):
             window.show_workspace(Workspace.ANALYTICS)
             window.show_workspace(Workspace.TODAY)
-        _pump(500)
+        _pump_until_idle(window.analytics_controller)
 
         self.assertIs(window.current_workspace(), Workspace.TODAY)
         self.assertFalse(window.analytics_controller.is_loading)
-        self.assertEqual(window.analytics_controller._inflight, [])
+        self.assertEqual(len(window.analytics_controller._inflight), 0)
         window.analytics_controller.shutdown()  # must return immediately, nothing in flight
 
 

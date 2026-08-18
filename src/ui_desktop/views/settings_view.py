@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
     QHBoxLayout,
     QLabel,
-    QProgressBar,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
@@ -179,47 +178,7 @@ class SettingsView(QWidget):
         # configures the runtime folder here; the environment variable
         # remains an advanced per-process override surfaced honestly in
         # the source row (state/tts_runtime.py resolution order).
-        #
-        # Final Human Acceptance Gate corrective: native testing found
-        # this section populates with no visible feedback. The status
-        # rows below are resolved from local state only and are fast in
-        # isolation, but nothing here previously showed *anything* while
-        # that resolution ran, so any real-machine latency (a slow
-        # profile directory, first-paint cost, or a future change to this
-        # resolution) was silently invisible. An indeterminate busy
-        # indicator (`analytics-progress-bar`'s established pattern,
-        # DESIGN.md § 12.4) now shows immediately; the real rows are
-        # built up front but stay hidden, and a single-shot 0ms timer
-        # defers populating/revealing them by one event-loop tick so the
-        # indicator has a chance to actually paint before that
-        # resolution runs -- correct regardless of how long it takes.
-        # Only the *initial* load spins; a later Browse/Clear updates the
-        # already-visible rows directly (state_changed re-sync), since
-        # those are fast, user-initiated local writes, not a page load.
-        self._audio_loading_row = QWidget(body)
-        self._audio_loading_row.setObjectName("settings-row")
-        self._audio_loading_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        audio_loading_layout = QHBoxLayout(self._audio_loading_row)
-        audio_loading_layout.setContentsMargins(SPACING.md, SPACING.md, SPACING.md, SPACING.md)
-        audio_loading_layout.setSpacing(SPACING.md)
-        self._audio_loading_spinner = QProgressBar(self._audio_loading_row)
-        self._audio_loading_spinner.setObjectName("settings-audio-loading-spinner")
-        self._audio_loading_spinner.setRange(0, 0)  # indeterminate/busy
-        self._audio_loading_spinner.setTextVisible(False)
-        audio_loading_layout.addWidget(self._audio_loading_spinner, 1)
-        audio_loading_label = QLabel("Loading audio configuration…", self._audio_loading_row)
-        audio_loading_label.setObjectName("settings-row-label")
-        audio_loading_layout.addWidget(audio_loading_label, 0)
-        root.addWidget(self._audio_loading_row)
-
-        self._audio_content = QWidget(body)
-        audio_content_layout = QVBoxLayout(self._audio_content)
-        audio_content_layout.setContentsMargins(0, 0, 0, 0)
-        audio_content_layout.setSpacing(SPACING.lg)
-        self._audio_content.setVisible(False)
-        root.addWidget(self._audio_content)
-
-        tts_row = QWidget(self._audio_content)
+        tts_row = QWidget(body)
         tts_row.setObjectName("settings-row")
         tts_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         tts_row_layout = QHBoxLayout(tts_row)
@@ -246,9 +205,9 @@ class SettingsView(QWidget):
         self._tts_clear_button.clicked.connect(self._on_tts_clear)
         tts_row_layout.addWidget(self._tts_clear_button, 0)
 
-        audio_content_layout.addWidget(tts_row)
+        root.addWidget(tts_row)
 
-        source_row = QWidget(self._audio_content)
+        source_row = QWidget(body)
         source_row.setObjectName("settings-row")
         source_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         source_row_layout = QHBoxLayout(source_row)
@@ -266,16 +225,16 @@ class SettingsView(QWidget):
         self._tts_source_value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         source_row_layout.addWidget(self._tts_source_value, 1)
 
-        audio_content_layout.addWidget(source_row)
+        root.addWidget(source_row)
 
         tts_note = QLabel(
             "Card Audio Export uses this runtime for speech synthesis. "
             "Per-voice availability is shown in Data Tools > Card Audio Export.",
-            self._audio_content,
+            body,
         )
         tts_note.setObjectName("settings-section-note")
         tts_note.setWordWrap(True)
-        audio_content_layout.addWidget(tts_note)
+        root.addWidget(tts_note)
 
         storage_heading = QLabel("Storage", body)
         storage_heading.setObjectName("settings-section-heading")
@@ -295,13 +254,8 @@ class SettingsView(QWidget):
 
         root.addStretch(1)
 
-        self._audio_loaded = False
         controller.state_changed.connect(self._sync_from_controller)
         self._sync_from_controller()
-        # Deferred by one event-loop tick so the busy indicator above has
-        # painted before this (fast-in-isolation, but not asserted-fast
-        # on every real machine) resolution runs.
-        QTimer.singleShot(0, self._load_audio_section)
 
     def _build_info_row(self, label_text: str, value: str) -> QWidget:
         """A read-only P8 settings row (DESIGN.md § 7.3 "Storage /
@@ -339,16 +293,7 @@ class SettingsView(QWidget):
     def _on_tts_clear(self) -> None:
         self._controller.clear_shared_tts_dir()
 
-    def _load_audio_section(self) -> None:
-        """First-load path: populate, then swap the busy indicator for
-        the real rows. Idempotent -- safe even if called more than once
-        (e.g. a `state_changed` sync races the deferred timer)."""
-        self._populate_audio_section()
-        self._audio_loaded = True
-        self._audio_loading_row.setVisible(False)
-        self._audio_content.setVisible(True)
-
-    def _populate_audio_section(self) -> None:
+    def _sync_from_controller(self) -> None:
         saved_tts = self._controller.shared_tts_dir_setting()
         self._tts_dir_value.setText(saved_tts if saved_tts else "Not configured")
         self._tts_clear_button.setEnabled(bool(saved_tts))
@@ -357,15 +302,6 @@ class SettingsView(QWidget):
             self._tts_source_value.setText(f'{status["directory"]} — {status["source_label"]}')
         else:
             self._tts_source_value.setText(status["source_label"])
-
-    def _sync_from_controller(self) -> None:
-        # The very first population is owned by the deferred
-        # _load_audio_section() (so the busy indicator gets a chance to
-        # paint first); a later re-sync (Browse/Clear, or any other
-        # state_changed emission once already loaded) updates the
-        # already-visible rows directly with no spinner.
-        if self._audio_loaded:
-            self._populate_audio_section()
 
         current_appearance = self._controller.appearance()
         appearance_index = self._appearance_combo.findData(current_appearance)

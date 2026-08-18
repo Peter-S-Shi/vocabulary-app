@@ -30,8 +30,10 @@ from src.ui_desktop.controllers.data_tools_controller import (
     IMPORT_MODE_LABELS,
     DataToolsController,
 )
+from src.ui_desktop.controllers.audio_export_controller import AudioExportController
 from src.ui_desktop.theming.metrics import SPACING
 from src.ui_desktop.views.audio_export_view import AudioExportDialog
+from src.ui_desktop.widgets.progress_ring import ProgressRing
 
 """
 Data Tools (DESIGN.md § 7.4 "Data Tools hub: B, P6 Utility Workflow";
@@ -171,13 +173,45 @@ class DataToolsView(QWidget):
         backup_button.clicked.connect(self._on_backup)
         actions.addWidget(backup_button)
 
-        audio_export_button = QPushButton("Audio Export…", self)
-        audio_export_button.setObjectName("data-tools-audio-export-button")
-        audio_export_button.clicked.connect(self._on_audio_export)
-        actions.addWidget(audio_export_button)
+        # Final Human Acceptance Gate corrective: Audio Export is the one
+        # hub action that cannot open instantly -- it must first run a
+        # live provider preflight whose Mandarin route spawns
+        # powershell.exe (src/tts_providers.py), costing seconds on a
+        # real machine. It used to run synchronously inside
+        # AudioExportDialog.__init__, so the button looked dead for 6-7
+        # seconds while every sibling button opened immediately. The
+        # preflight now runs on a background thread
+        # (AudioExportController.start_voice_preflight) with a
+        # determinate progress ring beside the button -- hollow at the
+        # start, filling as each language resolves -- and the dialog
+        # opens once it completes, seeded with the results so it never
+        # pays the cost twice.
+        self._audio_export_button = QPushButton("Audio Export…", self)
+        self._audio_export_button.setObjectName("data-tools-audio-export-button")
+        self._audio_export_button.clicked.connect(self._on_audio_export)
+        actions.addWidget(self._audio_export_button)
+
+        self._audio_export_ring = ProgressRing(self)
+        self._audio_export_ring.setObjectName("data-tools-audio-export-ring")
+        self._audio_export_ring.setToolTip("Checking speech providers…")
+        self._audio_export_ring.setVisible(False)
+        actions.addWidget(self._audio_export_ring)
+
+        self._audio_export_status = QLabel("", self)
+        self._audio_export_status.setObjectName("data-tools-audio-export-status")
+        self._audio_export_status.setVisible(False)
+        actions.addWidget(self._audio_export_status)
+
         actions.addStretch(1)
         layout.addLayout(actions)
         layout.addStretch(1)
+
+        # Owned by the hub (not the dialog) so the preflight can run and
+        # report progress before any dialog exists.
+        self._audio_launch_pending = False
+        self._audio_preflight_controller = AudioExportController()
+        self._audio_preflight_controller.voice_preflight_progress.connect(self._on_audio_preflight_progress)
+        self._audio_preflight_controller.voice_preflight_changed.connect(self._on_audio_preflight_changed)
 
     def refresh(self) -> None:
         pass
@@ -202,8 +236,69 @@ class DataToolsView(QWidget):
         dialog.exec()
 
     def _on_audio_export(self) -> None:
-        dialog = AudioExportDialog(parent=self)
+        """Start the background preflight and show the ring; the dialog
+        opens from ``_on_audio_preflight_changed`` once it completes.
+
+        Guarded against a repeated click while one is already running --
+        the same duplicate-action discipline the rest of M19 applies --
+        so a double-click cannot start two preflights or open two
+        dialogs."""
+        if self._audio_preflight_controller.voice_preflight_running:
+            return
+        self._audio_export_button.setEnabled(False)
+        self._audio_export_ring.reset()
+        self._audio_export_ring.setVisible(True)
+        self._audio_export_status.setText("Checking speech providers…")
+        self._audio_export_status.setVisible(True)
+        self._audio_preflight_controller.voice_rows = None  # force a fresh, honest preflight
+        self._audio_preflight_controller.voice_preflight_error = None
+        # One-shot: only a preflight the user actually started by
+        # clicking this button may open the dialog when it completes.
+        # Without this, any other emission of `voice_preflight_changed`
+        # would pop a modal dialog the user never asked for.
+        self._audio_launch_pending = True
+        self._audio_preflight_controller.start_voice_preflight()
+
+    def _on_audio_preflight_progress(self, completed: int, total: int) -> None:
+        self._audio_export_ring.set_progress(completed, total)
+        self._audio_export_status.setText(f"Checking speech providers… {completed}/{total}")
+
+    def _on_audio_preflight_changed(self) -> None:
+        if self._audio_preflight_controller.voice_preflight_running:
+            return
+        if not self._audio_launch_pending:
+            return
+        self._audio_launch_pending = False
+        # Finished (successfully or not): restore the button, hide the
+        # ring, and open the dialog seeded with whatever the preflight
+        # honestly produced. A failed preflight still opens the dialog --
+        # it renders the same unavailable-provider diagnostics it always
+        # did rather than silently swallowing the action.
+        self._audio_export_ring.set_progress(1, 1)
+        self._audio_export_ring.setVisible(False)
+        self._audio_export_status.setVisible(False)
+        self._audio_export_status.setText("")
+        self._audio_export_button.setEnabled(True)
+        self._open_audio_export_dialog(self._audio_preflight_controller.voice_rows)
+
+    def _open_audio_export_dialog(self, voice_rows) -> None:
+        """Split out from the completion handler so a test can exercise
+        the preflight/ring sequence without a modal ``exec()`` blocking
+        forever with no user present to close it."""
+        dialog = AudioExportDialog(parent=self, voice_rows=voice_rows)
         dialog.exec()
+
+    def apply_theme_tokens(self, tokens) -> None:
+        """The progress ring paints an arc, which QSS cannot express, so
+        MainWindow forwards the active theme's tokens here the same way
+        it already does for the Entries Star column."""
+        self._audio_export_ring.apply_theme_colors(
+            tokens.neutral.border_default, tokens.accent.primary.background
+        )
+
+    def closeEvent(self, event) -> None:  # noqa: N802 -- Qt override
+        self._audio_preflight_controller.shutdown_voice_preflight()
+        super().closeEvent(event)
 
 
 class _ImportDialog(QDialog):

@@ -158,11 +158,56 @@ Verification: affected navigation/Settings/desktop regression 378/378;
 full repository suite 860/860; architecture audit clean (94 files, 0
 violations); privacy scan clean.
 
+### Final Human Acceptance Gate — Attempt 2: Sidebar PASS, Audio feedback FAIL
+
+Re-checked at head `98119db`. **Navigation Rail order: PASS.** **Audio
+loading feedback: FAIL**, with the location and treatment corrected by
+the operator: the indicator belongs beside the **Data Tools → Audio
+Export** button (not in Settings) and should be a progress ring that
+starts hollow and fills to solid; the real symptom is that every other
+Data Tools button responds instantly while Audio Export takes 6-7
+seconds.
+
+**Attempt 1's mistake:** it read the original report as the Settings
+workspace and put the indicator there, even though its own
+investigation had already identified the real culprit (the live
+provider preflight reached from Data Tools) and measured Settings
+itself at 6ms. The Settings-side indicator has been reverted in full.
+
+**Root cause (measured):** `AudioExportDialog.__init__` ran
+`voice_assignment_rows()` → `ProviderRegistry.preflight()` per frozen
+language synchronously on the Qt UI thread before the dialog could
+paint, and the Mandarin route's preflight shells out to
+`powershell.exe` (`src/tts_providers.py`, 30s timeout). The cost is
+environment-dependent and unbounded in practice -- one probe of the
+same call inside a worker thread was still running past a 200s timeout
+-- so the fix is to stop blocking on it rather than to optimize it.
+
+**Corrective applied:** a new `_VoicePreflightWorker` runs the
+preflight on a background `QThread` with truthful per-language
+progress (real bound-method connections, generation guard, blocking
+shutdown wired into `MainWindow.closeEvent`); a new `ProgressRing`
+widget (`src/ui_desktop/widgets/progress_ring.py`) paints a
+determinate hollow-to-solid arc, themed through the same
+`apply_theme_tokens` seam the Entries Star column uses; and the Data
+Tools hub shows the ring beside the button, fills it as each language
+resolves, then opens the dialog seeded with the real results so the
+cost is never paid twice. Repeated clicks cannot start two preflights
+or open two dialogs.
+
+Verification: 13 new tests; affected Data Tools/audio/settings/
+navigation regression 172/172; architecture audit clean. A test hang
+encountered during this work was diagnosed with a `faulthandler`
+thread dump (a modal `exec()` with no user to close it, not a
+threading defect) and a pre-existing timing-brittle assertion in
+`tests/test_m19_background_task_navigation.py` was replaced with a
+bounded wait. See `docs/qa/MILESTONE19_HARDENING_QA.md` § 10.
+
 **M19 status: Engineering Exit Candidate, Agent Verified, Human
-Acceptance Pending (corrective applied, re-presenting for re-check).**
-Not Human Accepted; not Complete; the branch remains Draft and unmerged
-pending the operator's explicit PASS at the re-presented Final Human
-Acceptance Gate.
+Acceptance Pending (Attempt 2 correctives applied, re-presenting for
+re-check).** Not Human Accepted; not Complete; the branch remains Draft
+and unmerged pending the operator's explicit PASS at the re-presented
+Final Human Acceptance Gate.
 
 **Milestone 18 — Desktop Management and Major Feature Completion is
 Complete on `main`** (merged via PR #29 at

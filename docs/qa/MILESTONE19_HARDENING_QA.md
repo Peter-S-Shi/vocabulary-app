@@ -1,7 +1,8 @@
 # Milestone 19 — Desktop Product Hardening: Hardening / Acceptance Evidence Record
 
 **Status: Engineering Exit Candidate, Agent Verified, Human Acceptance
-Pending (corrective applied after Attempt 1 FAIL — see § 9).** This is
+Pending (correctives applied after Attempt 1 FAIL — § 9 — and Attempt 2
+partial FAIL — § 10).** This is
 a living evidence record, not a pre-hardening questionnaire. It
 documents what was audited, what was found, what was fixed, and what
 was verified during M19 — kept current with `PROJECT_STATUS.md`, the
@@ -305,7 +306,107 @@ Architecture audit:                               94 Python files, 0 serious, 0 
 Privacy/tracked-file scan:                        clean
 ```
 
-## 10. Remaining Human-Only Item
+## 10. Final Human Acceptance Gate — Attempt 2: Sidebar PASS, Audio loading feedback FAIL
+
+The operator re-checked at head `98119db` and recorded:
+
+- **Navigation Rail order: PASS.**
+- **Audio loading feedback: FAIL**, with a precise correction of both
+  the location and the required treatment:
+  1. the indicator belongs **beside the Audio Export button**, and
+     should be a progress ring that starts hollow and fills to solid;
+  2. the real problem is in **Data Tools**, not Settings — every other
+     Data Tools button responds immediately, while Audio Export takes
+     6–7 seconds before anything happens.
+
+### What Attempt 1 got wrong
+
+Attempt 1 read the original report ("Settings → Audio Output") as the
+Settings workspace and put a busy indicator there. Its own
+investigation had actually already identified the correct culprit —
+the live provider preflight in `AudioExportController` reached from
+Data Tools → Card Audio Export — and recorded that Settings itself
+resolves in 6ms, but it still placed the indicator in the wrong
+surface. The Settings-side indicator was reverted in full (back to its
+pre-Attempt-1 state) rather than left as unnecessary UI.
+
+### Root cause (measured, not assumed)
+
+`AudioExportDialog.__init__` calls `_populate_voice_table()` →
+`AudioExportController.voice_assignment_rows()` →
+`ProviderRegistry.preflight()` for each frozen language. The Mandarin
+route's preflight shells out to `powershell.exe` via `subprocess.run`
+(`src/tts_providers.py`, `CommandSpeechProvider.preflight`, 30s
+timeout). All of it ran **synchronously on the Qt UI thread before the
+dialog could paint** — so the button appeared dead for the duration
+while every sibling Data Tools button, which opens its dialog directly,
+responded instantly.
+
+Measured per-language cost in this environment: `en` 0.00s, `fr` 0.00s,
+`zh-CN` 0.25s. The cost is environment-dependent and **not bounded in
+practice** — one probe of the same call inside a Qt worker thread was
+still running past a 200s timeout — so the fix is to stop blocking on
+it, not to try to make it fast.
+
+### Fix
+
+- **`_VoicePreflightWorker`** (`audio_export_controller.py`): runs the
+  preflight on a background `QThread`, one language at a time, emitting
+  truthful completed/total progress after each — never a fabricated
+  within-language percentage. Follows the repository's established
+  worker discipline exactly: real bound-method connections (never
+  lambdas, so PySide6 queues onto the Qt UI thread), a monotonic
+  generation guard discarding superseded runs, and a blocking
+  `shutdown_voice_preflight()` join wired into `MainWindow.closeEvent`.
+- **`ProgressRing`** (`src/ui_desktop/widgets/progress_ring.py`): a new
+  determinate circular indicator that paints a track plus a clockwise
+  arc from 12 o'clock — hollow at 0, solid at 100%, exactly as
+  requested. Qt ships no circular progress widget and QSS cannot
+  express an arc, so it paints directly and takes its colors from the
+  active theme tokens through the same `apply_theme_tokens` seam
+  `MainWindow` already uses for the Entries Star column.
+- **Data Tools hub** (`data_tools_view.py`): clicking Audio Export now
+  disables the button, shows the ring hollow with a
+  "Checking speech providers… n/N" status, fills the ring as each
+  language resolves, then opens the dialog **seeded with the real
+  results** (`AudioExportDialog(..., voice_rows=...)`) so the cost is
+  never paid twice. A repeated click cannot start a second preflight or
+  open a second dialog, and a one-shot `_audio_launch_pending` guard
+  ensures only a preflight the user actually initiated can open a modal
+  dialog.
+
+A failed preflight still opens the dialog — it renders the same
+unavailable-provider diagnostics it always did, rather than silently
+swallowing the action.
+
+### Diagnosis note
+
+The first run of the new tests hung. Rather than loosening the tests,
+a `faulthandler` thread dump was taken, which showed the block was
+`dialog.exec()` — a modal dialog opened from the completion handler,
+with no user present in a headless run to close it. The dialog-opening
+call was therefore split into `_open_audio_export_dialog()` so tests
+can exercise the full preflight/ring/seed sequence without a modal
+blocking forever. No threading defect existed.
+
+Separately, `tests/test_m19_background_task_navigation.py` was found to
+be timing-brittle (introduced in an earlier M19 batch): it assumed a
+fixed 300ms pump was always enough for a background Analytics load to
+finish and be reaped, which held in isolation but failed once more GUI
+tests shared the process. Replaced with a bounded `_pump_until_idle`
+wait — the invariant is "it finishes and cleans up", not "it finishes
+within N milliseconds".
+
+### Verification for Attempt 2's corrective
+
+```text
+New tests (tests/test_m19_audio_export_preflight_progress.py): 13/13
+Affected Data Tools/audio/settings/navigation regression:      172/172
+Full repository suite:                                         see § 6
+Architecture audit:                                            0 serious, 0 warnings
+```
+
+## 11. Remaining Human-Only Item
 
 **Final Human Acceptance Gate, re-presentation** (ROADMAP § 17 /
 `AGENTS.md`'s Human UI Acceptance Delivery Pattern): the real native

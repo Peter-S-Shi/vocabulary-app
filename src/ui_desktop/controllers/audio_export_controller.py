@@ -60,6 +60,54 @@ remaining Card comes back ``cancelled`` rather than silently unattempted.
 """
 
 
+class _VoicePreflightWorker(QObject):
+    """Runs the live per-language provider preflight off the Qt UI thread.
+
+    Final Human Acceptance Gate corrective: ``voice_assignment_rows()``
+    calls ``ProviderRegistry.preflight()`` for each frozen language, and
+    the Mandarin route's preflight spawns ``powershell.exe`` through
+    ``subprocess.run`` (``src/tts_providers.py``'s
+    ``CommandSpeechProvider.preflight``, 30s timeout). On a real machine
+    that cold PowerShell start costs seconds -- and it used to run
+    synchronously inside ``AudioExportDialog.__init__``, so the Audio
+    Export button appeared frozen for 6-7 seconds before its dialog
+    could paint, while every other Data Tools button opened instantly.
+
+    Preflighting one language at a time and emitting after each gives
+    the caller real, truthful progress (completed languages out of
+    total) to drive a determinate indicator -- never a fabricated
+    within-language percentage, the same honesty rule
+    ``_AnalyticsLoadWorker`` follows.
+    """
+
+    progress = Signal(int, int, int)  # (generation, completed, total)
+    finished = Signal(int, object)  # (generation, rows)
+    failed = Signal(int, str)
+
+    def __init__(self, generation: int, preferences: "Preferences | None") -> None:
+        super().__init__()
+        self._generation = generation
+        self._preferences = preferences
+
+    def run(self) -> None:
+        try:
+            registry = build_provider_registry(self._preferences)
+            specs = list(FROZEN_PROVIDER_SPECS.values())
+            total = len(specs)
+            rows: list[tuple[str, str, str, bool, str]] = []
+            self.progress.emit(self._generation, 0, total)
+            for spec in specs:
+                availability = registry.preflight(spec.language)
+                rows.append(
+                    (spec.language, spec.provider_id, spec.voice_id, availability.available, availability.detail)
+                )
+                self.progress.emit(self._generation, len(rows), total)
+        except Exception as exc:  # noqa: BLE001 -- surfaced as a controlled state, not a crash
+            self.failed.emit(self._generation, str(exc))
+            return
+        self.finished.emit(self._generation, rows)
+
+
 class _AudioExportWorker(QObject):
     stage_changed = Signal(int, object)  # (generation, ExportProgressEvent)
     succeeded = Signal(int, object)  # (generation, AudioExportBatchResult)
@@ -117,6 +165,11 @@ class AudioExportController(QObject):
     run_started = Signal()
     run_progress = Signal(int, int, str)
     run_failed = Signal(str)
+    # Final Human Acceptance Gate corrective: background voice-preflight
+    # lifecycle, so the Data Tools hub can show real progress instead of
+    # freezing while the Mandarin route's PowerShell preflight runs.
+    voice_preflight_changed = Signal()
+    voice_preflight_progress = Signal(int, int)  # (completed, total)
 
     def __init__(self, preferences: Preferences | None = None) -> None:
         super().__init__()
@@ -147,6 +200,15 @@ class AudioExportController(QObject):
         # reference could otherwise be garbage-collected before the
         # QThread ever invokes it.
         self._inflight: list[tuple[QThread, _AudioExportWorker]] = []
+        # Background voice-preflight state (Final Human Acceptance Gate
+        # corrective). ``voice_rows`` caches the last completed result so
+        # the dialog opened after a hub-driven preflight does not pay the
+        # PowerShell cost a second time.
+        self.voice_rows: list[tuple[str, str, str, bool, str]] | None = None
+        self.voice_preflight_running: bool = False
+        self.voice_preflight_error: str | None = None
+        self._preflight_generation = 0
+        self._preflight_inflight: list[tuple[QThread, _VoicePreflightWorker]] = []
 
     # -- Scope / configuration -----------------------------------------
 
@@ -236,13 +298,90 @@ class AudioExportController(QObject):
         VOCAB_APP_SHARED_TTS_DIR per-process override; see
         state/tts_runtime.py) *before* the user spends effort
         building a Plan (HG3 corrective: "0 of X Cards ready" with no
-        visible reason was the reported blocker)."""
+        visible reason was the reported blocker).
+
+        Returns the cached result of a completed background preflight
+        when one exists (Final Human Acceptance Gate corrective), so a
+        dialog opened right after the hub already paid the PowerShell
+        cost does not pay it twice. The cache holds one real preflight's
+        results, not a fabricated status."""
+        if self.voice_rows is not None:
+            return list(self.voice_rows)
         registry = build_provider_registry(self._preferences)
         rows = []
         for spec in FROZEN_PROVIDER_SPECS.values():
             availability = registry.preflight(spec.language)
             rows.append((spec.language, spec.provider_id, spec.voice_id, availability.available, availability.detail))
         return rows
+
+    def start_voice_preflight(self) -> None:
+        """Run ``voice_assignment_rows()``'s live preflight in the
+        background, reporting truthful per-language progress.
+
+        Final Human Acceptance Gate corrective (module docstring /
+        ``_VoicePreflightWorker``): lets the Data Tools hub show a
+        determinate progress indicator next to the Audio Export button
+        instead of freezing for seconds with no feedback. Results are
+        cached in ``voice_rows`` so the dialog this precedes does not
+        pay the cost a second time.
+        """
+        self._preflight_generation += 1
+        generation = self._preflight_generation
+        self.voice_preflight_running = True
+        self.voice_preflight_changed.emit()
+
+        thread = QThread()
+        worker = _VoicePreflightWorker(generation, self._preferences)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        # Real bound methods, never lambdas, so PySide6 can detect the
+        # cross-thread receiver and queue onto the Qt UI thread -- the
+        # same rule AnalyticsController's Human Gate 2 corrective
+        # established.
+        worker.progress.connect(self._on_preflight_progress)
+        worker.finished.connect(self._on_preflight_finished)
+        worker.failed.connect(self._on_preflight_failed)
+        worker.finished.connect(thread.quit)
+        worker.failed.connect(thread.quit)
+        thread.finished.connect(self._on_preflight_thread_finished)
+        thread.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        self._preflight_inflight.append((thread, worker))
+        thread.start()
+
+    def _on_preflight_thread_finished(self) -> None:
+        thread = self.sender()
+        self._preflight_inflight = [pair for pair in self._preflight_inflight if pair[0] is not thread]
+
+    def _on_preflight_progress(self, generation: int, completed: int, total: int) -> None:
+        if generation != self._preflight_generation:
+            return
+        self.voice_preflight_progress.emit(completed, total)
+
+    def _on_preflight_finished(self, generation: int, rows: object) -> None:
+        if generation != self._preflight_generation:
+            return  # superseded by a newer preflight; discard
+        self.voice_rows = list(rows)  # type: ignore[arg-type]
+        self.voice_preflight_running = False
+        self.voice_preflight_changed.emit()
+
+    def _on_preflight_failed(self, generation: int, message: str) -> None:
+        if generation != self._preflight_generation:
+            return
+        self.voice_preflight_running = False
+        self.voice_preflight_error = message
+        self.voice_preflight_changed.emit()
+
+    def shutdown_voice_preflight(self) -> None:
+        """Block until any in-flight preflight thread has actually
+        stopped -- the same QThread-lifetime discipline
+        ``AnalyticsController.shutdown()`` documents."""
+        for pair in list(self._preflight_inflight):
+            thread, _worker = pair
+            thread.quit()
+            thread.wait(35000)  # the provider preflight itself allows 30s
+            if pair in self._preflight_inflight:
+                self._preflight_inflight.remove(pair)
 
     # -- Plan ------------------------------------------------------------
 

@@ -1928,12 +1928,16 @@ repeated launch) was root-caused and fixed; the mandatory M19/M20 Card
 Audio Export productization handoff (shared TTS runtime configuration)
 was closed; every other investigated hardening area was verified
 already correct. Full repository suite 860/860, architecture audit
-clean (94 files), native platform launch health agent-verified. Final
+clean (95 files), native platform launch health agent-verified. Final
 Human Acceptance Gate Attempt 1 recorded FAIL with two narrow UX
-correctives (Settings > Audio loading feedback; Navigation Rail order);
-both applied and re-verified. See `PROJECT_STATUS.md` § "M19 Engineering
-Exit Candidate summary" and "Final Human Acceptance Gate — Attempt 1"
-for the
+correctives (audio loading feedback; Navigation Rail order); Attempt 2
+PASSed the Navigation Rail order and re-FAILed the loading feedback,
+relocating it to a hollow-to-solid progress ring beside the Data Tools
+> Audio Export button and identifying the real cause (a synchronous,
+PowerShell-spawning provider preflight blocking the Qt UI thread before
+the dialog could paint). Both correctives applied and re-verified. See
+`PROJECT_STATUS.md` § "M19 Engineering Exit Candidate summary" and its
+Final Human Acceptance Gate attempt records for the
 complete evidence record. Not Human Accepted; not Complete; unmerged
 pending the Final Human Acceptance Gate.
 
