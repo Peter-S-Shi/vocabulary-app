@@ -279,11 +279,14 @@ operator authorized the merge, and **M18 merged to `main` via PR #29 at
 `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`**. See § Milestone 18 below
 for the full checkpoint record.
 
-**The desktop Feature Freeze is now active as of Milestone 19** — the
-intended desktop feature scope has been implemented and verified
-through M17/M18. Milestone 19 — Desktop Product Hardening is IN
-PROGRESS on the single long-lived branch
-`agent/m19-desktop-product-hardening` from baseline `9dae05c`.
+**The desktop Feature Freeze began with Milestone 19** — the
+intended desktop feature scope had been implemented and verified
+through M17/M18. **Milestone 19 — Desktop Product Hardening is Complete
+on `main`**, Human Accepted 2026-08-18 and merged via PR #30 at
+`2ad211711d96583b6fffdb65de912fa672502bc8` from the single long-lived
+branch `agent/m19-desktop-product-hardening` (baseline `9dae05c`); see
+§ Milestone 19 below for the full record. **Milestone 20 — Packaging
+and Release Candidate is the current/next lifecycle objective.**
 
 ---
 

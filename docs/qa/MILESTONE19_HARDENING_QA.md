@@ -215,8 +215,8 @@ Against `ROADMAP.md` § "Milestone 19 Exit Criteria":
 - [x] No known high-risk data-integrity, privacy, or security defect
       remains.
 - [x] Core desktop workflows pass integrated (agent-operated)
-      verification — full-product manual acceptance is the remaining
-      human-only item (§ 9 below).
+      verification, and full-product manual acceptance is complete —
+      the Final Human Acceptance Gate PASSed at Attempt 3 (§ 11 below).
 - [x] Fresh-database scenarios pass.
 - [x] Representative upgraded-database and repeated-migration scenarios
       pass.
@@ -232,7 +232,7 @@ Against `ROADMAP.md` § "Milestone 19 Exit Criteria":
 - [x] Cancellation/retry/error recovery is verified where applicable
       (Quiz session recovery specifically hardened by M19-F2).
 - [x] Architecture audit passes.
-- [x] Automated regression passes (859/859).
+- [x] Automated regression passes (872/872 at the accepted head).
 - [x] Privacy/repository audit passes.
 - [x] Known limitations and deferred work are documented (§ 7 above).
 - [x] `README.md`, `ROADMAP.md`, `PROJECT_STATUS.md`, migration docs,

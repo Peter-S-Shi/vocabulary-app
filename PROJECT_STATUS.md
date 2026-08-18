@@ -36,7 +36,14 @@ suite 782/782 green (offscreen), architecture audit clean (87 Python
 files, 0 serious, 0 warnings), quiz randomization check passed, working
 tree clean, local `main` fast-forwarded to `origin/main`.
 
-### M19 Engineering Exit Candidate summary (Agent Verified, 2026-08-18)
+### M19 Engineering Exit Candidate summary (historical pre-gate snapshot, Agent Verified, 2026-08-18)
+
+**Historical context, superseded below.** This subsection is the
+evidence snapshot recorded when M19 reached Engineering Exit Candidate,
+*before* the Final Human Acceptance Gate was presented. It is preserved
+for the audit trail. The current, authoritative outcome is Attempt 3
+PASS — Human Accepted, merged to `main` — recorded in the "Final Human
+Acceptance Gate" subsections immediately following this one.
 
 **One confirmed release-relevant defect, root-cause fixed and
 regression-tested (M19-F2):** `QuizController.start()` only rejected a
@@ -121,9 +128,12 @@ Native launch health above is **Agent Verified only** -- it proves the
 real desktop process starts, produces a real window, and shuts down
 cleanly on this machine's actual Windows platform. It is deliberately
 not a substitute for visual/functional acceptance (AGENTS.md: "Automated
-tests cannot establish visual quality"). The Final Human Acceptance Gate
--- launching the app and leaving it open for the operator's own
-inspection -- is the next and final M19 step, not yet performed.
+tests cannot establish visual quality"). At the time of this snapshot
+the Final Human Acceptance Gate -- launching the app and leaving it open
+for the operator's own inspection -- had not yet been presented. It was
+subsequently presented, took three attempts, and PASSed; see "Final
+Human Acceptance Gate — Attempt 3" below for the current, authoritative
+outcome.
 
 **Known limitations / deferred, not defects:** the SQLite
 `ResourceWarning: unclosed database` noise under the test harness
