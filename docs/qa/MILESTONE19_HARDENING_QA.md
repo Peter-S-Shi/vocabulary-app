@@ -1,8 +1,9 @@
 # Milestone 19 — Desktop Product Hardening: Hardening / Acceptance Evidence Record
 
-**Status: Engineering Exit Candidate, Agent Verified, Human Acceptance
-Pending (correctives applied after Attempt 1 FAIL — § 9 — and Attempt 2
-partial FAIL — § 10).** This is
+**Status: Complete — Human Accepted 2026-08-18 at
+`a128c50d75154ff3f85eacfd3a96e54d27d11c4d` (§ 11), after correctives
+for the Attempt 1 FAIL (§ 9) and the Attempt 2 partial FAIL (§ 10).
+Unmerged, pending explicit operator merge authorization.** This is
 a living evidence record, not a pre-hardening questionnaire. It
 documents what was audited, what was found, what was fixed, and what
 was verified during M19 — kept current with `PROJECT_STATUS.md`, the
@@ -406,9 +407,57 @@ Full repository suite:                                         see § 6
 Architecture audit:                                            0 serious, 0 warnings
 ```
 
-## 11. Remaining Human-Only Item
+## 11. Final Human Acceptance Gate — Attempt 3: PASS (Human Accepted)
 
-**Final Human Acceptance Gate, re-presentation** (ROADMAP § 17 /
-`AGENTS.md`'s Human UI Acceptance Delivery Pattern): the real native
-desktop application is launched from this corrective head and left open
-for the operator's own re-inspection, pending an explicit PASS/FAIL.
+The operator inspected the real native desktop application launched
+from candidate head `a128c50d75154ff3f85eacfd3a96e54d27d11c4d` and
+recorded **PASS** on 2026-08-18. Both Attempt 2 correctives were
+accepted: the Navigation Rail order, and the hollow-to-solid progress
+ring beside the Data Tools → Audio Export button with its background
+provider preflight.
+
+This is the authoritative M19 acceptance decision.
+
+```text
+Accepted head:  a128c50d75154ff3f85eacfd3a96e54d27d11c4d
+Branch:         agent/m19-desktop-product-hardening (PR #30)
+Baseline:       9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc
+Accepted on:    2026-08-18
+```
+
+Verification at the accepted head:
+
+```text
+Full repository suite:         872/872 (offscreen)
+Architecture audit:            95 Python files, 0 serious, 0 warnings
+Quiz randomization check:      passed
+Privacy/tracked-file scan:     clean across the full M19 diff
+Native platform launch:        real window confirmed, clean shutdown
+Working tree / remote:         clean; local HEAD == remote branch head
+```
+
+**Milestone 19 — Desktop Product Hardening is complete and Human
+Accepted. The project is ready to enter Milestone 20 Packaging and
+Release Candidate.**
+
+The branch is **not merged**. Per the M19 contract § 18, merging to
+`main` requires explicit operator authorization, which has not been
+given and was not assumed.
+
+## 12. Handed to Milestone 20
+
+- Packaging mechanism, installer, and clean-machine distribution
+  (deliberately untouched by M19 per the contract's scope boundary).
+- Shared TTS runtime *provisioning* for a clean external user: M19
+  closed the durable in-app configuration contract (§ 3, M19-F1), but
+  how an installed copy obtains the runtime, models, and voices —
+  bundle vs. first-run download vs. another strategy — remains M20
+  scope (ROADMAP § "Mandatory M19 / M20 Productization Handoff").
+- Final third-party bundle/license review and Release Candidate
+  acceptance.
+
+## 13. Known Limitations Carried Forward (not defects)
+
+Unchanged from § 7: the SQLite `ResourceWarning` test-harness noise;
+the three deferred Accent families and the Quick Theme Control popover;
+advanced Entries table personalization.

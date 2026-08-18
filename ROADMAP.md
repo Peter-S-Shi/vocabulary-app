@@ -1917,8 +1917,9 @@ forward productization concern, not an M18 acceptance blocker.
 
 ## Milestone 19: Desktop Product Hardening
 
-**Status: Engineering Exit Candidate, Agent Verified, Human Acceptance
-Pending.** Developed under the M19 Autonomous Product Hardening
+**Status: Complete — Human Accepted 2026-08-18 at
+`a128c50d75154ff3f85eacfd3a96e54d27d11c4d` (unmerged, pending explicit
+operator merge authorization).** Developed under the M19 Autonomous Product Hardening
 Execution Contract on the single long-lived branch
 `agent/m19-desktop-product-hardening` (Draft PR #30), created from the
 verified M18 merge baseline `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`
@@ -1927,19 +1928,26 @@ confirmed release-relevant defect (duplicate active Quiz sessions on a
 repeated launch) was root-caused and fixed; the mandatory M19/M20 Card
 Audio Export productization handoff (shared TTS runtime configuration)
 was closed; every other investigated hardening area was verified
-already correct. Full repository suite 860/860, architecture audit
-clean (95 files), native platform launch health agent-verified. Final
-Human Acceptance Gate Attempt 1 recorded FAIL with two narrow UX
-correctives (audio loading feedback; Navigation Rail order); Attempt 2
-PASSed the Navigation Rail order and re-FAILed the loading feedback,
-relocating it to a hollow-to-solid progress ring beside the Data Tools
-> Audio Export button and identifying the real cause (a synchronous,
-PowerShell-spawning provider preflight blocking the Qt UI thread before
-the dialog could paint). Both correctives applied and re-verified. See
-`PROJECT_STATUS.md` § "M19 Engineering Exit Candidate summary" and its
-Final Human Acceptance Gate attempt records for the
-complete evidence record. Not Human Accepted; not Complete; unmerged
-pending the Final Human Acceptance Gate.
+already correct. Full repository suite 872/872, architecture audit
+clean (95 files), native platform launch health agent-verified.
+
+The Final Human Acceptance Gate took three attempts. Attempt 1 FAILed
+with two narrow UX correctives (audio loading feedback; Navigation Rail
+order). Attempt 2 PASSed the Navigation Rail order and re-FAILed the
+loading feedback, relocating it to a hollow-to-solid progress ring
+beside the Data Tools > Audio Export button and identifying the real
+cause: a synchronous, PowerShell-spawning provider preflight blocking
+the Qt UI thread before the dialog could paint. **Attempt 3 PASSed —
+Milestone 19 is Human Accepted** at
+`a128c50d75154ff3f85eacfd3a96e54d27d11c4d`. See `PROJECT_STATUS.md`
+§ "M19 Engineering Exit Candidate summary" and its Final Human
+Acceptance Gate attempt records, plus
+[Milestone 19 Hardening QA](docs/qa/MILESTONE19_HARDENING_QA.md), for
+the complete evidence record.
+
+Desktop Product Hardening is complete; the project is ready to enter
+Milestone 20 Packaging and Release Candidate. The branch remains
+unmerged pending explicit operator merge authorization.
 
 Milestone 19 is the formal system-wide hardening phase for the desktop product.
 

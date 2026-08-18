@@ -15,13 +15,14 @@ Desktop-specific migration principles and workflow mapping are defined in
 **Milestone 18 — Desktop Management and Major Feature Completion
 (Complete on `main`, merged via PR #29 at
 `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`); Milestone 19 — Desktop
-Product Hardening (Engineering Exit Candidate / Agent Verified — Human
-Acceptance Pending)**
+Product Hardening (Human Accepted 2026-08-18 at
+`a128c50d75154ff3f85eacfd3a96e54d27d11c4d`; unmerged, pending operator
+merge authorization)**
 
 ## Current Milestone
 
-**Milestone 19 — Desktop Product Hardening has reached Engineering Exit
-Candidate (Agent Verified).** Developed under the M19 Autonomous Product
+**Milestone 19 — Desktop Product Hardening is Human Accepted.**
+Developed under the M19 Autonomous Product
 Hardening Execution Contract on the single long-lived branch
 `agent/m19-desktop-product-hardening` (Draft PR #30), created from the
 verified M18 merge baseline `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`
@@ -203,11 +204,31 @@ threading defect) and a pre-existing timing-brittle assertion in
 `tests/test_m19_background_task_navigation.py` was replaced with a
 bounded wait. See `docs/qa/MILESTONE19_HARDENING_QA.md` § 10.
 
-**M19 status: Engineering Exit Candidate, Agent Verified, Human
-Acceptance Pending (Attempt 2 correctives applied, re-presenting for
-re-check).** Not Human Accepted; not Complete; the branch remains Draft
-and unmerged pending the operator's explicit PASS at the re-presented
-Final Human Acceptance Gate.
+### Final Human Acceptance Gate — Attempt 3: PASS (Human Accepted)
+
+The operator inspected the real native desktop application launched
+from candidate head
+`a128c50d75154ff3f85eacfd3a96e54d27d11c4d` and recorded **PASS**
+(2026-08-18). Both Attempt 2 correctives were accepted: the Navigation
+Rail order, and the hollow-to-solid progress ring beside the Data
+Tools → Audio Export button with its background provider preflight.
+
+This is the authoritative M19 acceptance decision.
+
+**M19 status: Human Accepted — Desktop Product Hardening complete,
+ready to enter M20 Packaging and Release Candidate.** The branch is
+**not merged**: per the M19 contract § 18, the agent does not merge to
+`main` without explicit operator merge authorization.
+
+Accepted head: `a128c50d75154ff3f85eacfd3a96e54d27d11c4d`
+Branch: `agent/m19-desktop-product-hardening` (PR #30)
+Baseline: `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`
+
+Final verification at the accepted head: full repository suite 872/872
+(offscreen), architecture audit clean (95 Python files, 0 serious, 0
+warnings), quiz randomization check passed, privacy/tracked-file scan
+clean, native platform launch health agent-verified, local HEAD equal
+to `origin/agent/m19-desktop-product-hardening`.
 
 **Milestone 18 — Desktop Management and Major Feature Completion is
 Complete on `main`** (merged via PR #29 at
@@ -1700,11 +1721,14 @@ desktop product.
 
 ## Hardening Status
 
-**Milestone 19 — Desktop Product Hardening has reached Engineering Exit
-Candidate (Agent Verified, Human Acceptance Pending)** on branch
+**Milestone 19 — Desktop Product Hardening is complete and Human
+Accepted** (2026-08-18, at
+`a128c50d75154ff3f85eacfd3a96e54d27d11c4d`) on branch
 `agent/m19-desktop-product-hardening` (baseline
-`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`). See "Current Milestone"
-above for the full exit-candidate summary and evidence.
+`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`), unmerged pending explicit
+operator merge authorization. See "Current Milestone" above for the
+full evidence record and the three Final Human Acceptance Gate
+attempts.
 
 However, pre-desktop stabilization and full-product manual QA have already
 identified issues that must be corrected before major migration work.
