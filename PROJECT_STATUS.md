@@ -15,24 +15,127 @@ Desktop-specific migration principles and workflow mapping are defined in
 **Milestone 18 — Desktop Management and Major Feature Completion
 (Complete on `main`, merged via PR #29 at
 `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`); Milestone 19 — Desktop
-Product Hardening (IN PROGRESS — Feature Freeze active)**
+Product Hardening (Engineering Exit Candidate / Agent Verified — Human
+Acceptance Pending)**
 
 ## Current Milestone
 
-**Milestone 19 — Desktop Product Hardening is IN PROGRESS**, developed
-under the M19 Autonomous Product Hardening Execution Contract on the
-single long-lived branch `agent/m19-desktop-product-hardening`, created
-from the verified M18 merge baseline
-`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc` (`main`). The desktop
-**Feature Freeze is now active**: correctness, data-integrity,
-migration/compatibility, privacy/security, robustness, serious UX, and
-performance defects remain in scope; new product capabilities move to
-deferred work unless scope is explicitly reopened.
+**Milestone 19 — Desktop Product Hardening has reached Engineering Exit
+Candidate (Agent Verified).** Developed under the M19 Autonomous Product
+Hardening Execution Contract on the single long-lived branch
+`agent/m19-desktop-product-hardening` (Draft PR #30), created from the
+verified M18 merge baseline `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`
+(`main`). The desktop **Feature Freeze has been active throughout**:
+correctness, data-integrity, migration/compatibility, privacy/security,
+robustness, serious UX, and performance defects remained in scope; no
+new product capability was introduced.
 
 M19 baseline verification (2026-08-18, at `9dae05c`): full repository
 suite 782/782 green (offscreen), architecture audit clean (87 Python
 files, 0 serious, 0 warnings), quiz randomization check passed, working
 tree clean, local `main` fast-forwarded to `origin/main`.
+
+### M19 Engineering Exit Candidate summary (Agent Verified, 2026-08-18)
+
+**One confirmed release-relevant defect, root-cause fixed and
+regression-tested (M19-F2):** `QuizController.start()` only rejected a
+*foreign* active Quiz session, so a repeated launch through the same
+controller (a double-clicked Quick Quiz, or a second launch action
+arriving before the first session finished) created a second active
+session while the first stayed `active` forever -- an orphan invisible
+to both `get_active_quiz_session()` (returns only the newest active row)
+and `reconcile_finished_active_quiz_sessions()` (only reconciles fully
+answered sessions), and "Cancel and retry" recovered nothing because it
+cancelled only the displayed session. Fixed by cancelling the
+controller's own still-active, uncompleted session before creating a new
+one (the existing "abandoning an active Quiz cancels it" rule), and by
+having `cancel_blocked_and_retry()` clear every remaining stale active
+session. 17 new regression tests (5 of which fail against the pre-fix
+controller, verified by reverting and re-running); no completion is ever
+fabricated and no recorded answer is ever lost.
+
+**One durable product-facing configuration gap closed (M19-F1):** the
+mandatory M19/M20 productization handoff item (ROADMAP § "Mandatory
+M19 / M20 Productization Handoff -- Card Audio Export") -- Card Audio
+Export required a normal end user to set a shell environment variable.
+Closed with a new Settings > Audio configuration surface
+(`shared_tts_dir` durable preference) and a resolution order
+(`VOCAB_APP_SHARED_TTS_DIR` override -> app setting -> honestly not
+configured) implemented in `src/ui_desktop/state/tts_runtime.py`; a
+connected defect in the same area was fixed alongside it (Plan
+build/Retry previously ignored the app-configured runtime and fell back
+to environment-only resolution).
+
+**Documentation/lifecycle-truthfulness corrections:** `PROJECT_STATUS.md`
+and `ROADMAP.md`'s stale "M18 READY FOR MERGE, awaiting authorization"
+and "IN PROGRESS" narratives corrected to the actual merged state;
+`README.md`'s stale M17-only feature list corrected to the full M17+M18
+accepted surface; the desktop `MainWindow` title's "(Desktop Preview)"
+suffix retired now that the desktop app has been the accepted primary
+product surface since M17/M18.
+
+**Every other hardening area investigated this milestone was verified
+already correct, with no code change required** -- recorded as
+regression evidence rather than an invented change: fresh/empty-database
+integrated behavior (7 tests); adversarial backup/restore-preview
+boundaries including truncated/garbage/tampered-metadata workbook bytes
+(8 tests); Linked Source file-deleted/corrupted-between-preview-and-
+confirm safety, closing a TOCTOU window the M18 suite never exercised (3
+of those 8 tests); Analytics outcomes against six hand-computed
+representative cases spanning every Primary Finding arbitration class,
+plus `EvidenceProfileCache` cached/uncached equivalence (14 tests);
+Data Tools synchronous-operation performance against a real 5,685-entry
+production-database copy and a 6,000-row synthetic import (export
+0.15s, import confirm 0.58s, XLSX backup 2.39s -- nowhere near the
+Analytics HG2 material-impairment precedent of 137s); unwritable-
+destination safety across every desktop write path and the audio-export
+batch's per-Card publication-failure handling (11 tests); large/dense-
+dataset boundedness (`get_card_page_for_collection` verified against a
+240-entry/30-card Collection, `EvidenceProfileCache` against a
+60-entry/480-event dense history); and background-thread completion
+after navigation / shutdown behavior for the one controller with a
+legitimately long-running load, probed through a real `MainWindow` (4
+tests).
+
+**Convergence evidence:**
+
+```text
+Full repository suite:        859/859 (offscreen, QT_QPA_PLATFORM=offscreen)
+Architecture audit:            94 Python files, 0 serious, 0 warnings
+Quiz randomization check:      passed
+Privacy/tracked-file scan:     clean (full M19 diff, 833cc63..eb438c9 and
+                                the destination/scale + background-nav
+                                commits after it)
+Native platform launch health: real Windows platform (not offscreen),
+                                real top-level window found via process-
+                                tree enumeration (PID 31420, title
+                                "Vocabulary App", non-zero window
+                                handle), clean graceful shutdown, no
+                                orphaned process
+Working tree / remote:         clean; local HEAD matches
+                                origin/agent/m19-desktop-product-hardening
+```
+
+Native launch health above is **Agent Verified only** -- it proves the
+real desktop process starts, produces a real window, and shuts down
+cleanly on this machine's actual Windows platform. It is deliberately
+not a substitute for visual/functional acceptance (AGENTS.md: "Automated
+tests cannot establish visual quality"). The Final Human Acceptance Gate
+-- launching the app and leaving it open for the operator's own
+inspection -- is the next and final M19 step, not yet performed.
+
+**Known limitations / deferred, not defects:** the SQLite
+`ResourceWarning: unclosed database` noise under the test harness
+(pre-existing, tracked in Known Risks below); the three deferred Accent
+families and Quick Theme Control popover (M17-era, unchanged); advanced
+Entries table personalization (M17-era, unchanged). No known
+release-blocking defect, data-integrity/privacy/security defect, or
+architecture-boundary violation remains open.
+
+**M19 status: Engineering Exit Candidate, Agent Verified, Human
+Acceptance Pending.** Not Human Accepted; not Complete; the branch
+remains Draft and unmerged pending the operator's explicit PASS at the
+Final Human Acceptance Gate.
 
 **Milestone 18 — Desktop Management and Major Feature Completion is
 Complete on `main`** (merged via PR #29 at
@@ -1525,9 +1628,11 @@ desktop product.
 
 ## Hardening Status
 
-**Milestone 19 — Desktop Product Hardening is IN PROGRESS** on branch
+**Milestone 19 — Desktop Product Hardening has reached Engineering Exit
+Candidate (Agent Verified, Human Acceptance Pending)** on branch
 `agent/m19-desktop-product-hardening` (baseline
-`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`).
+`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`). See "Current Milestone"
+above for the full exit-candidate summary and evidence.
 
 However, pre-desktop stabilization and full-product manual QA have already
 identified issues that must be corrected before major migration work.

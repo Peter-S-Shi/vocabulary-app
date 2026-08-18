@@ -1917,11 +1917,21 @@ forward productization concern, not an M18 acceptance blocker.
 
 ## Milestone 19: Desktop Product Hardening
 
-**Status: IN PROGRESS.** Developed under the M19 Autonomous Product
-Hardening Execution Contract on the single long-lived branch
-`agent/m19-desktop-product-hardening`, created from the verified M18
-merge baseline `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc` (`main`).
-The desktop Feature Freeze began with this milestone.
+**Status: Engineering Exit Candidate, Agent Verified, Human Acceptance
+Pending.** Developed under the M19 Autonomous Product Hardening
+Execution Contract on the single long-lived branch
+`agent/m19-desktop-product-hardening` (Draft PR #30), created from the
+verified M18 merge baseline `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`
+(`main`). The desktop Feature Freeze was active throughout: one
+confirmed release-relevant defect (duplicate active Quiz sessions on a
+repeated launch) was root-caused and fixed; the mandatory M19/M20 Card
+Audio Export productization handoff (shared TTS runtime configuration)
+was closed; every other investigated hardening area was verified
+already correct. Full repository suite 859/859, architecture audit
+clean (94 files), native platform launch health agent-verified. See
+`PROJECT_STATUS.md` § "M19 Engineering Exit Candidate summary" for the
+complete evidence record. Not Human Accepted; not Complete; unmerged
+pending the Final Human Acceptance Gate.
 
 Milestone 19 is the formal system-wide hardening phase for the desktop product.
 
