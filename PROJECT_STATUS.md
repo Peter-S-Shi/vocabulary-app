@@ -14,17 +14,23 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 **Milestone 16 — Desktop Architecture and UI Design (Complete on `main`);
 Milestone 17 — Desktop Core Workflow Migration (Complete on `main`);
-Milestone 18 — Desktop Management and Major Feature Completion (In
-Progress)**
+Milestone 18 — Desktop Management and Major Feature Completion (EXIT
+CANDIDATE — Human Gate 3 READY, awaiting native human acceptance)**
 
 ## Current Milestone
 
 **Milestone 16 Complete on `main`; Milestone 17 Complete on `main`
 (merged via PR #25). Milestone 18 — Desktop Management and Major Feature
-Completion is IN PROGRESS**, developed under the M18 Autonomous
+Completion is an EXIT CANDIDATE**, developed under the M18 Autonomous
 Execution Contract on branch
 `agent/m18-desktop-management-major-feature-completion` through Draft PR
-#29 (unmerged).
+#29 (unmerged) at head `aa0ad72e9149f7b7a95b5872aac1e4711e707da2`. Phases
+B through F (Human Gates 1 and 2 Human Accepted; Card Audio Export;
+integrated exit verification) are all complete with no known blocking
+defect. **Human Gate 3 — Final M18 Native Acceptance is READY**; see the
+acceptance brief near the end of this section. Per the M18 contract §
+18, EXIT CANDIDATE is not Human Accepted or Complete, and the agent will
+not merge to `main` without explicit human authorization.
 
 **Human Gate 1 — Management Grammar Calibration is complete and Human
 Accepted.** Phase B implemented Collection Manager + Card Organization
@@ -152,6 +158,41 @@ controller/dialog/QSS-coverage tests), full repository suite green
 finishes the M18-scoped audio-export Streamlit disposition (no legacy
 audio-export UI existed to migrate or retire -- M15 closed only the
 reusable core).
+
+**Phase F — Integrated M18 Exit Verification is also complete**, at head
+`aa0ad72`: full repository suite green (778/778), architecture audit
+clean (87 files, 0 violations), no schema/migration change since Human
+Gate 2, persistence-parity and Card-atomic cancellation/retry evidence
+confirmed end-to-end through the real background `QThread`, every
+`Workspace` cycled through a real `MainWindow` with 0 errors, the
+Streamlit disposition table fully closed, and `docs/migration/DESKTOP_MIGRATION_PLAN.md`'s
+Card Audio Export requirements all satisfied. See `ROADMAP.md` §
+Milestone 18's Phase F entry for the full itemized record. No known
+blocking defect. **M18 is an EXIT CANDIDATE.**
+
+### Human Gate 3 acceptance brief
+
+- **Branch / head:** `agent/m18-desktop-management-major-feature-completion`
+  at `aa0ad72e9149f7b7a95b5872aac1e4711e707da2`.
+- **Launch:** from the repository root, with `.venv` active and
+  `requirements-desktop.txt` installed, `python -m src.ui_desktop`.
+- **What to inspect:** every Management Rail destination (Today,
+  Entries, Collections, Templates, Review Calendar, Data Tools,
+  Analytics, Settings) plus Review/Quiz Study Mode, in both Light and
+  Dark Mode; specifically new since the last accepted gate —
+  Data Tools' new "Audio Export…" action end to end (Collection/Card
+  scope selection, the read-only Voice Assignment panel, repetition and
+  conflict configuration, a real destination-folder pick, Build Plan,
+  Start Export, progress, Cancel, and Retry), and Settings' corrected
+  vertical scroll behavior at a narrow window width.
+- **Known non-blocking limitations:** Card Audio Export's real voice
+  synthesis requires `VOCAB_APP_SHARED_TTS_DIR` to point at a shared TTS
+  runtime (the same M15 environment dependency Review/Quiz speech
+  already has); without it, the workflow still behaves honestly —
+  Build Plan and Start Export both surface a controlled `unresolved`
+  result per Card rather than crashing or silently doing nothing.
+- **Automated evidence already passed:** full repository suite 778/778,
+  architecture audit clean, all engineering-level Phase F checks above.
 
 M16.0 Desktop UI Design Baseline is complete and frozen: [DESIGN.md](DESIGN.md)
 records the approved desktop information architecture, theme architecture, and

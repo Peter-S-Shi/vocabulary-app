@@ -1671,6 +1671,55 @@ Card Audio Export are complete, and Human Gate 2 has passed. The
 remaining scope before Feature Freeze is Phase F -- Integrated M18 Exit
 Verification, closing toward Human Gate 3.
 
+**Phase F -- Integrated M18 Exit Verification (head `aa0ad72`).**
+Automated/engineering exit verification, per the M18 contract § 10
+Level C:
+
+- full repository suite green, 778/778, at head `aa0ad72`;
+- architecture audit clean, 87 files, 0 violations;
+- no schema/migration change in Phase E (`src/migrations.py` untouched;
+  `CURRENT_SCHEMA_VERSION`/`APP_DATA_VERSION` unchanged) -- existing
+  compatible SQLite databases remain a protected asset;
+- persistence parity: `execute_audio_export_plan` provably does not
+  mutate learning state or schema (`test_export_does_not_mutate_learning_state_or_schema`,
+  part of the 15/15 core `src.audio_export` suite);
+- restart/repeated-action evidence: `MainWindow` constructed and closed
+  3x, `AudioExportDialog` opened/closed 5x, and every `Workspace` (Today,
+  Entries, Collections, Templates, Review Calendar, Data Tools,
+  Analytics, Review, Quiz, Settings) cycled once through a real
+  `MainWindow` against a synthetic database with 0 errors -- an
+  integration-level check beyond the unit suite, exercising the same
+  navigation/controller wiring a real session uses;
+- long-running/cancellation/error-path evidence: Card Audio Export's
+  Card-atomic cancellation, retry-of-cancelled, and honest
+  provider-unavailable (`unresolved`) paths are exercised end-to-end
+  through the real `QThread` worker, not just the synchronous core
+  (`tests/test_m18_audio_export.py`'s `AudioExportControllerRunTests`);
+- Streamlit disposition audit: every M18-scoped legacy surface is
+  migrated, integrated/retired, explicitly deprecated, or documented out
+  of scope (Draft PR #29's disposition table, now including Card Audio
+  Export);
+- `DESIGN.md` adherence: every M18 surface built against its named
+  Coverage Matrix authority (§ 7.2-7.4) and Design Derivation Record
+  discipline (§ 9) where no CANONICAL pixel mockup exists;
+- lifecycle-document reconciliation: `ROADMAP.md`/`PROJECT_STATUS.md`
+  both current as of head `aa0ad72`; `docs/migration/DESKTOP_MIGRATION_PLAN.md`'s
+  § "Card Audio Export" requirements (Card/Collection selection, batch
+  selection, voice settings, repetition settings, output folder,
+  progress, cancellation, error recovery, overwrite handling, one file
+  per Card) are all satisfied by the implemented workflow;
+- privacy/repository-safety: clean `git status`, diff reviewed for
+  secrets/local paths/personal data before every commit and push (per
+  `AGENTS.md`'s GitHub Privacy Rule).
+
+No blocking defect is known. **M18 is an EXIT CANDIDATE.** Human Gate 3
+-- Final M18 Native Acceptance -- is READY: see the acceptance brief in
+`PROJECT_STATUS.md` for the exact head, launch path, and what to
+inspect. Per the M18 contract § 18, the agent may call this state but
+may not claim Human Accepted or Complete before the operator passes
+Human Gate 3, and must not merge to `main` without explicit human
+authorization.
+
 ### 18.1 Management Workflow Migration
 
 Port:
