@@ -11,19 +11,41 @@ recorded in [§ Deferred / Future Distribution Work](#deferred--future-distribut
 and the "Doc reconciliation performed in Phase A" note at the end of this
 file.
 
-**Revision note:** this document was revised once, before being considered
-frozen, after operator review of the first draft. The revision (1)
-corrected an inaccurate LGPL-incompatibility claim against PyInstaller
-`--onefile` (§ 2.4, § 2.5), (2) replaced the fresh-local-user-account
-recommendation as the clean-machine verification method with a clean
-VirtualBox VM, demoting the fresh-user account to a per-user-install-path
-check only (§ 2.8), (3) reframed the measured ~1.46 GB TTS dev-environment
-figure as an upper-bound observation rather than the distribution
-manifest, and froze the payload target at approximately 1–1.5 GB pending a
-Phase B minimum-manifest derivation (§ 1, § 2.3, OB-2), and (4) finalized
-and resolved OB-3 with the operator's chosen MIT copyright-holder line
-without editing the repository `LICENSE` file itself in Phase A (§ 1, § 3
-decision 8, § 4).
+**Revision note:** this document was revised twice, before being
+considered frozen, after operator review of each draft.
+
+*First revision* (1) corrected an inaccurate LGPL-incompatibility claim
+against PyInstaller `--onefile` (§ 2.4, § 2.5), (2) replaced the
+fresh-local-user-account recommendation as the clean-machine verification
+method with a clean VirtualBox VM, demoting the fresh-user account to a
+per-user-install-path check only (§ 2.8), (3) reframed the measured
+~1.46 GB TTS dev-environment figure as an upper-bound observation rather
+than the distribution manifest, and froze the payload target at
+approximately 1–1.5 GB pending a Phase B minimum-manifest derivation (§ 1,
+§ 2.3, OB-2), and (4) finalized and resolved OB-3 with the operator's
+chosen MIT copyright-holder line without editing the repository `LICENSE`
+file itself in Phase A (§ 1, § 3 decision 8, § 4).
+
+*Second revision* (1) removed `PrivilegesRequiredOverridesAllowed` from
+the Inno Setup decision — that directive's `/ALLUSERS` escape hatch would
+have permitted administrative install mode, contradicting the frozen
+per-user-only decision (§ 2.5, § 3 decision 2), (2) corrected § 2.7's
+claim that EV certificates grant instant SmartScreen reputation (Microsoft
+retired that carve-out), added Azure Trusted Signing (≈US$9.99/month
+Basic, no hardware token) as the current Microsoft-recommended low-cost
+option, and un-froze the sign/unsigned choice as a later M20 decision
+rather than settling on "unsigned" now (§ 2.7, § 3 decision 6, § 6),
+(3) identified that the frozen TTS provider contract requires a private
+`venv\Scripts\python.exe` a clean end-user machine does not have, replaced
+the "download via `pip`" framing with two named self-contained
+architecture alternatives for Phase B to choose between, and strengthened
+the integrity contract to require pinned versions/revisions and a
+project-authored trusted-hash manifest rather than relying on `pip`/
+Hugging Face Hub default verification alone (§ 2.3, § 3 decisions 4–5,
+OB-2), and (4) replaced the "Inno Setup uninstall custom wizard page"
+claim with the required product behavior only (explicit, unchecked
+destructive-data opt-in at uninstall time), leaving the exact UI mechanism
+to Phase B (§ 2.5, § 2.6).
 
 ---
 
@@ -165,6 +187,59 @@ training-source attribution) are all redistribution-permissive per
 `docs/policies/TTS_LICENSE_AND_ATTRIBUTION.md`. Nothing here blocks
 redistribution; it only affects payload size and download UX.
 
+**Critical architecture finding, not previously surfaced: the frozen TTS
+provider contract requires a private Python interpreter the end user does
+not have.** `build_shared_runtime_registry()`
+(`src/tts_providers.py`) resolves `python_exe = root / "venv" / "Scripts" /
+"python.exe"` and shells out to it for both the Kokoro and sherpa-onnx
+adapters — the frozen (M15.0) product contract is not "call `kokoro`/
+`sherpa-onnx` as importable Python packages," it is specifically "invoke a
+private venv's `python.exe` as a subprocess." A clean Windows end-user
+machine has **no system Python at all** by default, so a first-run
+provisioning step that simply runs `pip install kokoro sherpa-onnx ...`
+has nothing to run `pip` *with* — there is no interpreter to install into
+until one exists. **This was not resolved by the original draft's "download
+via `pip`" framing, which implicitly assumed a system Python was already
+present.** Phase B must choose and prove one of two self-contained
+architectures, neither of which depends on a preinstalled Python/pip on
+the end-user machine:
+
+1. **Versioned, pre-built optional TTS runtime pack:** build the private
+   `venv\` once (in a controlled build environment, not on the end-user
+   machine), zip it as a versioned release artifact alongside the app's
+   own GitHub Releases, and have the in-app downloader fetch and unpack
+   that pre-built archive verbatim. No `pip install` or dependency
+   resolution ever runs on the end-user machine; the venv arrives already
+   built.
+2. **Self-bootstrapping downloader with an embedded/portable Python:**
+   ship the first-run downloader with (or have it first fetch) a portable/
+   embeddable Python distribution (e.g. the official
+   `python.org` Windows embeddable package), use *that* private
+   interpreter to create the venv and run `pip install` against pinned,
+   hash-verified requirements, entirely under `%LOCALAPPDATA%`, never
+   touching or depending on anything system-wide.
+
+**Neither is selected here — this is Phase B's architecture decision to
+make and prove against a real clean machine, not Phase A's** (§ 3 decision
+4, § 4 OB-2 restated accordingly below).
+
+**Integrity contract correction:** the original draft's "verifies each
+downloaded package/model against its origin's own integrity mechanism
+(`pip`'s hash verification..., Hugging Face Hub's built-in file hash
+verification)" is not sufficient by itself as an RC integrity contract —
+default `pip`/Hugging Face Hub client behavior resolves to whatever the
+latest matching version happens to be at download time and does not, on
+its own, pin an exact version/revision or enforce a specific expected
+hash chosen in advance by this project. Whichever architecture Phase B
+selects, the RC integrity contract requires: **(a)** every package version
+(or Hugging Face Hub revision/commit) pinned to an exact, recorded value,
+not a floating "latest"; **(b)** an explicit manifest of expected SHA-256
+hashes for every downloaded file, authored by this project and checked
+after download, not merely delegated to the upstream tool's own default
+verification step; **(c)** a documented, reproducible procedure for how
+that pinned-version/hash manifest itself was produced and can be
+regenerated when the TTS dependency set is deliberately updated.
+
 ### 2.4 Dependency license audit (project MIT vs. bundled/distributed code)
 
 | Dependency | License | Distribution | MIT-compatibility note |
@@ -212,10 +287,10 @@ conventional installed Windows app):
 
 | Option | Verdict | Reasoning |
 |---|---|---|
-| **Inno Setup** | **Recommended** | Free, scriptable (`.iss`), the most common companion to PyInstaller in the Python desktop-packaging community, natively supports per-user install mode (`PrivilegesRequiredOverridesAllowed`/`PrivilegesRequired=lowest`), Start Menu + optional Desktop shortcut checkboxes out of the box, built-in uninstaller generation, and straightforward custom pages for the "also delete local user data" opt-in checkbox the frozen decision requires. |
+| **Inno Setup** | **Recommended** | Free, scriptable (`.iss`), the most common companion to PyInstaller in the Python desktop-packaging community, natively supports per-user-only install mode (`PrivilegesRequired=lowest`, with no `PrivilegesRequiredOverridesAllowed` — that directive's `commandline`/`dialog` values expose an `/ALLUSERS` (or UI) path into administrative install mode, which would contradict the frozen per-user-only decision), Start Menu + optional Desktop shortcut checkboxes out of the box, built-in uninstaller generation, and an uninstall-time confirmation/control path for the "also delete local user data" opt-in the frozen decision requires. |
 | WiX Toolset (MSI) | Not selected for v1 | More powerful for enterprise/MSI-based deployment (Group Policy, SCCM) than this per-user, GitHub-Releases-only product needs; steeper XML-based authoring; MSI's per-machine-oriented conventions fight the per-user-only frozen decision more than Inno Setup's do. |
 | NSIS | Viable alternative, not selected | Comparable capability to Inno Setup; Inno Setup's Pascal-scripting model and documentation are a better fit for this project's existing all-Python/PowerShell tooling conventions and the one engineer maintaining it. |
-| MSIX (Windows App Package) | Not selected for v1 | Requires either a trusted code-signing certificate or enabling Developer Mode/sideloading on the end-user machine for an unsigned package — directly conflicts with "no code-signing purchase" and would push installation friction onto exactly the non-technical users the desktop product targets. Worth reconsidering only if code-signing is purchased later (§ 2.7). |
+| MSIX (Windows App Package) | Not selected for v1 | Requires either a trusted code-signing certificate or enabling Developer Mode/sideloading on the end-user machine for an unsigned package — would push installation friction onto exactly the non-technical users the desktop product targets if shipped unsigned, and the sign/unsigned choice itself is not yet decided (§ 2.7). Inno Setup does not have this dependency either way. Worth reconsidering only if signing is adopted later and a Store-adjacent distribution model becomes attractive. |
 
 ### 2.6 Application-data layout, migration, backup, uninstall, rollback
 
@@ -250,12 +325,19 @@ not a packaging-tool detail.
   version if one exists), copy the current `vocab.db` to
   `backups\vocab-pre-<old_version>-<timestamp>.db` before any migration
   runs.
-- **Uninstall (frozen: preserves data by default):** the Inno Setup
-  uninstaller removes only the install directory
+- **Uninstall (frozen: preserves data by default):** the uninstaller
+  removes only the install directory
   (`%LOCALAPPDATA%\Programs\Vocabulary App\`); `%LOCALAPPDATA%\vocabulary_app\`
-  is left untouched unless the user checked the explicit, unchecked-by-
-  default "also delete all local user data" box on an uninstall custom
-  page.
+  is left untouched unless the user explicitly opts in to also deleting it,
+  through an unchecked-by-default control presented at uninstall time. The
+  **required product behavior** is frozen — an explicit, unchecked
+  destructive-data opt-in the user must actively select, never a default or
+  ambiguous action — but the **exact UI mechanism is a Phase B
+  implementation decision**, not committed here. Inno Setup supports more
+  than one way to present this (e.g. a custom uninstall wizard page, or an
+  `MsgBox` confirmation invoked from `[UninstallRun]`/`CurrentUninstallStepChanged`);
+  Phase B selects and implements whichever fits the rest of the uninstaller
+  script cleanly.
 - **Rollback (frozen: manual, via reinstall):** document the rollback
   procedure as: (1) download the prior version's installer from GitHub
   Releases, (2) install over/alongside, (3) if the new version's schema
@@ -270,28 +352,42 @@ not a packaging-tool detail.
   most users, and has a non-trivial chance of a false-positive AV flag
   (materially higher for `--onefile` builds than `--onedir`, reinforcing
   the § 2.5 choice).
-- **Cost/benefit without purchasing anything:**
-  - A standard OV (Organization Validation) code-signing certificate
-    typically runs on the order of $100–400/year from a commercial CA and
-    still does not eliminate SmartScreen warnings immediately — Microsoft's
-    SmartScreen reputation is *earned* per-certificate via accumulated
-    clean download/execution telemetry, so even a freshly purchased OV
-    cert shows warnings for a period.
-  - An EV (Extended Validation) certificate does grant instant SmartScreen
-    reputation but costs substantially more (roughly $300–700+/year) and
-    typically requires a hardware token / stricter identity verification.
-  - Neither is purchased in Phase A or required for v1.0 per the frozen
-    decision set (no explicit code-signing budget was frozen as a
-    decision).
-- **Recommended mitigation without signing:** (1) publish SHA-256 checksums
-  for every release asset directly in the GitHub Release notes so users can
-  verify integrity independently of SmartScreen; (2) document the expected
-  SmartScreen warning and the "More info → Run anyway" path in the README
-  install instructions, framed honestly (unsigned open-source software,
-  verify the checksum) rather than instructing users to just click through
-  blindly; (3) revisit paid code-signing only if/when SmartScreen friction
-  is shown to be a real adoption blocker post-release — deferred, not
-  decided now.
+- **Corrected against current Microsoft guidance:** an EV (Extended
+  Validation) certificate does **not** grant instant SmartScreen
+  reputation any more than a standard OV certificate does. Microsoft
+  retired EV's automatic-reputation carve-out; **all** code-signing
+  certificates, OV and EV alike, now earn SmartScreen reputation the same
+  way — through accumulated clean download/execution telemetry over time.
+  A freshly purchased certificate of either kind shows warnings for a
+  period regardless of validation level. The earlier draft's claim that EV
+  buys instant reputation was wrong and is corrected here rather than
+  silently dropped.
+- **Current Microsoft-recommended low-cost signing option (researched,
+  not purchased):** **Azure Trusted Signing** (Microsoft's current
+  low-cost non-Store code-signing service, formerly previewed as "Azure
+  Artifact Signing"), Basic tier, **≈US$9.99/month**. Individual
+  developers are eligible (Microsoft's eligibility criteria include
+  individual developers based in Canada, among other qualifying
+  countries/entities), and it does **not** require a physical hardware
+  token — a materially lower-friction and lower-cost path than a
+  traditional OV/EV certificate from a commercial CA (§ prior draft's
+  $100–700+/year figures, which remain accurate for traditional CAs but
+  are no longer the only realistic option).
+- **Not decided in Phase A:** whether v1.0 ships signed or unsigned is
+  **not frozen here**. Unsigned remains an acceptable, zero-cost option
+  for v1.0 and was the operator's original framing ("no code-signing
+  budget was frozen as a decision"), but the sign/unsigned choice is left
+  open for a later M20 decision, to be made once a real RC installer
+  artifact exists and the operator can weigh actual SmartScreen friction
+  (or Azure Trusted Signing's ~$10/month) against a concrete build,
+  rather than against a hypothetical one now.
+- **Mitigation regardless of the eventual sign/unsigned decision:**
+  (1) publish SHA-256 checksums for every release asset directly in the
+  GitHub Release notes so users can verify integrity independently of
+  SmartScreen; (2) if unsigned, document the expected SmartScreen warning
+  and the "More info → Run anyway" path in the README install
+  instructions, framed honestly (unsigned open-source software, verify the
+  checksum) rather than instructing users to just click through blindly.
 
 ### 2.8 Clean-machine verification strategy (this actual dev environment)
 
@@ -384,10 +480,13 @@ These are Phase A's own conclusions (not operator-frozen), adopted for M20
 Phase B implementation planning:
 
 1. **Bundler:** PyInstaller, `--onedir` mode.
-2. **Installer:** Inno Setup, per-user install mode
-   (`PrivilegesRequiredOverridesAllowed=commandline`,
-   `PrivilegesRequired=lowest`), Start Menu group created unconditionally,
-   Desktop shortcut task checked by default and user-togglable.
+2. **Installer:** Inno Setup, per-user-only install mode
+   (`PrivilegesRequired=lowest`, with **no** `PrivilegesRequiredOverridesAllowed`
+   directive — omitting it removes the `/ALLUSERS` administrative-install
+   escape hatch and keeps the frozen per-user-only decision structurally
+   enforced, not just documented), Start Menu group created
+   unconditionally, Desktop shortcut task checked by default and
+   user-togglable.
 3. **Application-data root:** `%LOCALAPPDATA%\vocabulary_app\` for
    `vocab.db`, `backups\`, `preferences.json`, `audio-cache\` — extending
    the pattern already implemented for preferences/audio-cache to the
@@ -397,21 +496,37 @@ Phase B implementation planning:
    Audio Export use triggers an in-app guided download of a minimal
    English/French/Mandarin runtime manifest, target approximately 1–1.5 GB
    (§ 1), derived and measured fresh in Phase B rather than assumed equal
-   to the ~1.46 GB dev-environment measurement (§ 2.3, OB-2), downloaded
+   to the ~1.46 GB dev-environment measurement (§ 2.3, OB-2). **Not
+   selected in Phase A:** which of the two self-contained provisioning
+   architectures identified in § 2.3 (a versioned pre-built runtime pack
+   vs. a downloader that bootstraps its own private/embeddable Python)
+   Phase B implements — a live `pip install` step alone is not viable
+   against a clean end-user machine with no system Python, so it is not
+   frozen as the architecture. Whichever is chosen, packages/models come
    from the same upstream sources already selected and license-cleared at
-   M15.0 (PyPI packages via `pip`, Hugging Face Hub for Kokoro weights, the
-   existing `piper-voices` Hugging Face repo for the French voice) — not a
-   new redistribution channel, not a re-hosted mirror, preserving "no
-   silent provider/model/license substitution."
+   M15.0 (PyPI for the pinned dependency set, Hugging Face Hub for Kokoro
+   weights, the existing `piper-voices` Hugging Face repo for the French
+   voice) — not a new redistribution channel, not a re-hosted mirror,
+   preserving "no silent provider/model/license substitution."
 5. **Checksum/integrity:** publish SHA-256 for every GitHub Release
-   installer asset in the release notes; the TTS first-run downloader
-   verifies each downloaded package/model against its origin's own
-   integrity mechanism (`pip`'s hash verification for PyPI wheels,
-   Hugging Face Hub's built-in file hash verification) rather than
-   inventing a separate checksum scheme.
-6. **Code-signing:** none for v1.0; document the expected SmartScreen
-   warning honestly in the README; revisit only if adoption data later
-   justifies the cost.
+   installer asset in the release notes. The TTS provisioning integrity
+   contract is **not** "rely on `pip`/Hugging Face Hub's own default
+   verification alone" (corrected in § 2.3): Phase B must pin every
+   package version (or Hugging Face Hub revision) to an exact recorded
+   value, author an explicit SHA-256 manifest for every file the
+   provisioning step downloads or unpacks, verify against that
+   project-authored manifest (not merely trust the upstream tool's default
+   behavior), and document how the manifest itself is produced/regenerated
+   on a deliberate dependency update.
+6. **Code-signing:** **not decided in Phase A.** Unsigned remains
+   acceptable and zero-cost; Azure Trusted Signing (≈US$9.99/month Basic,
+   no hardware token, individual-developer-eligible) is the current
+   Microsoft-recommended low-cost option if signing is adopted (§ 2.7).
+   The choice is deferred to a later M20 decision point, made against a
+   real RC installer artifact rather than a hypothetical one. Regardless
+   of the outcome, publish SHA-256 checksums for every release asset in
+   the GitHub Release notes, and if the RC ships unsigned, document the
+   expected SmartScreen warning honestly in the README.
 7. **Clean-machine verification:** a fresh local Windows user account on
    the current dev machine is a per-user-installation-path check only, not
    clean-machine verification. The actual clean-machine verification path
@@ -463,18 +578,33 @@ Ranked by what actually blocks Phase B start:
   first-run copy-with-backup migration for anyone with an existing
   `data/vocab.db`) but it is genuine product-behavior code, out of Phase A
   scope by the operator's own instruction. Must be the first Phase B item.
-- **OB-2 (minimum TTS manifest not yet derived — blocks final payload-size
-  acceptance, not Phase B start):** the frozen payload target is now
-  approximately 1–1.5 GB (§ 1), and the measured ~1.46 GB dev `venv`
-  (§ 2.3) is an upper-bound observation that fits inside that range, but
-  it is not yet the actual minimum-required manifest. Phase B must build a
-  clean-directory install of exactly what the shipped English/French/
-  Mandarin downloader needs (dependency-resolved from scratch, not copied
-  from the dev `venv`), measure its real size, and confirm it lands
-  inside 1–1.5 GB before the payload size is treated as final. No
-  provider/model/license substitution is proposed or implied — this is
-  manifest minimization of the already-selected, license-cleared, frozen
-  (M15.0) `kokoro`/`sherpa-onnx` runtime, not a different runtime.
+- **OB-2 (TTS provisioning architecture and minimum manifest not yet
+  derived — blocks Phase B's TTS provisioning work directly, not the rest
+  of Phase B):** two compounding gaps, both surfaced in § 2.3:
+  - **Architecture:** the frozen (M15.0) TTS provider contract requires a
+    private `venv\Scripts\python.exe` (`build_shared_runtime_registry()`
+    in `src/tts_providers.py`), and a clean end-user machine has no system
+    Python to bootstrap that venv with. Phase B must select and prove one
+    of the two self-contained architectures identified in § 2.3 — a
+    versioned pre-built runtime pack, or a downloader that bootstraps its
+    own embeddable Python — before any provisioning code is written. A
+    plain `pip install` step is not viable as-is against a clean machine
+    and must not be assumed.
+  - **Manifest size:** the frozen payload target is approximately 1–1.5 GB
+    (§ 1), and the measured ~1.46 GB dev `venv` (§ 2.3) is an upper-bound
+    observation that fits inside that range but is not yet the actual
+    minimum-required manifest. Once the architecture above is chosen,
+    Phase B must build a clean-directory install of exactly what the
+    shipped English/French/Mandarin runtime needs (dependency-resolved
+    from scratch with pinned versions/hashes per § 2.3's integrity
+    contract, not copied from the dev `venv`), measure its real size, and
+    confirm it lands inside 1–1.5 GB before the payload size is treated as
+    final.
+
+  No provider/model/license substitution is proposed or implied by either
+  gap — both are about *how* the already-selected, license-cleared, frozen
+  (M15.0) `kokoro`/`sherpa-onnx` runtime reaches the end user's machine
+  intact and verifiable, not about replacing it.
 - **OB-3 — RESOLVED (was: LICENSE file still says "pending"):** the
   operator finalized the copyright-holder attribution line as
   `Copyright (c) 2026 Yunsong Shi (Peter Shi)`. The exact replacement
@@ -555,7 +685,6 @@ later milestones don't silently reopen them without an operator decision:
 
 - Automatic update checking/installation.
 - macOS/Linux packaging.
-- Paid code-signing (OV or EV certificate).
 - MSIX/Microsoft Store distribution.
 - Any distribution channel other than GitHub Releases.
 - Bundling the TTS runtime inside the base installer.
