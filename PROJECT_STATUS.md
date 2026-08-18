@@ -12,21 +12,21 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 ## Current Phase
 
-**Milestone 18 — Desktop Management and Major Feature Completion
-(Complete on `main`, merged via PR #29 at
-`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`); Milestone 19 — Desktop
-Product Hardening (Human Accepted 2026-08-18 at
-`a128c50d75154ff3f85eacfd3a96e54d27d11c4d`; unmerged, pending operator
-merge authorization)**
+**Milestone 19 — Desktop Product Hardening (Complete on `main`, Human
+Accepted 2026-08-18, merged via PR #30 at
+`2ad211711d96583b6fffdb65de912fa672502bc8` from accepted product head
+`a128c50d75154ff3f85eacfd3a96e54d27d11c4d`); Milestone 20 — Packaging
+and Release Candidate is the current/next lifecycle objective**
 
 ## Current Milestone
 
-**Milestone 19 — Desktop Product Hardening is Human Accepted.**
-Developed under the M19 Autonomous Product
+**Milestone 19 — Desktop Product Hardening is Complete on `main`,
+Human Accepted.** Developed under the M19 Autonomous Product
 Hardening Execution Contract on the single long-lived branch
-`agent/m19-desktop-product-hardening` (Draft PR #30), created from the
-verified M18 merge baseline `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`
-(`main`). The desktop **Feature Freeze has been active throughout**:
+`agent/m19-desktop-product-hardening`, merged to `main` through PR #30
+at `2ad211711d96583b6fffdb65de912fa672502bc8`, created from the
+verified M18 merge baseline `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`.
+The desktop **Feature Freeze was active throughout**:
 correctness, data-integrity, migration/compatibility, privacy/security,
 robustness, serious UX, and performance defects remained in scope; no
 new product capability was introduced.
@@ -36,7 +36,14 @@ suite 782/782 green (offscreen), architecture audit clean (87 Python
 files, 0 serious, 0 warnings), quiz randomization check passed, working
 tree clean, local `main` fast-forwarded to `origin/main`.
 
-### M19 Engineering Exit Candidate summary (Agent Verified, 2026-08-18)
+### M19 Engineering Exit Candidate summary (historical pre-gate snapshot, Agent Verified, 2026-08-18)
+
+**Historical context, superseded below.** This subsection is the
+evidence snapshot recorded when M19 reached Engineering Exit Candidate,
+*before* the Final Human Acceptance Gate was presented. It is preserved
+for the audit trail. The current, authoritative outcome is Attempt 3
+PASS — Human Accepted, merged to `main` — recorded in the "Final Human
+Acceptance Gate" subsections immediately following this one.
 
 **One confirmed release-relevant defect, root-cause fixed and
 regression-tested (M19-F2):** `QuizController.start()` only rejected a
@@ -121,9 +128,12 @@ Native launch health above is **Agent Verified only** -- it proves the
 real desktop process starts, produces a real window, and shuts down
 cleanly on this machine's actual Windows platform. It is deliberately
 not a substitute for visual/functional acceptance (AGENTS.md: "Automated
-tests cannot establish visual quality"). The Final Human Acceptance Gate
--- launching the app and leaving it open for the operator's own
-inspection -- is the next and final M19 step, not yet performed.
+tests cannot establish visual quality"). At the time of this snapshot
+the Final Human Acceptance Gate -- launching the app and leaving it open
+for the operator's own inspection -- had not yet been presented. It was
+subsequently presented, took three attempts, and PASSed; see "Final
+Human Acceptance Gate — Attempt 3" below for the current, authoritative
+outcome.
 
 **Known limitations / deferred, not defects:** the SQLite
 `ResourceWarning: unclosed database` noise under the test harness
@@ -215,20 +225,20 @@ Tools → Audio Export button with its background provider preflight.
 
 This is the authoritative M19 acceptance decision.
 
-**M19 status: Human Accepted — Desktop Product Hardening complete,
-ready to enter M20 Packaging and Release Candidate.** The branch is
-**not merged**: per the M19 contract § 18, the agent does not merge to
-`main` without explicit operator merge authorization.
+**M19 status: Human Accepted — Desktop Product Hardening Complete on
+`main`, ready to enter M20 Packaging and Release Candidate.** Per the
+M19 contract § 18, the agent did not merge to `main` itself; the
+operator reviewed and merged PR #30 directly.
 
-Accepted head: `a128c50d75154ff3f85eacfd3a96e54d27d11c4d`
-Branch: `agent/m19-desktop-product-hardening` (PR #30)
+Accepted product head: `a128c50d75154ff3f85eacfd3a96e54d27d11c4d`
+Merged branch: `agent/m19-desktop-product-hardening` (PR #30, MERGED)
+Merge commit on `main`: `2ad211711d96583b6fffdb65de912fa672502bc8`
 Baseline: `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`
 
 Final verification at the accepted head: full repository suite 872/872
 (offscreen), architecture audit clean (95 Python files, 0 serious, 0
 warnings), quiz randomization check passed, privacy/tracked-file scan
-clean, native platform launch health agent-verified, local HEAD equal
-to `origin/agent/m19-desktop-product-hardening`.
+clean, native platform launch health agent-verified.
 
 **Milestone 18 — Desktop Management and Major Feature Completion is
 Complete on `main`** (merged via PR #29 at
@@ -1721,14 +1731,14 @@ desktop product.
 
 ## Hardening Status
 
-**Milestone 19 — Desktop Product Hardening is complete and Human
-Accepted** (2026-08-18, at
-`a128c50d75154ff3f85eacfd3a96e54d27d11c4d`) on branch
-`agent/m19-desktop-product-hardening` (baseline
-`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`), unmerged pending explicit
-operator merge authorization. See "Current Milestone" above for the
-full evidence record and the three Final Human Acceptance Gate
-attempts.
+**Milestone 19 — Desktop Product Hardening is Complete on `main` and
+Human Accepted** (2026-08-18, accepted product head
+`a128c50d75154ff3f85eacfd3a96e54d27d11c4d`, merged via PR #30 at
+`2ad211711d96583b6fffdb65de912fa672502bc8`; baseline
+`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`). See "Current Milestone"
+above for the full evidence record and the three Final Human
+Acceptance Gate attempts. **Milestone 20 — Packaging and Release
+Candidate is the current/next lifecycle objective.**
 
 However, pre-desktop stabilization and full-product manual QA have already
 identified issues that must be corrected before major migration work.
