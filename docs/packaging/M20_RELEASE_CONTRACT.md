@@ -302,14 +302,35 @@ was evaluated and why (including the earlier corrective finding that an
 ordinary `python -m venv` is not a portable/relocatable redistribution
 artifact — its `pyvenv.cfg` and launcher scripts carry absolute paths
 back to the machine that built it), in case a future version revisits
-bundled/downloaded third-party TTS provisioning. The M15.0 license
-findings for Kokoro (Apache-2.0 + CC BY training-source attribution) and
-sherpa-onnx/`piper-voices` (Apache-2.0 runtime, MIT packaging, CC BY 4.0
-SIWIS dataset), recorded in
-`docs/policies/TTS_LICENSE_AND_ATTRIBUTION.md`, remain accurate as a
-historical/internal record but no longer describe a v1.0 public
-distribution obligation, since v1.0 does not distribute those assets at
-all.
+bundled/downloaded third-party TTS provisioning.
+
+**Two existing TTS license/notice documents need to be told apart here,
+not treated the same way.** Both predate the Third Revision and both are
+left unedited in Phase A (this amendment is documentation-consistency
+only, not a license-file edit), but their staleness status differs:
+
+- `docs/policies/TTS_LICENSE_AND_ATTRIBUTION.md` records the M15.0
+  license *findings* for Kokoro (Apache-2.0 + CC BY training-source
+  attribution) and sherpa-onnx/`piper-voices` (Apache-2.0 runtime, MIT
+  packaging, CC BY 4.0 SIWIS dataset). As an evidentiary record of what
+  was investigated and concluded at the time, it **may remain as
+  historical/internal engineering evidence** without correction — it
+  does not claim to be a current distribution-facing notice.
+- `THIRD_PARTY_NOTICES.md`, by contrast, explicitly describes itself as
+  "a distribution-facing summary" and still lists Kokoro/sherpa-onnx/
+  Piper distribution obligations as if they apply to what the project
+  ships. That framing is now **stale relative to the Local Windows
+  Speech Provider decision** above: v1.0 does not distribute any of
+  those assets, so a notice file that still presents their obligations
+  as live distribution-facing content no longer accurately describes
+  what v1.0 actually ships. **`THIRD_PARTY_NOTICES.md` is intentionally
+  left untouched in Phase A** — editing it is Phase B/RC documentation
+  work, not a Phase A contract-definition task — but it must not be read
+  as already release-ready. **Phase B / RC documentation reconciliation
+  (§ 5 item 10) must revise it before public release** so it lists and
+  gives notice only for what the actual shipped v1.0 distribution
+  requires, which under the current decision is none of the M15.0-
+  evaluated TTS assets.
 
 ### 2.4 Dependency license audit (project MIT vs. bundled/distributed code)
 
@@ -318,10 +339,10 @@ all.
 | `PySide6` (Qt for Python) | **LGPL-3.0** (Qt itself) + PySide's own LGPL wrapper terms | Bundled (dynamically linked) | LGPL-3.0 permits proprietary/MIT-licensed application code as long as Qt is **dynamically linked** (not statically) and the end user retains the ability to relink/replace the LGPL components. PyInstaller's Qt DLLs remain separate files at runtime in *both* `--onedir` and `--onefile` mode — `--onefile` self-extracts those same separate DLL files to a temp directory before launch rather than statically embedding them into a single binary, so it is not itself LGPL-incompatible. `--onedir` is nonetheless the selected mode; see § 2.5 for the release-engineering reasoning (not an LGPL requirement). |
 | `openpyxl` | MIT | Bundled | Compatible |
 | `streamlit` | Apache-2.0 | **Not distributed** in the desktop build (compatibility UI only, separate `requirements.txt`) | N/A to desktop installer |
-| `kokoro` runtime + Kokoro-82M weights | Apache-2.0 | **Not distributed in v1.0** — historical M15.0 engineering evaluation only (§ 2.3); v1.0 uses the Local Windows Speech Provider model instead | N/A to v1.0 — no NOTICE obligation arises because nothing is distributed |
+| `kokoro` runtime + Kokoro-82M weights | Apache-2.0 | **Not distributed in v1.0** — historical M15.0 engineering evaluation only (§ 2.3); v1.0 uses the Local Windows Speech Provider model instead | v1.0 incurs no *redistribution* obligation for this superseded asset (nothing is shipped); this does not certify that `THIRD_PARTY_NOTICES.md` is already reconciled to say so — see § 2.3's Phase B/RC note |
 | `torch` (CPU), `transformers`, `spacy`, `numpy`, `onnxruntime`, `sherpa-onnx` | BSD-3-Clause / Apache-2.0 / BSD (per-package) | **Not distributed in v1.0** — same historical-only status as above (§ 2.3) | N/A to v1.0 |
 | `piper-voices` (fr_FR-siwis-medium packaging) | MIT | **Not distributed in v1.0** — same historical-only status as above (§ 2.3) | N/A to v1.0 |
-| SIWIS training dataset attribution | CC BY 3.0/4.0 (Koniwa, SIWIS) | **Not distributed in v1.0** — attribution obligation only arises if the underlying asset is distributed, and it is not (§ 2.3); retained in `THIRD_PARTY_NOTICES.md`/`docs/policies/TTS_LICENSE_AND_ATTRIBUTION.md` as historical record | N/A to v1.0 |
+| SIWIS training dataset attribution | CC BY 3.0/4.0 (Koniwa, SIWIS) | **Not distributed in v1.0** — attribution obligation only arises if the underlying asset is distributed, and it is not (§ 2.3) | v1.0 incurs no redistribution/attribution obligation for this superseded asset; `docs/policies/TTS_LICENSE_AND_ATTRIBUTION.md` may stay as historical record as-is, but `THIRD_PARTY_NOTICES.md` still presents this as a live distribution-facing obligation and is stale until Phase B/RC revises it (§ 2.3) |
 | Windows Yaoyao / other Local Windows Speech Provider voices | N/A — OS API only, no asset possessed | Not distributed (v1.0's actual TTS model, § 2.3) | No obligation — the app calls a supported Windows API against voices the user's own OS already has; no Microsoft voice/model asset is ever possessed or redistributed |
 | PyInstaller (build-time only, not distributed in output in a way that imposes license terms on it) | GPL-2.0-with-bootloader-exception | Build tool only | The bootloader exception explicitly permits distributing PyInstaller-built binaries under any license, including MIT; PyInstaller's own GPL license does not propagate to the packaged app |
 
@@ -764,8 +785,12 @@ product, to be executed once as the single concentrated Final Human RC Gate
 10. **Documentation reconciliation:** README install instructions
     (including the Local Windows Speech Provider disclosure required by
     § 2.3 — no bundled/redistributed third-party TTS claim, audio depends
-    on voices already installed on the user's device), `THIRD_PARTY_NOTICES.md`,
-    and `LICENSE` all match the shipped RC build before tagging.
+    on voices already installed on the user's device), `THIRD_PARTY_NOTICES.md`
+    (revised per § 2.3 to list/notice only what v1.0 actually distributes —
+    it still describes itself as a distribution-facing summary listing
+    Kokoro/sherpa-onnx/Piper obligations as of this writing, which is stale
+    against the superseding decision and is not release-ready as-is), and
+    `LICENSE` all match the shipped RC build before tagging.
 
 Any failure returns the project to the relevant M20 hardening work and
 requires the affected regression to be repeated in full, per ROADMAP § 20.3
@@ -820,6 +845,14 @@ applicable," which remains accurate under the Local Windows Speech
 Provider model (§ 2.3) without requiring a wording change. `LICENSE`,
 `THIRD_PARTY_NOTICES.md`, and `docs/policies/TTS_LICENSE_AND_ATTRIBUTION.md`
 were left unedited, consistent with this amendment's docs-only,
-this-file-and-PR-only scope; § 2.3 and § 2.4 above record why their
-existing Kokoro/sherpa-onnx content is accurate as historical record
-without needing correction.
+this-file-and-PR-only scope — but **not for the same reason in each
+case** (§ 2.3 above records the distinction in full): `docs/policies/
+TTS_LICENSE_AND_ATTRIBUTION.md` may remain as-is because it is a
+historical evidentiary record, not a claim about what v1.0 currently
+ships. `THIRD_PARTY_NOTICES.md` is left unedited only because editing it
+is Phase B/RC work, not because its current Kokoro/sherpa-onnx/Piper
+content is still accurate — it explicitly presents itself as a
+distribution-facing summary and, as of this writing, still lists
+distribution obligations for TTS assets the Third Revision decision means
+v1.0 does not ship. It is stale relative to that decision and must be
+revised (§ 5 item 10) before public release.
