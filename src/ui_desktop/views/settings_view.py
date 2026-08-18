@@ -60,6 +60,22 @@ source, read straight from `src.app_config.get_app_storage_summary()`
 `settings-row`/`settings-row-label` grammar with a plain value label
 instead of an editable control -- purely informational, never a second
 path-resolution/configuration surface.
+
+Human Gate 2 corrective (layout regression): native testing found the
+Appearance/Quiz presentation combos horizontally compressed/clipped at a
+normal desktop window size. `QComboBox`'s horizontal size policy permits
+shrinking below its own size hint (not just growing), so once the page's
+total layout demand exceeded the available width it was squeezed toward
+whatever floor its QSS `min-width` declared. Tried protecting the two
+combos directly in Python (`QSizePolicy`, explicit `setMinimumWidth`)
+first, but confirmed empirically that an active stylesheet's `min-width`
+is what Qt's layout actually honors as the floor under squeeze -- those
+Python-side calls had no measurable effect and were removed rather than
+left as misleading dead code. The real fix is in `theme_manager.py`:
+raising `min-width` on `#settings-appearance-combo`/
+`#settings-quiz-presentation-combo` measurably raises that floor even
+when the row is squeezed (confirmed: floor moved from 222px to 322px in
+a width sweep), keeping the selected value comfortably readable.
 """
 
 

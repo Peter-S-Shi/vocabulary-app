@@ -1083,7 +1083,7 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         border-radius: {radius}px;
         padding: 6px 10px;
         font-size: 14px;
-        min-width: 200px;
+        min-width: 300px;
     }}
 
     /* Entries -- Table-First Manager (DESIGN.md § 6.2 `VR-ENTRIES-001`,
