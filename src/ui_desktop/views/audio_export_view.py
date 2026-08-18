@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.audio_composition import CardAudioIssue
 from src.audio_export import CONFLICT_OVERWRITE, SCOPE_SELECTED_CARDS, SCOPE_SINGLE_CARD
 from src.ui_desktop.controllers.audio_export_controller import (
     CONFLICT_LABELS,
@@ -131,6 +132,31 @@ STATUS_LABELS = {
 }
 
 
+def _card_plan_issue_summary(issues: tuple[CardAudioIssue, ...]) -> str:
+    """One concrete, human-readable reason per distinct (code, detail)
+    pair a not-ready Card's own ``CardAudioPlan.issues`` carries -- e.g.
+    "provider_unavailable: Selected provider is unavailable. (term)" --
+    rather than the generic "0 of X ready" the HG3 corrective reported as
+    unactionable. Field keys are appended, deduplicated, so a Card with
+    the same issue on several fields reads as one reason plus the
+    affected fields, not a wall of repeated identical lines."""
+    if not issues:
+        return "Not ready (no specific issue recorded)."
+    grouped: dict[tuple[str, str], list[str]] = {}
+    for issue in issues:
+        key = (issue.code, issue.detail)
+        fields = grouped.setdefault(key, [])
+        if issue.field_key and issue.field_key not in fields:
+            fields.append(issue.field_key)
+    parts = []
+    for (code, detail), fields in grouped.items():
+        line = f"{code}: {detail}"
+        if fields:
+            line += f" ({', '.join(fields)})"
+        parts.append(line)
+    return "; ".join(parts)
+
+
 class AudioExportDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -187,12 +213,12 @@ class AudioExportDialog(QDialog):
         layout.addWidget(voice_heading)
         self._voice_table = QTableWidget(self)
         self._voice_table.setObjectName("audio-export-voice-table")
-        self._voice_table.setColumnCount(3)
-        self._voice_table.setHorizontalHeaderLabels(["Language", "Provider", "Voice"])
+        self._voice_table.setColumnCount(4)
+        self._voice_table.setHorizontalHeaderLabels(["Language", "Provider", "Voice", "Status"])
         self._voice_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._voice_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self._voice_table.verticalHeader().setVisible(False)
-        self._voice_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self._voice_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self._voice_table.setMaximumHeight(120)
         layout.addWidget(self._voice_table)
 
@@ -244,6 +270,21 @@ class AudioExportDialog(QDialog):
         self._plan_summary_label.setObjectName("audio-export-summary-label")
         self._plan_summary_label.setWordWrap(True)
         layout.addWidget(self._plan_summary_label)
+
+        # Per-Card plan preview (HG3 corrective: "0 of X Cards ready" gave
+        # no way to see *why* -- every not-ready Card's own
+        # CardAudioPlan.issues are concrete and already computed by
+        # Build Plan; this only renders them, it never invents a reason).
+        self._plan_table = QTableWidget(self)
+        self._plan_table.setObjectName("audio-export-plan-table")
+        self._plan_table.setColumnCount(4)
+        self._plan_table.setHorizontalHeaderLabels(["Card", "Name", "Ready", "Reason"])
+        self._plan_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._plan_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self._plan_table.verticalHeader().setVisible(False)
+        self._plan_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        self._plan_table.setMaximumHeight(180)
+        layout.addWidget(self._plan_table)
 
         # -- Consent + Start Export -----------------------------------------
         self._consent_checkbox = QCheckBox("", self)
@@ -393,10 +434,12 @@ class AudioExportDialog(QDialog):
     def _populate_voice_table(self) -> None:
         rows = self._controller.voice_assignment_rows()
         self._voice_table.setRowCount(len(rows))
-        for row_index, (language, provider_id, voice_id) in enumerate(rows):
+        for row_index, (language, provider_id, voice_id, available, detail) in enumerate(rows):
             self._voice_table.setItem(row_index, 0, QTableWidgetItem(language))
             self._voice_table.setItem(row_index, 1, QTableWidgetItem(provider_id))
             self._voice_table.setItem(row_index, 2, QTableWidgetItem(voice_id))
+            status_text = "Available" if available else f"Unavailable — {detail or 'not configured'}"
+            self._voice_table.setItem(row_index, 3, QTableWidgetItem(status_text))
 
     # -- configuration -----------------------------------------------------
 
@@ -437,6 +480,19 @@ class AudioExportDialog(QDialog):
         if plan.issues:
             text += " " + "; ".join(issue.detail for issue in plan.issues)
         return text
+
+    def _reload_plan_table(self) -> None:
+        plan = self._controller.plan
+        if plan is None:
+            self._plan_table.setRowCount(0)
+            return
+        self._plan_table.setRowCount(len(plan.items))
+        for row_index, item in enumerate(plan.items):
+            self._plan_table.setItem(row_index, 0, QTableWidgetItem(str(item.card_number)))
+            self._plan_table.setItem(row_index, 1, QTableWidgetItem(item.card_name))
+            self._plan_table.setItem(row_index, 2, QTableWidgetItem("Ready" if item.ready else "Not ready"))
+            reason = "" if item.ready else _card_plan_issue_summary(item.card_plan.issues)
+            self._plan_table.setItem(row_index, 3, QTableWidgetItem(reason))
 
     # -- consent / start ------------------------------------------------------
 
@@ -526,6 +582,7 @@ class AudioExportDialog(QDialog):
         else:
             self._plan_error_label.setText("")
         self._plan_summary_label.setText(self._plan_summary_text())
+        self._reload_plan_table()
         self._consent_checkbox.setText(self._consent_text())
         # Every state change this reacts to means whatever Start would now
         # do has changed since the checkbox was last ticked (Import

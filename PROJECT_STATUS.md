@@ -14,23 +14,32 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 **Milestone 16 — Desktop Architecture and UI Design (Complete on `main`);
 Milestone 17 — Desktop Core Workflow Migration (Complete on `main`);
-Milestone 18 — Desktop Management and Major Feature Completion (EXIT
-CANDIDATE — Human Gate 3 READY, awaiting native human acceptance)**
+Milestone 18 — Desktop Management and Major Feature Completion (IN
+PROGRESS — Human Gate 3 FAILed once, corrective applied, NOT yet
+re-presented for acceptance)**
 
 ## Current Milestone
 
 **Milestone 16 Complete on `main`; Milestone 17 Complete on `main`
 (merged via PR #25). Milestone 18 — Desktop Management and Major Feature
-Completion is an EXIT CANDIDATE**, developed under the M18 Autonomous
+Completion is IN PROGRESS**, developed under the M18 Autonomous
 Execution Contract on branch
 `agent/m18-desktop-management-major-feature-completion` through Draft PR
-#29 (unmerged) at head `aa0ad72e9149f7b7a95b5872aac1e4711e707da2`. Phases
-B through F (Human Gates 1 and 2 Human Accepted; Card Audio Export;
-integrated exit verification) are all complete with no known blocking
-defect. **Human Gate 3 — Final M18 Native Acceptance is READY**; see the
-acceptance brief near the end of this section. Per the M18 contract §
-18, EXIT CANDIDATE is not Human Accepted or Complete, and the agent will
-not merge to `main` without explicit human authorization.
+#29 (unmerged). Phases B through F (Human Gates 1 and 2 Human Accepted;
+Card Audio Export; integrated exit verification) were complete with no
+known blocking defect at head `aa0ad72`/`df78286`, and the milestone was
+called an EXIT CANDIDATE with Human Gate 3 READY.
+
+**Human Gate 3 — Final M18 Native Acceptance FAILed** (see "Human Gate 3
+corrective" below for the full record). A corrective has since been
+applied, verified, and independently reviewed, but **Human Gate 3 has
+not been re-presented for acceptance**: real end-to-end Card Audio
+Export WAV synthesis remains unverified on this machine because the
+frozen M15 shared TTS runtime (`VOCAB_APP_SHARED_TTS_DIR`) is not
+configured here, and per explicit operator direction this is being
+tracked as an environment prerequisite for Human Gate 3 acceptance, not
+expanded into new M18 scope. **M18 is not currently an EXIT CANDIDATE.**
+The agent will not merge to `main` without explicit human authorization.
 
 **Human Gate 1 — Management Grammar Calibration is complete and Human
 Accepted.** Phase B implemented Collection Manager + Card Organization
@@ -159,40 +168,95 @@ finishes the M18-scoped audio-export Streamlit disposition (no legacy
 audio-export UI existed to migrate or retire -- M15 closed only the
 reusable core).
 
-**Phase F — Integrated M18 Exit Verification is also complete**, at head
-`aa0ad72`: full repository suite green (778/778), architecture audit
-clean (87 files, 0 violations), no schema/migration change since Human
-Gate 2, persistence-parity and Card-atomic cancellation/retry evidence
-confirmed end-to-end through the real background `QThread`, every
-`Workspace` cycled through a real `MainWindow` with 0 errors, the
+**Phase F — Integrated M18 Exit Verification** was completed at head
+`aa0ad72`/`df78286`: full repository suite green (778/778), architecture
+audit clean (87 files, 0 violations), no schema/migration change since
+Human Gate 2, persistence-parity and Card-atomic cancellation/retry
+evidence confirmed end-to-end through the real background `QThread`,
+every `Workspace` cycled through a real `MainWindow` with 0 errors, the
 Streamlit disposition table fully closed, and `docs/migration/DESKTOP_MIGRATION_PLAN.md`'s
 Card Audio Export requirements all satisfied. See `ROADMAP.md` §
-Milestone 18's Phase F entry for the full itemized record. No known
-blocking defect. **M18 is an EXIT CANDIDATE.**
+Milestone 18's Phase F entry for the full itemized record.
 
-### Human Gate 3 acceptance brief
+### Human Gate 3 corrective (Card Audio Export "0 of X ready" blocker)
 
-- **Branch / head:** `agent/m18-desktop-management-major-feature-completion`
-  at `aa0ad72e9149f7b7a95b5872aac1e4711e707da2`.
-- **Launch:** from the repository root, with `.venv` active and
-  `requirements-desktop.txt` installed, `python -m src.ui_desktop`.
-- **What to inspect:** every Management Rail destination (Today,
-  Entries, Collections, Templates, Review Calendar, Data Tools,
-  Analytics, Settings) plus Review/Quiz Study Mode, in both Light and
-  Dark Mode; specifically new since the last accepted gate —
-  Data Tools' new "Audio Export…" action end to end (Collection/Card
-  scope selection, the read-only Voice Assignment panel, repetition and
-  conflict configuration, a real destination-folder pick, Build Plan,
-  Start Export, progress, Cancel, and Retry), and Settings' corrected
-  vertical scroll behavior at a narrow window width.
-- **Known non-blocking limitations:** Card Audio Export's real voice
-  synthesis requires `VOCAB_APP_SHARED_TTS_DIR` to point at a shared TTS
-  runtime (the same M15 environment dependency Review/Quiz speech
-  already has); without it, the workflow still behaves honestly —
-  Build Plan and Start Export both surface a controlled `unresolved`
-  result per Card rather than crashing or silently doing nothing.
-- **Automated evidence already passed:** full repository suite 778/778,
-  architecture audit clean, all engineering-level Phase F checks above.
+**Human Gate 3 — Final M18 Native Acceptance FAILed.** Native
+acceptance testing against head `df78286` found a blocking defect:
+after configuring Card Audio Export and building a Plan, every Card
+consistently showed unresolved ("0 of X Cards ready to export"), with
+Start Export disabled and no visible explanation.
+
+Investigated with real production data rather than guessing, per the
+review's own instructions:
+
+- `VOCAB_APP_SHARED_TTS_DIR` is unset in this desktop process's
+  environment (confirmed via .NET `Environment.GetEnvironmentVariable`
+  at User/Machine/Process scope, all empty) -- `ProviderRegistry.
+  from_environment()` therefore falls back to an all-languages
+  "unavailable" registry, and every Card's speech plan carries a
+  `provider_unavailable`-class issue regardless of its content.
+- No `kokoro`/`sherpa-onnx`/shared-runtime folder matching
+  `build_shared_runtime_registry()`'s expected layout exists anywhere
+  discoverable on this machine (a bounded search of the user profile and
+  local drives found only the raw Kokoro-82M Hugging Face model cache
+  and a populated `audio-cache` from an earlier session -- evidence real
+  synthesis worked at some point, but the runtime that produced it is
+  not present now).
+- Swept all 715 active Cards across every real Collection in the
+  production database (`data/vocab.db`) with a fake-but-realistic
+  *available* provider: **100% become `ready` with zero issues.** No
+  Card anywhere has a required-field/speech-role validation problem --
+  the entire blocker is provider availability, not plan-building logic.
+
+**Root cause: this machine's desktop process has no shared TTS runtime
+configured** -- an environment prerequisite, not a code defect in the
+Plan-building logic, which was proven correct against real data.
+
+**Corrective (not yet given its own commit SHA at last edit; see
+`ROADMAP.md` § Milestone 18 for the final one):** rather than enabling
+Start Export unconditionally, fixed the actual reported problem -- the
+total absence of an actionable reason:
+
+- `AudioExportController.voice_assignment_rows()` now reports a live
+  per-language preflight (`ProviderRegistry.from_environment().
+  preflight()`), not just static provider/voice identity; the dialog's
+  Voice Assignment panel gained a Status column showing e.g.
+  "Unavailable — VOCAB_APP_SHARED_TTS_DIR is not set for this process."
+  before the user ever builds a Plan.
+- `src/tts_providers.py` gained a distinct
+  `shared_tts_dir_not_configured` code/detail for the "no env var at
+  all" case (previously indistinguishable from a configured-but-broken
+  runtime), and `CommandSpeechProvider.preflight()`'s missing-asset
+  message now names the actual missing path(s) -- same failure
+  code/boolean as before, detail text only, so provider/language
+  routing semantics are not reopened.
+- The dialog gained a Plan Preview table showing every Card's own
+  concrete reason (grouped by distinct issue code+detail, deduplicated
+  across fields) instead of only the aggregate "0 of X ready" count.
+  Partial-batch honesty is preserved and tested: a ready Card shows
+  "Ready" with no reason, a not-ready Card shows its own real issue,
+  never silently treated as ready.
+- 4 new focused regression tests (live preflight status, unavailable
+  detail text, per-Card plan-diagnostic rendering, and mixed-availability
+  partial-batch honesty) plus the existing 15 core `src.audio_export` /
+  11 desktop tests, all green (782/782 full repository suite),
+  architecture audit clean.
+- Independently self-reviewed before checkpointing: verified no test
+  asserted on the exact provider-unavailable detail strings this
+  corrective changed, confirmed the live preflight call is cheap in the
+  common (unconfigured) case (no subprocess spawn), and confirmed
+  `UnavailableSpeechProvider`'s new optional `detail` parameter is
+  backward-compatible (default unchanged) with its only two callers.
+
+**Per explicit operator direction, this diagnostic corrective is
+sufficient for this defect; building a new shared TTS runtime is out of
+scope for this corrective.** Real end-to-end Card Audio Export WAV
+synthesis remains **unverified** on this machine and is recorded as an
+explicit Human Gate 3 acceptance dependency: **Human Gate 3 has not been
+re-presented, and M18 is not currently an EXIT CANDIDATE.** Human Gate 3
+should be re-attempted once a `VOCAB_APP_SHARED_TTS_DIR` runtime is
+available to verify against, or the operator otherwise instructs
+resumption.
 
 M16.0 Desktop UI Design Baseline is complete and frozen: [DESIGN.md](DESIGN.md)
 records the approved desktop information architecture, theme architecture, and

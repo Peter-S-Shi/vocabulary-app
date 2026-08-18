@@ -64,12 +64,17 @@ if PYSIDE6_AVAILABLE:
             writer.writeframes(b"\x00\x10" * 240)
 
     class _FakeProvider:
-        def __init__(self, language: str, *, fail: bool = False, delay: float = 0.0) -> None:
+        def __init__(
+            self, language: str, *, fail: bool = False, delay: float = 0.0, unavailable: bool = False
+        ) -> None:
             self.spec = FROZEN_PROVIDER_SPECS[language]
             self.fail = fail
             self.delay = delay
+            self.unavailable = unavailable
 
         def preflight(self) -> ProviderAvailability:
+            if self.unavailable:
+                return ProviderAvailability(False, "provider_unavailable", "Synthetic unavailable provider.")
             return ProviderAvailability(True, "available")
 
         def synthesize_one(self, text: str, output_path: Path) -> SynthesisResult:
@@ -88,9 +93,14 @@ if PYSIDE6_AVAILABLE:
                 output_path, "audio/wav", 24_000,
             )
 
-    def _fake_registry(*, fail_language: str | None = None, delay: float = 0.0) -> ProviderRegistry:
+    def _fake_registry(
+        *, fail_language: str | None = None, delay: float = 0.0, unavailable_language: str | None = None
+    ) -> ProviderRegistry:
         return ProviderRegistry([
-            _FakeProvider(language, fail=language == fail_language, delay=delay)
+            _FakeProvider(
+                language, fail=language == fail_language, delay=delay,
+                unavailable=language == unavailable_language,
+            )
             for language in FROZEN_PROVIDER_SPECS
         ])
 
@@ -180,9 +190,40 @@ class AudioExportControllerScopeTests(_SyntheticDatabaseTestCase):
         controller = AudioExportController()
         rows = controller.voice_assignment_rows()
         self.assertEqual(len(rows), len(FROZEN_PROVIDER_SPECS))
-        for language, provider_id, voice_id in rows:
+        for language, provider_id, voice_id, _available, _detail in rows:
             spec = FROZEN_PROVIDER_SPECS[language]
             self.assertEqual((provider_id, voice_id), (spec.provider_id, spec.voice_id))
+
+    def test_voice_assignment_rows_report_live_preflight_status(self) -> None:
+        """HG3 corrective: "0 of X Cards ready" gave no visible reason.
+        This panel must reflect a REAL, live preflight -- not a cached
+        plan-time snapshot -- so unavailable providers are diagnosable
+        before the user ever builds a Plan."""
+        controller = AudioExportController()
+
+        # from_environment() unpatched here -- exercises the real "no
+        # VOCAB_APP_SHARED_TTS_DIR configured" path this corrective adds
+        # a distinct, actionable code/detail for.
+        unavailable_rows = controller.voice_assignment_rows()
+        for _language, _provider_id, _voice_id, available, detail in unavailable_rows:
+            self.assertFalse(available)
+            self.assertIn("VOCAB_APP_SHARED_TTS_DIR", detail)
+
+        controller_module.ProviderRegistry.from_environment = staticmethod(lambda: _fake_registry())
+        try:
+            available_rows = controller.voice_assignment_rows()
+        finally:
+            controller_module.ProviderRegistry.from_environment = self._original_from_environment
+        for _language, _provider_id, _voice_id, available, _detail in available_rows:
+            self.assertTrue(available)
+
+    def setUp(self) -> None:
+        super().setUp()
+        self._original_from_environment = controller_module.ProviderRegistry.from_environment
+
+    def tearDown(self) -> None:
+        controller_module.ProviderRegistry.from_environment = self._original_from_environment
+        super().tearDown()
 
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
@@ -322,6 +363,84 @@ class AudioExportDialogTests(_SyntheticDatabaseTestCase):
         self.addCleanup(dialog.deleteLater)
         self.assertGreaterEqual(dialog._collection_combo.count(), 2)  # placeholder + 1 Collection
         self.assertEqual(dialog._voice_table.rowCount(), len(FROZEN_PROVIDER_SPECS))
+        self.assertEqual(dialog._voice_table.columnCount(), 4)  # + live preflight Status column
+
+    def test_voice_table_shows_unavailable_status_with_actionable_detail(self) -> None:
+        """HG3 corrective regression: the Voice Assignment panel must
+        show *why* every language is unavailable, not just a bare
+        provider/voice identity -- from_environment() is deliberately
+        left unpatched so this exercises the real "no
+        VOCAB_APP_SHARED_TTS_DIR configured" desktop-session path."""
+        dialog = AudioExportDialog()
+        self.addCleanup(dialog._controller.shutdown)
+        self.addCleanup(dialog.deleteLater)
+        for row in range(dialog._voice_table.rowCount()):
+            status_text = dialog._voice_table.item(row, 3).text()
+            self.assertIn("Unavailable", status_text)
+            self.assertIn("VOCAB_APP_SHARED_TTS_DIR", status_text)
+
+    def test_plan_table_preserves_partial_batch_honesty_for_mixed_availability(self) -> None:
+        """Review-required semantics: ready Cards proceed, unresolved
+        Cards stay honestly identified -- never silently treated as
+        ready, and readiness is never enabled unconditionally regardless
+        of real provider availability."""
+        english_id = add_entry("English", "English", "word", "hello", "greeting")
+        french_id = add_entry("French", "English", "word", "bonjour", "greeting-fr")
+        collection_id = create_collection("Mixed availability", card_size=1)
+        add_entries_to_collection([english_id, french_id], collection_id)
+
+        controller_module.ProviderRegistry.from_environment = staticmethod(
+            lambda: _fake_registry(unavailable_language="fr")
+        )
+
+        dialog = AudioExportDialog()
+        self.addCleanup(dialog._controller.shutdown)
+        self.addCleanup(dialog.deleteLater)
+        dialog._collection_combo.setCurrentIndex(dialog._collection_combo.findData(collection_id))
+        dialog._controller.set_destination_root(str(self.destination))
+        dialog._on_build_plan()
+
+        self.assertEqual(dialog._controller.plan.ready_count, 1)
+        statuses = {
+            dialog._plan_table.item(row, 0).text(): dialog._plan_table.item(row, 2).text()
+            for row in range(dialog._plan_table.rowCount())
+        }
+        self.assertEqual(statuses, {"1": "Ready", "2": "Not ready"})
+        reasons = {
+            dialog._plan_table.item(row, 0).text(): dialog._plan_table.item(row, 3).text()
+            for row in range(dialog._plan_table.rowCount())
+        }
+        self.assertEqual(reasons["1"], "")
+        self.assertIn("provider_unavailable", reasons["2"])
+
+    def setUp(self) -> None:
+        super().setUp()
+        self._original_from_environment = controller_module.ProviderRegistry.from_environment
+
+    def tearDown(self) -> None:
+        controller_module.ProviderRegistry.from_environment = self._original_from_environment
+        super().tearDown()
+
+    def test_plan_table_shows_concrete_per_card_reason_when_not_ready(self) -> None:
+        """HG3 corrective regression: "0 of X Cards ready" alone, with no
+        visible reason, was the reported blocker. Every not-ready row
+        must show its own real CardAudioPlan.issues, not a generic
+        placeholder."""
+        collection_id = self._collection(2)
+        dialog = AudioExportDialog()
+        self.addCleanup(dialog._controller.shutdown)
+        self.addCleanup(dialog.deleteLater)
+        dialog._collection_combo.setCurrentIndex(dialog._collection_combo.findData(collection_id))
+        dialog._controller.set_destination_root(str(self.destination))
+        dialog._on_build_plan()
+
+        self.assertEqual(dialog._controller.plan.ready_count, 0)
+        self.assertEqual(dialog._plan_table.rowCount(), 2)
+        for row in range(dialog._plan_table.rowCount()):
+            self.assertEqual(dialog._plan_table.item(row, 2).text(), "Not ready")
+            reason = dialog._plan_table.item(row, 3).text()
+            self.assertIn("shared_tts_dir_not_configured", reason)
+            self.assertIn("VOCAB_APP_SHARED_TTS_DIR", reason)
 
     def test_choosing_a_collection_populates_card_selectors(self) -> None:
         collection_id = self._collection(2)

@@ -219,11 +219,21 @@ class AudioExportController(QObject):
         remains the source of truth for what will really synthesize."""
         return sorted(FROZEN_PROVIDER_SPECS)
 
-    def voice_assignment_rows(self) -> list[tuple[str, str, str]]:
-        return [
-            (spec.language, spec.provider_id, spec.voice_id)
-            for spec in FROZEN_PROVIDER_SPECS.values()
-        ]
+    def voice_assignment_rows(self) -> list[tuple[str, str, str, bool, str]]:
+        """(language, provider_id, voice_id, available, detail) per frozen
+        M15 language. ``available``/``detail`` come from a real, live
+        ``ProviderRegistry.from_environment().preflight()`` call -- not a
+        cached/plan-time snapshot -- so this panel honestly reflects
+        whether the current process can actually reach the configured
+        VOCAB_APP_SHARED_TTS_DIR runtime *before* the user spends effort
+        building a Plan (HG3 corrective: "0 of X Cards ready" with no
+        visible reason was the reported blocker)."""
+        registry = ProviderRegistry.from_environment()
+        rows = []
+        for spec in FROZEN_PROVIDER_SPECS.values():
+            availability = registry.preflight(spec.language)
+            rows.append((spec.language, spec.provider_id, spec.voice_id, availability.available, availability.detail))
+        return rows
 
     # -- Plan ------------------------------------------------------------
 

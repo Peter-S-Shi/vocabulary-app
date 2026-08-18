@@ -256,8 +256,20 @@ core with voice configuration deliberately read-only (M15 froze
 provider/language routing) and Card-atomic cancellation added to
 `execute_audio_export_plan` as a new `should_cancel` parameter. An
 independent self-review pass before checkpointing found and fixed a
-real staleness defect in the desktop controller. See § Milestone 18
-below for the full checkpoint record.
+real staleness defect in the desktop controller. Phase F -- Integrated
+M18 Exit Verification then completed with no known blocking defect, and
+the milestone was called an EXIT CANDIDATE. **Human Gate 3 subsequently
+FAILed** (Card Audio Export's Plan always showed "0 of X Cards ready"
+with no visible reason -- root-caused to this machine having no
+`VOCAB_APP_SHARED_TTS_DIR` shared TTS runtime configured, not a defect
+in the Plan-building logic, which was proven correct against all 715
+real Cards in the production database). A corrective fixed the
+diagnostic UX (live per-language preflight status, per-Card plan
+reasons); real end-to-end WAV synthesis remains unverified on this
+machine and is tracked as an explicit Human Gate 3 acceptance
+dependency per operator direction, not new M18 scope. Human Gate 3 has
+not been re-presented. See § Milestone 18 below for the full checkpoint
+record.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -1712,13 +1724,57 @@ Level C:
   secrets/local paths/personal data before every commit and push (per
   `AGENTS.md`'s GitHub Privacy Rule).
 
-No blocking defect is known. **M18 is an EXIT CANDIDATE.** Human Gate 3
--- Final M18 Native Acceptance -- is READY: see the acceptance brief in
-`PROJECT_STATUS.md` for the exact head, launch path, and what to
-inspect. Per the M18 contract § 18, the agent may call this state but
-may not claim Human Accepted or Complete before the operator passes
-Human Gate 3, and must not merge to `main` without explicit human
-authorization.
+No blocking defect was known at head `df78286`, and the milestone was
+called an EXIT CANDIDATE with Human Gate 3 READY.
+
+**Human Gate 3 -- Final M18 Native Acceptance FAILed.** Native
+acceptance testing against head `df78286` found a blocking defect in
+Card Audio Export: after configuring an export and building a Plan,
+every Card consistently showed unresolved ("0 of X Cards ready"), Start
+Export stayed disabled, and nothing explained why.
+
+Investigated with real production data rather than guessing:
+`VOCAB_APP_SHARED_TTS_DIR` is unset in this desktop process's
+environment (confirmed at User/Machine/Process scope via .NET
+`Environment.GetEnvironmentVariable`, all empty), so
+`ProviderRegistry.from_environment()` falls back to an
+all-languages-unavailable registry; no shared-runtime folder matching
+`build_shared_runtime_registry()`'s expected layout is discoverable
+anywhere on this machine (only the raw Kokoro-82M Hugging Face model
+cache and a populated `audio-cache` from an earlier session exist --
+evidence real synthesis worked once, but that runtime is not present
+now). Swept all 715 active Cards across every real Collection in the
+production database with a fake-but-realistic *available* provider:
+100% become `ready` with zero issues, conclusively ruling out
+required-field/speech-role validation as a contributing cause -- the
+entire blocker is provider availability, an environment prerequisite,
+not a defect in the Plan-building logic.
+
+**Corrective:** rather than enabling Start Export unconditionally,
+fixed the actual reported problem -- no actionable reason was visible.
+`AudioExportController.voice_assignment_rows()` now reports a live
+per-language preflight (not just static identity); the Voice Assignment
+panel gained a Status column; `src/tts_providers.py` gained a distinct
+`shared_tts_dir_not_configured` code/detail differentiating "no env var
+at all" from "runtime configured but broken", and
+`CommandSpeechProvider.preflight()`'s missing-asset message now names
+the actual missing path(s) (detail text only -- provider/language
+routing semantics are not reopened); the dialog gained a Plan Preview
+table showing every Card's own concrete, deduplicated reason instead of
+only the aggregate count, with partial-batch honesty preserved and
+tested (a ready Card shows no reason, a not-ready Card shows its own
+real issue, never silently treated as ready). 4 new focused regression
+tests, full repository suite green (782/782), architecture audit clean,
+independently self-reviewed before checkpointing.
+
+**Per explicit operator direction, this diagnostic corrective is
+sufficient for this defect; building a new shared TTS runtime is out of
+M18 scope.** Real end-to-end Card Audio Export WAV synthesis remains
+unverified on this machine and is recorded as an explicit Human Gate 3
+acceptance dependency. **Human Gate 3 has not been re-presented, and
+M18 is not currently an EXIT CANDIDATE.** Per the M18 contract § 18, the
+agent has not claimed Human Accepted or Complete, and must not merge to
+`main` without explicit human authorization.
 
 ### 18.1 Management Workflow Migration
 
