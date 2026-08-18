@@ -1099,6 +1099,36 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         font-size: 14px;
         min-width: 200px;
     }}
+    /* M19 Settings > Audio (shared TTS runtime configuration). Explicit
+    QSS for every new control, per the M18 Human Gate 1 lesson: a
+    workspace QPushButton without explicit coverage renders at
+    effectively-invisible Light Mode contrast. Same secondary-action
+    treatment as the collections-organize family. */
+    QPushButton#settings-tts-browse-button,
+    QPushButton#settings-tts-clear-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 16px;
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#settings-tts-browse-button:hover:enabled,
+    QPushButton#settings-tts-clear-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#settings-tts-browse-button:disabled,
+    QPushButton#settings-tts-clear-button:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QLabel#settings-section-note {{
+        color: {neutral.text_muted};
+        font-size: 12px;
+    }}
 
     /* Entries -- Table-First Manager (DESIGN.md § 6.2 `VR-ENTRIES-001`,
     M17 Feature 4). Ordinary Management Mode workspace -- Management Rail

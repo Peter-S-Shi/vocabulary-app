@@ -158,12 +158,16 @@ def _card_plan_issue_summary(issues: tuple[CardAudioIssue, ...]) -> str:
 
 
 class AudioExportDialog(QDialog):
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, preferences=None) -> None:
         super().__init__(parent)
         self.setObjectName("audio-export-dialog")
         self.setWindowTitle("Card Audio Export")
         self.setMinimumSize(680, 680)
-        self._controller = AudioExportController()
+        # ``preferences=None`` keeps the M19 default resolution: the
+        # controller re-reads the persisted preferences file at each
+        # registry build, so a runtime folder saved in Settings > Audio
+        # is honored without restart (state/tts_runtime.py).
+        self._controller = AudioExportController(preferences)
 
         outer = QVBoxLayout(self)
         scroll = QScrollArea(self)

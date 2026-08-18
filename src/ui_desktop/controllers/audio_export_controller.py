@@ -22,6 +22,8 @@ from src.audio_export import (
 )
 from src.collections import get_card_metadata_for_collection, get_collections
 from src.tts_providers import FROZEN_PROVIDER_SPECS, ProviderRegistry
+from src.ui_desktop.state.preferences import Preferences
+from src.ui_desktop.state.tts_runtime import build_provider_registry
 
 """
 AudioExportController owns the Card Audio Export workspace's transient
@@ -116,8 +118,13 @@ class AudioExportController(QObject):
     run_progress = Signal(int, int, str)
     run_failed = Signal(str)
 
-    def __init__(self) -> None:
+    def __init__(self, preferences: Preferences | None = None) -> None:
         super().__init__()
+        # M19: the live Preferences instance (or None to re-read the
+        # persisted preferences file at each resolution, so a runtime
+        # folder just saved in Settings > Audio takes effect without
+        # restart). See state/tts_runtime.py for the resolution order.
+        self._preferences = preferences
         self.collections: list[dict] = []
         self.collection_id: int | None = None
         self.cards: dict[int, dict] = {}
@@ -222,13 +229,15 @@ class AudioExportController(QObject):
     def voice_assignment_rows(self) -> list[tuple[str, str, str, bool, str]]:
         """(language, provider_id, voice_id, available, detail) per frozen
         M15 language. ``available``/``detail`` come from a real, live
-        ``ProviderRegistry.from_environment().preflight()`` call -- not a
+        ``build_provider_registry().preflight()`` call -- not a
         cached/plan-time snapshot -- so this panel honestly reflects
         whether the current process can actually reach the configured
-        VOCAB_APP_SHARED_TTS_DIR runtime *before* the user spends effort
+        shared TTS runtime (Settings > Audio app setting, or the
+        VOCAB_APP_SHARED_TTS_DIR per-process override; see
+        state/tts_runtime.py) *before* the user spends effort
         building a Plan (HG3 corrective: "0 of X Cards ready" with no
         visible reason was the reported blocker)."""
-        registry = ProviderRegistry.from_environment()
+        registry = build_provider_registry(self._preferences)
         rows = []
         for spec in FROZEN_PROVIDER_SPECS.values():
             availability = registry.preflight(spec.language)
@@ -252,22 +261,31 @@ class AudioExportController(QObject):
         config = CompositionConfig(
             repetition_mode=self.repetition_mode, repetition_count=self.repetition_count
         )
+        # M19: pass the desktop-resolved registry explicitly. Core's
+        # build_audio_export_plan defaults to environment-only
+        # resolution when providers is omitted, which would ignore a
+        # runtime folder configured through Settings > Audio -- the Plan
+        # and the Run must judge readiness against the same registry.
+        registry = build_provider_registry(self._preferences)
         try:
             config.validated()
             if self.scope == SCOPE_SINGLE_CARD:
                 self.plan = build_audio_export_plan(
                     self.collection_id, [self.single_card_number], Path(self.destination_root),
-                    scope=SCOPE_SINGLE_CARD, composition_config=config, conflict_policy=self.conflict_policy,
+                    scope=SCOPE_SINGLE_CARD, providers=registry,
+                    composition_config=config, conflict_policy=self.conflict_policy,
                 )
             elif self.scope == SCOPE_SELECTED_CARDS:
                 self.plan = build_audio_export_plan(
                     self.collection_id, sorted(self.selected_card_numbers), Path(self.destination_root),
-                    scope=SCOPE_SELECTED_CARDS, composition_config=config, conflict_policy=self.conflict_policy,
+                    scope=SCOPE_SELECTED_CARDS, providers=registry,
+                    composition_config=config, conflict_policy=self.conflict_policy,
                 )
             else:
                 self.plan = build_audio_export_plan(
                     self.collection_id, sorted(self.cards), Path(self.destination_root),
-                    scope=SCOPE_COLLECTION, composition_config=config, conflict_policy=self.conflict_policy,
+                    scope=SCOPE_COLLECTION, providers=registry,
+                    composition_config=config, conflict_policy=self.conflict_policy,
                 )
             self.plan_error = None
         except ValueError as error:
@@ -294,7 +312,11 @@ class AudioExportController(QObject):
     def retry(self) -> None:
         if not self.can_retry():
             return
-        retry_plan = build_retry_plan(self.result)
+        # M19: like build_plan(), pass the desktop-resolved registry --
+        # build_retry_plan re-validates unresolved/cancelled Cards and
+        # would otherwise fall back to core's environment-only default,
+        # ignoring a runtime configured through Settings > Audio.
+        retry_plan = build_retry_plan(self.result, providers=build_provider_registry(self._preferences))
         if not retry_plan.items:
             return
         self._start_run(retry_plan)
@@ -309,7 +331,7 @@ class AudioExportController(QObject):
         cancel_event = threading.Event()
         self._cancel_event = cancel_event
         thread = QThread()
-        worker = _AudioExportWorker(generation, plan, ProviderRegistry.from_environment(), cancel_event)
+        worker = _AudioExportWorker(generation, plan, build_provider_registry(self._preferences), cancel_event)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.stage_changed.connect(self._on_stage)

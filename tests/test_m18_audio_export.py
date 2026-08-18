@@ -44,6 +44,7 @@ if PYSIDE6_AVAILABLE:
         SynthesisResult,
     )
     from src.ui_desktop.controllers import audio_export_controller as controller_module
+    from src.ui_desktop.state.preferences import Preferences
     from src.ui_desktop.controllers.audio_export_controller import AudioExportController
     from src.ui_desktop.theming.theme_manager import build_stylesheet
     from src.ui_desktop.theming.tokens import THEME_CALM_BLUE_DARK, THEME_CALM_BLUE_LIGHT
@@ -161,7 +162,7 @@ class AudioExportControllerScopeTests(_SyntheticDatabaseTestCase):
 
     def test_set_collection_loads_cards_and_resets_selection(self) -> None:
         collection_id = self._collection(3)
-        controller = AudioExportController()
+        controller = AudioExportController(Preferences())
         controller.set_collection(collection_id)
         self.assertEqual(sorted(controller.cards), [1, 2, 3])
         self.assertEqual(controller.single_card_number, 1)
@@ -169,7 +170,7 @@ class AudioExportControllerScopeTests(_SyntheticDatabaseTestCase):
 
     def test_can_build_plan_requires_scope_specific_selection(self) -> None:
         collection_id = self._collection(2)
-        controller = AudioExportController()
+        controller = AudioExportController(Preferences())
         controller.set_collection(collection_id)
         controller.set_destination_root(str(self.destination))
 
@@ -187,7 +188,7 @@ class AudioExportControllerScopeTests(_SyntheticDatabaseTestCase):
         self.assertFalse(controller.can_build_plan())
 
     def test_voice_assignment_rows_reflect_frozen_specs_read_only(self) -> None:
-        controller = AudioExportController()
+        controller = AudioExportController(Preferences())
         rows = controller.voice_assignment_rows()
         self.assertEqual(len(rows), len(FROZEN_PROVIDER_SPECS))
         for language, provider_id, voice_id, _available, _detail in rows:
@@ -199,30 +200,41 @@ class AudioExportControllerScopeTests(_SyntheticDatabaseTestCase):
         This panel must reflect a REAL, live preflight -- not a cached
         plan-time snapshot -- so unavailable providers are diagnosable
         before the user ever builds a Plan."""
-        controller = AudioExportController()
+        controller = AudioExportController(Preferences())
 
-        # from_environment() unpatched here -- exercises the real "no
-        # VOCAB_APP_SHARED_TTS_DIR configured" path this corrective adds
-        # a distinct, actionable code/detail for.
+        # build_provider_registry() unpatched here (with hermetic empty
+        # Preferences) -- exercises the real "no shared TTS runtime
+        # configured anywhere" path this corrective adds a distinct,
+        # actionable code/detail for.
         unavailable_rows = controller.voice_assignment_rows()
         for _language, _provider_id, _voice_id, available, detail in unavailable_rows:
             self.assertFalse(available)
             self.assertIn("VOCAB_APP_SHARED_TTS_DIR", detail)
 
-        controller_module.ProviderRegistry.from_environment = staticmethod(lambda: _fake_registry())
+        controller_module.build_provider_registry = lambda preferences=None: _fake_registry()
         try:
             available_rows = controller.voice_assignment_rows()
         finally:
-            controller_module.ProviderRegistry.from_environment = self._original_from_environment
+            controller_module.build_provider_registry = self._original_build_registry
+        if self._saved_shared_tts_env is not None:
+            os.environ["VOCAB_APP_SHARED_TTS_DIR"] = self._saved_shared_tts_env
         for _language, _provider_id, _voice_id, available, _detail in available_rows:
             self.assertTrue(available)
 
     def setUp(self) -> None:
         super().setUp()
-        self._original_from_environment = controller_module.ProviderRegistry.from_environment
+        self._original_build_registry = controller_module.build_provider_registry
+        # M19 hermeticity: a developer machine may legitimately have
+        # VOCAB_APP_SHARED_TTS_DIR set system-wide (the operator did so
+        # after M18 closed, which made every "real unconfigured path"
+        # test in this file fail against a real runtime). Tests that
+        # exercise the unconfigured path must isolate the environment.
+        self._saved_shared_tts_env = os.environ.pop("VOCAB_APP_SHARED_TTS_DIR", None)
 
     def tearDown(self) -> None:
-        controller_module.ProviderRegistry.from_environment = self._original_from_environment
+        controller_module.build_provider_registry = self._original_build_registry
+        if self._saved_shared_tts_env is not None:
+            os.environ["VOCAB_APP_SHARED_TTS_DIR"] = self._saved_shared_tts_env
         super().tearDown()
 
 
@@ -234,19 +246,27 @@ class AudioExportControllerRunTests(_SyntheticDatabaseTestCase):
 
     def setUp(self) -> None:
         super().setUp()
-        self._original_from_environment = controller_module.ProviderRegistry.from_environment
+        self._original_build_registry = controller_module.build_provider_registry
+        # M19 hermeticity: a developer machine may legitimately have
+        # VOCAB_APP_SHARED_TTS_DIR set system-wide (the operator did so
+        # after M18 closed, which made every "real unconfigured path"
+        # test in this file fail against a real runtime). Tests that
+        # exercise the unconfigured path must isolate the environment.
+        self._saved_shared_tts_env = os.environ.pop("VOCAB_APP_SHARED_TTS_DIR", None)
 
     def tearDown(self) -> None:
-        controller_module.ProviderRegistry.from_environment = self._original_from_environment
+        controller_module.build_provider_registry = self._original_build_registry
+        if self._saved_shared_tts_env is not None:
+            os.environ["VOCAB_APP_SHARED_TTS_DIR"] = self._saved_shared_tts_env
         super().tearDown()
 
     def _patch_registry(self, registry: ProviderRegistry) -> None:
-        controller_module.ProviderRegistry.from_environment = staticmethod(lambda: registry)
+        controller_module.build_provider_registry = lambda preferences=None: registry
 
     def test_successful_run_produces_one_file_per_card_and_progress_events(self) -> None:
         self._patch_registry(_fake_registry())
         collection_id = self._collection(2)
-        controller = AudioExportController()
+        controller = AudioExportController(Preferences())
         controller.set_collection(collection_id)
         controller.set_scope(SCOPE_COLLECTION)
         controller.set_destination_root(str(self.destination))
@@ -264,10 +284,11 @@ class AudioExportControllerRunTests(_SyntheticDatabaseTestCase):
         self.assertEqual(events[0], (0, 2, "batch_planned"))
 
     def test_unavailable_provider_produces_controlled_unresolved_result(self) -> None:
-        # from_environment() is left unpatched here -- exercises the real
-        # honest "no VOCAB_APP_SHARED_TTS_DIR configured" path.
+        # build_provider_registry() is left unpatched here (hermetic empty
+        # Preferences) -- exercises the real honest "no shared TTS runtime
+        # configured" path.
         collection_id = self._collection(1)
-        controller = AudioExportController()
+        controller = AudioExportController(Preferences())
         controller.set_collection(collection_id)
         controller.set_scope(SCOPE_COLLECTION)
         controller.set_destination_root(str(self.destination))
@@ -281,7 +302,7 @@ class AudioExportControllerRunTests(_SyntheticDatabaseTestCase):
     def test_cancellation_is_card_atomic_and_retry_recovers_remainder(self) -> None:
         self._patch_registry(_fake_registry(delay=0.05))
         collection_id = self._collection(3)
-        controller = AudioExportController()
+        controller = AudioExportController(Preferences())
         controller.set_collection(collection_id)
         controller.set_scope(SCOPE_COLLECTION)
         controller.set_destination_root(str(self.destination))
@@ -325,7 +346,7 @@ class AudioExportControllerRunTests(_SyntheticDatabaseTestCase):
         publish the same output path under CONFLICT_SKIP."""
         self._patch_registry(_fake_registry(delay=0.05))
         collection_id = self._collection(1)
-        controller = AudioExportController()
+        controller = AudioExportController(Preferences())
         controller.set_collection(collection_id)
         controller.set_scope(SCOPE_COLLECTION)
 
@@ -358,7 +379,7 @@ class AudioExportDialogTests(_SyntheticDatabaseTestCase):
 
     def test_dialog_constructs_and_lists_collections(self) -> None:
         self._collection(1)
-        dialog = AudioExportDialog()
+        dialog = AudioExportDialog(preferences=Preferences())
         self.addCleanup(dialog._controller.shutdown)
         self.addCleanup(dialog.deleteLater)
         self.assertGreaterEqual(dialog._collection_combo.count(), 2)  # placeholder + 1 Collection
@@ -368,10 +389,11 @@ class AudioExportDialogTests(_SyntheticDatabaseTestCase):
     def test_voice_table_shows_unavailable_status_with_actionable_detail(self) -> None:
         """HG3 corrective regression: the Voice Assignment panel must
         show *why* every language is unavailable, not just a bare
-        provider/voice identity -- from_environment() is deliberately
-        left unpatched so this exercises the real "no
-        VOCAB_APP_SHARED_TTS_DIR configured" desktop-session path."""
-        dialog = AudioExportDialog()
+        provider/voice identity -- build_provider_registry() is
+        deliberately left unpatched (hermetic empty Preferences) so this
+        exercises the real "no shared TTS runtime configured"
+        desktop-session path."""
+        dialog = AudioExportDialog(preferences=Preferences())
         self.addCleanup(dialog._controller.shutdown)
         self.addCleanup(dialog.deleteLater)
         for row in range(dialog._voice_table.rowCount()):
@@ -389,11 +411,11 @@ class AudioExportDialogTests(_SyntheticDatabaseTestCase):
         collection_id = create_collection("Mixed availability", card_size=1)
         add_entries_to_collection([english_id, french_id], collection_id)
 
-        controller_module.ProviderRegistry.from_environment = staticmethod(
-            lambda: _fake_registry(unavailable_language="fr")
+        controller_module.build_provider_registry = (
+            lambda preferences=None: _fake_registry(unavailable_language="fr")
         )
 
-        dialog = AudioExportDialog()
+        dialog = AudioExportDialog(preferences=Preferences())
         self.addCleanup(dialog._controller.shutdown)
         self.addCleanup(dialog.deleteLater)
         dialog._collection_combo.setCurrentIndex(dialog._collection_combo.findData(collection_id))
@@ -415,10 +437,18 @@ class AudioExportDialogTests(_SyntheticDatabaseTestCase):
 
     def setUp(self) -> None:
         super().setUp()
-        self._original_from_environment = controller_module.ProviderRegistry.from_environment
+        self._original_build_registry = controller_module.build_provider_registry
+        # M19 hermeticity: a developer machine may legitimately have
+        # VOCAB_APP_SHARED_TTS_DIR set system-wide (the operator did so
+        # after M18 closed, which made every "real unconfigured path"
+        # test in this file fail against a real runtime). Tests that
+        # exercise the unconfigured path must isolate the environment.
+        self._saved_shared_tts_env = os.environ.pop("VOCAB_APP_SHARED_TTS_DIR", None)
 
     def tearDown(self) -> None:
-        controller_module.ProviderRegistry.from_environment = self._original_from_environment
+        controller_module.build_provider_registry = self._original_build_registry
+        if self._saved_shared_tts_env is not None:
+            os.environ["VOCAB_APP_SHARED_TTS_DIR"] = self._saved_shared_tts_env
         super().tearDown()
 
     def test_plan_table_shows_concrete_per_card_reason_when_not_ready(self) -> None:
@@ -427,7 +457,7 @@ class AudioExportDialogTests(_SyntheticDatabaseTestCase):
         must show its own real CardAudioPlan.issues, not a generic
         placeholder."""
         collection_id = self._collection(2)
-        dialog = AudioExportDialog()
+        dialog = AudioExportDialog(preferences=Preferences())
         self.addCleanup(dialog._controller.shutdown)
         self.addCleanup(dialog.deleteLater)
         dialog._collection_combo.setCurrentIndex(dialog._collection_combo.findData(collection_id))
@@ -444,7 +474,7 @@ class AudioExportDialogTests(_SyntheticDatabaseTestCase):
 
     def test_choosing_a_collection_populates_card_selectors(self) -> None:
         collection_id = self._collection(2)
-        dialog = AudioExportDialog()
+        dialog = AudioExportDialog(preferences=Preferences())
         self.addCleanup(dialog._controller.shutdown)
         self.addCleanup(dialog.deleteLater)
         dialog._collection_combo.setCurrentIndex(dialog._collection_combo.findData(collection_id))

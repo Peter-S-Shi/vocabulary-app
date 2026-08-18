@@ -1,7 +1,16 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QScrollArea, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QComboBox,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
 from src.ui_desktop.controllers.settings_controller import SettingsController
 from src.ui_desktop.state.preferences import QUIZ_PRESENTATION_LABELS
@@ -159,6 +168,74 @@ class SettingsView(QWidget):
 
         root.addWidget(row)
 
+        audio_heading = QLabel("Audio", body)
+        audio_heading.setObjectName("settings-section-heading")
+        root.addWidget(audio_heading)
+
+        # M19 hardening (ROADMAP § "Mandatory M19 / M20 Productization
+        # Handoff -- Card Audio Export"): the durable, product-facing
+        # shared TTS runtime configuration surface. A normal user
+        # configures the runtime folder here; the environment variable
+        # remains an advanced per-process override surfaced honestly in
+        # the source row (state/tts_runtime.py resolution order).
+        tts_row = QWidget(body)
+        tts_row.setObjectName("settings-row")
+        tts_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        tts_row_layout = QHBoxLayout(tts_row)
+        tts_row_layout.setContentsMargins(SPACING.md, SPACING.md, SPACING.md, SPACING.md)
+        tts_row_layout.setSpacing(SPACING.md)
+
+        tts_row_label = QLabel("Shared TTS runtime folder", tts_row)
+        tts_row_label.setObjectName("settings-row-label")
+        tts_row_layout.addWidget(tts_row_label, 0)
+
+        self._tts_dir_value = QLabel("", tts_row)
+        self._tts_dir_value.setObjectName("settings-row-value")
+        self._tts_dir_value.setWordWrap(True)
+        self._tts_dir_value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        tts_row_layout.addWidget(self._tts_dir_value, 1)
+
+        self._tts_browse_button = QPushButton("Browse...", tts_row)
+        self._tts_browse_button.setObjectName("settings-tts-browse-button")
+        self._tts_browse_button.clicked.connect(self._on_tts_browse)
+        tts_row_layout.addWidget(self._tts_browse_button, 0)
+
+        self._tts_clear_button = QPushButton("Clear", tts_row)
+        self._tts_clear_button.setObjectName("settings-tts-clear-button")
+        self._tts_clear_button.clicked.connect(self._on_tts_clear)
+        tts_row_layout.addWidget(self._tts_clear_button, 0)
+
+        root.addWidget(tts_row)
+
+        source_row = QWidget(body)
+        source_row.setObjectName("settings-row")
+        source_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        source_row_layout = QHBoxLayout(source_row)
+        source_row_layout.setContentsMargins(SPACING.md, SPACING.md, SPACING.md, SPACING.md)
+        source_row_layout.setSpacing(SPACING.md)
+
+        source_row_label = QLabel("Runtime in use", source_row)
+        source_row_label.setObjectName("settings-row-label")
+        source_row_layout.addWidget(source_row_label, 0)
+        source_row_layout.addStretch(1)
+
+        self._tts_source_value = QLabel("", source_row)
+        self._tts_source_value.setObjectName("settings-row-value")
+        self._tts_source_value.setWordWrap(True)
+        self._tts_source_value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        source_row_layout.addWidget(self._tts_source_value, 1)
+
+        root.addWidget(source_row)
+
+        tts_note = QLabel(
+            "Card Audio Export uses this runtime for speech synthesis. "
+            "Per-voice availability is shown in Data Tools > Card Audio Export.",
+            body,
+        )
+        tts_note.setObjectName("settings-section-note")
+        tts_note.setWordWrap(True)
+        root.addWidget(tts_note)
+
         storage_heading = QLabel("Storage", body)
         storage_heading.setObjectName("settings-section-heading")
         root.addWidget(storage_heading)
@@ -207,7 +284,25 @@ class SettingsView(QWidget):
 
         return row
 
+    def _on_tts_browse(self) -> None:
+        start_dir = self._controller.shared_tts_dir_setting() or ""
+        chosen = QFileDialog.getExistingDirectory(self, "Choose the shared TTS runtime folder", start_dir)
+        if chosen:
+            self._controller.set_shared_tts_dir(chosen)
+
+    def _on_tts_clear(self) -> None:
+        self._controller.clear_shared_tts_dir()
+
     def _sync_from_controller(self) -> None:
+        saved_tts = self._controller.shared_tts_dir_setting()
+        self._tts_dir_value.setText(saved_tts if saved_tts else "Not configured")
+        self._tts_clear_button.setEnabled(bool(saved_tts))
+        status = self._controller.shared_tts_status()
+        if status["directory"]:
+            self._tts_source_value.setText(f'{status["directory"]} — {status["source_label"]}')
+        else:
+            self._tts_source_value.setText(status["source_label"])
+
         current_appearance = self._controller.appearance()
         appearance_index = self._appearance_combo.findData(current_appearance)
         if appearance_index >= 0 and self._appearance_combo.currentIndex() != appearance_index:
