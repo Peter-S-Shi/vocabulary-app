@@ -212,10 +212,9 @@ review's own instructions:
 configured** -- an environment prerequisite, not a code defect in the
 Plan-building logic, which was proven correct against real data.
 
-**Corrective (not yet given its own commit SHA at last edit; see
-`ROADMAP.md` § Milestone 18 for the final one):** rather than enabling
-Start Export unconditionally, fixed the actual reported problem -- the
-total absence of an actionable reason:
+**Corrective (`555a47b`):** rather than enabling Start Export
+unconditionally, fixed the actual reported problem -- the total absence
+of an actionable reason:
 
 - `AudioExportController.voice_assignment_rows()` now reports a live
   per-language preflight (`ProviderRegistry.from_environment().
