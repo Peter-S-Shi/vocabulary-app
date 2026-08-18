@@ -143,11 +143,25 @@ class SettingsScrollAreaTests(unittest.TestCase):
         view = SettingsView(controller)
         self.addCleanup(view.deleteLater)
 
-        natural_appearance_width = view._appearance_combo.sizeHint().width()
-        natural_quiz_width = view._quiz_presentation_combo.sizeHint().width()
+        # Independent-review finding (M18 Phase E self-review): sizeHint()
+        # on a combo that has never been shown/polished can be affected by
+        # whatever global style/font-metric caching state the rest of the
+        # process happens to be in at that exact moment -- observed to
+        # intermittently under-report width once enough other GUI tests
+        # ran earlier in the same `unittest discover` process. Showing the
+        # view at a comfortably wide size first (matching how ``width()``
+        # below is itself measured, after show()+processEvents()) makes
+        # "natural width" a real post-layout measurement instead of a
+        # pre-show guess, while still exercising the same regression this
+        # test guards: at that width nothing is squeezing the combos.
+        view.resize(1280, 800)
+        view.show()
+        self.app.processEvents()
+        self.app.processEvents()
+        natural_appearance_width = view._appearance_combo.width()
+        natural_quiz_width = view._quiz_presentation_combo.width()
 
         view.resize(400, 800)
-        view.show()
         self.app.processEvents()
         self.app.processEvents()
 

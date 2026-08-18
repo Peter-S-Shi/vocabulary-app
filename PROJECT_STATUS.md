@@ -24,8 +24,7 @@ Progress)**
 Completion is IN PROGRESS**, developed under the M18 Autonomous
 Execution Contract on branch
 `agent/m18-desktop-management-major-feature-completion` through Draft PR
-#29 (unmerged; no implementation changes are recorded in this
-documentation-only update).
+#29 (unmerged).
 
 **Human Gate 1 — Management Grammar Calibration is complete and Human
 Accepted.** Phase B implemented Collection Manager + Card Organization
@@ -89,8 +88,70 @@ re-verified green at `50597e7` (the same 5 pre-existing, unrelated
 `test_m18_review_calendar.py` failures confirmed present on the clean
 pre-corrective HEAD remain, out of scope for this corrective) and
 architecture audit clean -- see `ROADMAP.md` § Milestone 18 for the
-full record. **Human Gate 2 — Analytics Product Acceptance is READY**
-again, waiting for native human acceptance.
+full record. Two further HG2-corrective passes followed real native
+re-acceptance testing on a real production database: `9439be7`
+(Appearance/Quiz combo boxes horizontally compressed/clipped at a
+normal window size -- QSS `min-width` bump) and `8f57295` (root-cause
+fix superseding it: the Settings page had no vertical `QScrollArea`, so
+it could not grow taller than the window and re-created the same
+squeeze whenever content grew -- wrapped in a native vertical
+`QScrollArea`, horizontal scrolling explicitly disabled, 3 new focused
+regression tests). **Human Gate 2 — Analytics Product Acceptance is
+Human Accepted**, native visual acceptance PASSED against final
+accepted head `8f572959f0239b3b866cb8af936c8c84e8f53170`. See
+`ROADMAP.md` § Milestone 18 for the full per-checkpoint record.
+
+**Phase E — Card Audio Export is also complete.** The desktop Card
+Audio Export workflow (`AudioExportController` +
+`AudioExportDialog`, DESIGN.md § 7.4 "Audio Export configuration: B,
+`VR-UTILITY-001`") is a fourth Data Tools hub action, built entirely on
+the existing `src.audio_export`/`src.audio_composition`/
+`src.tts_providers` M15 core (no SQL, no second export engine). Scope:
+Single Card / Selected Cards / Whole Collection (`src.audio_export`'s
+existing scope model); voice configuration is deliberately READ-ONLY --
+M15 froze provider/language routing and the M18 contract forbids
+reopening it without an actual blocker, so this workspace confirms the
+frozen per-language voice assignment rather than inventing a picker;
+repetition mode/count and overwrite/skip conflict handling are the
+genuinely configurable surface the roadmap names. Long-running work
+follows Analytics' Human Gate 2 corrective precedent exactly: a
+background `QThread`, a monotonic generation guard discarding a
+superseded run's stale result, and worker signals connected to real
+bound methods (never a lambda) for correct cross-thread queuing.
+Cancellation is Card-atomic, added to `execute_audio_export_plan` as a
+new `should_cancel` parameter and `cancelled` status (`src/audio_export.py`):
+a Card already published stays published, every remaining Card comes
+back `cancelled`, and `build_retry_plan` treats `cancelled` the same as
+`failed`/`unresolved` -- a normal retry target. An independent
+self-review pass (module docstring discipline) before checkpointing
+found and fixed a real defect: several controller setters
+(repetition/conflict/destination/card-selection) invalidated the built
+Plan but never emitted `state_changed`, so the Start button's enabled
+state and the consent checkbox's overwrite-warning text could go stale
+after a config change -- fixed by emitting `state_changed` from every
+one of them and resetting consent on every reload, the same
+"confirmation checkbox must require fresh acknowledgment for every
+state change" discipline Data Tools' Import Dialog corrective already
+established. Full-suite verification also surfaced a second, unrelated
+pre-existing defect: `tests/test_m18_settings_storage.py`'s Human Gate 2
+scroll-area regression test measured a QComboBox's "natural width" via
+`sizeHint()` before the widget was ever shown, which could intermittently
+under-report once enough other GUI tests had run earlier in the same
+`unittest discover` process and shifted global style/font-metric caching
+state -- confirmed deterministic under the larger Phase E suite, not a
+one-off flake, and not a real Settings layout regression (the sibling
+scrollbar-orientation test in the same file passed throughout). Fixed by
+measuring the natural width post-show/post-layout instead of pre-show,
+the same way the test already measures the narrow-window width it
+compares against.
+
+Verified: 26/26 new focused tests (15 core `src.audio_export`
+including 2 new cancellation/retry-of-cancelled tests, 11 new desktop
+controller/dialog/QSS-coverage tests), full repository suite green
+(778/778), and a clean architecture audit (87 files, 0 violations). This
+finishes the M18-scoped audio-export Streamlit disposition (no legacy
+audio-export UI existed to migrate or retire -- M15 closed only the
+reusable core).
 
 M16.0 Desktop UI Design Baseline is complete and frozen: [DESIGN.md](DESIGN.md)
 records the approved desktop information architecture, theme architecture, and

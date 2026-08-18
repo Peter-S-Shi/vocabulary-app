@@ -1810,7 +1810,8 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     QPushButton#data-tools-import-button,
     QPushButton#data-tools-export-button,
     QPushButton#data-tools-template-definition-button,
-    QPushButton#data-tools-backup-button {{
+    QPushButton#data-tools-backup-button,
+    QPushButton#data-tools-audio-export-button {{
         background-color: {accent.primary.background};
         color: {accent.primary.foreground};
         border: none;
@@ -1822,7 +1823,8 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     QPushButton#data-tools-import-button:hover:enabled,
     QPushButton#data-tools-export-button:hover:enabled,
     QPushButton#data-tools-template-definition-button:hover:enabled,
-    QPushButton#data-tools-backup-button:hover:enabled {{
+    QPushButton#data-tools-backup-button:hover:enabled,
+    QPushButton#data-tools-audio-export-button:hover:enabled {{
         background-color: {accent.hover.background};
         color: {accent.hover.foreground};
     }}
@@ -2095,6 +2097,94 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         background-color: {accent.soft.background};
         color: {accent.soft.foreground};
         border: 1px solid {accent.border};
+    }}
+
+    /* M18 Phase E -- Card Audio Export (DESIGN.md § 7.4 "Audio Export
+    configuration: B, VR-UTILITY-001"; § 12.5). Launched from Data Tools'
+    hub actions row (data-tools-audio-export-button, already covered by
+    the shared #data-tools-import-button family above); every control
+    below lives inside `_AudioExportDialog`'s own QDialog and inherits
+    the generic QDialog QLabel/QComboBox/QSpinBox/QCheckBox/QListWidget/
+    QPushButton coverage, with primary-action buttons given their own
+    accent treatment and progress/status styled after Analytics' Human
+    Gate 2 corrective precedent (`analytics-progress-bar`) -- the same
+    restrained, neutral long-running-work treatment, not a new one. */
+    QLabel#audio-export-caption {{
+        color: {neutral.text_muted};
+        font-size: 13px;
+    }}
+    QLabel#audio-export-section-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#audio-export-plan-error {{
+        color: {danger.background};
+        font-size: 12px;
+    }}
+    QLabel#audio-export-summary-label {{
+        color: {neutral.text_primary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#audio-export-choose-folder-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#audio-export-choose-folder-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QPushButton#audio-export-build-plan-button,
+    QPushButton#audio-export-start-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#audio-export-build-plan-button:hover:enabled,
+    QPushButton#audio-export-start-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#audio-export-start-button:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QPushButton#audio-export-cancel-button,
+    QPushButton#audio-export-retry-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#audio-export-cancel-button:hover:enabled,
+    QPushButton#audio-export-retry-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QProgressBar#audio-export-progress-bar {{
+        background-color: {neutral.surface_sunken};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        min-height: 8px;
+        max-height: 8px;
+    }}
+    QProgressBar#audio-export-progress-bar::chunk {{
+        background-color: {accent.primary.background};
+        border-radius: {radius}px;
+    }}
+    QLabel#audio-export-status-label {{
+        color: {neutral.text_muted};
+        font-size: 12px;
     }}
     """.strip()
 

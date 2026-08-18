@@ -240,9 +240,24 @@ narrow-filter cache regression reintroducing whole-database cost on an
 unrelated `src.statistics` call path, and a QThread shutdown-safety gap);
 a fourth defect (a test-harness segfault from not waiting for the
 background thread to fully stop) was self-caught during re-verification.
-**Human Gate 2 -- Analytics Product Acceptance is READY** again, waiting
-for native human acceptance; see § Milestone 18 below for the full
-checkpoint record and the acceptance brief.
+Two further HG2-corrective passes followed real native re-acceptance
+testing (`9439be7` Appearance/Quiz combo min-width bump, superseded by
+`8f57295`'s root-cause fix wrapping the Settings page in a native
+vertical `QScrollArea`). **Human Gate 2 -- Analytics Product Acceptance
+is Human Accepted**: native visual acceptance PASSED against final
+accepted head `8f572959f0239b3b866cb8af936c8c84e8f53170`; see §
+Milestone 18 below for the full checkpoint record.
+
+**Phase E -- Card Audio Export is also complete**: the desktop Card
+Audio Export workflow (a fourth Data Tools hub action, DESIGN.md § 7.4
+"Audio Export configuration: B, `VR-UTILITY-001`"), built entirely on
+the M15 `src.audio_export`/`src.audio_composition`/`src.tts_providers`
+core with voice configuration deliberately read-only (M15 froze
+provider/language routing) and Card-atomic cancellation added to
+`execute_audio_export_plan` as a new `should_cancel` parameter. An
+independent self-review pass before checkpointing found and fixed a
+real staleness defect in the desktop controller. See § Milestone 18
+below for the full checkpoint record.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -1576,12 +1591,85 @@ pre-corrective HEAD, a relative-date-window test-data flake unrelated to
 Analytics -- remain the only non-passing tests, out of scope for this
 corrective) and architecture audit clean (85 files, 0 violations).
 
-Milestone 18 management/data workflows and Phase D Analytics are
-complete. **Human Gate 2 -- Analytics Product Acceptance is READY**
-again, waiting for native human acceptance. The remaining scope before
-Feature Freeze is Phase E (per the M18 contract's default workstream
-strategy) and Card Audio Export, neither of which may begin before
-Human Gate 2 passes.
+**Human Gate 2 correctives (`9439be7`, `8f57295`).** Native
+re-acceptance testing on the `50597e7` head found two further real
+defects, each fixed before re-presenting the gate: `9439be7` raised the
+Appearance/Quiz combo boxes' QSS `min-width` (200px -> 300px) after
+confirming by width-sweep that Qt's horizontal squeeze compressed their
+selected values to unreadable at a normal window size; `8f57295`
+superseded that per-control workaround with the actual root-cause fix
+(the Settings page had no vertical `QScrollArea`, so it could never
+grow taller than the window and would re-create the same squeeze for
+any future content growth) by wrapping the page in a native vertical
+`QScrollArea` (horizontal scrolling explicitly disabled, min-width
+reverted) and adding 3 focused regression tests (81/81 Settings/theme
+tests, clean architecture audit).
+
+**Human Gate 2 -- Analytics Product Acceptance is Human Accepted.**
+Native visual acceptance PASSED against final accepted head
+`8f572959f0239b3b866cb8af936c8c84e8f53170`.
+
+**Phase E -- Card Audio Export (`AudioExportController` +
+`AudioExportDialog`).** A fourth Data Tools hub action (DESIGN.md §
+7.4 "Audio Export configuration: B, `VR-UTILITY-001`"; § 12.5 "For Card
+Audio Export preserve M15.3"), built entirely on the existing
+`src.audio_export`/`src.audio_composition`/`src.tts_providers` M15
+core -- no SQL, no second export engine. Scope model: Single Card /
+Selected Cards / Whole Collection, matching `src.audio_export`'s
+existing `SCOPE_*` constants. Voice configuration is deliberately
+READ-ONLY: M15 froze provider/language routing
+(`src.tts_providers.FROZEN_PROVIDER_SPECS`) and the M18 contract § 5
+forbids reopening it without an actual blocker -- the workspace
+confirms the frozen per-language voice assignment rather than
+presenting a picker. Repetition mode/count and overwrite/skip conflict
+handling are the genuinely configurable half of `CompositionConfig` the
+roadmap names.
+
+Long-running work reuses Analytics' Human Gate 2 corrective shape
+exactly: a background `QThread`, a monotonic `_generation` guard
+discarding a superseded run's stale result, and worker signals
+connected to real bound methods (never a lambda) for correct
+cross-thread queuing. Cancellation is Card-atomic -- added to
+`execute_audio_export_plan` as a new `should_cancel` parameter and
+`cancelled` status: a Card already published stays published, every
+remaining Card comes back `cancelled`, and `build_retry_plan` treats
+`cancelled` the same as `failed`/`unresolved`, a normal retry target.
+
+An independent self-review pass before checkpointing (per the M18
+contract § 11) found and fixed a real defect: several controller
+setters (repetition mode/count, conflict policy, destination folder,
+Card selection) invalidated the built Plan but never emitted
+`state_changed`, so the Start button's stale enabled state and the
+consent checkbox's stale overwrite-warning text could survive a config
+change that had already invalidated them -- fixed by emitting
+`state_changed` from every one of them and resetting consent on every
+reload, the same "confirmation checkbox must require fresh
+acknowledgment for every state change" discipline Data Tools' Import
+Dialog corrective (`08012b1`) already established.
+
+Full-suite verification surfaced a second, unrelated pre-existing
+defect: `tests/test_m18_settings_storage.py`'s Human Gate 2 scroll-area
+regression test measured a QComboBox's "natural width" via `sizeHint()`
+before the widget was ever shown, intermittently under-reporting once
+enough other GUI tests ran earlier in the same `unittest discover`
+process -- confirmed deterministic under Phase E's larger suite, not a
+real Settings layout regression (the sibling scrollbar-orientation test
+in the same file passed throughout). Fixed by measuring post-show/
+post-layout instead of pre-show.
+
+Verified: 26/26 new focused tests (15 core `src.audio_export` tests
+including 2 new cancellation/retry-of-cancelled cases, 11 new desktop
+controller/dialog/QSS-structural-coverage tests), full repository suite
+green (778/778), clean architecture audit (87 files, 0 violations). This
+finishes the M18-scoped audio-export Streamlit disposition: no legacy
+Streamlit audio-export UI existed to migrate or retire (M15 closed only
+the reusable core), so this is the feature's first UI, the same
+position Linked Source was in at Phase C6.
+
+Milestone 18 management/data workflows, Phase D Analytics, and Phase E
+Card Audio Export are complete, and Human Gate 2 has passed. The
+remaining scope before Feature Freeze is Phase F -- Integrated M18 Exit
+Verification, closing toward Human Gate 3.
 
 ### 18.1 Management Workflow Migration
 

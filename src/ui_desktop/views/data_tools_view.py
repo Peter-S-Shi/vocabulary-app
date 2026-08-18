@@ -31,6 +31,7 @@ from src.ui_desktop.controllers.data_tools_controller import (
     DataToolsController,
 )
 from src.ui_desktop.theming.metrics import SPACING
+from src.ui_desktop.views.audio_export_view import AudioExportDialog
 
 """
 Data Tools (DESIGN.md § 7.4 "Data Tools hub: B, P6 Utility Workflow";
@@ -50,9 +51,14 @@ resolved here against its textual grammar, DESIGN.md § 12):
                                  Entry / Template-Based / Collection/Card)
                                  after an explicit preview; export
                                  existing data to CSV/XLSX.
-  4. Spatial Composition     -> Management Rail -> Data Tools hub (two
-                                 actions: Import, Export) -> each opens
-                                 its own focused P6 dialog. `_ImportDialog`
+  4. Spatial Composition     -> Management Rail -> Data Tools hub (now
+                                 five actions: Import, Export, Template
+                                 Definitions, Backup & Restore Preview,
+                                 Audio Export -- M18 Phase E adds the last
+                                 one, its own file/module,
+                                 `audio_export_view.AudioExportDialog`) ->
+                                 each opens its own focused P6 dialog.
+                                 `_ImportDialog`
                                  stacks, top to bottom: file/mode
                                  controls -> Preview action -> preview
                                  results (summary + valid/invalid tables)
@@ -164,6 +170,11 @@ class DataToolsView(QWidget):
         backup_button.setObjectName("data-tools-backup-button")
         backup_button.clicked.connect(self._on_backup)
         actions.addWidget(backup_button)
+
+        audio_export_button = QPushButton("Audio Export…", self)
+        audio_export_button.setObjectName("data-tools-audio-export-button")
+        audio_export_button.clicked.connect(self._on_audio_export)
+        actions.addWidget(audio_export_button)
         actions.addStretch(1)
         layout.addLayout(actions)
         layout.addStretch(1)
@@ -188,6 +199,10 @@ class DataToolsView(QWidget):
     def _on_backup(self) -> None:
         self._controller.reset_restore_preview()
         dialog = _BackupRestoreDialog(self._controller, parent=self)
+        dialog.exec()
+
+    def _on_audio_export(self) -> None:
+        dialog = AudioExportDialog(parent=self)
         dialog.exec()
 
 

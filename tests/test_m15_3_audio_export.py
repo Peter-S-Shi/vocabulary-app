@@ -241,6 +241,39 @@ class M153AudioExportTests(unittest.TestCase):
         self.assertEqual(successful_path.read_bytes(), successful_bytes)
         self.assertEqual(repaired["en"].calls, 1)  # English explanation on the retried French Card.
 
+    def test_cancellation_stops_before_next_card_and_keeps_completed_output(self) -> None:
+        collection_id, _ = self._collection([("English", "one"), ("French", "deux"), ("English", "three")])
+        plan = plan_collection_export(collection_id, self.destination, providers=self.registry)
+        calls = {"count": 0}
+
+        def should_cancel() -> bool:
+            # Cancel is polled once per Card, before that Card starts --
+            # returning True starting on the 2nd poll cancels the 2nd and
+            # 3rd Cards while leaving the 1st Card's own synthesis alone.
+            calls["count"] += 1
+            return calls["count"] >= 2
+
+        result = execute_audio_export_plan(
+            plan, providers=self.registry, asset_store=self.store, should_cancel=should_cancel
+        )
+        self.assertEqual(result.succeeded_count, 1)
+        self.assertEqual(result.cancelled_count, 2)
+        self.assertTrue(validate_canonical_wav(result.items[0].output_path))
+        self.assertEqual([item.status for item in result.items[1:]], ["cancelled", "cancelled"])
+        self.assertEqual(len(list(self.destination.glob("*.wav"))), 1)
+
+    def test_retry_plan_targets_cancelled_cards(self) -> None:
+        collection_id, _ = self._collection([("English", "one"), ("French", "deux")])
+        plan = plan_collection_export(collection_id, self.destination, providers=self.registry)
+        first = execute_audio_export_plan(
+            plan, providers=self.registry, asset_store=self.store, should_cancel=lambda: True
+        )
+        self.assertEqual(first.cancelled_count, 2)
+        retry = build_retry_plan(first, providers=self.registry)
+        self.assertEqual([item.card_number for item in retry.items], [1, 2])
+        second = execute_audio_export_plan(retry, providers=self.registry, asset_store=self.store)
+        self.assertEqual(second.succeeded_count, 2)
+
     def test_execution_uses_frozen_card_snapshot_after_current_membership_changes(self) -> None:
         collection_id, entries = self._collection([("English", "one"), ("English", "two")], card_size=2)
         plan = plan_single_card_export(collection_id, 1, self.destination, providers=self.registry)
