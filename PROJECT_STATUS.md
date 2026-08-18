@@ -1,6 +1,6 @@
 # Vocabulary App Project Status
 
-Last reviewed: 2026-08-17
+Last reviewed: 2026-08-18
 
 This file is the authoritative evidence-based snapshot of the current project
 state.
@@ -12,22 +12,233 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 ## Current Phase
 
-**Milestone 16 — Desktop Architecture and UI Design (Complete on `main`);
-Milestone 17 — Desktop Core Workflow Migration (Complete on `main`);
-Milestone 18 — Desktop Management and Major Feature Completion (Human
-Gate 1, 2, and 3 all Human Accepted — M18 READY FOR MERGE, awaiting
-operator merge authorization)**
+**Milestone 18 — Desktop Management and Major Feature Completion
+(Complete on `main`, merged via PR #29 at
+`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`); Milestone 19 — Desktop
+Product Hardening (Human Accepted 2026-08-18 at
+`a128c50d75154ff3f85eacfd3a96e54d27d11c4d`; unmerged, pending operator
+merge authorization)**
 
 ## Current Milestone
 
-**Milestone 16 Complete on `main`; Milestone 17 Complete on `main`
-(merged via PR #25). Milestone 18 — Desktop Management and Major Feature
-Completion has passed all three Human Gates**, developed under the M18
+**Milestone 19 — Desktop Product Hardening is Human Accepted.**
+Developed under the M19 Autonomous Product
+Hardening Execution Contract on the single long-lived branch
+`agent/m19-desktop-product-hardening` (Draft PR #30), created from the
+verified M18 merge baseline `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`
+(`main`). The desktop **Feature Freeze has been active throughout**:
+correctness, data-integrity, migration/compatibility, privacy/security,
+robustness, serious UX, and performance defects remained in scope; no
+new product capability was introduced.
+
+M19 baseline verification (2026-08-18, at `9dae05c`): full repository
+suite 782/782 green (offscreen), architecture audit clean (87 Python
+files, 0 serious, 0 warnings), quiz randomization check passed, working
+tree clean, local `main` fast-forwarded to `origin/main`.
+
+### M19 Engineering Exit Candidate summary (Agent Verified, 2026-08-18)
+
+**One confirmed release-relevant defect, root-cause fixed and
+regression-tested (M19-F2):** `QuizController.start()` only rejected a
+*foreign* active Quiz session, so a repeated launch through the same
+controller (a double-clicked Quick Quiz, or a second launch action
+arriving before the first session finished) created a second active
+session while the first stayed `active` forever -- an orphan invisible
+to both `get_active_quiz_session()` (returns only the newest active row)
+and `reconcile_finished_active_quiz_sessions()` (only reconciles fully
+answered sessions), and "Cancel and retry" recovered nothing because it
+cancelled only the displayed session. Fixed by cancelling the
+controller's own still-active, uncompleted session before creating a new
+one (the existing "abandoning an active Quiz cancels it" rule), and by
+having `cancel_blocked_and_retry()` clear every remaining stale active
+session. 17 new regression tests (5 of which fail against the pre-fix
+controller, verified by reverting and re-running); no completion is ever
+fabricated and no recorded answer is ever lost.
+
+**One durable product-facing configuration gap closed (M19-F1):** the
+mandatory M19/M20 productization handoff item (ROADMAP § "Mandatory
+M19 / M20 Productization Handoff -- Card Audio Export") -- Card Audio
+Export required a normal end user to set a shell environment variable.
+Closed with a new Settings > Audio configuration surface
+(`shared_tts_dir` durable preference) and a resolution order
+(`VOCAB_APP_SHARED_TTS_DIR` override -> app setting -> honestly not
+configured) implemented in `src/ui_desktop/state/tts_runtime.py`; a
+connected defect in the same area was fixed alongside it (Plan
+build/Retry previously ignored the app-configured runtime and fell back
+to environment-only resolution).
+
+**Documentation/lifecycle-truthfulness corrections:** `PROJECT_STATUS.md`
+and `ROADMAP.md`'s stale "M18 READY FOR MERGE, awaiting authorization"
+and "IN PROGRESS" narratives corrected to the actual merged state;
+`README.md`'s stale M17-only feature list corrected to the full M17+M18
+accepted surface; the desktop `MainWindow` title's "(Desktop Preview)"
+suffix retired now that the desktop app has been the accepted primary
+product surface since M17/M18.
+
+**Every other hardening area investigated this milestone was verified
+already correct, with no code change required** -- recorded as
+regression evidence rather than an invented change: fresh/empty-database
+integrated behavior (7 tests); adversarial backup/restore-preview
+boundaries including truncated/garbage/tampered-metadata workbook bytes
+(8 tests); Linked Source file-deleted/corrupted-between-preview-and-
+confirm safety, closing a TOCTOU window the M18 suite never exercised (3
+of those 8 tests); Analytics outcomes against six hand-computed
+representative cases spanning every Primary Finding arbitration class,
+plus `EvidenceProfileCache` cached/uncached equivalence (14 tests);
+Data Tools synchronous-operation performance against a real 5,685-entry
+production-database copy and a 6,000-row synthetic import (export
+0.15s, import confirm 0.58s, XLSX backup 2.39s -- nowhere near the
+Analytics HG2 material-impairment precedent of 137s); unwritable-
+destination safety across every desktop write path and the audio-export
+batch's per-Card publication-failure handling (11 tests); large/dense-
+dataset boundedness (`get_card_page_for_collection` verified against a
+240-entry/30-card Collection, `EvidenceProfileCache` against a
+60-entry/480-event dense history); and background-thread completion
+after navigation / shutdown behavior for the one controller with a
+legitimately long-running load, probed through a real `MainWindow` (4
+tests).
+
+**Convergence evidence:**
+
+```text
+Full repository suite:        859/859 (offscreen, QT_QPA_PLATFORM=offscreen)
+Architecture audit:            94 Python files, 0 serious, 0 warnings
+Quiz randomization check:      passed
+Privacy/tracked-file scan:     clean (full M19 diff, 833cc63..eb438c9 and
+                                the destination/scale + background-nav
+                                commits after it)
+Native platform launch health: real Windows platform (not offscreen),
+                                real top-level window found via process-
+                                tree enumeration (PID 31420, title
+                                "Vocabulary App", non-zero window
+                                handle), clean graceful shutdown, no
+                                orphaned process
+Working tree / remote:         clean; local HEAD matches
+                                origin/agent/m19-desktop-product-hardening
+```
+
+Native launch health above is **Agent Verified only** -- it proves the
+real desktop process starts, produces a real window, and shuts down
+cleanly on this machine's actual Windows platform. It is deliberately
+not a substitute for visual/functional acceptance (AGENTS.md: "Automated
+tests cannot establish visual quality"). The Final Human Acceptance Gate
+-- launching the app and leaving it open for the operator's own
+inspection -- is the next and final M19 step, not yet performed.
+
+**Known limitations / deferred, not defects:** the SQLite
+`ResourceWarning: unclosed database` noise under the test harness
+(pre-existing, tracked in Known Risks below); the three deferred Accent
+families and Quick Theme Control popover (M17-era, unchanged); advanced
+Entries table personalization (M17-era, unchanged). No known
+release-blocking defect, data-integrity/privacy/security defect, or
+architecture-boundary violation remains open.
+
+### Final Human Acceptance Gate — Attempt 1: FAIL (narrow UX corrective)
+
+The operator launched the real native application from Exit Candidate
+head `2dc0893` and recorded **FAIL** with two explicitly narrow UX
+correctives (not a reopening of broader M19 scope): (1) Settings →
+Audio's status load (~5-6s observed natively) had no visible loading
+feedback; (2) the Navigation Rail order should read Today → Study →
+Entries → Collections → Review Calendar → Templates → Data Tools →
+Analytics (Settings unchanged, separate bottom position).
+
+**Corrective applied.** Settings → Audio now shows an indeterminate
+busy indicator immediately on load and swaps to real content once the
+(deferred-by-one-tick) status resolution completes, regardless of how
+long that resolution actually takes on a given machine
+(`src/ui_desktop/views/settings_view.py`, styled via a new
+`settings-audio-loading-spinner` QSS rule matching the existing
+`analytics-progress-bar` pattern). The Navigation Rail's
+`PRIMARY_DESTINATIONS` order was corrected to match exactly
+(`src/ui_desktop/widgets/navigation_rail.py`); `SETTINGS_DESTINATION`
+was already separate and unaffected. See `docs/qa/MILESTONE19_HARDENING_QA.md`
+§ 9 for full investigation and verification detail.
+
+Verification: affected navigation/Settings/desktop regression 378/378;
+full repository suite 860/860; architecture audit clean (94 files, 0
+violations); privacy scan clean.
+
+### Final Human Acceptance Gate — Attempt 2: Sidebar PASS, Audio feedback FAIL
+
+Re-checked at head `98119db`. **Navigation Rail order: PASS.** **Audio
+loading feedback: FAIL**, with the location and treatment corrected by
+the operator: the indicator belongs beside the **Data Tools → Audio
+Export** button (not in Settings) and should be a progress ring that
+starts hollow and fills to solid; the real symptom is that every other
+Data Tools button responds instantly while Audio Export takes 6-7
+seconds.
+
+**Attempt 1's mistake:** it read the original report as the Settings
+workspace and put the indicator there, even though its own
+investigation had already identified the real culprit (the live
+provider preflight reached from Data Tools) and measured Settings
+itself at 6ms. The Settings-side indicator has been reverted in full.
+
+**Root cause (measured):** `AudioExportDialog.__init__` ran
+`voice_assignment_rows()` → `ProviderRegistry.preflight()` per frozen
+language synchronously on the Qt UI thread before the dialog could
+paint, and the Mandarin route's preflight shells out to
+`powershell.exe` (`src/tts_providers.py`, 30s timeout). The cost is
+environment-dependent and unbounded in practice -- one probe of the
+same call inside a worker thread was still running past a 200s timeout
+-- so the fix is to stop blocking on it rather than to optimize it.
+
+**Corrective applied:** a new `_VoicePreflightWorker` runs the
+preflight on a background `QThread` with truthful per-language
+progress (real bound-method connections, generation guard, blocking
+shutdown wired into `MainWindow.closeEvent`); a new `ProgressRing`
+widget (`src/ui_desktop/widgets/progress_ring.py`) paints a
+determinate hollow-to-solid arc, themed through the same
+`apply_theme_tokens` seam the Entries Star column uses; and the Data
+Tools hub shows the ring beside the button, fills it as each language
+resolves, then opens the dialog seeded with the real results so the
+cost is never paid twice. Repeated clicks cannot start two preflights
+or open two dialogs.
+
+Verification: 13 new tests; affected Data Tools/audio/settings/
+navigation regression 172/172; architecture audit clean. A test hang
+encountered during this work was diagnosed with a `faulthandler`
+thread dump (a modal `exec()` with no user to close it, not a
+threading defect) and a pre-existing timing-brittle assertion in
+`tests/test_m19_background_task_navigation.py` was replaced with a
+bounded wait. See `docs/qa/MILESTONE19_HARDENING_QA.md` § 10.
+
+### Final Human Acceptance Gate — Attempt 3: PASS (Human Accepted)
+
+The operator inspected the real native desktop application launched
+from candidate head
+`a128c50d75154ff3f85eacfd3a96e54d27d11c4d` and recorded **PASS**
+(2026-08-18). Both Attempt 2 correctives were accepted: the Navigation
+Rail order, and the hollow-to-solid progress ring beside the Data
+Tools → Audio Export button with its background provider preflight.
+
+This is the authoritative M19 acceptance decision.
+
+**M19 status: Human Accepted — Desktop Product Hardening complete,
+ready to enter M20 Packaging and Release Candidate.** The branch is
+**not merged**: per the M19 contract § 18, the agent does not merge to
+`main` without explicit operator merge authorization.
+
+Accepted head: `a128c50d75154ff3f85eacfd3a96e54d27d11c4d`
+Branch: `agent/m19-desktop-product-hardening` (PR #30)
+Baseline: `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`
+
+Final verification at the accepted head: full repository suite 872/872
+(offscreen), architecture audit clean (95 Python files, 0 serious, 0
+warnings), quiz randomization check passed, privacy/tracked-file scan
+clean, native platform launch health agent-verified, local HEAD equal
+to `origin/agent/m19-desktop-product-hardening`.
+
+**Milestone 18 — Desktop Management and Major Feature Completion is
+Complete on `main`** (merged via PR #29 at
+`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc` from final accepted head
+`0ff85509f0cdb7248d7970b8af66c1da6a94c301`), developed under the M18
 Autonomous Execution Contract on branch
-`agent/m18-desktop-management-major-feature-completion` through Draft PR
-#29 (unmerged). Phases A through F (Human Gates 1, 2, and 3 all Human
-Accepted; Card Audio Export; integrated exit verification) are complete
-with no known blocking defect.
+`agent/m18-desktop-management-major-feature-completion` through PR #29.
+Phases A through F (Human Gates 1, 2, and 3 all Human Accepted; Card
+Audio Export; integrated exit verification) completed with no known
+blocking defect.
 
 **Human Gate 3 — Final M18 Native Acceptance: PASS (Human Accepted).**
 Final native acceptance initially FAILed (see "Human Gate 3 corrective"
@@ -43,9 +254,10 @@ WAV files. The operator then independently launched the real desktop
 application with the retained runtime bound the same way, verified the
 real Card Audio Export happy path natively (legitimate Cards became
 ready, `Start Export` became available, export succeeded), and recorded
-**Human Gate 3 PASS**. **All three Human Gates are now Human Accepted
-and M18 is READY FOR MERGE.** The agent will not merge to `main`
-without explicit human authorization.
+**Human Gate 3 PASS**. **All three Human Gates are Human Accepted.**
+The operator subsequently authorized the merge, and PR #29 was merged
+to `main` at `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc` — **M18 is
+Complete on `main`.**
 
 **Human Gate 1 — Management Grammar Calibration is complete and Human
 Accepted.** Phase B implemented Collection Manager + Card Organization
@@ -1492,17 +1704,31 @@ Large new Streamlit-specific UI investments should be avoided.
 
 ## Feature Freeze Status
 
-**Not applicable yet / scope currently open.**
+**ACTIVE as of Milestone 19 (2026-08-18).**
 
-The earlier planned Streamlit Feature Freeze was never passed and is now
-superseded by the reopened product scope.
+The intended desktop product scope was implemented and verified through
+M17/M18 (all Human Gates accepted; M18 merged via PR #29). The desktop
+Feature Freeze is now in effect: correctness, data-integrity,
+migration/compatibility, privacy/security, robustness, serious UX, and
+material performance defects remain in scope; new product modes,
+learning systems, analytics concepts, synchronization models,
+cloud/account functionality, and speculative redesigns move to deferred
+work unless scope is explicitly reopened through a recorded decision.
 
-The next formal Feature Freeze is planned after the intended desktop product
-scope has been implemented and before Desktop Product Hardening.
+The earlier planned Streamlit Feature Freeze was never passed and was
+superseded by the reopened product scope; the freeze now applies to the
+desktop product.
 
 ## Hardening Status
 
-Formal end-of-product hardening has not started.
+**Milestone 19 — Desktop Product Hardening is complete and Human
+Accepted** (2026-08-18, at
+`a128c50d75154ff3f85eacfd3a96e54d27d11c4d`) on branch
+`agent/m19-desktop-product-hardening` (baseline
+`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`), unmerged pending explicit
+operator merge authorization. See "Current Milestone" above for the
+full evidence record and the three Final Human Acceptance Gate
+attempts.
 
 However, pre-desktop stabilization and full-product manual QA have already
 identified issues that must be corrected before major migration work.
@@ -2279,15 +2505,23 @@ for the full corrective-pass and acceptance history.
   against final accepted head
   `d232717b6b225e7c798c510ae8e87ce87fe5d8c8`, after a corrective fix for
   a parallel Entries-sorting mechanism). **Milestone 17 is COMPLETE.**
+- M18 implementation branch (single long-lived branch for the whole
+  milestone, merged): `agent/m18-desktop-management-major-feature-completion`
+- M18 final accepted head: `0ff85509f0cdb7248d7970b8af66c1da6a94c301`
+- Final M18 PR: `#29 — M18: Desktop Management and Major Feature
+  Completion` (merged)
+- M18 merge commit on `main`: `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`
 - Exact next objective:
-  **Begin Milestone 18 — Desktop Management and Major Feature Completion.
-  M18 has not started; no branch/PR exists yet. Known M18 carryover from
-  M17: deferred Accent families (Sage/Teal, Indigo/Violet, Warm Neutral)
-  and the Quick Theme Control popover; full Collection Manager (create/
-  rename/delete Collections from the desktop UI); richer Settings/
-  Appearance UX beyond the current single Appearance row; advanced
-  Entries table personalization (saved sort/filter views, drag-
-  reordering, column customization); the Entries Entry Type filter combo
-  listing only the predefined set rather than live distinct values; and
-  non-blocking performance refinements. See ROADMAP.md § Milestone 18
-  for the full scope.**
+  **Milestone 19 — Desktop Product Hardening, IN PROGRESS** on the
+  single long-lived branch `agent/m19-desktop-product-hardening` from
+  baseline `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`. Known
+  M17/M18-era deferred carryover (deferred features, not M19 defects):
+  the three deferred Accent families (Sage/Teal, Indigo/Violet, Warm
+  Neutral) and the Quick Theme Control popover; advanced Entries table
+  personalization (saved sort/filter views, drag-reordering, column
+  customization); the Entries Entry Type filter combo listing only the
+  predefined set rather than live distinct values. The mandatory
+  M19/M20 productization handoff (ROADMAP.md § "Mandatory M19 / M20
+  Productization Handoff — Card Audio Export") — shared TTS runtime
+  discovery, persistent runtime configuration, and
+  absent/broken-runtime behavior — is explicit M19 hardening scope.

@@ -87,7 +87,10 @@ class MainWindow(QMainWindow):
         theme_manager: ThemeManager | None = None,
     ) -> None:
         super().__init__()
-        self.setWindowTitle("Vocabulary App (Desktop Preview)")
+        # M19 product truthfulness: the desktop application has been the
+        # accepted primary product surface since M17/M18 -- it is no
+        # longer a "(Desktop Preview)" of anything.
+        self.setWindowTitle("Vocabulary App")
         self.resize(1280, 800)
 
         self.app_state = app_state or AppState()
@@ -187,12 +190,14 @@ class MainWindow(QMainWindow):
                 self._on_theme_applied(self.theme_manager.current_tokens)
 
     def _on_theme_applied(self, tokens) -> None:
-        """The one live-theme seam MainWindow needs to broker (module
-        docstring's ``ThemeManager`` note): every custom-drawn widget is
-        already QSS/QPalette-styled and re-themes itself for free, so this
-        only forwards to the one view whose Star column paints a
-        non-QSS-driven color from a model data role."""
+        """The live-theme seam MainWindow brokers (module docstring's
+        ``ThemeManager`` note): every QSS/QPalette-styled widget
+        re-themes itself for free, so this only forwards to the views
+        that paint a color QSS cannot express -- Entries' Star column
+        (a model data role) and Data Tools' Audio Export progress ring
+        (a painted arc)."""
         self.entries_view.apply_theme_tokens(tokens)
+        self.data_tools_view.apply_theme_tokens(tokens)
 
     def _on_rail_destination_activated(self, destination_key: str) -> None:
         if destination_key == "today":
@@ -426,4 +431,8 @@ class MainWindow(QMainWindow):
         # while thread is still running"). Blocks briefly so any in-
         # flight load finishes cleanly first.
         self.analytics_controller.shutdown()
+        # Same QThread-lifetime rule for the Data Tools hub's background
+        # Audio Export voice preflight (Final Human Acceptance Gate
+        # corrective): never let the app tear down while it is running.
+        self.data_tools_view._audio_preflight_controller.shutdown_voice_preflight()
         super().closeEvent(event)

@@ -4,6 +4,7 @@ from PySide6.QtCore import QObject, Signal
 
 from src.app_config import get_app_storage_summary
 from src.ui_desktop.state.preferences import Preferences, parse_quiz_presentation, save_preferences
+from src.ui_desktop.state.tts_runtime import SOURCE_LABELS, resolve_shared_tts_dir
 from src.ui_desktop.theming.theme_manager import ThemeManager, parse_accent, parse_appearance
 
 """
@@ -60,6 +61,37 @@ class SettingsController(QObject):
         if self._theme_manager is not None:
             self._theme_manager.apply(normalized, parse_accent(self.preferences.accent))
         self.state_changed.emit()
+
+    # -- Shared TTS runtime (M19 hardening; state/tts_runtime.py) --------
+
+    def shared_tts_dir_setting(self) -> str:
+        """The persisted app-setting value itself (may be empty), as
+        distinct from the *effective* resolution below -- Settings edits
+        this value; the environment variable is never written here."""
+        return self.preferences.shared_tts_dir
+
+    def set_shared_tts_dir(self, path: str) -> None:
+        normalized = (path or "").strip()
+        if normalized == self.preferences.shared_tts_dir:
+            return
+        self.preferences.shared_tts_dir = normalized
+        save_preferences(self.preferences)
+        self.state_changed.emit()
+
+    def clear_shared_tts_dir(self) -> None:
+        self.set_shared_tts_dir("")
+
+    def shared_tts_status(self) -> dict:
+        """Effective resolution for display: the directory actually in
+        use (or None), which source supplied it, and a human-readable
+        source label. Uses the live Preferences instance so an edit made
+        one row above is reflected immediately."""
+        resolved, source = resolve_shared_tts_dir(self.preferences)
+        return {
+            "directory": resolved,
+            "source": source,
+            "source_label": SOURCE_LABELS.get(source, source),
+        }
 
     def storage_summary(self) -> dict:
         """M18 Phase C2: read-only storage/data-location information

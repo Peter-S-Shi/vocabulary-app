@@ -49,6 +49,16 @@ class Preferences:
     accent: str = DEFAULT_ACCENT
     motion: str = DEFAULT_MOTION
     quiz_presentation: str = DEFAULT_QUIZ_PRESENTATION
+    # M19 hardening (ROADMAP § "Mandatory M19 / M20 Productization
+    # Handoff -- Card Audio Export"): the durable, product-facing shared
+    # TTS runtime folder. Empty string = not configured through the app.
+    # Machine-local application configuration, never learning data --
+    # stored here (outside vocab.db) exactly like Appearance/Motion. An
+    # explicitly set VOCAB_APP_SHARED_TTS_DIR environment variable
+    # remains an advanced per-process override (the same precedence
+    # model VOCAB_APP_DB_PATH already established for the database
+    # path); see state/tts_runtime.py for the resolution order.
+    shared_tts_dir: str = ""
 
 
 def load_preferences(path: Path | None = None) -> Preferences:
@@ -78,7 +88,14 @@ def load_preferences(path: Path | None = None) -> Preferences:
     accent = str(raw.get("accent") or DEFAULT_ACCENT)
     motion = str(raw.get("motion") or DEFAULT_MOTION)
     quiz_presentation = parse_quiz_presentation(str(raw.get("quiz_presentation") or DEFAULT_QUIZ_PRESENTATION))
-    return Preferences(appearance=appearance, accent=accent, motion=motion, quiz_presentation=quiz_presentation)
+    shared_tts_dir = str(raw.get("shared_tts_dir") or "").strip()
+    return Preferences(
+        appearance=appearance,
+        accent=accent,
+        motion=motion,
+        quiz_presentation=quiz_presentation,
+        shared_tts_dir=shared_tts_dir,
+    )
 
 
 def save_preferences(preferences: Preferences, path: Path | None = None) -> Path:

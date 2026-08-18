@@ -104,8 +104,11 @@ target.
 
 ## Current Phase
 
-**Milestone 16 — Desktop Architecture and UI Design Complete on `main`;
-Milestone 17 — Desktop Core Workflow Migration Complete on `main`**
+**Milestone 18 — Desktop Management and Major Feature Completion
+Complete on `main` (merged via PR #29 at
+`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`); Milestone 19 — Desktop
+Product Hardening IN PROGRESS (desktop Feature Freeze active) on branch
+`agent/m19-desktop-product-hardening`**
 
 The trustworthy data/business-logic baseline, repository restructure, Import
 and Template Evolution foundation, and Learning Analytics and Insight Core are
@@ -197,7 +200,8 @@ is now COMPLETE.** See § Milestone 17 below for the full operating
 model, the reset history, and the per-feature acceptance record.
 
 **Milestone 18 — Desktop Management and Major Feature Completion is now
-IN PROGRESS**, developed on the single long-lived branch
+Complete on `main`** (merged via PR #29 at
+`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`). It was developed on the single long-lived branch
 `agent/m18-desktop-management-major-feature-completion` through Draft PR
 #29, per the M18 Autonomous Execution Contract. **Human Gate 1 —
 Management Grammar Calibration (Collection Manager + Card Organization,
@@ -265,14 +269,22 @@ with no visible reason -- root-caused to this machine having no
 in the Plan-building logic, which was proven correct against all 715
 real Cards in the production database). A corrective fixed the
 diagnostic UX (live per-language preflight status, per-Card plan
-reasons); real end-to-end WAV synthesis remains unverified on this
-machine and is tracked as an explicit Human Gate 3 acceptance
-dependency per operator direction, not new M18 scope. Human Gate 3 has
-not been re-presented. See § Milestone 18 below for the full checkpoint
-record.
+reasons). The retained M15 shared TTS runtime was then rediscovered on
+the machine, audited read-only, bound temporarily via
+`VOCAB_APP_SHARED_TTS_DIR`, and used to verify a real end-to-end Card
+Audio Export against the production database (2 of 2 Cards ready, 2 of
+2 exported to valid canonical WAV). The operator then verified the real
+native happy path independently and recorded **Human Gate 3 PASS —
+Human Accepted**. All three M18 Human Gates are Human Accepted; the
+operator authorized the merge, and **M18 merged to `main` via PR #29 at
+`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`**. See § Milestone 18 below
+for the full checkpoint record.
 
-Feature Freeze will occur only after the intended desktop feature scope has
-been implemented and verified.
+**The desktop Feature Freeze is now active as of Milestone 19** — the
+intended desktop feature scope has been implemented and verified
+through M17/M18. Milestone 19 — Desktop Product Hardening is IN
+PROGRESS on the single long-lived branch
+`agent/m19-desktop-product-hardening` from baseline `9dae05c`.
 
 ---
 
@@ -1421,7 +1433,9 @@ finishes the desktop-facing parts of the three new major capabilities.
 
 ### Operating Model
 
-**Status: IN PROGRESS.** Milestone 18 is developed under the M18
+**Status: Complete on `main`** (merged via PR #29 at
+`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc` from final accepted head
+`0ff85509f0cdb7248d7970b8af66c1da6a94c301`). Milestone 18 was developed under the M18
 Autonomous Execution Contract as one milestone, one long-lived branch
 (`agent/m18-desktop-management-major-feature-completion`), one Draft PR
 (#29, Draft throughout development), and an ordered checkpoint sequence
@@ -1769,12 +1783,18 @@ independently self-reviewed before checkpointing.
 
 **Per explicit operator direction, this diagnostic corrective is
 sufficient for this defect; building a new shared TTS runtime is out of
-M18 scope.** Real end-to-end Card Audio Export WAV synthesis remains
-unverified on this machine and is recorded as an explicit Human Gate 3
-acceptance dependency. **Human Gate 3 has not been re-presented, and
-M18 is not currently an EXIT CANDIDATE.** Per the M18 contract § 18, the
-agent has not claimed Human Accepted or Complete, and must not merge to
-`main` without explicit human authorization.
+M18 scope.** The retained M15 shared TTS runtime was subsequently
+rediscovered on the machine, audited read-only against
+`build_shared_runtime_registry()`'s exact path expectations, bound
+temporarily via `VOCAB_APP_SHARED_TTS_DIR` (process-scoped only), and
+used to verify real end-to-end Card Audio Export against the production
+database: live preflight succeeded for all three frozen routes, and a
+real 2-Card export produced 2 valid canonical WAV files (see
+`PROJECT_STATUS.md` § "Human Gate 3 runtime recovery"). The operator
+then independently verified the native happy path and recorded **Human
+Gate 3 PASS — Human Accepted**. With all three Human Gates accepted,
+the operator authorized the merge and **M18 merged to `main` via PR #29
+at `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`**.
 
 ### 18.1 Management Workflow Migration
 
@@ -1896,6 +1916,38 @@ forward productization concern, not an M18 acceptance blocker.
 ---
 
 ## Milestone 19: Desktop Product Hardening
+
+**Status: Complete — Human Accepted 2026-08-18 at
+`a128c50d75154ff3f85eacfd3a96e54d27d11c4d` (unmerged, pending explicit
+operator merge authorization).** Developed under the M19 Autonomous Product Hardening
+Execution Contract on the single long-lived branch
+`agent/m19-desktop-product-hardening` (Draft PR #30), created from the
+verified M18 merge baseline `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`
+(`main`). The desktop Feature Freeze was active throughout: one
+confirmed release-relevant defect (duplicate active Quiz sessions on a
+repeated launch) was root-caused and fixed; the mandatory M19/M20 Card
+Audio Export productization handoff (shared TTS runtime configuration)
+was closed; every other investigated hardening area was verified
+already correct. Full repository suite 872/872, architecture audit
+clean (95 files), native platform launch health agent-verified.
+
+The Final Human Acceptance Gate took three attempts. Attempt 1 FAILed
+with two narrow UX correctives (audio loading feedback; Navigation Rail
+order). Attempt 2 PASSed the Navigation Rail order and re-FAILed the
+loading feedback, relocating it to a hollow-to-solid progress ring
+beside the Data Tools > Audio Export button and identifying the real
+cause: a synchronous, PowerShell-spawning provider preflight blocking
+the Qt UI thread before the dialog could paint. **Attempt 3 PASSed —
+Milestone 19 is Human Accepted** at
+`a128c50d75154ff3f85eacfd3a96e54d27d11c4d`. See `PROJECT_STATUS.md`
+§ "M19 Engineering Exit Candidate summary" and its Final Human
+Acceptance Gate attempt records, plus
+[Milestone 19 Hardening QA](docs/qa/MILESTONE19_HARDENING_QA.md), for
+the complete evidence record.
+
+Desktop Product Hardening is complete; the project is ready to enter
+Milestone 20 Packaging and Release Candidate. The branch remains
+unmerged pending explicit operator merge authorization.
 
 Milestone 19 is the formal system-wide hardening phase for the desktop product.
 

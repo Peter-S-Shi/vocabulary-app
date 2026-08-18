@@ -158,12 +158,24 @@ def _card_plan_issue_summary(issues: tuple[CardAudioIssue, ...]) -> str:
 
 
 class AudioExportDialog(QDialog):
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, preferences=None, voice_rows=None) -> None:
         super().__init__(parent)
         self.setObjectName("audio-export-dialog")
         self.setWindowTitle("Card Audio Export")
         self.setMinimumSize(680, 680)
-        self._controller = AudioExportController()
+        # ``preferences=None`` keeps the M19 default resolution: the
+        # controller re-reads the persisted preferences file at each
+        # registry build, so a runtime folder saved in Settings > Audio
+        # is honored without restart (state/tts_runtime.py).
+        self._controller = AudioExportController(preferences)
+        # Final Human Acceptance Gate corrective: when the Data Tools hub
+        # already ran the (seconds-long, PowerShell-spawning) provider
+        # preflight in the background to drive its progress ring, seed
+        # those real results here so this dialog does not repeat it.
+        # ``None`` keeps the original behavior -- preflight on demand --
+        # for any caller that opens the dialog directly.
+        if voice_rows is not None:
+            self._controller.voice_rows = list(voice_rows)
 
         outer = QVBoxLayout(self)
         scroll = QScrollArea(self)

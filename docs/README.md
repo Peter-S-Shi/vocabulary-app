@@ -27,6 +27,10 @@ Current Audio Foundation decision records:
 - [Milestone 15 Closure](history/MILESTONE15_CLOSURE.md)
 - [Distribution-facing Third-Party Notices](../THIRD_PARTY_NOTICES.md)
 
+Current Milestone 19 hardening evidence:
+
+- [Milestone 19 Hardening / Acceptance QA Record](qa/MILESTONE19_HARDENING_QA.md)
+
 Executable development checks remain in [`scripts/`](../scripts/) and
 [`tools/`](../tools/). Local databases, private QA results, imports, exports,
 backups, secrets, and other user-owned artifacts are not repository

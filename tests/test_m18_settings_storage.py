@@ -82,7 +82,9 @@ class SettingsViewStorageStructureTests(unittest.TestCase):
         self.addCleanup(view.deleteLater)
 
         value_labels = view.findChildren(QLabel, "settings-row-value")
-        self.assertEqual(len(value_labels), 7)
+        # 7 read-only Storage rows + the 2 M19 Audio rows (shared TTS
+        # runtime folder value, effective runtime-in-use source).
+        self.assertEqual(len(value_labels), 9)
         rendered_values = {label.text() for label in value_labels}
         summary = controller.storage_summary()
         self.assertIn(str(summary["database_path"]), rendered_values)

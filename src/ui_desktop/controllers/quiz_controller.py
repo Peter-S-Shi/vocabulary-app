@@ -42,6 +42,24 @@ app restarted mid-quiz and this controller has no memory of it), ``start()``
 refuses and exposes it as ``blocked_session`` -- matching Streamlit's exact
 recovery behavior (surfaced, offer only Cancel, never a silent/fake resume;
 see the M17 Feature 3 prompt § 7/§ 8).
+
+M19 hardening: that guard only rejected a *foreign* active session, so a
+repeated launch through the same controller (a double-clicked Quick Quiz,
+or a second launch action arriving before the first session finished)
+took the ``active["id"] == self.session_id`` path and created a second
+session while the first stayed ``active`` forever -- two concurrently
+active rows, exactly what this docstring says cannot happen. The orphan
+was invisible to recovery too: ``get_active_quiz_session()`` returns only
+the newest active row, and ``reconcile_finished_active_quiz_sessions()``
+only reconciles sessions that are already fully answered, so a
+never-answered orphan was never cleaned up -- and "Cancel and retry"
+cancelled just the displayed session, leaving the user immediately
+blocked again by the orphan with no explanation. ``start()`` now cancels
+this controller's own still-active session before creating a new one
+(the same "abandoning an active Quiz cancels it" rule
+``exit_active()``/``cancel_active()`` already apply -- never a fabricated
+completion), and ``cancel_blocked_and_retry()`` clears every stale active
+session so databases written by earlier builds can still recover.
 """
 
 PLAIN_SELF_GRADED_TYPES = frozenset({"term_to_meaning", "meaning_to_term"})
@@ -54,6 +72,10 @@ MCQ_FAMILY = "mcq"
 MATCHING_FAMILY = "matching"
 
 NOT_ENOUGH_ENTRIES_ERROR = "Not enough entries to build this quiz."
+
+# Bounds cancel_blocked_and_retry()'s stale-session cleanup so a cancel
+# that somehow did not take effect can never spin forever.
+_STALE_SESSION_CLEANUP_LIMIT = 50
 
 
 class QuizController(QObject):
@@ -145,6 +167,21 @@ class QuizController(QObject):
             self.start_error = NOT_ENOUGH_ENTRIES_ERROR
             self.state_changed.emit()
             return False
+
+        # This controller's own previous session is still active and was
+        # never completed -- a repeated launch (double-clicked Quick Quiz,
+        # or a second launch action arriving first) would otherwise create
+        # a new session alongside it, leaving two concurrently active rows
+        # and orphaning the first forever (module docstring, M19). Cancel
+        # it: abandoning an active Quiz cancels it, exactly as
+        # exit_active()/cancel_active() already do. Deliberately placed
+        # after generation succeeds, so a launch that fails to build items
+        # never destroys the session already in progress. Already-recorded
+        # answers survive as Entry-level evidence -- the M14 contract keeps
+        # explicitly answered Items eligible under a cancelled session --
+        # and no Card completion is fabricated.
+        if self.session_id is not None and self.completed_session is None:
+            mark_quiz_session_cancelled(self.session_id)
 
         self.session_id = create_quiz_session(intent.collection_id, intent.card_number, intent.quiz_type, len(items))
         self.intent = intent
@@ -413,10 +450,27 @@ class QuizController(QObject):
 
     def cancel_blocked_and_retry(self) -> bool:
         """The recovery path for a foreign active session (§ module
-        docstring): cancel it, then retry the launch that was blocked."""
+        docstring): cancel it, then retry the launch that was blocked.
+
+        Clears every remaining stale active session, not only the one
+        being displayed. ``get_active_quiz_session()`` surfaces just the
+        newest active row, so a database written by an earlier build --
+        which could accumulate orphaned active sessions (module
+        docstring, M19) -- would otherwise block the retry again
+        immediately, leaving the user in a recovery loop with nothing
+        explaining it. Cancelling never fabricates a completion and never
+        discards recorded answers, so clearing the backlog is safe; the
+        loop is bounded so a cancel that failed to take effect cannot
+        spin.
+        """
         if self.blocked_session is None:
             return False
         mark_quiz_session_cancelled(self.blocked_session["id"])
+        for _ in range(_STALE_SESSION_CLEANUP_LIMIT):
+            remaining = get_active_quiz_session()
+            if remaining is None:
+                break
+            mark_quiz_session_cancelled(remaining["id"])
         self.blocked_session = None
         pending = self.pending_intent
         self.pending_intent = None
