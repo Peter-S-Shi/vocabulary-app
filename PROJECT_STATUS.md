@@ -15,8 +15,9 @@ Desktop-specific migration principles and workflow mapping are defined in
 **Milestone 16 — Desktop Architecture and UI Design (Complete on `main`);
 Milestone 17 — Desktop Core Workflow Migration (Complete on `main`);
 Milestone 18 — Desktop Management and Major Feature Completion (IN
-PROGRESS — Human Gate 3 FAILed once, corrective applied, NOT yet
-re-presented for acceptance)**
+PROGRESS — Human Gate 3 FAILed once, corrective applied, runtime
+recovered and re-verified, READY for native acceptance but NOT yet
+re-presented/accepted)**
 
 ## Current Milestone
 
@@ -31,15 +32,19 @@ known blocking defect at head `aa0ad72`/`df78286`, and the milestone was
 called an EXIT CANDIDATE with Human Gate 3 READY.
 
 **Human Gate 3 — Final M18 Native Acceptance FAILed** (see "Human Gate 3
-corrective" below for the full record). A corrective has since been
-applied, verified, and independently reviewed, but **Human Gate 3 has
-not been re-presented for acceptance**: real end-to-end Card Audio
-Export WAV synthesis remains unverified on this machine because the
-frozen M15 shared TTS runtime (`VOCAB_APP_SHARED_TTS_DIR`) is not
-configured here, and per explicit operator direction this is being
-tracked as an environment prerequisite for Human Gate 3 acceptance, not
-expanded into new M18 scope. **M18 is not currently an EXIT CANDIDATE.**
-The agent will not merge to `main` without explicit human authorization.
+corrective" and "Human Gate 3 runtime recovery" below for the full
+record). A corrective has since been applied, verified, and
+independently reviewed. The retained M15 shared TTS runtime was then
+rediscovered on this machine, audited read-only against the exact paths
+`src/tts_providers.py` expects, bound temporarily via
+`VOCAB_APP_SHARED_TTS_DIR` for verification only, and used to run a
+real end-to-end Card Audio Export against the real production database
+-- 2 of 2 Cards ready, 2 of 2 exported successfully to valid canonical
+WAV files. **Human Gate 3's runtime acceptance dependency is resolved
+and Human Gate 3 is READY for native human acceptance, but it has not
+yet been re-presented/accepted, and M18 is not currently an EXIT
+CANDIDATE.** The agent will not merge to `main` without explicit human
+authorization.
 
 **Human Gate 1 — Management Grammar Calibration is complete and Human
 Accepted.** Phase B implemented Collection Manager + Card Organization
@@ -256,6 +261,48 @@ re-presented, and M18 is not currently an EXIT CANDIDATE.** Human Gate 3
 should be re-attempted once a `VOCAB_APP_SHARED_TTS_DIR` runtime is
 available to verify against, or the operator otherwise instructs
 resumption.
+
+### Human Gate 3 runtime recovery (`VOCAB_APP_SHARED_TTS_DIR` resolved)
+
+The retained M15 shared TTS runtime was rediscovered on this machine
+(its own `README.md` self-identifies it as the shared,
+project-independent runtime home created from Vocabulary App's M15.0
+provider-selection audition). A read-only audit against
+`src/tts_providers.py`'s exact
+`build_shared_runtime_registry()` path expectations confirmed every
+required asset is structurally intact and unmodified since M15 closure:
+`venv\Scripts\python.exe` (Python 3.11 venv with `kokoro`, `sherpa_onnx`,
+`numpy`, `soundfile`, `torch` installed), `kokoro\synth.py`,
+`sherpa-onnx\synth.py` plus its `voices\vits-piper-fr_FR-siwis-medium\`
+model directory. The repo-side `scripts\tts_yaoyao.ps1` adapter (used
+directly, not sourced from the shared runtime) was already present and
+unchanged. **No code defect existed** -- the only missing piece was the
+environment binding itself.
+
+With `VOCAB_APP_SHARED_TTS_DIR` pointed at the rediscovered runtime for
+the verification process only (no permanent User/Machine change made):
+
+- live preflight succeeded for all three frozen routes: `en`
+  (Kokoro/af_heart), `fr` (sherpa-onnx/fr_FR-siwis-medium), `zh-CN`
+  (Windows OneCore Yaoyao via WinRT);
+- a real Audio Export Plan built against the real production database
+  (`trial collection`, id 12, 2 active Cards) showed **2 of 2 Cards
+  ready**, replacing the previous "0 of X ready" state;
+- `execute_audio_export_plan()` ran a real small end-to-end export of
+  both Cards: **2 succeeded, 0 failed, 0 unresolved**, producing real
+  multi-unit-composed WAV files (37.12s and 51.73s), both verified
+  against the app's canonical-WAV contract (`validate_canonical_wav()`);
+  test artifacts were removed after verification.
+
+**Human Gate 3's remaining acceptance dependency (a real, available
+`VOCAB_APP_SHARED_TTS_DIR` runtime) is resolved on this machine.** No
+repository code changed as part of this recovery. The temporary env
+binding is process-scoped only; a permanent User/Machine
+`VOCAB_APP_SHARED_TTS_DIR` value has **not** been set and is
+left for the operator to configure (or re-bind per-session) before
+native acceptance. **Human Gate 3 is READY to be re-presented for
+native human acceptance; it has not been marked PASS by the agent, and
+M18 is still not an EXIT CANDIDATE pending that acceptance.**
 
 M16.0 Desktop UI Design Baseline is complete and frozen: [DESIGN.md](DESIGN.md)
 records the approved desktop information architecture, theme architecture, and
