@@ -57,15 +57,15 @@ including real Card Audio Export) were Human Accepted. The desktop
 application now covers Collections/Card organization, Templates, Review
 Calendar, Settings, Data Tools (Import/Export, Template Definition CSV,
 Backup / Restore Preview, Card Audio Export), Linked Sources, and
-Analytics. **Milestone 19 — Desktop Product Hardening is complete and
-Human Accepted** (2026-08-18, on branch
-`agent/m19-desktop-product-hardening`, awaiting merge): a system-wide
-hardening pass covering data and migration integrity, adversarial and
+Analytics. **Milestone 19 — Desktop Product Hardening is complete on
+`main`**, Human Accepted 2026-08-18 and merged via PR #30 at
+`2ad211711d96583b6fffdb65de912fa672502bc8`: a system-wide hardening
+pass covering data and migration integrity, adversarial and
 non-happy-path behavior, Analytics correctness against the frozen M14
 contract, and desktop robustness — see
 [Milestone 19 Hardening QA](docs/qa/MILESTONE19_HARDENING_QA.md) for
 the evidence record. The desktop Feature Freeze remains active.
-**Milestone 20 — Packaging and Release Candidate** is the next
+**Milestone 20 — Packaging and Release Candidate** is the current/next
 objective.
 
 Streamlit remains the currently runnable compatibility/reference UI, but it is

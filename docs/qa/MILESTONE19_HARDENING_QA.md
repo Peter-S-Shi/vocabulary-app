@@ -1,16 +1,18 @@
 # Milestone 19 — Desktop Product Hardening: Hardening / Acceptance Evidence Record
 
-**Status: Complete — Human Accepted 2026-08-18 at
-`a128c50d75154ff3f85eacfd3a96e54d27d11c4d` (§ 11), after correctives
-for the Attempt 1 FAIL (§ 9) and the Attempt 2 partial FAIL (§ 10).
-Unmerged, pending explicit operator merge authorization.** This is
+**Status: Complete on `main` — Human Accepted 2026-08-18 at accepted
+product head `a128c50d75154ff3f85eacfd3a96e54d27d11c4d` (§ 11), after
+correctives for the Attempt 1 FAIL (§ 9) and the Attempt 2 partial FAIL
+(§ 10), merged via PR #30 at
+`2ad211711d96583b6fffdb65de912fa672502bc8`.** This is
 a living evidence record, not a pre-hardening questionnaire. It
 documents what was audited, what was found, what was fixed, and what
 was verified during M19 — kept current with `PROJECT_STATUS.md`, the
 authoritative evidence-based snapshot.
 
-- **Branch:** `agent/m19-desktop-product-hardening`
-- **Draft PR:** #30
+- **Branch:** `agent/m19-desktop-product-hardening` (merged)
+- **PR:** #30 (MERGED)
+- **Merge commit on `main`:** `2ad211711d96583b6fffdb65de912fa672502bc8`
 - **Baseline:** `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc` (M18 merge
   commit, PR #29)
 - **Contract:** M19 Autonomous Product Hardening Execution Contract
@@ -419,10 +421,11 @@ provider preflight.
 This is the authoritative M19 acceptance decision.
 
 ```text
-Accepted head:  a128c50d75154ff3f85eacfd3a96e54d27d11c4d
-Branch:         agent/m19-desktop-product-hardening (PR #30)
-Baseline:       9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc
-Accepted on:    2026-08-18
+Accepted product head:  a128c50d75154ff3f85eacfd3a96e54d27d11c4d
+Branch:                 agent/m19-desktop-product-hardening (PR #30, MERGED)
+Baseline:               9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc
+Accepted on:            2026-08-18
+Merge commit on main:   2ad211711d96583b6fffdb65de912fa672502bc8
 ```
 
 Verification at the accepted head:
@@ -436,13 +439,13 @@ Native platform launch:        real window confirmed, clean shutdown
 Working tree / remote:         clean; local HEAD == remote branch head
 ```
 
-**Milestone 19 — Desktop Product Hardening is complete and Human
-Accepted. The project is ready to enter Milestone 20 Packaging and
-Release Candidate.**
+**Milestone 19 — Desktop Product Hardening is complete on `main` and
+Human Accepted. Milestone 20 — Packaging and Release Candidate is the
+current/next lifecycle objective.**
 
-The branch is **not merged**. Per the M19 contract § 18, merging to
-`main` requires explicit operator authorization, which has not been
-given and was not assumed.
+The branch was merged by the operator: PR #30 → `main` at
+`2ad211711d96583b6fffdb65de912fa672502bc8`. Per the M19 contract § 18,
+the agent did not merge to `main` itself.
 
 ## 12. Handed to Milestone 20
 

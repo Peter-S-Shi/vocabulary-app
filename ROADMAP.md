@@ -104,11 +104,10 @@ target.
 
 ## Current Phase
 
-**Milestone 18 — Desktop Management and Major Feature Completion
-Complete on `main` (merged via PR #29 at
-`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`); Milestone 19 — Desktop
-Product Hardening IN PROGRESS (desktop Feature Freeze active) on branch
-`agent/m19-desktop-product-hardening`**
+**Milestone 19 — Desktop Product Hardening Complete on `main` (Human
+Accepted 2026-08-18, merged via PR #30 at
+`2ad211711d96583b6fffdb65de912fa672502bc8`); Milestone 20 — Packaging
+and Release Candidate is the current/next lifecycle objective**
 
 The trustworthy data/business-logic baseline, repository restructure, Import
 and Template Evolution foundation, and Learning Analytics and Insight Core are
@@ -1917,11 +1916,11 @@ forward productization concern, not an M18 acceptance blocker.
 
 ## Milestone 19: Desktop Product Hardening
 
-**Status: Complete — Human Accepted 2026-08-18 at
-`a128c50d75154ff3f85eacfd3a96e54d27d11c4d` (unmerged, pending explicit
-operator merge authorization).** Developed under the M19 Autonomous Product Hardening
-Execution Contract on the single long-lived branch
-`agent/m19-desktop-product-hardening` (Draft PR #30), created from the
+**Status: Complete on `main` — Human Accepted 2026-08-18 at accepted
+product head `a128c50d75154ff3f85eacfd3a96e54d27d11c4d`, merged via
+PR #30 at `2ad211711d96583b6fffdb65de912fa672502bc8`.** Developed under
+the M19 Autonomous Product Hardening Execution Contract on the single
+long-lived branch `agent/m19-desktop-product-hardening`, from the
 verified M18 merge baseline `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`
 (`main`). The desktop Feature Freeze was active throughout: one
 confirmed release-relevant defect (duplicate active Quiz sessions on a
@@ -1945,9 +1944,9 @@ Acceptance Gate attempt records, plus
 [Milestone 19 Hardening QA](docs/qa/MILESTONE19_HARDENING_QA.md), for
 the complete evidence record.
 
-Desktop Product Hardening is complete; the project is ready to enter
-Milestone 20 Packaging and Release Candidate. The branch remains
-unmerged pending explicit operator merge authorization.
+Desktop Product Hardening is complete and merged to `main`. Milestone
+20 — Packaging and Release Candidate is the current/next lifecycle
+objective.
 
 Milestone 19 is the formal system-wide hardening phase for the desktop product.
 
