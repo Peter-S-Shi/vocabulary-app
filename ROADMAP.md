@@ -194,9 +194,82 @@ state, which could silently override the new SQL-level "Sort by" order;
 removed, with the proxy forced to `sort(-1)` so it stays a pure
 index-mapping adapter). **Milestone 17 — Desktop Core Workflow Migration
 is now COMPLETE.** See § Milestone 17 below for the full operating
-model, the reset history, and the per-feature acceptance record. The
-next milestone, **M18 — Desktop Management and Major Feature
-Completion, has not started.**
+model, the reset history, and the per-feature acceptance record.
+
+**Milestone 18 — Desktop Management and Major Feature Completion is now
+IN PROGRESS**, developed on the single long-lived branch
+`agent/m18-desktop-management-major-feature-completion` through Draft PR
+#29, per the M18 Autonomous Execution Contract. **Human Gate 1 —
+Management Grammar Calibration (Collection Manager + Card Organization,
+Template Manager + Template Editor) is complete and Human Accepted**:
+native visual acceptance PASSED 2026-08-17 against head
+`283ab6f9298a7f64d2d311ffc11c01b2a186d2cf`, after an initial FAIL and two
+corrective passes (Light Mode contrast root-cause fix across every new
+M18 control, a discoverable "Open Template" affordance replacing an
+undocumented double-click gesture, and a Templates-table
+selection-by-id integrity fix). **Phase C — Remaining Management/Data
+Workflows + Linked Source is also complete**: Review Calendar / Card
+History, Settings storage information, Data Tools (Import/Export,
+Template Definition CSV import/export, Backup / Restore Preview), and
+the Linked Source desktop workflow (the feature's first UI; M13 closed
+the reusable core only). Every checkpoint's own independent review found
+and fixed real findings before the next one began. See § Milestone 18
+below for the operating model, per-checkpoint acceptance record, and the
+Streamlit disposition table. **Phase D — Analytics is also complete**:
+the Analytics Landing workspace ("Learning Brief First", DESIGN.md § 6.5
+CANONICAL `VR-ANALYTICS-001`) and the Full Findings drill-down (§ 6.6
+`VR-ANALYTICS-002`), built entirely on the M14 core with no invented
+thresholds or scores. This flips the last disabled Navigation Rail
+placeholder -- every destination in the approved product IA (DESIGN.md
+§ 4.1) now has a real workspace. Independent review found and fixed four
+real findings before the first Human Gate 2 attempt. **Human Gate 2 --
+Analytics Product Acceptance initially FAILed**: on a real production
+database, opening Analytics made the app "Not Responding" -- root cause
+was `get_scope_coverage_findings` reloading and recomputing the *entire*
+database's evidence profiles once per Collection and again once per
+Card, synchronously on the Qt UI thread (confirmed by benchmark: 137s vs
+0.7s after the fix, on a synthetic 2000-entry/30,000-event database). A
+corrective pass introduced `EvidenceProfileCache` (compute the
+whole-database evidence snapshot once per Analytics refresh, reused
+everywhere instead of reloaded per scope) plus a background `QThread`
+with staged progress/error UI and stale-result guarding as
+defense-in-depth. Independent review of that corrective pass found and
+fixed three more real findings (a cross-thread signal race from
+lambda-wrapped callbacks that PySide6 could not correctly queue, a
+narrow-filter cache regression reintroducing whole-database cost on an
+unrelated `src.statistics` call path, and a QThread shutdown-safety gap);
+a fourth defect (a test-harness segfault from not waiting for the
+background thread to fully stop) was self-caught during re-verification.
+Two further HG2-corrective passes followed real native re-acceptance
+testing (`9439be7` Appearance/Quiz combo min-width bump, superseded by
+`8f57295`'s root-cause fix wrapping the Settings page in a native
+vertical `QScrollArea`). **Human Gate 2 -- Analytics Product Acceptance
+is Human Accepted**: native visual acceptance PASSED against final
+accepted head `8f572959f0239b3b866cb8af936c8c84e8f53170`; see §
+Milestone 18 below for the full checkpoint record.
+
+**Phase E -- Card Audio Export is also complete**: the desktop Card
+Audio Export workflow (a fourth Data Tools hub action, DESIGN.md § 7.4
+"Audio Export configuration: B, `VR-UTILITY-001`"), built entirely on
+the M15 `src.audio_export`/`src.audio_composition`/`src.tts_providers`
+core with voice configuration deliberately read-only (M15 froze
+provider/language routing) and Card-atomic cancellation added to
+`execute_audio_export_plan` as a new `should_cancel` parameter. An
+independent self-review pass before checkpointing found and fixed a
+real staleness defect in the desktop controller. Phase F -- Integrated
+M18 Exit Verification then completed with no known blocking defect, and
+the milestone was called an EXIT CANDIDATE. **Human Gate 3 subsequently
+FAILed** (Card Audio Export's Plan always showed "0 of X Cards ready"
+with no visible reason -- root-caused to this machine having no
+`VOCAB_APP_SHARED_TTS_DIR` shared TTS runtime configured, not a defect
+in the Plan-building logic, which was proven correct against all 715
+real Cards in the production database). A corrective fixed the
+diagnostic UX (live per-language preflight status, per-Card plan
+reasons); real end-to-end WAV synthesis remains unverified on this
+machine and is tracked as an explicit Human Gate 3 acceptance
+dependency per operator direction, not new M18 scope. Human Gate 3 has
+not been re-presented. See § Milestone 18 below for the full checkpoint
+record.
 
 Feature Freeze will occur only after the intended desktop feature scope has
 been implemented and verified.
@@ -1346,6 +1419,363 @@ M17 must not reopen or silently change:
 Milestone 18 completes desktop parity for management/data workflows and
 finishes the desktop-facing parts of the three new major capabilities.
 
+### Operating Model
+
+**Status: IN PROGRESS.** Milestone 18 is developed under the M18
+Autonomous Execution Contract as one milestone, one long-lived branch
+(`agent/m18-desktop-management-major-feature-completion`), one Draft PR
+(#29, Draft throughout development), and an ordered checkpoint sequence
+with three Human Gates, per that contract's operating model.
+
+**Phase B — Representative Management Grammar:**
+
+- Collection Manager + Card Organization (`e78764e`): create/rename/
+  edit/delete Collection, rename Card, remove/reposition Entries within a
+  Collection. Every write calls the same `src.collections` functions the
+  Streamlit Collections page already uses.
+- Template Manager + Template Editor (`0f5ae60`, corrected at `781d2a4`):
+  a new Templates workspace/rail destination; create/edit/delete
+  Template and Field, with the existing in-use safety gates
+  (`template_has_entries`, `template_field_has_values`) enforced as
+  outright-disabled actions rather than mere warnings. Every write calls
+  the same `src.entry_templates` functions the Streamlit Templates page
+  already uses.
+
+**Human Gate 1 — Management Grammar Calibration: complete and Human
+Accepted.** Initial native visual acceptance at `781d2a4` **FAILed**:
+Light Mode rendered the new Collection/Template controls at
+effectively-invisible contrast (every control this checkpoint added had
+no explicit QSS coverage, the same defect class the M16.2 closure
+documented for Today/Entries navigation actions), and existing Custom
+Templates had no discoverable entry point besides an undocumented
+double-click gesture. Two corrective passes followed:
+
+1. `5b3757c` — explicit primary/secondary/destructive QSS for every new
+   M18 control (reusing the existing `QPushButton[destructive="true"]`
+   property selector for delete/remove actions rather than duplicating
+   per-button rules), a missing `QDialog QSpinBox` rule, and a new
+   discoverable "Open Template" toolbar action (enabled only when a row
+   is selected) sharing the same code path double-click already used.
+2. `283ab6f` — independent review of pass 1 found the Templates table's
+   row-index-based selection could silently drift to the wrong Template
+   after a reordering refresh (e.g. renaming the selected Template while
+   its editor was still open); selection now follows the Template's
+   stable id.
+
+**Native human visual acceptance PASSED 2026-08-17 against final
+accepted head `283ab6f9298a7f64d2d311ffc11c01b2a186d2cf`.** Automated
+evidence at that head: focused Collection Manager/Template Manager/
+corrective tests all green (16/16, 15/15, 11/11), full repository suite
+634/634, architecture audit 77 files / 0 violations, two independent
+code reviews each with one real finding, both fixed and
+regression-tested.
+
+**Phase C — Remaining Management/Data Workflows + Linked Source: complete.**
+Six checkpoints, each following the same implement -> focused verify ->
+commit -> independent review -> repair -> continue loop, every one of
+which found and fixed at least one real defect before the next
+checkpoint began:
+
+- **C1 Review Calendar / Card History** (`c141dcc`) — read-only P7
+  Evidence Browser: a chronological table of completed Card-scoped Quiz
+  sessions (the authoritative learning-completion evidence) with a
+  range-preset filter, and selecting one shows that Card's full history
+  plus its legacy Review compatibility records, kept visibly separate.
+  Corrective pass `604a443` fixed a stale-selection bug (a previously
+  selected row could keep showing old detail after a range change).
+- **C2 Settings storage information** (`3be1da7`) — a read-only Storage
+  section (database/backup/audio-cache paths, path source) added to the
+  existing Appearance/Quiz Settings Form, a thin passthrough to
+  `src.app_config.get_app_storage_summary()`.
+- **C3 Data Tools hub + Import/Export** (`541870d`) — General/
+  Template-Based/Collection Entry import (Upload -> Validate -> Preview
+  -> Confirm -> Import, DESIGN.md § 12.3) and Export (All entries /
+  Collection / summary, CSV/XLSX), reusing `src.import_export` entirely;
+  this repository's first `QFileDialog` usage. Corrective pass `08012b1`
+  fixed four issues an independent review found, most seriously a
+  confirmation checkbox that never reset, which could have re-armed
+  Confirm Import against a new file/mode with no fresh per-batch
+  consent.
+- **C4 Template Definition CSV import/export** (`511d644`) — portable
+  Template *field structure* (distinct from Entry import), reusing
+  `src.template_definitions` entirely.
+- **C5 Backup / Restore Preview** (`103b211`) — local backup generation
+  (.sqlite3 file copy, full .xlsx workbook) and read-only backup
+  inspection; Restore is intentionally preview-only throughout, since no
+  core function performs an actual database restore. Corrective pass
+  `e87d06c` guarded a dialog-constructor call an independent review
+  found could crash on a locked/unreadable database.
+- **C6 Linked Source** (`549dfb6`) — the feature's first UI (M13 closed
+  the reusable core only): link a Collection to a local CSV/XLSX
+  append-only source, refresh it, and recover from a missing/unreadable
+  source via Unlink (metadata only) + a fresh link, reusing
+  `src.linked_sources` entirely; no desktop-only "relink in place"
+  shortcut was invented. Corrective pass `dc5401f` fixed three issues an
+  independent review found: changing the staged import mode/sheet after
+  a preview didn't invalidate it (letting a stale Confirm write Entries
+  under an unreviewed mode), the mode combo didn't resync after Unlink,
+  and a failed Unlink produced no visible feedback.
+
+Full repository suite green (677/677 at the C3 checkpoint; re-verified
+at 723/723 after C6's corrective pass, reflecting the tests added across
+C4-C6) and architecture audit clean (83 files, 0 violations) throughout.
+
+**Phase D — Analytics: complete.** One checkpoint, same implement ->
+verify -> commit -> independent review -> repair loop as Phase C:
+
+- **D1 Analytics Landing + Full Findings** (`c8e4f40`, corrected at
+  `9b2b2c1`) — the Analytics Landing workspace (DESIGN.md § 6.5
+  CANONICAL `VR-ANALYTICS-001`, "Learning Brief First"): an
+  interpretation-first Learning Brief built directly on
+  `src.insights.build_learning_brief`, an "all Entries" / per-Collection
+  scope switch, and a Coverage panel that only appears for a selected
+  Collection (there is no core-defined global coverage metric, so "all"
+  scope intentionally omits it rather than inventing one). The Full
+  Findings drill-down (§ 6.6 `VR-ANALYTICS-002`) is a modal table over
+  every Finding `src.insights.get_all_findings` returns, with a "Show
+  every current Entry (including no current Finding)" toggle. Both
+  finish the M18-scoped statistics_page.py/dashboard_page.py disposition
+  (DESIGN.md § 7.7: integrate into Analytics/Today, not recreate for
+  parity) and flip "analytics" -- the last disabled Navigation Rail
+  placeholder -- to enabled, so every destination in the approved
+  product IA (DESIGN.md § 4.1) now has a real workspace. No SQL, invented
+  score, or mutation was added: the controller only calls existing
+  `src.insights`/`src.analytics` reads. Independent review of the first
+  pass found four issues, all fixed in `9b2b2c1`: a "Suggested: None"
+  label misrepresenting findings with no suggested action as if one
+  existed, bare "Collection"/"Template" scope labels losing the actual
+  Collection/Template identity, a documented-but-unwired "show every
+  current Entry" checkbox, and a redundant double data-reload on every
+  Analytics navigation.
+
+Full repository suite green (744/744 at the pre-corrective D1 checkpoint;
+751/751 re-verified at final head `9b2b2c1937b71d5b7932077f8f10f6f3f4266ea1`
+after its corrective pass) and architecture audit clean throughout. See the Draft PR #29 body for the complete Streamlit
+disposition table -- every M18-scoped legacy surface is now migrated,
+explicitly deprecated, or documented as out of scope.
+
+**Human Gate 2 corrective: Analytics performance/responsiveness
+(`50597e7`).** Native human testing found that opening Analytics on a
+real production-sized database made the app "Not Responding" --
+**Human Gate 2 FAILed.** Investigated with profiling rather than
+guessing: benchmarked the exact code path against a synthetic
+2000-entry/30,000-event database and confirmed `get_all_findings`
+("All Entries" scope) took **137.15s**. Root cause:
+`get_scope_coverage_findings` looped over every Collection and, within
+each, every Card, calling functions that each independently reloaded
+and recomputed the *entire* database's evidence profiles from scratch
+(`_load_current_entry_metadata` + `load_eligible_evidence_events` + an
+O(entries) personal-baseline pass) -- all synchronously on the Qt UI
+thread. Root-cause fix: a new `EvidenceProfileCache`
+(`src/analytics.py`) computes that whole-database snapshot exactly
+*once* per Analytics pass and is threaded through every Collection/Card/
+Template read that used to reload it independently; re-benchmarked at
+**0.71s** (~193x), with `get_entry_evidence_profiles`'s no-cache default
+path deliberately kept at its original filter-then-compute shape so
+narrow single-call lookups elsewhere in the codebase see no regression.
+As defense-in-depth (per this corrective's own added requirement: "if
+Analytics legitimately requires noticeable computation time even after
+the performance work, do not leave the user looking at a frozen
+workspace"), the M14 read also moved off the Qt UI thread onto a
+background `QThread`, with a monotonic generation token guarding against
+a stale superseded load overwriting a newer one, and `AnalyticsView`
+gained a staged/determinate `QProgressBar` + status label loading state
+plus an actionable error state (Retry), built from existing theme/accent
+tokens (DESIGN.md § 12.4/§ 23) -- never a fabricated percentage.
+Independent review of this corrective pass found and fixed three more
+real defects: worker signals connected to lambdas rather than bound
+methods, which PySide6 cannot detect as cross-thread and so ran
+unsynchronized on the worker thread instead of being queued onto the Qt
+UI thread (undermining the stale-result guard itself); the cache
+refactor's first draft unconditionally built the whole-database cache
+even for callers that never asked for one (e.g. `src.statistics`'s
+per-Collection lookups), reintroducing the same class of unnecessary
+global recomputation on a different call path; and no shutdown hook
+meant closing the app mid-load could destroy a still-running `QThread`
+(fatal in Qt). A fourth defect -- a segfault in the test suite itself
+from not waiting for the background thread to fully stop before
+`tearDown` deleted the database -- was self-caught during
+re-verification and fixed in the test helper (now reused via the
+controller's own `shutdown()`). Full repository suite re-verified green
+at final head `50597e7` (762 tests; the same 5 pre-existing failures in
+`test_m18_review_calendar.py` -- confirmed present on the clean
+pre-corrective HEAD, a relative-date-window test-data flake unrelated to
+Analytics -- remain the only non-passing tests, out of scope for this
+corrective) and architecture audit clean (85 files, 0 violations).
+
+**Human Gate 2 correctives (`9439be7`, `8f57295`).** Native
+re-acceptance testing on the `50597e7` head found two further real
+defects, each fixed before re-presenting the gate: `9439be7` raised the
+Appearance/Quiz combo boxes' QSS `min-width` (200px -> 300px) after
+confirming by width-sweep that Qt's horizontal squeeze compressed their
+selected values to unreadable at a normal window size; `8f57295`
+superseded that per-control workaround with the actual root-cause fix
+(the Settings page had no vertical `QScrollArea`, so it could never
+grow taller than the window and would re-create the same squeeze for
+any future content growth) by wrapping the page in a native vertical
+`QScrollArea` (horizontal scrolling explicitly disabled, min-width
+reverted) and adding 3 focused regression tests (81/81 Settings/theme
+tests, clean architecture audit).
+
+**Human Gate 2 -- Analytics Product Acceptance is Human Accepted.**
+Native visual acceptance PASSED against final accepted head
+`8f572959f0239b3b866cb8af936c8c84e8f53170`.
+
+**Phase E -- Card Audio Export (`AudioExportController` +
+`AudioExportDialog`).** A fourth Data Tools hub action (DESIGN.md §
+7.4 "Audio Export configuration: B, `VR-UTILITY-001`"; § 12.5 "For Card
+Audio Export preserve M15.3"), built entirely on the existing
+`src.audio_export`/`src.audio_composition`/`src.tts_providers` M15
+core -- no SQL, no second export engine. Scope model: Single Card /
+Selected Cards / Whole Collection, matching `src.audio_export`'s
+existing `SCOPE_*` constants. Voice configuration is deliberately
+READ-ONLY: M15 froze provider/language routing
+(`src.tts_providers.FROZEN_PROVIDER_SPECS`) and the M18 contract § 5
+forbids reopening it without an actual blocker -- the workspace
+confirms the frozen per-language voice assignment rather than
+presenting a picker. Repetition mode/count and overwrite/skip conflict
+handling are the genuinely configurable half of `CompositionConfig` the
+roadmap names.
+
+Long-running work reuses Analytics' Human Gate 2 corrective shape
+exactly: a background `QThread`, a monotonic `_generation` guard
+discarding a superseded run's stale result, and worker signals
+connected to real bound methods (never a lambda) for correct
+cross-thread queuing. Cancellation is Card-atomic -- added to
+`execute_audio_export_plan` as a new `should_cancel` parameter and
+`cancelled` status: a Card already published stays published, every
+remaining Card comes back `cancelled`, and `build_retry_plan` treats
+`cancelled` the same as `failed`/`unresolved`, a normal retry target.
+
+An independent self-review pass before checkpointing (per the M18
+contract § 11) found and fixed a real defect: several controller
+setters (repetition mode/count, conflict policy, destination folder,
+Card selection) invalidated the built Plan but never emitted
+`state_changed`, so the Start button's stale enabled state and the
+consent checkbox's stale overwrite-warning text could survive a config
+change that had already invalidated them -- fixed by emitting
+`state_changed` from every one of them and resetting consent on every
+reload, the same "confirmation checkbox must require fresh
+acknowledgment for every state change" discipline Data Tools' Import
+Dialog corrective (`08012b1`) already established.
+
+Full-suite verification surfaced a second, unrelated pre-existing
+defect: `tests/test_m18_settings_storage.py`'s Human Gate 2 scroll-area
+regression test measured a QComboBox's "natural width" via `sizeHint()`
+before the widget was ever shown, intermittently under-reporting once
+enough other GUI tests ran earlier in the same `unittest discover`
+process -- confirmed deterministic under Phase E's larger suite, not a
+real Settings layout regression (the sibling scrollbar-orientation test
+in the same file passed throughout). Fixed by measuring post-show/
+post-layout instead of pre-show.
+
+Verified: 26/26 new focused tests (15 core `src.audio_export` tests
+including 2 new cancellation/retry-of-cancelled cases, 11 new desktop
+controller/dialog/QSS-structural-coverage tests), full repository suite
+green (778/778), clean architecture audit (87 files, 0 violations). This
+finishes the M18-scoped audio-export Streamlit disposition: no legacy
+Streamlit audio-export UI existed to migrate or retire (M15 closed only
+the reusable core), so this is the feature's first UI, the same
+position Linked Source was in at Phase C6.
+
+Milestone 18 management/data workflows, Phase D Analytics, and Phase E
+Card Audio Export are complete, and Human Gate 2 has passed. The
+remaining scope before Feature Freeze is Phase F -- Integrated M18 Exit
+Verification, closing toward Human Gate 3.
+
+**Phase F -- Integrated M18 Exit Verification (head `aa0ad72`).**
+Automated/engineering exit verification, per the M18 contract § 10
+Level C:
+
+- full repository suite green, 778/778, at head `aa0ad72`;
+- architecture audit clean, 87 files, 0 violations;
+- no schema/migration change in Phase E (`src/migrations.py` untouched;
+  `CURRENT_SCHEMA_VERSION`/`APP_DATA_VERSION` unchanged) -- existing
+  compatible SQLite databases remain a protected asset;
+- persistence parity: `execute_audio_export_plan` provably does not
+  mutate learning state or schema (`test_export_does_not_mutate_learning_state_or_schema`,
+  part of the 15/15 core `src.audio_export` suite);
+- restart/repeated-action evidence: `MainWindow` constructed and closed
+  3x, `AudioExportDialog` opened/closed 5x, and every `Workspace` (Today,
+  Entries, Collections, Templates, Review Calendar, Data Tools,
+  Analytics, Review, Quiz, Settings) cycled once through a real
+  `MainWindow` against a synthetic database with 0 errors -- an
+  integration-level check beyond the unit suite, exercising the same
+  navigation/controller wiring a real session uses;
+- long-running/cancellation/error-path evidence: Card Audio Export's
+  Card-atomic cancellation, retry-of-cancelled, and honest
+  provider-unavailable (`unresolved`) paths are exercised end-to-end
+  through the real `QThread` worker, not just the synchronous core
+  (`tests/test_m18_audio_export.py`'s `AudioExportControllerRunTests`);
+- Streamlit disposition audit: every M18-scoped legacy surface is
+  migrated, integrated/retired, explicitly deprecated, or documented out
+  of scope (Draft PR #29's disposition table, now including Card Audio
+  Export);
+- `DESIGN.md` adherence: every M18 surface built against its named
+  Coverage Matrix authority (§ 7.2-7.4) and Design Derivation Record
+  discipline (§ 9) where no CANONICAL pixel mockup exists;
+- lifecycle-document reconciliation: `ROADMAP.md`/`PROJECT_STATUS.md`
+  both current as of head `aa0ad72`; `docs/migration/DESKTOP_MIGRATION_PLAN.md`'s
+  § "Card Audio Export" requirements (Card/Collection selection, batch
+  selection, voice settings, repetition settings, output folder,
+  progress, cancellation, error recovery, overwrite handling, one file
+  per Card) are all satisfied by the implemented workflow;
+- privacy/repository-safety: clean `git status`, diff reviewed for
+  secrets/local paths/personal data before every commit and push (per
+  `AGENTS.md`'s GitHub Privacy Rule).
+
+No blocking defect was known at head `df78286`, and the milestone was
+called an EXIT CANDIDATE with Human Gate 3 READY.
+
+**Human Gate 3 -- Final M18 Native Acceptance FAILed.** Native
+acceptance testing against head `df78286` found a blocking defect in
+Card Audio Export: after configuring an export and building a Plan,
+every Card consistently showed unresolved ("0 of X Cards ready"), Start
+Export stayed disabled, and nothing explained why.
+
+Investigated with real production data rather than guessing:
+`VOCAB_APP_SHARED_TTS_DIR` is unset in this desktop process's
+environment (confirmed at User/Machine/Process scope via .NET
+`Environment.GetEnvironmentVariable`, all empty), so
+`ProviderRegistry.from_environment()` falls back to an
+all-languages-unavailable registry; no shared-runtime folder matching
+`build_shared_runtime_registry()`'s expected layout is discoverable
+anywhere on this machine (only the raw Kokoro-82M Hugging Face model
+cache and a populated `audio-cache` from an earlier session exist --
+evidence real synthesis worked once, but that runtime is not present
+now). Swept all 715 active Cards across every real Collection in the
+production database with a fake-but-realistic *available* provider:
+100% become `ready` with zero issues, conclusively ruling out
+required-field/speech-role validation as a contributing cause -- the
+entire blocker is provider availability, an environment prerequisite,
+not a defect in the Plan-building logic.
+
+**Corrective:** rather than enabling Start Export unconditionally,
+fixed the actual reported problem -- no actionable reason was visible.
+`AudioExportController.voice_assignment_rows()` now reports a live
+per-language preflight (not just static identity); the Voice Assignment
+panel gained a Status column; `src/tts_providers.py` gained a distinct
+`shared_tts_dir_not_configured` code/detail differentiating "no env var
+at all" from "runtime configured but broken", and
+`CommandSpeechProvider.preflight()`'s missing-asset message now names
+the actual missing path(s) (detail text only -- provider/language
+routing semantics are not reopened); the dialog gained a Plan Preview
+table showing every Card's own concrete, deduplicated reason instead of
+only the aggregate count, with partial-batch honesty preserved and
+tested (a ready Card shows no reason, a not-ready Card shows its own
+real issue, never silently treated as ready). 4 new focused regression
+tests, full repository suite green (782/782), architecture audit clean,
+independently self-reviewed before checkpointing.
+
+**Per explicit operator direction, this diagnostic corrective is
+sufficient for this defect; building a new shared TTS runtime is out of
+M18 scope.** Real end-to-end Card Audio Export WAV synthesis remains
+unverified on this machine and is recorded as an explicit Human Gate 3
+acceptance dependency. **Human Gate 3 has not been re-presented, and
+M18 is not currently an EXIT CANDIDATE.** Per the M18 contract § 18, the
+agent has not claimed Human Accepted or Complete, and must not merge to
+`main` without explicit human authorization.
+
 ### 18.1 Management Workflow Migration
 
 Port:
@@ -1409,6 +1839,59 @@ Provide:
 - Card audio export works end-to-end for supported languages.
 - Streamlit-exclusive functionality is either migrated, explicitly deprecated,
   or documented as out of scope.
+
+### Mandatory M19 / M20 Productization Handoff — Card Audio Export
+
+M18 proved the **Card Audio Export capability** end-to-end against a real
+retained M15 shared TTS runtime: frozen EN/FR/ZH provider preflights
+succeeded, real Cards became export-ready, real native export succeeded, and
+generated WAV files satisfied the canonical WAV contract.
+
+This does **not** mean a fresh public user can currently clone, download, or
+install Vocabulary App and receive working Audio Export out-of-the-box. The
+current product still depends on an externally available shared TTS runtime
+exposed through `VOCAB_APP_SHARED_TTS_DIR`. This environment contract is
+sufficient for M18 functional acceptance, but runtime discovery,
+configuration, provisioning, and distribution have not yet been productized
+for a clean end-user machine.
+
+**M19 — Desktop Product Hardening** must evaluate and harden at least:
+
+- shared TTS runtime discovery;
+- persistent application/runtime configuration;
+- behavior when the runtime is absent, incomplete, moved, or broken;
+- actionable provider-preflight and recovery UX;
+- first-run / Settings experience where appropriate;
+- elimination of any expectation that a normal end user manually sets a shell
+  environment variable merely to use Audio Export.
+
+M19 should determine the durable product-facing runtime configuration
+contract, but must not prematurely choose a packaging mechanism that
+properly belongs to M20.
+
+**M20 — Packaging and Release Candidate** must resolve how a clean external
+user's installation obtains a usable TTS runtime, models, voices, and
+required dependencies, explicitly evaluating:
+
+- bundle-with-installer vs. first-run/on-demand download vs. another
+  justified provisioning strategy;
+- installer/runtime location and application discovery;
+- package/download size;
+- Windows/runtime dependencies;
+- model/provider/voice redistribution and licensing constraints;
+- upgrade/uninstall behavior;
+- offline expectations;
+- clean-machine installation verification;
+- real Audio Export verification from an installation that does not inherit
+  the developer machine's pre-existing TTS environment.
+
+Release Candidate acceptance must not infer Audio Export deployability
+merely from the developer machine's retained M15 runtime; a clean-user
+installation must be verified independently.
+
+**Lifecycle distinction:** M18 closes *Audio Export capability*. M19/M20
+must close *Audio Export productization and deployability*. This is a
+forward productization concern, not an M18 acceptance blocker.
 
 ---
 

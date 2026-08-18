@@ -218,6 +218,14 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         border-radius: 4px;
         padding: 4px 10px;
     }}
+    QPushButton[destructive="true"]:hover:enabled {{
+        background-color: {semantic.danger_soft};
+    }}
+    QPushButton[destructive="true"]:disabled {{
+        color: {neutral.text_disabled};
+        background-color: {neutral.surface_secondary};
+        border: 1px solid {neutral.border_subtle};
+    }}
     #nav-rail {{
         background-color: {neutral.surface_secondary};
         border-right: 1px solid {neutral.border_default};
@@ -656,6 +664,16 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     QDialog QComboBox:disabled {{
         color: {neutral.text_disabled};
     }}
+    QDialog QSpinBox {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 4px 8px;
+    }}
+    QDialog QSpinBox:disabled {{
+        color: {neutral.text_disabled};
+    }}
     QDialog QPushButton {{
         background-color: {neutral.surface_secondary};
         color: {neutral.text_primary};
@@ -1034,7 +1052,21 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     }}
 
     /* Settings -- P8 Settings Form (DESIGN.md § 8), M17 Feature 3B bounded
-    vertical slice: Quiz presentation only. */
+    vertical slice: Quiz presentation only. Human Gate 2 corrective: the
+    page's content now lives inside a native vertical QScrollArea (never
+    horizontal -- `settings_view.py` disables the horizontal scrollbar and
+    relies on `setWidgetResizable(True)` for width-responsiveness) so
+    growing Settings/Storage content scrolls instead of compressing the
+    Appearance/Quiz combos; the transparent/borderless treatment below
+    mirrors the existing `#entries-editor-scroll` pattern so the scroll
+    area reads as part of the page, not a nested panel. */
+    QScrollArea#settings-scroll {{
+        background-color: transparent;
+        border: none;
+    }}
+    QScrollArea#settings-scroll > QWidget#qt_scrollarea_viewport {{
+        background-color: transparent;
+    }}
     QLabel#settings-page-title {{
         color: {neutral.text_primary};
         font-size: 20px;
@@ -1053,6 +1085,10 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     QLabel#settings-row-label {{
         color: {neutral.text_secondary};
         font-size: 14px;
+    }}
+    QLabel#settings-row-value {{
+        color: {neutral.text_muted};
+        font-size: 12px;
     }}
     QComboBox#settings-quiz-presentation-combo, QComboBox#settings-appearance-combo {{
         background-color: {neutral.surface_primary};
@@ -1412,6 +1448,20 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     QWidget#collections-list-divider {{
         background-color: {neutral.border_subtle};
     }}
+    QPushButton#collections-new-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        margin: 8px;
+        padding: 6px 12px;
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#collections-new-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
     QPushButton#collections-list-item {{
         background-color: transparent;
         border: none;
@@ -1473,6 +1523,23 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_disabled};
         border: 1px solid {neutral.border_subtle};
     }}
+    QPushButton#collections-edit-button,
+    QPushButton#collections-organize-button,
+    QPushButton#collections-linked-source-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 16px;
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#collections-edit-button:hover:enabled,
+    QPushButton#collections-organize-button:hover:enabled,
+    QPushButton#collections-linked-source-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
     QLabel#collections-cards-heading {{
         color: {neutral.text_secondary};
         font-size: 13px;
@@ -1500,6 +1567,19 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         font-size: 12px;
     }}
     QPushButton#collections-open-in-study-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QPushButton#collections-card-rename-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 4px 12px;
+        font-size: 12px;
+    }}
+    QPushButton#collections-card-rename-button:hover:enabled {{
         background-color: {accent.soft.background};
         color: {accent.soft.foreground};
         border: 1px solid {accent.border};
@@ -1551,6 +1631,560 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     }}
     QScrollArea#collections-card-scroll > QWidget#qt_scrollarea_viewport {{
         background-color: transparent;
+    }}
+
+    /* M18.1 Collection Manager + Card Organization dialogs. Every button
+    below lives inside a QDialog and would otherwise only get the generic
+    `QDialog QPushButton` treatment (module docstring above `QDialog {{`);
+    explicit rules restore the same primary/secondary/destructive action
+    hierarchy documented in collections_view.py's Design Derivation
+    Record rather than leaving every dialog action visually identical. */
+    QPushButton#collections-editor-save-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#collections-editor-save-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#collections-organize-move-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#collections-organize-move-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+
+    /* M18.1 Template Manager + Template Editor (templates_view.py Design
+    Derivation Record). Templates' "New Template" button lives directly in
+    the workspace (not a QDialog) and would otherwise be fully unstyled --
+    the same class of defect the M16.2 closure found for Today/Entries
+    navigation actions (module docstring above `QDialog {{`: an unstyled
+    widget under a global QApplication stylesheet silently loses its
+    QPalette-resolved foreground). Every Editor/Field-dialog action below
+    gets the same explicit primary/secondary/destructive treatment
+    Collections' equivalents just received, so no new M18 control is left
+    relying on generic/default Qt button painting. */
+    QLabel#templates-title {{
+        color: {neutral.text_primary};
+        font-size: 21px;
+        font-weight: 700;
+    }}
+    QPushButton#templates-new-button,
+    QPushButton#templates-open-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 16px;
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#templates-new-button:hover:enabled,
+    QPushButton#templates-open-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#templates-open-button:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QPushButton#templates-new-create-button,
+    QPushButton#templates-field-save-button,
+    QPushButton#templates-editor-save-button,
+    QPushButton#templates-editor-add-field-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#templates-new-create-button:hover:enabled,
+    QPushButton#templates-field-save-button:hover:enabled,
+    QPushButton#templates-editor-save-button:hover:enabled,
+    QPushButton#templates-editor-add-field-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#templates-editor-save-button:disabled,
+    QPushButton#templates-editor-add-field-button:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QPushButton#templates-editor-edit-field-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#templates-editor-edit-field-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QPushButton#templates-editor-edit-field-button:disabled {{
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QLabel#templates-editor-fields-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#templates-editor-system-notice {{
+        color: {neutral.text_muted};
+        font-style: italic;
+        font-size: 12px;
+    }}
+
+    /* M18 Phase C1 -- Review Calendar / Card History (P7 Evidence
+    Browser). Every control below lives directly in the workspace, not a
+    QDialog, so -- per the Human Gate 1 corrective lesson -- each needs
+    its own explicit rule rather than relying on any generic fallback. */
+    QLabel#review-calendar-title {{
+        color: {neutral.text_primary};
+        font-size: 21px;
+        font-weight: 700;
+    }}
+    QLabel#review-calendar-range-label {{
+        color: {neutral.text_muted};
+        font-size: 12px;
+    }}
+    QComboBox#review-calendar-range-combo {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 3px 8px;
+        font-size: 12px;
+    }}
+    QLabel#review-calendar-detail-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#review-calendar-detail-summary {{
+        color: {neutral.text_primary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#review-calendar-legacy-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#review-calendar-legacy-caption {{
+        color: {neutral.text_muted};
+        font-style: italic;
+        font-size: 12px;
+    }}
+
+    /* M18 Phase C3 -- Data Tools hub (P6 Utility Workflow). Title/
+    caption/action buttons live directly in the workspace, not a
+    QDialog, so each needs its own explicit rule (Human Gate 1 corrective
+    lesson); everything inside `_ImportDialog`/`_ExportDialog` inherits
+    the generic `QDialog` QLabel/QComboBox/QLineEdit/QSpinBox/QCheckBox/
+    QPushButton coverage already established, with primary-action
+    buttons given their own accent treatment for the same action-
+    hierarchy reason Templates' Save/Add Field buttons were. */
+    QLabel#data-tools-title {{
+        color: {neutral.text_primary};
+        font-size: 21px;
+        font-weight: 700;
+    }}
+    QLabel#data-tools-caption {{
+        color: {neutral.text_muted};
+        font-size: 13px;
+    }}
+    QPushButton#data-tools-import-button,
+    QPushButton#data-tools-export-button,
+    QPushButton#data-tools-template-definition-button,
+    QPushButton#data-tools-backup-button,
+    QPushButton#data-tools-audio-export-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 16px;
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#data-tools-import-button:hover:enabled,
+    QPushButton#data-tools-export-button:hover:enabled,
+    QPushButton#data-tools-template-definition-button:hover:enabled,
+    QPushButton#data-tools-backup-button:hover:enabled,
+    QPushButton#data-tools-audio-export-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#data-tools-preview-button,
+    QPushButton#data-tools-confirm-import-button,
+    QPushButton#data-tools-export-confirm-button,
+    QPushButton#data-tools-template-definition-export-button,
+    QPushButton#data-tools-template-definition-preview-button,
+    QPushButton#data-tools-template-definition-confirm-button,
+    QPushButton#data-tools-database-backup-button,
+    QPushButton#data-tools-workbook-backup-button,
+    QPushButton#data-tools-restore-preview-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#data-tools-preview-button:hover:enabled,
+    QPushButton#data-tools-confirm-import-button:hover:enabled,
+    QPushButton#data-tools-export-confirm-button:hover:enabled,
+    QPushButton#data-tools-template-definition-export-button:hover:enabled,
+    QPushButton#data-tools-template-definition-preview-button:hover:enabled,
+    QPushButton#data-tools-template-definition-confirm-button:hover:enabled,
+    QPushButton#data-tools-database-backup-button:hover:enabled,
+    QPushButton#data-tools-workbook-backup-button:hover:enabled,
+    QPushButton#data-tools-restore-preview-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#data-tools-confirm-import-button:disabled,
+    QPushButton#data-tools-template-definition-confirm-button:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QLabel#data-tools-preview-error {{
+        color: {danger.background};
+        font-size: 12px;
+    }}
+    QLabel#data-tools-summary-label {{
+        color: {neutral.text_primary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#data-tools-section-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#data-tools-restore-notice {{
+        color: {semantic.warning.background};
+        font-size: 12px;
+    }}
+
+    /* M18 Phase C6 -- Linked Source (P6, within Collection context).
+    Launched from Collections' detail-pane actions row
+    (collections-linked-source-button, already covered above); every
+    control below lives inside its own QDialog and inherits the generic
+    QDialog QLabel/QComboBox/QCheckBox/QPushButton coverage, with
+    primary-action buttons given their own accent treatment matching
+    every other M18 P6 dialog's Preview/Confirm actions. Unlink is
+    metadata-only (Collection/Entries are never touched by it), so it
+    gets the same neutral-outlined secondary treatment as
+    collections-open-in-study-button rather than the destructive-red
+    property reserved for actions that delete user content. */
+    QLabel#linked-source-status-label {{
+        color: {neutral.text_primary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#linked-source-choose-file-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#linked-source-choose-file-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QPushButton#linked-source-preview-button,
+    QPushButton#linked-source-confirm-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#linked-source-preview-button:hover:enabled,
+    QPushButton#linked-source-confirm-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#linked-source-confirm-button:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QPushButton#linked-source-unlink-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#linked-source-unlink-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+
+    /* M18 Phase D -- Analytics Landing (DESIGN.md § 6.5, CANONICAL,
+    `VR-ANALYTICS-001`) + Full Findings (§ 6.6, B "P4A"). Every control
+    below lives directly in the workspace (not a QDialog except the
+    Findings table/detail, which still get their own rules for the same
+    action-hierarchy consistency every other M18 dialog already
+    follows), so each needs explicit coverage per the Human Gate 1
+    corrective lesson. */
+    QLabel#analytics-title {{
+        color: {neutral.text_primary};
+        font-size: 21px;
+        font-weight: 700;
+    }}
+    QLabel#analytics-scope-label {{
+        color: {neutral.text_muted};
+        font-size: 12px;
+    }}
+    QComboBox#analytics-scope-combo {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 4px 10px;
+        font-size: 13px;
+        min-width: 180px;
+    }}
+    QLabel#analytics-brief-heading {{
+        color: {neutral.text_primary};
+        font-size: 16px;
+        font-weight: 700;
+    }}
+    QLabel#analytics-evidence-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#analytics-empty-state {{
+        color: {neutral.text_muted};
+        font-style: italic;
+        font-size: 13px;
+    }}
+    QPushButton#analytics-full-findings-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#analytics-full-findings-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QLabel#analytics-coverage-label {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+    }}
+    QLabel#analytics-coverage-value {{
+        color: {neutral.text_primary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+
+    /* Learning Brief cards: a restrained priority-colored left border
+    only -- never a filled color badge (§ 6.5 forbids a "rainbow
+    severity dashboard"). */
+    QWidget#analytics-brief-card {{
+        background-color: {neutral.surface_primary};
+        border: 1px solid {neutral.border_default};
+        border-left: 4px solid {neutral.border_default};
+        border-radius: {radius}px;
+    }}
+    QWidget#analytics-brief-card[priority="high"] {{
+        border-left: 4px solid {danger.background};
+    }}
+    QWidget#analytics-brief-card[priority="medium"] {{
+        border-left: 4px solid {semantic.warning.background};
+    }}
+    QWidget#analytics-brief-card[priority="low"] {{
+        border-left: 4px solid {neutral.border_default};
+    }}
+    QLabel#analytics-brief-priority {{
+        color: {neutral.text_secondary};
+        font-size: 11px;
+        font-weight: 700;
+    }}
+    QLabel#analytics-brief-finding {{
+        color: {neutral.text_primary};
+        font-size: 14px;
+        font-weight: 700;
+    }}
+    QLabel#analytics-brief-scope {{
+        color: {neutral.text_muted};
+        font-size: 12px;
+    }}
+    QLabel#analytics-brief-reason {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+    }}
+    QLabel#analytics-brief-action {{
+        color: {accent.primary.background};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+
+    /* Full Findings dialog (§ 6.6 P4A). */
+    QLabel#analytics-detail-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#analytics-detail-label {{
+        color: {neutral.text_primary};
+        font-size: 13px;
+    }}
+
+    /* Analytics long-running-work loading/error state (DESIGN.md § 12.4/
+    § 12.6; Human Gate 2 corrective). An outlined track with an
+    accent-filled chunk -- the same restrained, neutral treatment § 23's
+    "Loading: restrained, neutral" and "Progress: determinate where the
+    workflow supports meaningful progress" call for, built entirely from
+    existing tokens (no ad-hoc color) so it reads correctly in both
+    Appearances automatically. */
+    QProgressBar#analytics-progress-bar {{
+        background-color: {neutral.surface_sunken};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        min-height: 8px;
+        max-height: 8px;
+    }}
+    QProgressBar#analytics-progress-bar::chunk {{
+        background-color: {accent.primary.background};
+        border-radius: {radius}px;
+    }}
+    QLabel#analytics-status-label {{
+        color: {neutral.text_muted};
+        font-size: 12px;
+    }}
+    QWidget#analytics-error-row {{
+        background-color: {semantic.danger_soft};
+        border: 1px solid {danger.background};
+        border-radius: {radius}px;
+        padding: 8px 10px;
+    }}
+    QLabel#analytics-error-label {{
+        color: {danger.background};
+        font-size: 13px;
+    }}
+    QPushButton#analytics-retry-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 4px 14px;
+    }}
+    QPushButton#analytics-retry-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+
+    /* M18 Phase E -- Card Audio Export (DESIGN.md § 7.4 "Audio Export
+    configuration: B, VR-UTILITY-001"; § 12.5). Launched from Data Tools'
+    hub actions row (data-tools-audio-export-button, already covered by
+    the shared #data-tools-import-button family above); every control
+    below lives inside `_AudioExportDialog`'s own QDialog and inherits
+    the generic QDialog QLabel/QComboBox/QSpinBox/QCheckBox/QListWidget/
+    QPushButton coverage, with primary-action buttons given their own
+    accent treatment and progress/status styled after Analytics' Human
+    Gate 2 corrective precedent (`analytics-progress-bar`) -- the same
+    restrained, neutral long-running-work treatment, not a new one. */
+    QLabel#audio-export-caption {{
+        color: {neutral.text_muted};
+        font-size: 13px;
+    }}
+    QLabel#audio-export-section-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#audio-export-plan-error {{
+        color: {danger.background};
+        font-size: 12px;
+    }}
+    QLabel#audio-export-summary-label {{
+        color: {neutral.text_primary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#audio-export-choose-folder-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#audio-export-choose-folder-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QPushButton#audio-export-build-plan-button,
+    QPushButton#audio-export-start-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#audio-export-build-plan-button:hover:enabled,
+    QPushButton#audio-export-start-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#audio-export-start-button:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QPushButton#audio-export-cancel-button,
+    QPushButton#audio-export-retry-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+    }}
+    QPushButton#audio-export-cancel-button:hover:enabled,
+    QPushButton#audio-export-retry-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QProgressBar#audio-export-progress-bar {{
+        background-color: {neutral.surface_sunken};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        min-height: 8px;
+        max-height: 8px;
+    }}
+    QProgressBar#audio-export-progress-bar::chunk {{
+        background-color: {accent.primary.background};
+        border-radius: {radius}px;
+    }}
+    QLabel#audio-export-status-label {{
+        color: {neutral.text_muted};
+        font-size: 12px;
     }}
     """.strip()
 

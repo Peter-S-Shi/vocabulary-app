@@ -123,6 +123,10 @@ class AudioExportBatchResult:
     def unresolved_count(self) -> int:
         return self.count("unresolved")
 
+    @property
+    def cancelled_count(self) -> int:
+        return self.count("cancelled")
+
 
 @contextmanager
 def _connection(connection: Connection | None) -> Iterator[Connection]:
@@ -300,12 +304,28 @@ def execute_audio_export_plan(
     asset_store: AudioAssetStore | None = None,
     progress: Callable[[ExportProgressEvent], None] | None = None,
     before_publish: Callable[[Path, Path], None] | None = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> AudioExportBatchResult:
+    """``should_cancel`` is polled once per Card, before that Card's own
+    synthesis/publication begins -- never mid-Card. Cancellation is
+    therefore always Card-atomic: a Card already published stays
+    published (DESIGN.md § 12.5 partial success), and every remaining
+    Card is marked ``cancelled`` rather than left silently unattempted,
+    so a cancelled batch's own result honestly accounts for every
+    planned Card. ``build_retry_plan`` treats ``cancelled`` the same as
+    ``failed``/``unresolved`` -- a normal retry target, not a dead end.
+    """
     store = asset_store or AudioAssetStore()
     total = len(plan.items)
     _emit(progress, "batch_planned", 0, total, detail=plan.scope)
     results: list[AudioExportItemResult] = []
     for item in plan.items:
+        if should_cancel is not None and should_cancel():
+            results.append(AudioExportItemResult(
+                item, "cancelled", None, False, "export_cancelled", "Export was cancelled before this Card was processed."
+            ))
+            _emit(progress, "card_cancelled", len(results), total, item, "export_cancelled")
+            continue
         completed = len(results)
         _emit(progress, "card_started", completed, total, item)
         if not item.ready:
@@ -370,7 +390,7 @@ def build_retry_plan(
     providers: ProviderRegistry | None = None,
     refresh_unresolved: bool = True,
 ) -> AudioExportPlan:
-    targets = [item for item in prior.items if item.status in {"failed", "unresolved"}]
+    targets = [item for item in prior.items if item.status in {"failed", "unresolved", "cancelled"}]
     if not targets:
         return AudioExportPlan(
             SCOPE_SELECTED_CARDS, prior.plan.collection_id,
@@ -381,7 +401,7 @@ def build_retry_plan(
     retry_items: list[AudioExportItemPlan] = []
     retry_issues: list[ExportPlanIssue] = []
     for result in targets:
-        if result.status != "unresolved" or not refresh_unresolved:
+        if result.status not in {"unresolved", "cancelled"} or not refresh_unresolved:
             retry_items.append(result.plan)
             continue
         refreshed = plan_single_card_export(

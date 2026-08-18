@@ -13,13 +13,311 @@ Desktop-specific migration principles and workflow mapping are defined in
 ## Current Phase
 
 **Milestone 16 — Desktop Architecture and UI Design (Complete on `main`);
-Milestone 17 — Desktop Core Workflow Migration (Complete on `main`)**
+Milestone 17 — Desktop Core Workflow Migration (Complete on `main`);
+Milestone 18 — Desktop Management and Major Feature Completion (Human
+Gate 1, 2, and 3 all Human Accepted — M18 READY FOR MERGE, awaiting
+operator merge authorization)**
 
 ## Current Milestone
 
 **Milestone 16 Complete on `main`; Milestone 17 Complete on `main`
 (merged via PR #25). Milestone 18 — Desktop Management and Major Feature
-Completion has not started.**
+Completion has passed all three Human Gates**, developed under the M18
+Autonomous Execution Contract on branch
+`agent/m18-desktop-management-major-feature-completion` through Draft PR
+#29 (unmerged). Phases A through F (Human Gates 1, 2, and 3 all Human
+Accepted; Card Audio Export; integrated exit verification) are complete
+with no known blocking defect.
+
+**Human Gate 3 — Final M18 Native Acceptance: PASS (Human Accepted).**
+Final native acceptance initially FAILed (see "Human Gate 3 corrective"
+and "Human Gate 3 runtime recovery" below for the full record); a
+diagnostic corrective was applied, verified, and independently
+reviewed, and the retained M15 shared TTS runtime was then rediscovered
+on this machine, audited read-only against the exact paths
+`src/tts_providers.py` expects, bound temporarily via
+`VOCAB_APP_SHARED_TTS_DIR` for verification only, and used to run a
+real end-to-end Card Audio Export against the real production database
+-- 2 of 2 Cards ready, 2 of 2 exported successfully to valid canonical
+WAV files. The operator then independently launched the real desktop
+application with the retained runtime bound the same way, verified the
+real Card Audio Export happy path natively (legitimate Cards became
+ready, `Start Export` became available, export succeeded), and recorded
+**Human Gate 3 PASS**. **All three Human Gates are now Human Accepted
+and M18 is READY FOR MERGE.** The agent will not merge to `main`
+without explicit human authorization.
+
+**Human Gate 1 — Management Grammar Calibration is complete and Human
+Accepted.** Phase B implemented Collection Manager + Card Organization
+(`e78764e`) and Template Manager + Template Editor (`0f5ae60`, a new
+Templates workspace/rail destination), each delegating every read/write
+to the existing `src.collections`/`src.entry_templates` core the
+Streamlit Collections/Templates pages already use. Initial native visual
+acceptance at `781d2a4` **FAILed** on two findings: Light Mode rendered
+the new controls at effectively-invisible contrast (no explicit QSS
+coverage existed for any control this checkpoint added -- the same
+defect class M16.2's closure documented for Today/Entries navigation),
+and existing Custom Templates had no discoverable entry point besides an
+undocumented double-click gesture. Two corrective passes followed
+(`5b3757c` root-cause QSS fix + discoverable "Open Template" action;
+`283ab6f` a Templates-table selection-by-id integrity fix an independent
+review of pass 1 found). **Native human visual acceptance PASSED
+2026-08-17 against final accepted head
+`283ab6f9298a7f64d2d311ffc11c01b2a186d2cf`.** See `ROADMAP.md` §
+Milestone 18 for the full operating model and per-checkpoint acceptance
+record.
+
+**Phase C — Remaining Management/Data Workflows + Linked Source is also
+complete.** Six checkpoints (Review Calendar / Card History; Settings
+storage information; Data Tools Import/Export; Template Definition CSV
+import/export; Backup / Restore Preview; Linked Source, the last
+feature's first UI since M13 closed only its reusable core), each
+independently reviewed and corrected before the next began -- see
+`ROADMAP.md` § Milestone 18 for the full per-checkpoint record and the
+Streamlit disposition table. Verified: full repository suite 723/723 at
+final head `dc5401f461e8bef20f971910c40db587abd74144`; architecture
+audit 83 files, 0 violations.
+
+**Phase D — Analytics is also complete.** The Analytics Landing
+workspace ("Learning Brief First", DESIGN.md § 6.5 CANONICAL
+`VR-ANALYTICS-001`) and the Full Findings drill-down (§ 6.6
+`VR-ANALYTICS-002`) (`c8e4f40`, corrected at `9b2b2c1`), built entirely
+on the existing `src.insights`/`src.analytics` M14 core with no invented
+scores or thresholds. This flips "analytics" -- the last disabled
+Navigation Rail placeholder -- to enabled, so every destination in the
+approved product IA (DESIGN.md § 4.1) now has a real workspace, and
+finishes the M18-scoped `statistics_page.py`/`dashboard_page.py`
+Streamlit disposition. Independent review found and fixed four real
+issues before the first Human Gate 2 attempt (a misleading "Suggested:
+None" label, scope labels that lost Collection/Template identity, an
+unwired "show every current Entry" toggle, and a redundant double
+reload).
+
+**Human Gate 2 initially FAILed**: on a real production database,
+opening Analytics made the app "Not Responding" (benchmarked root
+cause: 137s in `get_all_findings`, from independently reloading and
+recomputing the whole database's evidence profiles once per Collection
+and again once per Card). Corrective pass `50597e7` fixed the root
+cause with a shared `EvidenceProfileCache` (re-benchmarked at 0.71s,
+~193x) and added a background `QThread` with staged progress/error UI
+and stale-result guarding as defense-in-depth; independent review of
+that pass found and fixed three more real defects (a cross-thread
+signal race, a narrow-filter cache regression on an unrelated call
+path, and a QThread shutdown-safety gap), and a fourth (a test-harness
+segfault) was self-caught during re-verification. Full repository suite
+re-verified green at `50597e7` (the same 5 pre-existing, unrelated
+`test_m18_review_calendar.py` failures confirmed present on the clean
+pre-corrective HEAD remain, out of scope for this corrective) and
+architecture audit clean -- see `ROADMAP.md` § Milestone 18 for the
+full record. Two further HG2-corrective passes followed real native
+re-acceptance testing on a real production database: `9439be7`
+(Appearance/Quiz combo boxes horizontally compressed/clipped at a
+normal window size -- QSS `min-width` bump) and `8f57295` (root-cause
+fix superseding it: the Settings page had no vertical `QScrollArea`, so
+it could not grow taller than the window and re-created the same
+squeeze whenever content grew -- wrapped in a native vertical
+`QScrollArea`, horizontal scrolling explicitly disabled, 3 new focused
+regression tests). **Human Gate 2 — Analytics Product Acceptance is
+Human Accepted**, native visual acceptance PASSED against final
+accepted head `8f572959f0239b3b866cb8af936c8c84e8f53170`. See
+`ROADMAP.md` § Milestone 18 for the full per-checkpoint record.
+
+**Phase E — Card Audio Export is also complete.** The desktop Card
+Audio Export workflow (`AudioExportController` +
+`AudioExportDialog`, DESIGN.md § 7.4 "Audio Export configuration: B,
+`VR-UTILITY-001`") is a fourth Data Tools hub action, built entirely on
+the existing `src.audio_export`/`src.audio_composition`/
+`src.tts_providers` M15 core (no SQL, no second export engine). Scope:
+Single Card / Selected Cards / Whole Collection (`src.audio_export`'s
+existing scope model); voice configuration is deliberately READ-ONLY --
+M15 froze provider/language routing and the M18 contract forbids
+reopening it without an actual blocker, so this workspace confirms the
+frozen per-language voice assignment rather than inventing a picker;
+repetition mode/count and overwrite/skip conflict handling are the
+genuinely configurable surface the roadmap names. Long-running work
+follows Analytics' Human Gate 2 corrective precedent exactly: a
+background `QThread`, a monotonic generation guard discarding a
+superseded run's stale result, and worker signals connected to real
+bound methods (never a lambda) for correct cross-thread queuing.
+Cancellation is Card-atomic, added to `execute_audio_export_plan` as a
+new `should_cancel` parameter and `cancelled` status (`src/audio_export.py`):
+a Card already published stays published, every remaining Card comes
+back `cancelled`, and `build_retry_plan` treats `cancelled` the same as
+`failed`/`unresolved` -- a normal retry target. An independent
+self-review pass (module docstring discipline) before checkpointing
+found and fixed a real defect: several controller setters
+(repetition/conflict/destination/card-selection) invalidated the built
+Plan but never emitted `state_changed`, so the Start button's enabled
+state and the consent checkbox's overwrite-warning text could go stale
+after a config change -- fixed by emitting `state_changed` from every
+one of them and resetting consent on every reload, the same
+"confirmation checkbox must require fresh acknowledgment for every
+state change" discipline Data Tools' Import Dialog corrective already
+established. Full-suite verification also surfaced a second, unrelated
+pre-existing defect: `tests/test_m18_settings_storage.py`'s Human Gate 2
+scroll-area regression test measured a QComboBox's "natural width" via
+`sizeHint()` before the widget was ever shown, which could intermittently
+under-report once enough other GUI tests had run earlier in the same
+`unittest discover` process and shifted global style/font-metric caching
+state -- confirmed deterministic under the larger Phase E suite, not a
+one-off flake, and not a real Settings layout regression (the sibling
+scrollbar-orientation test in the same file passed throughout). Fixed by
+measuring the natural width post-show/post-layout instead of pre-show,
+the same way the test already measures the narrow-window width it
+compares against.
+
+Verified: 26/26 new focused tests (15 core `src.audio_export`
+including 2 new cancellation/retry-of-cancelled tests, 11 new desktop
+controller/dialog/QSS-coverage tests), full repository suite green
+(778/778), and a clean architecture audit (87 files, 0 violations). This
+finishes the M18-scoped audio-export Streamlit disposition (no legacy
+audio-export UI existed to migrate or retire -- M15 closed only the
+reusable core).
+
+**Phase F — Integrated M18 Exit Verification** was completed at head
+`aa0ad72`/`df78286`: full repository suite green (778/778), architecture
+audit clean (87 files, 0 violations), no schema/migration change since
+Human Gate 2, persistence-parity and Card-atomic cancellation/retry
+evidence confirmed end-to-end through the real background `QThread`,
+every `Workspace` cycled through a real `MainWindow` with 0 errors, the
+Streamlit disposition table fully closed, and `docs/migration/DESKTOP_MIGRATION_PLAN.md`'s
+Card Audio Export requirements all satisfied. See `ROADMAP.md` §
+Milestone 18's Phase F entry for the full itemized record.
+
+### Human Gate 3 corrective (Card Audio Export "0 of X ready" blocker)
+
+**Human Gate 3 — Final M18 Native Acceptance FAILed.** Native
+acceptance testing against head `df78286` found a blocking defect:
+after configuring Card Audio Export and building a Plan, every Card
+consistently showed unresolved ("0 of X Cards ready to export"), with
+Start Export disabled and no visible explanation.
+
+Investigated with real production data rather than guessing, per the
+review's own instructions:
+
+- `VOCAB_APP_SHARED_TTS_DIR` is unset in this desktop process's
+  environment (confirmed via .NET `Environment.GetEnvironmentVariable`
+  at User/Machine/Process scope, all empty) -- `ProviderRegistry.
+  from_environment()` therefore falls back to an all-languages
+  "unavailable" registry, and every Card's speech plan carries a
+  `provider_unavailable`-class issue regardless of its content.
+- No `kokoro`/`sherpa-onnx`/shared-runtime folder matching
+  `build_shared_runtime_registry()`'s expected layout exists anywhere
+  discoverable on this machine (a bounded search of the user profile and
+  local drives found only the raw Kokoro-82M Hugging Face model cache
+  and a populated `audio-cache` from an earlier session -- evidence real
+  synthesis worked at some point, but the runtime that produced it is
+  not present now).
+- Swept all 715 active Cards across every real Collection in the
+  production database (`data/vocab.db`) with a fake-but-realistic
+  *available* provider: **100% become `ready` with zero issues.** No
+  Card anywhere has a required-field/speech-role validation problem --
+  the entire blocker is provider availability, not plan-building logic.
+
+**Root cause: this machine's desktop process has no shared TTS runtime
+configured** -- an environment prerequisite, not a code defect in the
+Plan-building logic, which was proven correct against real data.
+
+**Corrective (`555a47b`):** rather than enabling Start Export
+unconditionally, fixed the actual reported problem -- the total absence
+of an actionable reason:
+
+- `AudioExportController.voice_assignment_rows()` now reports a live
+  per-language preflight (`ProviderRegistry.from_environment().
+  preflight()`), not just static provider/voice identity; the dialog's
+  Voice Assignment panel gained a Status column showing e.g.
+  "Unavailable — VOCAB_APP_SHARED_TTS_DIR is not set for this process."
+  before the user ever builds a Plan.
+- `src/tts_providers.py` gained a distinct
+  `shared_tts_dir_not_configured` code/detail for the "no env var at
+  all" case (previously indistinguishable from a configured-but-broken
+  runtime), and `CommandSpeechProvider.preflight()`'s missing-asset
+  message now names the actual missing path(s) -- same failure
+  code/boolean as before, detail text only, so provider/language
+  routing semantics are not reopened.
+- The dialog gained a Plan Preview table showing every Card's own
+  concrete reason (grouped by distinct issue code+detail, deduplicated
+  across fields) instead of only the aggregate "0 of X ready" count.
+  Partial-batch honesty is preserved and tested: a ready Card shows
+  "Ready" with no reason, a not-ready Card shows its own real issue,
+  never silently treated as ready.
+- 4 new focused regression tests (live preflight status, unavailable
+  detail text, per-Card plan-diagnostic rendering, and mixed-availability
+  partial-batch honesty) plus the existing 15 core `src.audio_export` /
+  11 desktop tests, all green (782/782 full repository suite),
+  architecture audit clean.
+- Independently self-reviewed before checkpointing: verified no test
+  asserted on the exact provider-unavailable detail strings this
+  corrective changed, confirmed the live preflight call is cheap in the
+  common (unconfigured) case (no subprocess spawn), and confirmed
+  `UnavailableSpeechProvider`'s new optional `detail` parameter is
+  backward-compatible (default unchanged) with its only two callers.
+
+**Per explicit operator direction, this diagnostic corrective is
+sufficient for this defect; building a new shared TTS runtime is out of
+scope for this corrective.** Real end-to-end Card Audio Export WAV
+synthesis remains **unverified** on this machine and is recorded as an
+explicit Human Gate 3 acceptance dependency: **Human Gate 3 has not been
+re-presented, and M18 is not currently an EXIT CANDIDATE.** Human Gate 3
+should be re-attempted once a `VOCAB_APP_SHARED_TTS_DIR` runtime is
+available to verify against, or the operator otherwise instructs
+resumption.
+
+### Human Gate 3 runtime recovery (`VOCAB_APP_SHARED_TTS_DIR` resolved)
+
+The retained M15 shared TTS runtime was rediscovered on this machine
+(its own `README.md` self-identifies it as the shared,
+project-independent runtime home created from Vocabulary App's M15.0
+provider-selection audition). A read-only audit against
+`src/tts_providers.py`'s exact
+`build_shared_runtime_registry()` path expectations confirmed every
+required asset is structurally intact and unmodified since M15 closure:
+`venv\Scripts\python.exe` (Python 3.11 venv with `kokoro`, `sherpa_onnx`,
+`numpy`, `soundfile`, `torch` installed), `kokoro\synth.py`,
+`sherpa-onnx\synth.py` plus its `voices\vits-piper-fr_FR-siwis-medium\`
+model directory. The repo-side `scripts\tts_yaoyao.ps1` adapter (used
+directly, not sourced from the shared runtime) was already present and
+unchanged. **No code defect existed** -- the only missing piece was the
+environment binding itself.
+
+With `VOCAB_APP_SHARED_TTS_DIR` pointed at the rediscovered runtime for
+the verification process only (no permanent User/Machine change made):
+
+- live preflight succeeded for all three frozen routes: `en`
+  (Kokoro/af_heart), `fr` (sherpa-onnx/fr_FR-siwis-medium), `zh-CN`
+  (Windows OneCore Yaoyao via WinRT);
+- a real Audio Export Plan built against the real production database
+  (`trial collection`, id 12, 2 active Cards) showed **2 of 2 Cards
+  ready**, replacing the previous "0 of X ready" state;
+- `execute_audio_export_plan()` ran a real small end-to-end export of
+  both Cards: **2 succeeded, 0 failed, 0 unresolved**, producing real
+  multi-unit-composed WAV files (37.12s and 51.73s), both verified
+  against the app's canonical-WAV contract (`validate_canonical_wav()`);
+  test artifacts were removed after verification.
+
+**Human Gate 3's remaining acceptance dependency (a real, available
+`VOCAB_APP_SHARED_TTS_DIR` runtime) is resolved on this machine.** No
+repository code changed as part of this recovery. The temporary env
+binding is process-scoped only; a permanent User/Machine
+`VOCAB_APP_SHARED_TTS_DIR` value has **not** been set and is
+left for the operator to configure (or re-bind per-session) as needed.
+This resolved the runtime dependency and made Human Gate 3 READY for
+native human acceptance (see "Human Gate 3 — Final PASS" below for the
+operator's authoritative acceptance decision).
+
+### Human Gate 3 — Final PASS (Human Accepted)
+
+The operator independently launched the real desktop application with
+the retained M15 shared TTS runtime temporarily bound through
+`VOCAB_APP_SHARED_TTS_DIR` and verified the real Card Audio Export
+happy path in native use: legitimate Cards became ready, `Start Export`
+became available, and the real Audio Export workflow operated
+successfully end to end. The operator recorded **Human Gate 3 PASS**.
+This is the authoritative Human Gate 3 decision.
+
+**Human Gate 1, Human Gate 2, and Human Gate 3 are all Human Accepted.
+M18's product-acceptance exit criteria are satisfied. M18 is READY FOR
+MERGE, pending explicit operator merge authorization into `main`.**
 
 M16.0 Desktop UI Design Baseline is complete and frozen: [DESIGN.md](DESIGN.md)
 records the approved desktop information architecture, theme architecture, and

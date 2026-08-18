@@ -3,19 +3,35 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QCheckBox,
     QComboBox,
+    QDialog,
+    QFormLayout,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPlainTextEdit,
     QPushButton,
     QScrollArea,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
-from src.collections import CARD_PAGE_SIZE_OPTIONS
+from src.collections import (
+    CARD_PAGE_SIZE_OPTIONS,
+    COLLECTION_DELETE_CONFIRMATION,
+    COLLECTION_DELETE_WARNING,
+    CROSS_CARD_CONFIRMATION_MESSAGE,
+    CrossCardMoveConfirmationRequired,
+)
 from src.ui_desktop.controllers.collections_controller import CollectionsController
+from src.ui_desktop.controllers.linked_source_controller import LinkedSourceController
 from src.ui_desktop.state.handoff import EntriesScopeIntent, StudyTargetIntent
 from src.ui_desktop.theming.metrics import SPACING
+from src.ui_desktop.views.linked_source_view import LinkedSourceDialog
 
 """
 Collections Navigator / Collection Context -- Minimum M17 Collection
@@ -70,6 +86,81 @@ sits above a `QScrollArea` holding only the current page's Card rows --
 through the new paged core query, so opening a Collection with thousands
 of Entries never constructs a widget (or reads an Entry row) for every
 Card up front.
+
+---
+
+M18.1 Collection Manager + Card Organization -- Design Derivation Record
+(DESIGN.md § 7.3 "Collection Manager: B, P2 Table-First Manager" /
+"Card Organization Workspace: B, P2 + P5"; § 9, since the exact local
+composition is not fully obvious from the parent patterns alone):
+
+  1. Interaction Mode        -> Management.
+  2. Parent Pattern          -> P2 (this workspace, unchanged) + P5 Focused
+                                 Editor for Collection create/edit + P6
+                                 Utility/Dialog for destructive delete and
+                                 Card Organization's remove/move actions.
+  3. Primary User Task       -> create/rename/edit/delete a Collection;
+                                 rename a Card; remove or reposition
+                                 Entries within a Collection.
+  4. Spatial Composition     -> unchanged Management Rail -> selector pane
+                                 -> detail pane, now with a "New
+                                 Collection" action atop the selector pane
+                                 and "Edit"/"Delete"/"Organize Entries"
+                                 actions plus a per-Card "Rename" action in
+                                 the existing read-only detail composition.
+  5. Dominance Rule          -> unchanged: selector pane drives the
+                                 surface; new editors are bounded P5/P6
+                                 dialogs that never permanently distort
+                                 this Table-First Manager.
+  6. Density Rule            -> inherits existing Management Mode density
+                                 (matches Entries' `_EntryEditorDialog`).
+  7. Surface Hierarchy       -> unchanged detail/selector surface roles;
+                                 dialogs use the same `surface_primary`
+                                 modal treatment as Entries' editor.
+  8. Action Hierarchy        -> primary = New Collection / Edit / Organize
+                                 Entries (accent-primary, matching Entries'
+                                 Add/Edit treatment); destructive = Delete
+                                 Collection and Remove Entries (P6
+                                 destructive confirmation); secondary =
+                                 Rename Card, Move Entry.
+  9. Editing Container       -> Collection create/edit = P5 modal
+                                 (`_CollectionEditorDialog`, three bounded
+                                 fields, Save/Cancel) per DESIGN.md § 10
+                                 "focused multi-field edit -> modal"; Card
+                                 rename = inline `QInputDialog.getText`
+                                 (tiny, local, low-risk -> inline), the
+                                 same grammar EXIT-BUG-001's Custom Entry
+                                 Type prompt already established; Card
+                                 Organization (remove/move Entries) = one
+                                 bounded P6 dialog
+                                 (`_CardOrganizationDialog`) so list/
+                                 selection context stays visible while
+                                 acting, rather than a second full
+                                 workspace window.
+ 10. Navigation/Chrome       -> unchanged Management shell; dialogs are
+                                 modal overlays, no chrome swap.
+ 11. Motion/Transition       -> unchanged; no new motion behavior.
+ 12. Canonical Visual Rel.   -> `_CollectionEditorDialog` inherits
+                                 `_EntryEditorDialog`'s P5 grammar
+                                 (scrollable body, pinned error label +
+                                 Save/Cancel footer); delete/remove
+                                 confirmations reuse Entries'
+                                 `QMessageBox.question` destructive
+                                 grammar, extended with the typed-name +
+                                 checkbox safety gate the existing
+                                 Streamlit Collections page already
+                                 established for this specific
+                                 higher-consequence action (deleting a
+                                 Collection also deletes its Card/Review/
+                                 Quiz history, unlike deleting an Entry).
+ 13. Native Human Acceptance -> the real native Collections workspace
+                                 showing New Collection creation, Edit
+                                 (including a card-size change that
+                                 triggers the Cross-Card confirmation),
+                                 Delete (typed-name gate), Card rename, and
+                                 Card Organization (remove with Cross-Card
+                                 confirmation, move with Cross-Card
+                                 confirmation) in Light and Dark Mode.
 """
 
 LIST_PANE_WIDTH = 240
@@ -93,10 +184,21 @@ class CollectionsView(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
+        list_column = QWidget(self)
+        list_column_layout = QVBoxLayout(list_column)
+        list_column_layout.setContentsMargins(0, 0, 0, 0)
+        list_column_layout.setSpacing(0)
+        list_column.setFixedWidth(LIST_PANE_WIDTH)
+
+        new_collection_button = QPushButton("New Collection", list_column)
+        new_collection_button.setObjectName("collections-new-button")
+        new_collection_button.clicked.connect(self._on_new_collection)
+        list_column_layout.addWidget(new_collection_button)
+
         self._list_pane = _CollectionsListPane(self)
-        self._list_pane.setFixedWidth(LIST_PANE_WIDTH)
         self._list_pane.item_selected.connect(self._on_item_selected)
-        root.addWidget(self._list_pane, 0)
+        list_column_layout.addWidget(self._list_pane, 1)
+        root.addWidget(list_column, 0)
 
         main = QWidget(self)
         main.setObjectName("collections-main-workspace")
@@ -132,6 +234,37 @@ class CollectionsView(QWidget):
 
     def _on_item_selected(self, collection_id: int, is_system: bool) -> None:
         self._controller.select_collection(collection_id, is_system=is_system)
+
+    def _on_new_collection(self) -> None:
+        dialog = _CollectionEditorDialog(self._controller, collection=None, parent=self)
+        dialog.exec()
+
+    def _on_edit_collection(self, collection: dict) -> None:
+        dialog = _CollectionEditorDialog(self._controller, collection=collection, parent=self)
+        dialog.exec()
+
+    def _on_delete_collection(self, collection: dict) -> None:
+        dialog = _DeleteCollectionDialog(self._controller, collection, parent=self)
+        dialog.exec()
+
+    def _on_organize_entries(self, collection: dict) -> None:
+        dialog = _CardOrganizationDialog(self._controller, collection, parent=self)
+        dialog.exec()
+
+    def _on_linked_source(self, collection: dict) -> None:
+        linked_source_controller = LinkedSourceController()
+        linked_source_controller.open_for_collection(int(collection["id"]), str(collection.get("name") or ""))
+        dialog = LinkedSourceDialog(linked_source_controller, parent=self)
+        dialog.exec()
+
+    def _on_rename_card(self, card_number: int, current_name: str) -> None:
+        text, confirmed = QInputDialog.getText(self, "Rename Card", "Card name:", text=current_name)
+        if not confirmed:
+            return
+        try:
+            self._controller.rename_selected_card(card_number, text.strip())
+        except ValueError as error:
+            QMessageBox.warning(self, "Rename Card", str(error))
 
     def _on_selection_changed(self) -> None:
         self._render_detail()
@@ -200,12 +333,41 @@ class CollectionsView(QWidget):
         meta.setObjectName("collections-detail-meta")
         self._detail_layout.addWidget(meta)
 
-        open_entries_button = QPushButton("Open Entries", self._detail_container)
+        actions_row = QWidget(self._detail_container)
+        actions_layout = QHBoxLayout(actions_row)
+        actions_layout.setContentsMargins(0, 0, 0, 0)
+        actions_layout.setSpacing(SPACING.sm)
+
+        open_entries_button = QPushButton("Open Entries", actions_row)
         open_entries_button.setObjectName("collections-open-entries-button")
         open_entries_button.clicked.connect(
             lambda: self.open_entries_requested.emit(EntriesScopeIntent(scope=f"collection:{collection_id}"))
         )
-        self._detail_layout.addWidget(open_entries_button, 0)
+        actions_layout.addWidget(open_entries_button, 0)
+
+        edit_button = QPushButton("Edit", actions_row)
+        edit_button.setObjectName("collections-edit-button")
+        edit_button.clicked.connect(lambda: self._on_edit_collection(collection))
+        actions_layout.addWidget(edit_button, 0)
+
+        organize_button = QPushButton("Organize Entries", actions_row)
+        organize_button.setObjectName("collections-organize-button")
+        organize_button.clicked.connect(lambda: self._on_organize_entries(collection))
+        actions_layout.addWidget(organize_button, 0)
+
+        linked_source_button = QPushButton("Linked Source…", actions_row)
+        linked_source_button.setObjectName("collections-linked-source-button")
+        linked_source_button.clicked.connect(lambda: self._on_linked_source(collection))
+        actions_layout.addWidget(linked_source_button, 0)
+
+        delete_button = QPushButton("Delete", actions_row)
+        delete_button.setObjectName("collections-delete-button")
+        delete_button.setProperty("destructive", "true")
+        delete_button.clicked.connect(lambda: self._on_delete_collection(collection))
+        actions_layout.addWidget(delete_button, 0)
+
+        actions_layout.addStretch(1)
+        self._detail_layout.addWidget(actions_row)
 
         cards_heading = QLabel("Cards", self._detail_container)
         cards_heading.setObjectName("collections-cards-heading")
@@ -312,6 +474,11 @@ class CollectionsView(QWidget):
         count_label.setObjectName("collections-card-count")
         layout.addWidget(count_label, 0)
 
+        rename_button = QPushButton("Rename", row)
+        rename_button.setObjectName("collections-card-rename-button")
+        rename_button.clicked.connect(lambda: self._on_rename_card(card_number, card_name))
+        layout.addWidget(rename_button, 0)
+
         open_in_study_button = QPushButton("Open in Study", row)
         open_in_study_button.setObjectName("collections-open-in-study-button")
         open_in_study_button.clicked.connect(
@@ -381,6 +548,301 @@ class _CollectionsListPane(QWidget):
         self._group.addButton(button)
         self._buttons[collection_id] = button
         self._layout.addWidget(button)
+
+
+class _CollectionEditorDialog(QDialog):
+    """P5 Focused Editor for Collection create/edit (DESIGN.md § 10:
+    "focused multi-field edit with clear Save/Cancel and moderate
+    complexity -> modal / focused dialog"), inheriting Entries'
+    ``_EntryEditorDialog`` grammar: a pinned error label plus Save/Cancel
+    footer. ``collection is None`` means create; otherwise edit the
+    currently selected Collection. A card-size change large enough to
+    reorganize Cards raises ``CrossCardMoveConfirmationRequired``, handled
+    with the same confirm-and-retry ``QMessageBox`` pattern Entries uses
+    for its own cross-Card operations."""
+
+    def __init__(self, controller: CollectionsController, collection: dict | None, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("collections-editor-dialog")
+        self.setWindowTitle("New Collection" if collection is None else "Edit Collection")
+        self.setMinimumWidth(420)
+
+        self._controller = controller
+        self._collection = collection
+
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+
+        self._name_input = QLineEdit(self)
+        self._name_input.setText(str(collection.get("name") or "") if collection else "")
+        form.addRow("Name", self._name_input)
+
+        self._description_input = QPlainTextEdit(self)
+        self._description_input.setPlainText(str(collection.get("description") or "") if collection else "")
+        self._description_input.setFixedHeight(80)
+        form.addRow("Description", self._description_input)
+
+        self._card_size_input = QSpinBox(self)
+        self._card_size_input.setRange(1, 1000)
+        self._card_size_input.setValue(int(collection.get("card_size") or 8) if collection else 8)
+        self._card_size_input.setToolTip(
+            "Recommended default: 8 entries per card. Choose a smaller number "
+            "for heavier materials such as French conjugations."
+        )
+        form.addRow("Card size", self._card_size_input)
+
+        layout.addLayout(form)
+
+        self._error_label = QLabel("", self)
+        self._error_label.setObjectName("collections-editor-error")
+        self._error_label.setWordWrap(True)
+        layout.addWidget(self._error_label)
+
+        buttons = QHBoxLayout()
+        cancel_button = QPushButton("Cancel", self)
+        cancel_button.clicked.connect(self.reject)
+        buttons.addWidget(cancel_button)
+        buttons.addStretch(1)
+        save_button = QPushButton("Save", self)
+        save_button.setObjectName("collections-editor-save-button")
+        save_button.clicked.connect(lambda: self._save(confirm_cross_card=False))
+        buttons.addWidget(save_button)
+        layout.addLayout(buttons)
+
+    def _save(self, *, confirm_cross_card: bool) -> None:
+        self._error_label.setText("")
+        name = self._name_input.text()
+        description = self._description_input.toPlainText()
+        card_size = self._card_size_input.value()
+        try:
+            if self._collection is None:
+                self._controller.create_new_collection(name, description, card_size)
+            else:
+                self._controller.update_selected_collection(
+                    name, description, card_size, confirm_cross_card=confirm_cross_card
+                )
+        except CrossCardMoveConfirmationRequired:
+            if _confirm_cross_card(self):
+                self._save(confirm_cross_card=True)
+            return
+        except ValueError as error:
+            self._error_label.setText(str(error))
+            return
+        self.accept()
+
+
+class _DeleteCollectionDialog(QDialog):
+    """P6 destructive confirmation (DESIGN.md § 8 P6). Deleting a
+    Collection is more consequential than deleting an Entry -- it also
+    deletes Card identity/revision history, legacy Review history, and
+    Quiz sessions/logs (Entries themselves are kept) -- so this reuses the
+    exact typed-name + checkbox safety gate the Streamlit Collections page
+    already established (``COLLECTION_DELETE_WARNING`` /
+    ``COLLECTION_DELETE_CONFIRMATION``) rather than a plain
+    ``QMessageBox.question``, which has no room for a typed-name field."""
+
+    def __init__(self, controller: CollectionsController, collection: dict, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("collections-delete-dialog")
+        self.setWindowTitle("Delete Collection")
+        self.setMinimumWidth(420)
+
+        self._controller = controller
+        self._collection_name = str(collection.get("name") or "")
+
+        layout = QVBoxLayout(self)
+
+        warning = QLabel(COLLECTION_DELETE_WARNING, self)
+        warning.setWordWrap(True)
+        layout.addWidget(warning)
+
+        name_label = QLabel(f"Type the Collection name to confirm: {self._collection_name}", self)
+        name_label.setWordWrap(True)
+        layout.addWidget(name_label)
+
+        self._name_input = QLineEdit(self)
+        self._name_input.textChanged.connect(self._update_delete_enabled)
+        layout.addWidget(self._name_input)
+
+        self._confirm_checkbox = QCheckBox(COLLECTION_DELETE_CONFIRMATION, self)
+        self._confirm_checkbox.setObjectName("collections-delete-checkbox")
+        self._confirm_checkbox.toggled.connect(self._update_delete_enabled)
+        layout.addWidget(self._confirm_checkbox)
+
+        self._error_label = QLabel("", self)
+        self._error_label.setWordWrap(True)
+        layout.addWidget(self._error_label)
+
+        buttons = QHBoxLayout()
+        cancel_button = QPushButton("Cancel", self)
+        cancel_button.clicked.connect(self.reject)
+        buttons.addWidget(cancel_button)
+        buttons.addStretch(1)
+        self._delete_button = QPushButton("Delete Collection", self)
+        self._delete_button.setObjectName("collections-delete-confirm-button")
+        self._delete_button.setProperty("destructive", "true")
+        self._delete_button.setEnabled(False)
+        self._delete_button.clicked.connect(self._on_delete)
+        buttons.addWidget(self._delete_button)
+        layout.addLayout(buttons)
+
+    def _update_delete_enabled(self) -> None:
+        name_matches = self._name_input.text().strip() == self._collection_name
+        self._delete_button.setEnabled(name_matches and self._confirm_checkbox.isChecked())
+
+    def _on_delete(self) -> None:
+        try:
+            self._controller.delete_selected_collection()
+        except ValueError as error:
+            self._error_label.setText(str(error))
+            return
+        self.accept()
+
+
+class _CardOrganizationDialog(QDialog):
+    """Card Organization Workspace (DESIGN.md § 7.3 "B, P2 + P5"), scoped
+    to one P6 dialog (§ 10: "keep list/selection context visible while
+    making a bounded change") rather than a second full workspace window.
+    Remove and Move both call the exact same ``src.collections`` functions
+    the Streamlit "Remove Entries from Collection" / "Reorder Entries in
+    Collection" sections use, including the same
+    ``CrossCardMoveConfirmationRequired`` confirm-and-retry gate."""
+
+    def __init__(self, controller: CollectionsController, collection: dict, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("collections-organize-dialog")
+        self.setWindowTitle(f"Organize Entries — {collection.get('name') or ''}")
+        self.setMinimumSize(520, 480)
+
+        self._controller = controller
+        self._checks: dict[int, QCheckBox] = {}
+
+        layout = QVBoxLayout(self)
+
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self._list_body = QWidget(scroll)
+        self._list_layout = QVBoxLayout(self._list_body)
+        self._list_layout.setContentsMargins(0, 0, 0, 0)
+        self._list_layout.setSpacing(2)
+        scroll.setWidget(self._list_body)
+        layout.addWidget(scroll, 1)
+
+        remove_row = QHBoxLayout()
+        remove_button = QPushButton("Remove Selected from Collection", self)
+        remove_button.setObjectName("collections-organize-remove-button")
+        remove_button.setProperty("destructive", "true")
+        remove_button.clicked.connect(lambda: self._on_remove(confirm_cross_card=False))
+        remove_row.addWidget(remove_button)
+        remove_row.addStretch(1)
+        layout.addLayout(remove_row)
+
+        move_form = QFormLayout()
+        self._move_combo = QComboBox(self)
+        move_form.addRow("Move Entry", self._move_combo)
+        self._move_position = QSpinBox(self)
+        self._move_position.setMinimum(1)
+        move_form.addRow("New position", self._move_position)
+        layout.addLayout(move_form)
+
+        move_row = QHBoxLayout()
+        move_button = QPushButton("Move", self)
+        move_button.setObjectName("collections-organize-move-button")
+        move_button.clicked.connect(lambda: self._on_move(confirm_cross_card=False))
+        move_row.addWidget(move_button)
+        move_row.addStretch(1)
+        layout.addLayout(move_row)
+
+        self._error_label = QLabel("", self)
+        self._error_label.setWordWrap(True)
+        layout.addWidget(self._error_label)
+
+        close_row = QHBoxLayout()
+        close_row.addStretch(1)
+        close_button = QPushButton("Close", self)
+        close_button.clicked.connect(self.accept)
+        close_row.addWidget(close_button)
+        layout.addLayout(close_row)
+
+        self._reload()
+
+    def _reload(self) -> None:
+        self._error_label.setText("")
+        entries = self._controller.organization_entries()
+
+        _clear_layout(self._list_layout)
+        self._checks = {}
+        if not entries:
+            self._list_layout.addWidget(_message_label("No Entries in this Collection."))
+        for entry in entries:
+            entry_id = int(entry["id"])
+            checkbox = QCheckBox(f"#{entry['position']} · {entry.get('term') or ''}", self._list_body)
+            self._checks[entry_id] = checkbox
+            self._list_layout.addWidget(checkbox)
+        self._list_layout.addStretch(1)
+
+        self._move_combo.clear()
+        for entry in entries:
+            self._move_combo.addItem(f"#{entry['position']} · {entry.get('term') or ''}", int(entry["id"]))
+        self._move_position.setMaximum(max(1, len(entries)))
+
+    def _on_remove(self, *, confirm_cross_card: bool) -> None:
+        entry_ids = [entry_id for entry_id, checkbox in self._checks.items() if checkbox.isChecked()]
+        if not entry_ids:
+            return
+        if not confirm_cross_card:
+            confirmed = QMessageBox.question(
+                self,
+                "Remove Entries",
+                f"Remove {len(entry_ids)} Entries from this Collection? "
+                "They remain in Vocabulary App and any other Collection.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if confirmed != QMessageBox.StandardButton.Yes:
+                return
+        try:
+            self._controller.remove_organization_entries(entry_ids, confirm_cross_card=confirm_cross_card)
+        except CrossCardMoveConfirmationRequired:
+            if _confirm_cross_card(self):
+                self._on_remove(confirm_cross_card=True)
+            return
+        except ValueError as error:
+            self._error_label.setText(str(error))
+            return
+        self._reload()
+
+    def _on_move(self, *, confirm_cross_card: bool) -> None:
+        entry_id = self._move_combo.currentData()
+        if entry_id is None:
+            return
+        new_position = self._move_position.value()
+        try:
+            self._controller.move_organization_entry(
+                int(entry_id), new_position, confirm_cross_card=confirm_cross_card
+            )
+        except CrossCardMoveConfirmationRequired:
+            if _confirm_cross_card(self):
+                self._on_move(confirm_cross_card=True)
+            return
+        except ValueError as error:
+            self._error_label.setText(str(error))
+            return
+        self._reload()
+
+
+def _confirm_cross_card(parent: QWidget) -> bool:
+    """Same confirm-and-retry grammar as Entries'
+    ``_confirm_cross_card_reorganization`` -- kept as a small local
+    duplicate rather than a cross-view-module import, matching this
+    repository's existing per-view dialog-helper convention."""
+    result = QMessageBox.question(
+        parent,
+        "Confirm Card Reorganization",
+        CROSS_CARD_CONFIRMATION_MESSAGE,
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+    )
+    return result == QMessageBox.StandardButton.Yes
 
 
 def _list_heading(text: str) -> QLabel:

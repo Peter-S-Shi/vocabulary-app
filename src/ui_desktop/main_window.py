@@ -6,7 +6,11 @@ from src.ui_desktop.controllers.collections_controller import CollectionsControl
 from src.ui_desktop.controllers.entries_controller import EntriesController
 from src.ui_desktop.controllers.quiz_controller import QuizController
 from src.ui_desktop.controllers.review_controller import ReviewController
+from src.ui_desktop.controllers.analytics_controller import AnalyticsController
+from src.ui_desktop.controllers.data_tools_controller import DataToolsController
+from src.ui_desktop.controllers.review_calendar_controller import ReviewCalendarController
 from src.ui_desktop.controllers.settings_controller import SettingsController
+from src.ui_desktop.controllers.templates_controller import TemplatesController
 from src.ui_desktop.controllers.today_controller import TodayController
 from src.ui_desktop.motion.transitions import TransitionManager
 from src.ui_desktop.state.app_state import AppState, ShellMode, Workspace
@@ -14,9 +18,13 @@ from src.ui_desktop.state.preferences import Preferences
 from src.ui_desktop.theming.theme_manager import ThemeManager
 from src.ui_desktop.views.collections_view import CollectionsView
 from src.ui_desktop.views.entries_view import EntriesView
+from src.ui_desktop.views.analytics_view import AnalyticsView
+from src.ui_desktop.views.data_tools_view import DataToolsView
 from src.ui_desktop.views.quiz_view import QuizView
+from src.ui_desktop.views.review_calendar_view import ReviewCalendarView
 from src.ui_desktop.views.review_view import ReviewView
 from src.ui_desktop.views.settings_view import SettingsView
+from src.ui_desktop.views.templates_view import TemplatesView
 from src.ui_desktop.views.today_view import TodayView
 from src.ui_desktop.widgets.navigation_rail import NavigationRail
 
@@ -92,6 +100,10 @@ class MainWindow(QMainWindow):
         self.review_controller = ReviewController()
         self.quiz_controller = QuizController()
         self.settings_controller = SettingsController(preferences, self.theme_manager)
+        self.templates_controller = TemplatesController()
+        self.review_calendar_controller = ReviewCalendarController()
+        self.data_tools_controller = DataToolsController()
+        self.analytics_controller = AnalyticsController()
 
         self.today_view = TodayView(self.today_controller)
         self.today_view.navigate_to_entries_requested.connect(
@@ -114,11 +126,19 @@ class MainWindow(QMainWindow):
         self.quiz_view.return_to_today_requested.connect(self._on_quiz_return_to_today)
         self.quiz_view.next_card_requested.connect(self._on_quiz_next_card)
         self.settings_view = SettingsView(self.settings_controller)
+        self.templates_view = TemplatesView(self.templates_controller)
+        self.review_calendar_view = ReviewCalendarView(self.review_calendar_controller)
+        self.data_tools_view = DataToolsView(self.data_tools_controller)
+        self.analytics_view = AnalyticsView(self.analytics_controller)
 
         self._workspace_stack = QStackedWidget(self)
         self._workspace_stack.addWidget(self.today_view)
         self._workspace_stack.addWidget(self.entries_view)
         self._workspace_stack.addWidget(self.collections_view)
+        self._workspace_stack.addWidget(self.templates_view)
+        self._workspace_stack.addWidget(self.review_calendar_view)
+        self._workspace_stack.addWidget(self.data_tools_view)
+        self._workspace_stack.addWidget(self.analytics_view)
         self._workspace_stack.addWidget(self.review_view)
         self._workspace_stack.addWidget(self.quiz_view)
         self._workspace_stack.addWidget(self.settings_view)
@@ -181,6 +201,14 @@ class MainWindow(QMainWindow):
             self.app_state.request_navigation(Workspace.ENTRIES)
         elif destination_key == "collections":
             self.app_state.request_navigation(Workspace.COLLECTIONS)
+        elif destination_key == "templates":
+            self.app_state.request_navigation(Workspace.TEMPLATES)
+        elif destination_key == "review_calendar":
+            self.app_state.request_navigation(Workspace.REVIEW_CALENDAR)
+        elif destination_key == "data_tools":
+            self.app_state.request_navigation(Workspace.DATA_TOOLS)
+        elif destination_key == "analytics":
+            self.app_state.request_navigation(Workspace.ANALYTICS)
         elif destination_key == "study":
             self._enter_review()
         elif destination_key == "settings":
@@ -303,6 +331,26 @@ class MainWindow(QMainWindow):
             self._workspace_stack.setCurrentWidget(widget)
             self.collections_view.refresh()
             self._last_management_workspace = workspace
+        elif workspace is Workspace.TEMPLATES:
+            widget = self.templates_view
+            self._workspace_stack.setCurrentWidget(widget)
+            self.templates_view.refresh()
+            self._last_management_workspace = workspace
+        elif workspace is Workspace.REVIEW_CALENDAR:
+            widget = self.review_calendar_view
+            self._workspace_stack.setCurrentWidget(widget)
+            self.review_calendar_view.refresh()
+            self._last_management_workspace = workspace
+        elif workspace is Workspace.DATA_TOOLS:
+            widget = self.data_tools_view
+            self._workspace_stack.setCurrentWidget(widget)
+            self.data_tools_view.refresh()
+            self._last_management_workspace = workspace
+        elif workspace is Workspace.ANALYTICS:
+            widget = self.analytics_view
+            self._workspace_stack.setCurrentWidget(widget)
+            self.analytics_view.refresh()
+            self._last_management_workspace = workspace
         elif workspace is Workspace.REVIEW:
             # No default-Card-open here: whichever caller requested this
             # navigation (_enter_review, _open_review_at_card,
@@ -368,3 +416,14 @@ class MainWindow(QMainWindow):
 
     def _on_mode_changed(self, mode_value: str) -> None:
         self._render_mode(ShellMode(mode_value))
+
+    def closeEvent(self, event) -> None:
+        # Human Gate 2 corrective / independent-review finding: without
+        # this, closing the app while an Analytics background load was
+        # still in flight could destroy AnalyticsController (and the
+        # QThread it was the only reference keeping alive) while the
+        # thread was still running -- fatal in Qt ("QThread: Destroyed
+        # while thread is still running"). Blocks briefly so any in-
+        # flight load finishes cleanly first.
+        self.analytics_controller.shutdown()
+        super().closeEvent(event)

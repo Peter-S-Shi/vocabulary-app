@@ -7,17 +7,27 @@ from src.collections import (
     CARD_SORT_MODES,
     DEFAULT_CARD_PAGE_SIZE,
     SYSTEM_COLLECTION_TYPES,
+    create_collection,
+    delete_collection,
     get_card_page_for_collection,
     get_collection_by_id,
     get_collections,
+    get_entries_in_collection,
+    move_entry_in_collection,
+    remove_entries_from_collection,
+    set_card_name,
+    update_collection,
 )
 
 """
-CollectionsController owns the Collections Navigator's transient
-selection/pagination state only, calling existing ``src.collections``
-reads for every fact it projects -- no SQL, no second Collection-
-membership model, no mutation (M17 Minimum Collection Integration prompt
-§ 5/§ 12: "Browsing this surface must not mutate SQLite").
+CollectionsController owns the Collections workspace's transient
+selection/pagination state, calling existing ``src.collections``
+reads/writes for every fact it projects or mutates -- no SQL, no second
+Collection-membership model. Browsing (M17 Minimum Collection Integration)
+remains read-only exactly as before; M18.1 adds Collection Manager and
+Card Organization writes (create/rename/edit/delete Collection, rename
+Card, remove/move Entries), each delegating straight to the same core
+functions the Streamlit Collections page already uses.
 
 Normal user Collections and system practice pools (Starred/Mistake
 Book/Proficient Pool) are kept as two separate lists throughout, never one
@@ -146,3 +156,82 @@ class CollectionsController(QObject):
         if system_type not in SYSTEM_COLLECTION_TYPES:
             return None
         return f"system:{system_type}"
+
+    # -- Collection Manager (M18.1) --------------------------------------
+    # Every write below calls the exact same `src.collections` functions
+    # the Streamlit Collections page uses -- no SQL, no second
+    # create/update/delete implementation. `CrossCardMoveConfirmationRequired`
+    # is never caught here; it propagates to the view exactly like
+    # `EntriesController`'s equivalent calls, so the one shared
+    # confirm-and-retry dialog pattern stays the single implementation.
+
+    def create_new_collection(self, name: str, description: str, card_size: int) -> int:
+        """May raise ``ValueError`` (blank name, invalid card_size, or a
+        duplicate name) -- the caller surfaces it as a focused-editor
+        error, never a silent failure."""
+        collection_id = create_collection(name=name, description=description, card_size=card_size)
+        self.refresh()
+        self.select_collection(collection_id, is_system=False)
+        return collection_id
+
+    def update_selected_collection(
+        self, name: str, description: str, card_size: int, *, confirm_cross_card: bool = False
+    ) -> None:
+        """May raise ``CrossCardMoveConfirmationRequired`` or ``ValueError``."""
+        if self.selected_id is None or self.selected_is_system:
+            raise ValueError("No editable Collection is selected.")
+        update_collection(
+            collection_id=self.selected_id,
+            name=name,
+            description=description,
+            card_size=card_size,
+            confirm_cross_card=confirm_cross_card,
+        )
+        self.refresh()
+        self.card_page_changed.emit()
+
+    def delete_selected_collection(self) -> dict:
+        """May raise ``ValueError`` (not found, or a system Collection)."""
+        if self.selected_id is None or self.selected_is_system:
+            raise ValueError("No deletable Collection is selected.")
+        result = delete_collection(self.selected_id)
+        self.clear_selection()
+        self.refresh()
+        return result
+
+    def rename_selected_card(self, card_number: int, name: str) -> None:
+        if self.selected_id is None or self.selected_is_system:
+            raise ValueError("No Collection is selected.")
+        set_card_name(self.selected_id, card_number, name)
+        self.card_page_changed.emit()
+
+    # -- Card Organization (M18.1): entry remove/reorder within the
+    # selected Collection. Reuses `get_entries_in_collection` and the
+    # same remove/move core functions the Streamlit "Reorder Entries in
+    # Collection" workflow already uses -- no second membership/position
+    # model.
+
+    def organization_entries(self) -> list[dict]:
+        if self.selected_id is None or self.selected_is_system:
+            return []
+        return get_entries_in_collection(self.selected_id)
+
+    def remove_organization_entries(self, entry_ids: list[int], *, confirm_cross_card: bool = False) -> int:
+        """May raise ``CrossCardMoveConfirmationRequired``."""
+        if self.selected_id is None or self.selected_is_system:
+            raise ValueError("No Collection is selected.")
+        count = remove_entries_from_collection(entry_ids, self.selected_id, confirm_cross_card=confirm_cross_card)
+        self.refresh()
+        self.card_page_changed.emit()
+        return count
+
+    def move_organization_entry(
+        self, entry_id: int, new_position: int, *, confirm_cross_card: bool = False
+    ) -> None:
+        """May raise ``CrossCardMoveConfirmationRequired`` or ``ValueError``."""
+        if self.selected_id is None or self.selected_is_system:
+            raise ValueError("No Collection is selected.")
+        move_entry_in_collection(
+            self.selected_id, entry_id, new_position, confirm_cross_card=confirm_cross_card
+        )
+        self.card_page_changed.emit()

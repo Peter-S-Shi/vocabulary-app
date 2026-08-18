@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QScrollArea, QVBoxLayout, QWidget
 
 from src.ui_desktop.controllers.settings_controller import SettingsController
 from src.ui_desktop.state.preferences import QUIZ_PRESENTATION_LABELS
@@ -50,6 +50,32 @@ Design -> Implementation trace:
                           next Quiz launched in this session (M17 Feature
                           3B prompt § 7) or after a restart (§ 5) uses the
                           saved presentation value.
+
+M18 Phase C2 adds the third category this pattern was always meant to
+hold: read-only "Storage" (DESIGN.md § 7.3 "Storage / data-location
+information: B, P8") -- database/backup/audio-cache paths and path
+source, read straight from `src.app_config.get_app_storage_summary()`
+(the same function the Streamlit Settings/Data page already reads) via
+`SettingsController.storage_summary()`. Each row reuses the existing
+`settings-row`/`settings-row-label` grammar with a plain value label
+instead of an editable control -- purely informational, never a second
+path-resolution/configuration surface.
+
+Human Gate 2 corrective (layout regression): native testing found the
+Appearance/Quiz presentation combos horizontally compressed/clipped at a
+normal desktop window size. A first corrective pass raised the two
+combos' QSS `min-width` (200px -> 300px), which measurably helped but
+was a per-control workaround: it protected two specific combos without
+addressing that the page as a whole has no vertical scroll area, so it
+cannot grow taller than the available window -- any future growth of
+the Settings/Storage content (M18 Phase C2 already added seven rows)
+just re-creates the same squeeze somewhere else. Reverted that min-width
+bump and wrapped the page's content in a native vertical `QScrollArea`
+(`setWidgetResizable(True)`, horizontal scrolling disabled) instead: the
+page can now grow taller through scrolling rather than by compressing
+its controls, the body's width still tracks the available desktop width
+responsively, and the Appearance/Quiz controls render at their natural,
+comfortable size.
 """
 
 
@@ -59,20 +85,35 @@ class SettingsView(QWidget):
         self.setObjectName("settings-root")
         self._controller = controller
 
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        scroll = QScrollArea(self)
+        scroll.setObjectName("settings-scroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        outer.addWidget(scroll)
+
+        body = QWidget(scroll)
+        scroll.setWidget(body)
+
+        root = QVBoxLayout(body)
         root.setContentsMargins(SPACING.xl, SPACING.xl, SPACING.xl, SPACING.xl)
         root.setSpacing(SPACING.lg)
         root.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        title = QLabel("Settings", self)
+        title = QLabel("Settings", body)
         title.setObjectName("settings-page-title")
         root.addWidget(title)
 
-        appearance_heading = QLabel("Appearance", self)
+        appearance_heading = QLabel("Appearance", body)
         appearance_heading.setObjectName("settings-section-heading")
         root.addWidget(appearance_heading)
 
-        appearance_row = QWidget(self)
+        appearance_row = QWidget(body)
         appearance_row.setObjectName("settings-row")
         appearance_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         appearance_row_layout = QHBoxLayout(appearance_row)
@@ -93,11 +134,11 @@ class SettingsView(QWidget):
 
         root.addWidget(appearance_row)
 
-        quiz_heading = QLabel("Quiz", self)
+        quiz_heading = QLabel("Quiz", body)
         quiz_heading.setObjectName("settings-section-heading")
         root.addWidget(quiz_heading)
 
-        row = QWidget(self)
+        row = QWidget(body)
         row.setObjectName("settings-row")
         row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         row_layout = QHBoxLayout(row)
@@ -117,10 +158,54 @@ class SettingsView(QWidget):
         row_layout.addWidget(self._quiz_presentation_combo, 0)
 
         root.addWidget(row)
+
+        storage_heading = QLabel("Storage", body)
+        storage_heading.setObjectName("settings-section-heading")
+        root.addWidget(storage_heading)
+
+        storage = controller.storage_summary()
+        for label_text, value in (
+            ("App version", str(storage["app_version"])),
+            ("Database path", str(storage["database_path"])),
+            ("Database file exists", "Yes" if storage["database_exists"] else "No"),
+            ("Data directory", str(storage["data_directory"])),
+            ("Backup directory", str(storage["backup_directory"])),
+            ("Audio cache directory", str(storage["audio_cache_directory"])),
+            ("Path source", str(storage["path_source"])),
+        ):
+            root.addWidget(self._build_info_row(label_text, value))
+
         root.addStretch(1)
 
         controller.state_changed.connect(self._sync_from_controller)
         self._sync_from_controller()
+
+    def _build_info_row(self, label_text: str, value: str) -> QWidget:
+        """A read-only P8 settings row (DESIGN.md § 7.3 "Storage /
+        data-location information: B, P8"): reuses the exact
+        `settings-row`/`settings-row-label` grammar the Appearance/Quiz
+        rows already established, with a plain value label in place of an
+        editable control -- storage/data-location information is
+        informational, not configurable, from this surface."""
+        row = QWidget(self)
+        row.setObjectName("settings-row")
+        row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(SPACING.md, SPACING.md, SPACING.md, SPACING.md)
+        layout.setSpacing(SPACING.md)
+
+        label = QLabel(label_text, row)
+        label.setObjectName("settings-row-label")
+        layout.addWidget(label, 0)
+        layout.addStretch(1)
+
+        value_label = QLabel(value, row)
+        value_label.setObjectName("settings-row-value")
+        value_label.setWordWrap(True)
+        value_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(value_label, 1)
+
+        return row
 
     def _sync_from_controller(self) -> None:
         current_appearance = self._controller.appearance()

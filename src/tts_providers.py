@@ -105,7 +105,14 @@ class CommandSpeechProvider:
     def preflight(self) -> ProviderAvailability:
         missing = [path for path in self._required_paths if not path.exists()]
         if missing:
-            return ProviderAvailability(False, "provider_unavailable", "Required runtime asset is unavailable.")
+            # HG3 corrective: name the actual missing path(s) rather than a
+            # generic message -- same failure code/boolean as before, only
+            # the detail text changed, so this does not reopen provider/
+            # language routing semantics.
+            return ProviderAvailability(
+                False, "provider_unavailable",
+                "Required runtime asset is unavailable: " + ", ".join(str(path) for path in missing),
+            )
         if self._preflight_command is not None:
             try:
                 completed = subprocess.run(
@@ -186,17 +193,23 @@ class CommandSpeechProvider:
 
 
 class UnavailableSpeechProvider:
-    def __init__(self, spec: ProviderSpec, code: str = "provider_unavailable") -> None:
+    def __init__(
+        self,
+        spec: ProviderSpec,
+        code: str = "provider_unavailable",
+        detail: str = "Selected provider is unavailable.",
+    ) -> None:
         self.spec = spec
         self._code = code
+        self._detail = detail
 
     def preflight(self) -> ProviderAvailability:
-        return ProviderAvailability(False, self._code, "Selected provider is unavailable.")
+        return ProviderAvailability(False, self._code, self._detail)
 
     def synthesize_one(self, text: str, output_path: Path) -> SynthesisResult:
         return SynthesisResult(
             self.spec.provider_id, self.spec.voice_id, self.spec.language,
-            None, None, None, self._code, "Selected provider is unavailable."
+            None, None, None, self._code, self._detail
         )
 
 
@@ -226,10 +239,27 @@ class ProviderRegistry:
         return cls([UnavailableSpeechProvider(spec) for spec in FROZEN_PROVIDER_SPECS.values()])
 
     @classmethod
+    def _shared_tts_dir_not_configured(cls) -> "ProviderRegistry":
+        """Distinct from ``unavailable_defaults()``'s generic message: this
+        is specifically the "the current process has no
+        VOCAB_APP_SHARED_TTS_DIR at all" case, so the detail names the
+        exact env var to set rather than a generic "unavailable" -- the
+        HG3 corrective this exists for is precisely that a desktop
+        session with no env var gave no way to tell that apart from a
+        configured-but-broken runtime."""
+        return cls([
+            UnavailableSpeechProvider(
+                spec, "shared_tts_dir_not_configured",
+                f"{SHARED_TTS_ENV} is not set for this process.",
+            )
+            for spec in FROZEN_PROVIDER_SPECS.values()
+        ])
+
+    @classmethod
     def from_environment(cls) -> "ProviderRegistry":
         root_value = os.environ.get(SHARED_TTS_ENV, "").strip()
         if not root_value:
-            return cls.unavailable_defaults()
+            return cls._shared_tts_dir_not_configured()
         return build_shared_runtime_registry(Path(root_value))
 
 
