@@ -50,7 +50,16 @@ Exit PASS recorded 2026-08-17 against final accepted head
 `d232717b6b225e7c798c510ae8e87ce87fe5d8c8`; see
 [ROADMAP.md § Milestone 17](ROADMAP.md#milestone-17-desktop-core-workflow-migration)
 for the full acceptance record. **Milestone 18 — Desktop Management and
-Major Feature Completion** is the next objective and has not started.
+Major Feature Completion is complete on `main`**, merged via PR #29 at
+`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc` after all three M18 Human
+Gates (Management Grammar, Analytics, and the final native acceptance
+including real Card Audio Export) were Human Accepted. The desktop
+application now covers Collections/Card organization, Templates, Review
+Calendar, Settings, Data Tools (Import/Export, Template Definition CSV,
+Backup / Restore Preview, Card Audio Export), Linked Sources, and
+Analytics. **Milestone 19 — Desktop Product Hardening is in progress**
+on branch `agent/m19-desktop-product-hardening`; the desktop Feature
+Freeze is active.
 
 Streamlit remains the currently runnable compatibility/reference UI, but it is
 no longer the intended Release Candidate target. The active lifecycle now
@@ -182,11 +191,10 @@ This project does not include:
 - cloud sync
 - account login or authentication
 - mobile app packaging
-- full desktop/Streamlit feature parity (the native desktop app covers the
-  core daily learning loop as of Milestone 17 — see
-  [Desktop App](#desktop-app-milestone-17-core-workflow-complete-on-main)
-  above; deeper Collection management, Settings/personalization, and
-  Analytics remain Milestone 18 scope)
+- bundled TTS runtime provisioning in the current implementation (Card
+  Audio Export requires an externally provided shared TTS runtime; see
+  the desktop app's Audio Export voice-status panel for configuration
+  state)
 - full destructive database restore
 
 These statements describe the current implementation. The active roadmap now
@@ -296,20 +304,24 @@ http://localhost:8501
 
 Run the command from the directory containing `app.py`.
 
-### Desktop App (Milestone 17 Core Workflow, Complete on `main`)
+### Desktop App (Milestones 17-18 Complete on `main`)
 
-The native desktop application under `src/ui_desktop/` now covers the
-primary daily learning loop end to end: Today (Command Center), Entries
-(Table-First manager, with search/filter/sort/result count and Custom
-Entry Type), Collections Navigator, Review and Quiz (both in Immersive
-Focus, plus an optional Flip Card + Filmstrip Quiz presentation), and a
-Settings Appearance control with live System/Light/Dark theming. It is
-not yet a full replacement for every Streamlit capability — richer
-Collection management, deeper Settings/personalization, and Analytics
-remain Milestone 18 scope; see
+The native desktop application under `src/ui_desktop/` is the primary
+product surface. It covers the full daily learning loop — Today
+(Command Center), Entries (Table-First manager with
+search/filter/sort/result count and Custom Entry Type), Collections
+(Navigator plus Collection Manager and Card Organization), Review and
+Quiz (both in Immersive Focus, plus an optional Flip Card + Filmstrip
+Quiz presentation) — and the management/data workflows completed in
+Milestone 18: Templates (Manager and Editor), Review Calendar / Card
+History, Settings (Appearance with live System/Light/Dark theming, Quiz
+presentation, storage information), Data Tools (CSV/XLSX Import/Export,
+Template Definition CSV import/export, Backup / Restore Preview, Card
+Audio Export), Linked Sources, and the Analytics workspace (Learning
+Brief and Full Findings). See
 [ROADMAP.md § Milestone 17](ROADMAP.md#milestone-17-desktop-core-workflow-migration)
-for the exact accepted scope. Install the additional desktop dependency,
-then launch:
+and § Milestone 18 for the accepted scope. Install the additional
+desktop dependency, then launch:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements-desktop.txt

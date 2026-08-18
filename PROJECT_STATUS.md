@@ -1,6 +1,6 @@
 # Vocabulary App Project Status
 
-Last reviewed: 2026-08-17
+Last reviewed: 2026-08-18
 
 This file is the authoritative evidence-based snapshot of the current project
 state.
@@ -12,22 +12,37 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 ## Current Phase
 
-**Milestone 16 — Desktop Architecture and UI Design (Complete on `main`);
-Milestone 17 — Desktop Core Workflow Migration (Complete on `main`);
-Milestone 18 — Desktop Management and Major Feature Completion (Human
-Gate 1, 2, and 3 all Human Accepted — M18 READY FOR MERGE, awaiting
-operator merge authorization)**
+**Milestone 18 — Desktop Management and Major Feature Completion
+(Complete on `main`, merged via PR #29 at
+`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`); Milestone 19 — Desktop
+Product Hardening (IN PROGRESS — Feature Freeze active)**
 
 ## Current Milestone
 
-**Milestone 16 Complete on `main`; Milestone 17 Complete on `main`
-(merged via PR #25). Milestone 18 — Desktop Management and Major Feature
-Completion has passed all three Human Gates**, developed under the M18
+**Milestone 19 — Desktop Product Hardening is IN PROGRESS**, developed
+under the M19 Autonomous Product Hardening Execution Contract on the
+single long-lived branch `agent/m19-desktop-product-hardening`, created
+from the verified M18 merge baseline
+`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc` (`main`). The desktop
+**Feature Freeze is now active**: correctness, data-integrity,
+migration/compatibility, privacy/security, robustness, serious UX, and
+performance defects remain in scope; new product capabilities move to
+deferred work unless scope is explicitly reopened.
+
+M19 baseline verification (2026-08-18, at `9dae05c`): full repository
+suite 782/782 green (offscreen), architecture audit clean (87 Python
+files, 0 serious, 0 warnings), quiz randomization check passed, working
+tree clean, local `main` fast-forwarded to `origin/main`.
+
+**Milestone 18 — Desktop Management and Major Feature Completion is
+Complete on `main`** (merged via PR #29 at
+`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc` from final accepted head
+`0ff85509f0cdb7248d7970b8af66c1da6a94c301`), developed under the M18
 Autonomous Execution Contract on branch
-`agent/m18-desktop-management-major-feature-completion` through Draft PR
-#29 (unmerged). Phases A through F (Human Gates 1, 2, and 3 all Human
-Accepted; Card Audio Export; integrated exit verification) are complete
-with no known blocking defect.
+`agent/m18-desktop-management-major-feature-completion` through PR #29.
+Phases A through F (Human Gates 1, 2, and 3 all Human Accepted; Card
+Audio Export; integrated exit verification) completed with no known
+blocking defect.
 
 **Human Gate 3 — Final M18 Native Acceptance: PASS (Human Accepted).**
 Final native acceptance initially FAILed (see "Human Gate 3 corrective"
@@ -43,9 +58,10 @@ WAV files. The operator then independently launched the real desktop
 application with the retained runtime bound the same way, verified the
 real Card Audio Export happy path natively (legitimate Cards became
 ready, `Start Export` became available, export succeeded), and recorded
-**Human Gate 3 PASS**. **All three Human Gates are now Human Accepted
-and M18 is READY FOR MERGE.** The agent will not merge to `main`
-without explicit human authorization.
+**Human Gate 3 PASS**. **All three Human Gates are Human Accepted.**
+The operator subsequently authorized the merge, and PR #29 was merged
+to `main` at `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc` — **M18 is
+Complete on `main`.**
 
 **Human Gate 1 — Management Grammar Calibration is complete and Human
 Accepted.** Phase B implemented Collection Manager + Card Organization
@@ -1492,17 +1508,26 @@ Large new Streamlit-specific UI investments should be avoided.
 
 ## Feature Freeze Status
 
-**Not applicable yet / scope currently open.**
+**ACTIVE as of Milestone 19 (2026-08-18).**
 
-The earlier planned Streamlit Feature Freeze was never passed and is now
-superseded by the reopened product scope.
+The intended desktop product scope was implemented and verified through
+M17/M18 (all Human Gates accepted; M18 merged via PR #29). The desktop
+Feature Freeze is now in effect: correctness, data-integrity,
+migration/compatibility, privacy/security, robustness, serious UX, and
+material performance defects remain in scope; new product modes,
+learning systems, analytics concepts, synchronization models,
+cloud/account functionality, and speculative redesigns move to deferred
+work unless scope is explicitly reopened through a recorded decision.
 
-The next formal Feature Freeze is planned after the intended desktop product
-scope has been implemented and before Desktop Product Hardening.
+The earlier planned Streamlit Feature Freeze was never passed and was
+superseded by the reopened product scope; the freeze now applies to the
+desktop product.
 
 ## Hardening Status
 
-Formal end-of-product hardening has not started.
+**Milestone 19 — Desktop Product Hardening is IN PROGRESS** on branch
+`agent/m19-desktop-product-hardening` (baseline
+`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`).
 
 However, pre-desktop stabilization and full-product manual QA have already
 identified issues that must be corrected before major migration work.
@@ -2279,15 +2304,23 @@ for the full corrective-pass and acceptance history.
   against final accepted head
   `d232717b6b225e7c798c510ae8e87ce87fe5d8c8`, after a corrective fix for
   a parallel Entries-sorting mechanism). **Milestone 17 is COMPLETE.**
+- M18 implementation branch (single long-lived branch for the whole
+  milestone, merged): `agent/m18-desktop-management-major-feature-completion`
+- M18 final accepted head: `0ff85509f0cdb7248d7970b8af66c1da6a94c301`
+- Final M18 PR: `#29 — M18: Desktop Management and Major Feature
+  Completion` (merged)
+- M18 merge commit on `main`: `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`
 - Exact next objective:
-  **Begin Milestone 18 — Desktop Management and Major Feature Completion.
-  M18 has not started; no branch/PR exists yet. Known M18 carryover from
-  M17: deferred Accent families (Sage/Teal, Indigo/Violet, Warm Neutral)
-  and the Quick Theme Control popover; full Collection Manager (create/
-  rename/delete Collections from the desktop UI); richer Settings/
-  Appearance UX beyond the current single Appearance row; advanced
-  Entries table personalization (saved sort/filter views, drag-
-  reordering, column customization); the Entries Entry Type filter combo
-  listing only the predefined set rather than live distinct values; and
-  non-blocking performance refinements. See ROADMAP.md § Milestone 18
-  for the full scope.**
+  **Milestone 19 — Desktop Product Hardening, IN PROGRESS** on the
+  single long-lived branch `agent/m19-desktop-product-hardening` from
+  baseline `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`. Known
+  M17/M18-era deferred carryover (deferred features, not M19 defects):
+  the three deferred Accent families (Sage/Teal, Indigo/Violet, Warm
+  Neutral) and the Quick Theme Control popover; advanced Entries table
+  personalization (saved sort/filter views, drag-reordering, column
+  customization); the Entries Entry Type filter combo listing only the
+  predefined set rather than live distinct values. The mandatory
+  M19/M20 productization handoff (ROADMAP.md § "Mandatory M19 / M20
+  Productization Handoff — Card Audio Export") — shared TTS runtime
+  discovery, persistent runtime configuration, and
+  absent/broken-runtime behavior — is explicit M19 hardening scope.
