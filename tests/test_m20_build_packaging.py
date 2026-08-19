@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,12 +9,15 @@ from unittest.mock import patch
 
 from src.app_config import APP_VERSION
 from winbuild.build import (
+    SIGN_COMMAND_ENV,
     BuildError,
     VERSION_INFO_PATH,
     dir_size_bytes,
     find_inno_compiler,
     get_app_version,
     sha256_file,
+    sign_file,
+    verify_signature,
     verify_version_info_matches,
 )
 
@@ -70,6 +74,65 @@ class HashingAndSizeTests(unittest.TestCase):
             nested.mkdir()
             (nested / "b.txt").write_bytes(b"12345678")
             self.assertEqual(dir_size_bytes(root), 4 + 8)
+
+
+class SigningHookTests(unittest.TestCase):
+    """§ 9.2 "proving the provisional artifact reaches the exact
+    signing stage": these mock the configured command's own execution
+    (no real signing tool needed to test the *wiring*) -- the wiring
+    itself was additionally proven for real against a locally-generated
+    self-signed test certificate during M20 packaging work (see the
+    commit this test file was introduced in): sign_file() correctly
+    invoked a configured PowerShell signing command, and
+    verify_signature() correctly read back the resulting (untrusted,
+    as expected for a test cert) signature's subject and status."""
+
+    def setUp(self) -> None:
+        self._original = os.environ.get(SIGN_COMMAND_ENV)
+
+    def tearDown(self) -> None:
+        if self._original is None:
+            os.environ.pop(SIGN_COMMAND_ENV, None)
+        else:
+            os.environ[SIGN_COMMAND_ENV] = self._original
+
+    def test_unconfigured_is_a_no_op_not_an_error(self) -> None:
+        os.environ.pop(SIGN_COMMAND_ENV, None)
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "Vocabulary App.exe"
+            target.write_bytes(b"")
+            self.assertFalse(sign_file(target))
+
+    def test_configured_command_substitutes_file_placeholder(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "Vocabulary App.exe"
+            target.write_bytes(b"")
+            os.environ[SIGN_COMMAND_ENV] = 'python -c "pass" {file}'
+            with patch("winbuild.build.subprocess.run") as mock_run:
+                mock_run.return_value.returncode = 0
+                result = sign_file(target)
+            self.assertTrue(result)
+            called_command = mock_run.call_args[0][0]
+            self.assertIn(str(target), called_command)
+
+    def test_configured_command_failure_raises_build_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "Vocabulary App.exe"
+            target.write_bytes(b"")
+            os.environ[SIGN_COMMAND_ENV] = 'python -c "pass" {file}'
+            with patch("winbuild.build.subprocess.run") as mock_run:
+                mock_run.return_value.returncode = 1
+                with self.assertRaises(BuildError):
+                    sign_file(target)
+
+    def test_verify_signature_parses_status_and_subject(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "Vocabulary App.exe"
+            target.write_bytes(b"")
+            with patch("winbuild.build.subprocess.run") as mock_run:
+                mock_run.return_value.stdout = "Valid|CN=Example Publisher\n"
+                result = verify_signature(target)
+            self.assertEqual(result, {"status": "Valid", "subject": "CN=Example Publisher"})
 
 
 class InnoCompilerDiscoveryTests(unittest.TestCase):

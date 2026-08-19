@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -108,8 +110,6 @@ def run_pyinstaller() -> Path:
 
 
 def find_inno_compiler() -> Path | None:
-    import os
-
     candidates = [
         Path(r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe"),
         Path(r"C:\Program Files\Inno Setup 6\ISCC.exe"),
@@ -150,6 +150,52 @@ def run_inno_setup(app_version: str) -> Path | None:
     return installers[-1]
 
 
+# § 9 code signing. Never a hard-coded provider/tool/credential: the
+# operator supplies the exact signing invocation for whichever trusted
+# signing provider they set up (e.g. an AzureSignTool or signtool.exe
+# command) via this environment variable, with a literal ``{file}``
+# placeholder this script substitutes. Nothing signing-related is ever
+# read from or written to a file in this repository.
+SIGN_COMMAND_ENV = "VOCAB_APP_SIGN_COMMAND"
+
+
+def sign_file(path: Path) -> bool:
+    """Runs the operator-configured signing command against ``path``.
+    Returns whether signing actually ran (``False`` -- not an error --
+    when unconfigured, so this build script stays fully usable before a
+    signing provider is set up; see § 9.2 "autonomous work before human
+    involvement"). Raises ``BuildError`` if a configured command fails."""
+    template = os.environ.get(SIGN_COMMAND_ENV, "").strip()
+    if not template:
+        print(f"Not signing {path.name}: {SIGN_COMMAND_ENV} is not set.")
+        return False
+    command = [part.format(file=str(path)) for part in shlex.split(template, posix=False)]
+    completed = _run(command)
+    if completed.returncode != 0:
+        raise BuildError(f"Signing failed for {path} (exit {completed.returncode}).")
+    print(f"Signed: {path}")
+    return True
+
+
+def verify_signature(path: Path) -> dict:
+    """Independent, signing-tool-agnostic Authenticode verification via
+    PowerShell's ``Get-AuthenticodeSignature`` -- real evidence the file
+    carries a valid signature, not just that the signing command
+    happened to exit 0 (§ 9.4 "verify the actual final installer
+    carries a valid Authenticode signature")."""
+    script = (
+        f"$sig = Get-AuthenticodeSignature -LiteralPath '{path}'; "
+        "Write-Output ($sig.Status.ToString() + '|' + "
+        "$(if ($sig.SignerCertificate) { $sig.SignerCertificate.Subject } else { '' }))"
+    )
+    completed = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-Command", script],
+        capture_output=True, text=True, check=False,
+    )
+    status, _, subject = completed.stdout.strip().partition("|")
+    return {"status": status or "Unknown", "subject": subject}
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -180,7 +226,17 @@ def main() -> int:
     app_dir_size = dir_size_bytes(app_dir)
     print(f"PyInstaller onedir output: {app_dir} ({app_dir_size / (1024 * 1024):.1f} MiB)")
 
+    # Sign the payload .exe before Inno Setup packages it, so the
+    # installer wraps an already-signed executable; the installer .exe
+    # itself is signed separately below, after it's built -- both
+    # signed independently, the standard practice for wrapped installers.
+    exe_path = app_dir / "Vocabulary App.exe"
+    exe_signed = sign_file(exe_path)
+    exe_signature = verify_signature(exe_path) if exe_signed else None
+
     installer_path = None if args.skip_inno else run_inno_setup(app_version)
+    installer_signed = sign_file(installer_path) if installer_path else False
+    installer_signature = verify_signature(installer_path) if installer_signed else None
     installer_sha256 = sha256_file(installer_path) if installer_path else None
 
     manifest = {
@@ -190,8 +246,12 @@ def main() -> int:
         "app_version": app_version,
         "onedir_path": str(app_dir),
         "onedir_size_bytes": app_dir_size,
+        "onedir_exe_signed": exe_signed,
+        "onedir_exe_signature": exe_signature,
         "installer_path": str(installer_path) if installer_path else None,
         "installer_sha256": installer_sha256,
+        "installer_signed": installer_signed,
+        "installer_signature": installer_signature,
     }
     manifest_path = DIST_DIR / "build_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -199,6 +259,7 @@ def main() -> int:
     if installer_path:
         print(f"Installer: {installer_path}")
         print(f"Installer SHA-256: {installer_sha256}")
+        print(f"Installer signed: {installer_signed}" + (f" ({installer_signature})" if installer_signature else ""))
     return 0
 
 
