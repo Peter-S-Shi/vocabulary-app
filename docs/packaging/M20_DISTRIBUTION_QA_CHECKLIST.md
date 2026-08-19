@@ -1,18 +1,43 @@
 # M20 Distribution QA Checklist
 
 Companion to `docs/packaging/M20_RELEASE_CONTRACT.md` §§ 2.8, 5 and the
-loop prompt's § 10 "Distribution QA". Two distinct tests, per the
-Release Contract's own framing — do not conflate them:
+loop prompt's § 10 "Distribution QA".
+
+## Operator decision amendment (supersedes § 2.8's VM requirement for v1.0)
+
+**Recorded verbatim, per the Release Contract's own convention of
+keeping the historical record of why a plan changed attached to the
+decision:** the operator explicitly canceled the VirtualBox
+clean-machine VM requirement for this v1.0 portfolio release. No time
+or resources are to be spent provisioning a VM. The fresh local
+standard Windows account (§ A below) is instead the practical
+installation-isolation acceptance environment for v1.0: installer,
+first-launch, data-path (including existing-database import and
+backup-before-upgrade), upgrade, uninstall/reinstall, and
+data-preservation checks are all completed there. **Public-facing
+documentation and the RC report must not claim pristine/clean-machine
+verification** — § A shares this machine's kernel, drivers, and
+globally-installed runtimes, and that limitation must stay stated
+honestly wherever this testing is referenced. Full clean-machine VM
+verification (§ B) is deferred to a future broader public distribution
+or Microsoft Store preparation effort, not part of v1.0 RC scope.
+
+Originally, two distinct tests were planned, per the Release Contract's
+own framing:
 
 - **§ A — Fresh local Windows user account** (this same physical
   machine): the per-user-install-path check. Proves Start Menu entry,
   no admin prompt, `%LOCALAPPDATA%\vocabulary_app\` creation, and real
   browser-download SmartScreen behavior — but shares this machine's
   kernel/drivers/global runtimes, so it is *not* clean-machine proof.
+  **Now the authoritative v1.0 acceptance environment per the amendment
+  above.**
 - **§ B — Clean Windows VM** (VirtualBox + official Microsoft
   evaluation media, per § 2.8): the actual clean-machine verification
   path, since this dev machine is Windows 11 Home and cannot run
-  Hyper-V/Windows Sandbox.
+  Hyper-V/Windows Sandbox. **Deferred, not attempted for v1.0** per the
+  amendment above; retained below only as a record of the original plan
+  for whenever it is revisited.
 
 Both require actions on this machine beyond repository edits (creating
 a user account; installing/provisioning a VM), which is why they are
@@ -70,7 +95,11 @@ verification transcript.
 
 ---
 
-## § B. Clean Windows VM
+## § B. Clean Windows VM (deferred for v1.0 -- see amendment above)
+
+**Not performed for v1.0.** Retained as a record of the original plan
+for whenever full clean-machine verification is revisited (future
+broader public distribution / Microsoft Store preparation).
 
 1. Install VirtualBox (free) if not already present.
 2. Provision a VM from official Microsoft Windows 10/11 evaluation
