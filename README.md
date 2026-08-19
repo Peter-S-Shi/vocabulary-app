@@ -1,216 +1,119 @@
 # Vocabulary App
 
-Vocabulary App is a local-first vocabulary learning system for people who want to create, edit, organize, review, quiz, analyze, import, export, and back up their own learning entries.
+A local-first desktop app for building your own English/French vocabulary into Collections and Cards, then proving what you've actually learned through completed Quizzes — not a "reviewed" checkbox.
 
-**v1.0.0 is the current completed public Portfolio release.** The primary product surface is a native Windows desktop application built with PySide6 and SQLite. The earlier Streamlit UI remains in the repository as a compatibility/reference surface; it is not the v1.0 release target.
+Your core learning data (entries, Collections, Quiz history) lives in a local SQLite database on your machine. Preferences, backups, and the optional audio cache are separate local files alongside it. No account, no cloud sync, no bundled dictionaries or third-party pronunciation packs.
 
-## Release Status
+[![Release](https://img.shields.io/github/v/release/Peter-S-Shi/vocabulary-app)](https://github.com/Peter-S-Shi/vocabulary-app/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Platform: Windows](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-informational.svg)](#download-windows-desktop-app)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-informational.svg)](requirements.txt)
 
-- **Current version:** `v1.0.0`
-- **Platform:** Windows 10/11 x64
-- **Distribution:** GitHub Releases
-- **Installer:** `VocabularyApp-Setup-1.0.0.exe`
-- **Release source:** tag `v1.0.0` → merge commit `2363e73bbd85ca24f7e227f8007e0046eeabd471`
-- **Installer SHA-256:** `108095e3ce7d256bc610c33f427a9ee2fee4956cb69dde3bf0e105413865b297`
-- **License:** MIT
+**v1.0.0 is the current completed public release.** The native Windows desktop app (PySide6 + SQLite) is the primary product surface; the earlier Streamlit UI remains as a compatibility/reference surface. See the [v1.0.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.0.0) for the published installer, checksum, and release notes, and [PROJECT_STATUS.md](PROJECT_STATUS.md) for the full release-evidence record.
 
-The v1.0.0 installer is Authenticode-signed with a **self-signed developer certificate** (`CN=Peter Shi`). This verifies the project signing pipeline but is **not** a publicly trusted certificate, so Windows SmartScreen may still show an unrecognized-app warning. Public-trust reputation is not claimed by this release.
+## See it
 
-See the [v1.0.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.0.0) for the published installer, checksum metadata, release notes, and known limitations.
+**Today** — the daily home, built from real completed-Quiz history. Appearance is live-switchable between System / Light / Dark from Settings, no restart required:
 
-## Overview
+| Light | Dark |
+|---|---|
+| ![Today screen, light theme](assets/readme/today.png) | ![Today screen, dark theme](assets/readme/today-dark.png) |
 
-Vocabulary App turns a user-owned vocabulary database into a repeatable learning workflow:
+**Entries** (table-first manager) and **Study** (Immersive Focus card):
 
-1. Create or import entries.
-2. Organize entries into Collections and Cards.
-3. Browse or study Cards as preparation.
-4. Complete Card-scoped quizzes as the authoritative Card learning event.
-5. Review progress through Today, Review Calendar, and Analytics.
-6. Export, back up, or migrate local data explicitly.
-7. Optionally export Card audio using compatible speech voices already installed on Windows.
+| Entries | Study |
+|---|---|
+| ![Entries screen, dark theme](assets/readme/entries-dark.png) | ![Study card screen, dark theme](assets/readme/study-dark.png) |
 
-The `Today` workspace acts as the daily learning home. Its Card-learning activity and summaries use factual completed Card-scoped Quiz history rather than legacy Review-schedule state.
+Screenshots are from the packaged v1.0.0 Windows build, running against a small fictional demo dataset.
 
-## Lifecycle Status
+## What it does
 
-Milestones 1-20 are complete for the v1.0 product lifecycle.
+Vocabulary App is built around your own entries: you create or import your own English/French entries, organize them yourself, and the app keeps an honest local record of what you've actually completed — no pre-built decks, no cloud account, and no opaque scheduling algorithm deciding what you see next.
 
-- M11 established the Trustworthy Pre-Desktop Baseline.
-- M12 reorganized repository and documentation structure.
-- M13 established Import and Template Evolution Core.
-- M14 established Learning Analytics and Insight Core.
-- M15 established the reusable Audio Foundation.
-- M16 selected PySide6 and froze the native desktop architecture/design baseline.
-- M17 migrated the core daily workflow to the native desktop product.
-- M18 completed management, data, Analytics, and Card Audio Export workflows.
-- M19 completed system-wide Desktop Product Hardening and Human Acceptance.
-- **M20 completed Windows packaging, distribution QA, release-candidate verification, Human RC Acceptance, version finalization, tagging, and public v1.0.0 publication.**
+- **Entries and templates** — create, edit, search, and batch-manage entries; General and custom templates, with built-in French presets; CSV/XLSX import through Upload → Validate → Preview → Confirm.
+- **Collections and Cards** — group entries into Collections with configurable Card sizes, reordering, stable Card identity/history, and system pools (Mistake Book, Starred, Proficient Pool).
+- **Study and Quiz** — an Immersive Focus Study surface plus self-graded, multiple-choice, and matching Quizzes. Completing a Quiz scoped to a Card is the one authoritative learning event — browsing alone doesn't count, and you don't have to browse first to quiz.
+- **Today** — a daily home built from real completed-Quiz history: available Cards, never-quizzed Cards, today's activity, and collections needing attention.
+- **Analytics** — read-only statistics and learning-trend views computed from actual quiz logs, not estimates.
+- **Backup, export, and Card Audio Export** — SQLite backup with non-destructive restore preview, CSV/XLSX export, and Card Audio Export, which renders audio using compatible speech voices already installed on your Windows machine.
 
-Human RC PASS was granted on 2026-08-19 against exact RC SHA `89263a4f0f477fe5455ed22bedffd1968218bb1e`. PR #33 was subsequently merged, release metadata was finalized to `1.0.0`, tag `v1.0.0` was bound to merged `main` SHA `2363e73bbd85ca24f7e227f8007e0046eeabd471`, and the canonical installer was built from that tagged source and published through GitHub Releases.
+## How it works
 
-See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the current evidence-based release snapshot and [ROADMAP.md](ROADMAP.md) for milestone definitions and historical lifecycle detail.
+Reusable learning and data logic lives in framework-independent core modules under `src/`, on top of a local SQLite database. Two UI layers consume that same framework-independent core: a Streamlit compatibility UI (`app.py`, `src/ui_streamlit/`) and the native PySide6 desktop UI (`src/ui_desktop/`), the primary product surface as of v1.0.0. Application binaries and durable user data are installed to separate locations, and schema upgrades create a safety backup before migrating.
 
-## Product Philosophy
+Schema changes are additive-only: an explicit schema/app-metadata version chain has carried real user data through 20 development milestones without a destructive rewrite. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full boundary rules.
 
-- **Local-first:** durable learning data is stored locally in SQLite.
-- **User-owned content:** users create, edit, import, and maintain their own entries.
-- **Explicit control:** Card composition, quiz answers, pool membership, imports, deletion, backup, and database migration actions remain user-controlled.
-- **No hidden language authority:** the app organizes learning data but does not claim to verify linguistic accuracy.
-- **No account / cloud dependency:** v1.0 requires no account, telemetry, cloud sync, or mandatory external service.
-- **Migration-safe release design:** application binaries and durable user data are separated, and database upgrades create safety backups before migration.
+## Engineering evidence
 
-Users are responsible for ensuring that content they create, import, export, or share is accurate and that they have permission to use it.
+- **Enforced architecture boundary** — `scripts/audit_architecture.py` scans `app.py` and `src/` and fails if UI-framework imports (Streamlit or PySide6) leak into core modules, or if either UI layer imports the other.
+- **Verified regression suite** — 911 tests, 0 failures, 0 errors, recorded at the v1.0.0 Human RC acceptance point using Python's built-in `unittest discover` (no hosted CI is configured for this repository yet); see [PROJECT_STATUS.md](PROJECT_STATUS.md) for the full evidence record.
+- **Additive migration chain** — schema/app-metadata versioning designed to preserve legacy Review history, Quiz logs, and Card revisions across every milestone rather than resetting user data.
+- **Import/export safety** — a transaction-safe Validate → Preview → Confirm pipeline for CSV/XLSX import, read-only exports, and a restore-preview flow that never silently overwrites the active database; existing-database import uses explicit copy-with-backup semantics and never moves or edits the source file.
+- **Deliberate no-bundled-TTS decision** — Card Audio Export renders audio using compatible speech voices already installed on Windows, instead of shipping or redistributing a third-party voice model — trading convenience for lower licensing risk (see [Third-Party Notices](THIRD_PARTY_NOTICES.md)).
+- **Windows packaging pipeline** — PyInstaller `--onedir` + Inno Setup, Authenticode-signed with a self-signed developer certificate, with a published, independently re-verified SHA-256 checksum for the canonical v1.0.0 installer (see [M20 Release Contract](docs/packaging/M20_RELEASE_CONTRACT.md)).
 
-See [Content Policy](docs/policies/CONTENT_POLICY.md) for the detailed user-owned content boundary.
+## Download (Windows desktop app)
 
-## Current Features
+Download `VocabularyApp-Setup-1.0.0.exe` from the [v1.0.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.0.0), verify it if you like (`SHA-256 108095e3ce7d256bc610c33f427a9ee2fee4956cb69dde3bf0e105413865b297`, also published as `SHA256SUMS.txt`), then run it and launch **Vocabulary App** from the Start Menu.
 
-### Entries and templates
+The installer is per-user and requires no admin rights. The certificate is a **self-signed developer certificate**, not a publicly trusted one — Windows SmartScreen may show an "unrecognized app" warning on first run; choose "More info" → "Run anyway" if you trust the source. See [M20 Code Signing Setup](docs/packaging/M20_CODE_SIGNING_SETUP.md) for the full rationale.
 
-- Entry creation, editing, search, filters, selection, and batch deletion
-- Structured Quick Add text parsing
-- General and custom entry templates
-- Built-in French template presets
-- Template field values included in search and display
-- Starred and Proficient Pool batch actions
+First launch: **Add Entry** or **Data tools → Import** your first words → group them into a **Collection** → **Study** or **Quiz** the Card. `Today` will start tracking real progress from there.
 
-### Collections and Cards
+## Run from source
 
-- Configurable Collection Card sizes
-- Collection-specific Entry ordering
-- Dynamic Card-number calculation
-- Add, remove, reorder, and delete Collection workflows
-- Stable Card identity and membership revision history
-- System Collections for Mistake Book, Starred, and Proficient Pool
+Useful for development, or to run the still-available Streamlit compatibility UI.
 
-### Study, Quiz, and learning history
-
-- Collection Card browse/study surface
-- Quick Card Quiz and Choose Quiz Type handoff routes
-- Self-graded term/meaning quizzes
-- Multiple-choice, mixed multiple-choice, and matching practice
-- Template-aware quiz rules
-- Active-session and duplicate-answer protection
-- Completed Card-scoped Quiz history as the authoritative Card learning event
-- Mistake Book recovery and Proficient Pool audit workflows
-- Legacy Review/SRS state retained only where required for compatibility/history
-
-### Today and Review Calendar
-
-- `Today` Command Center as the daily learning home
-- Available-Card and never-quizzed workload
-- Daily quiz suggestions and recent activity
-- Card-study / Quiz navigation
-- Daily learning summary based on completed Card-scoped Quiz sessions
-- Review Calendar / Card History workspace
-
-### Analytics
-
-- Learning Brief and Full Findings desktop views
-- Entry, Template, Collection, Card-learning, Quiz, and special-pool statistics
-- Historical ranges and learning trends
-- Read-only Analytics architecture over reusable core evidence
-
-### Import, export, and backup
-
-- CSV and XLSX export
-- General and template-based import
-- Validate → Preview → Confirm → Import workflow
-- Duplicate handling
-- Collection/Card-aware import and export
-- Template Definition CSV import/export
-- SQLite backup snapshots
-- Structured XLSX backup and restore preview
-- Explicit existing-database import using copy-with-backup semantics; the source database is never moved
-
-### Card Audio Export
-
-- Single Card / Selected Cards / Whole Collection export scopes
-- Repetition and overwrite/skip controls
-- Background provider preflight and progress UI
-- Local Windows Speech Provider / Installed Voice Binding
-- Compatible voices are enumerated from the user's own Windows installation
-- v1.0 does **not** bundle, download, install, or redistribute Kokoro, sherpa-onnx, Piper voices, a third-party TTS runtime, or third-party voice models
-- If no compatible local voice is installed for a supported route, audio capability reports itself unavailable/configuration-required instead of silently downloading a replacement
-
-## What This App Does Not Include
-
-The v1.0 release does not include:
-
-- built-in dictionary databases
-- copyrighted bundled word lists
-- bundled pronunciation recordings
-- bundled or downloaded third-party TTS models/runtimes
-- AI-generated vocabulary explanations, examples, or bulk learning content
-- automatic correction of user-created entries
-- cloud sync
-- account login or authentication
-- telemetry
-- mobile packaging
-- automatic software updating
-- full destructive database restore
-
-## Install v1.0.0 on Windows
-
-### Recommended: GitHub Release installer
-
-Download `VocabularyApp-Setup-1.0.0.exe` from the [v1.0.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.0.0).
-
-The installer is per-user and does not require administrator installation mode. The primary installation root is under the current user's Local AppData Programs directory, while durable app data is stored separately under:
-
-```text
-%LOCALAPPDATA%\vocabulary_app\
-```
-
-The installer preserves user data by default when uninstalling. Destructive data removal requires an explicit opt-in.
-
-Verify the published installer if desired:
-
-```text
-SHA-256  108095e3ce7d256bc610c33f427a9ee2fee4956cb69dde3bf0e105413865b297
-```
-
-Because the release uses a self-signed developer certificate rather than a publicly trusted certificate, SmartScreen may warn even though the artifact is signed. This is an acknowledged distribution limitation of the Portfolio release.
-
-## Run from Source
-
-Source execution is intended for development, inspection, and compatibility work rather than the normal v1.0 installation path.
-
-### Prerequisites
-
-- Python 3.10 or newer is recommended.
-- Git is optional if the project is downloaded as an archive.
-
-### Windows PowerShell
+Prerequisites: Python 3.10+, Git optional.
 
 ```powershell
-git clone <repository-url>
+git clone https://github.com/Peter-S-Shi/vocabulary-app.git
 cd vocabulary-app
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+```bash
+git clone https://github.com/Peter-S-Shi/vocabulary-app.git
+cd vocabulary-app
+python3 -m venv .venv
+./.venv/bin/python -m pip install --upgrade pip
+./.venv/bin/python -m pip install -r requirements.txt
+```
+
+Desktop UI (primary product surface):
+
+```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements-desktop.txt
 .\.venv\Scripts\python.exe -m src.ui_desktop
 ```
 
-### Streamlit compatibility/reference UI
+Streamlit compatibility UI:
 
 ```powershell
 .\.venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-Streamlit normally opens at `http://localhost:8501`. It remains useful for compatibility/reference work but is not the packaged v1.0 product surface.
+Run both from the directory containing `app.py`. See [Common Errors](#common-errors) below if something doesn't start.
 
-## Local Data and Privacy
+## What this app does not include
 
-On the packaged Windows release, the default durable data root is:
+- built-in dictionary databases or copyrighted word lists
+- bundled pronunciation recordings, TTS voice models, or any third-party TTS runtime
+- AI-generated vocabulary explanations, examples, or bulk learning content
+- automatic correction of user-created entries
+- cloud sync, account login, authentication, or telemetry
+- mobile app packaging
+- automatic software updating
+- full destructive database restore
 
-```text
-%LOCALAPPDATA%\vocabulary_app\
-```
+These are current, deliberate product boundaries — see [Content Policy](docs/policies/CONTENT_POLICY.md).
 
-Key locations include:
+## Local data and privacy
+
+Your core learning data (entries, Collections, Quiz history) lives in a local SQLite database, never uploaded anywhere. It's separate from your preferences, backups, and the optional audio cache, which are their own local files alongside it. This is the same whether you run the packaged Windows build or from source: the default durable data root is a per-user app-data location, not the project checkout. On Windows that's:
 
 ```text
 %LOCALAPPDATA%\vocabulary_app\vocab.db
@@ -219,126 +122,38 @@ Key locations include:
 %LOCALAPPDATA%\vocabulary_app\audio-cache\
 ```
 
-Application binaries are installed separately from user data. Uninstall preserves the data root by default.
+Off Windows it falls back to XDG data-home semantics (`$XDG_DATA_HOME` or `~/.local/share/vocabulary_app`). Application binaries are installed separately from this data root, and uninstalling preserves it by default — destructive removal requires an explicit opt-in. Schema upgrades create a safety backup before migrating, and importing an existing database uses copy-with-backup semantics; the source file is never moved or edited in place. `VOCAB_APP_DB_PATH` is an explicit database-path override for advanced or development use.
 
-Before schema migration, the app creates a safety backup. Existing databases are imported through an explicit user-selected copy workflow with backup protection; the source file is not moved or edited in place.
+See [Data Storage](docs/policies/DATA_STORAGE.md) and [Data Safety](docs/policies/DATA_SAFETY.md) for the full behavior.
 
-Advanced users may use environment overrides such as `VOCAB_APP_DB_PATH` for isolated development/testing. Repository-local databases, exports, backups, logs, caches, virtual environments, secrets, and machine-specific paths must never be committed.
+## Known limitations
 
-See [Data Storage](docs/policies/DATA_STORAGE.md), [Data Safety](docs/policies/DATA_SAFETY.md), and [Software Update Policy](docs/policies/SOFTWARE_UPDATE_POLICY.md) for detailed handling rules.
+- The v1.0 release is signed with a self-signed Authenticode certificate, not a publicly trusted one; SmartScreen reputation isn't guaranteed and a warning may appear on first run.
+- Full pristine clean-machine VM verification was deferred; v1.0 acceptance used a fresh local standard Windows account instead (see [PROJECT_STATUS.md](PROJECT_STATUS.md)).
+- Windows 10/11 x64 only.
+- Card Audio Export depends on compatible speech voices already installed on the user's Windows system.
+- No automatic updater; upgrades use a new installer while preserving user data and creating a migration safety backup.
 
-## Architecture
+## Documentation
 
-The native desktop application under `src/ui_desktop/` is the primary product surface. Reusable learning/data logic remains framework-independent under `src/`; desktop views/controllers consume those APIs rather than duplicating domain logic or SQL.
+- [docs/README.md](docs/README.md) — full documentation map
+- [ARCHITECTURE.md](ARCHITECTURE.md) — layer boundaries and core module responsibilities
+- [DESIGN.md](DESIGN.md) — frozen desktop UI design system
+- [ROADMAP.md](ROADMAP.md) / [PROJECT_STATUS.md](PROJECT_STATUS.md) — full milestone-by-milestone history and the current release-evidence record (v1.0.0 shipped through 20 sequential development milestones)
+- [CONTRIBUTING.md](CONTRIBUTING.md) — project principles and architecture rules for contributors
 
-The Streamlit compatibility UI remains under `app.py` and `src/ui_streamlit/`. PySide6 imports are restricted to the desktop boundary.
+## Common Errors
 
-Major architecture/design references:
+**`python` is not recognized** — install Python and add it to `PATH`, then reopen the terminal.
 
-- [ARCHITECTURE.md](ARCHITECTURE.md)
-- [DESIGN.md](DESIGN.md)
-- [Desktop Migration Plan](docs/migration/DESKTOP_MIGRATION_PLAN.md)
-- [M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md)
-- [M15.1 Speech Semantic Contract](docs/design/M15_1_SPEECH_SEMANTIC_CONTRACT.md)
-- [M15.3 Batch Audio Export Contract](docs/design/M15_3_BATCH_EXPORT_CONTRACT.md)
+**PowerShell blocks `Activate.ps1`** — activation is optional; every command above calls the virtual-environment Python directly. If you want it anyway: `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` then `.\.venv\Scripts\Activate.ps1`.
 
-## Tech Stack
+**`streamlit` is not recognized** — use `.\.venv\Scripts\python.exe -m streamlit run app.py`.
 
-- Python 3
-- PySide6 — primary native desktop UI
-- SQLite — local durable data
-- Streamlit — compatibility/reference UI
-- openpyxl — XLSX workflows
-- PyInstaller `--onedir` — Windows application packaging
-- Inno Setup — per-user Windows installer
-- Windows local speech APIs / installed voices — v1.0 audio provider model
+**`ModuleNotFoundError: No module named 'src'`** — start the app from the directory containing `app.py`.
 
-## Project Structure
-
-```text
-vocabulary-app/
-|-- app.py                         # Streamlit compatibility/reference shell
-|-- requirements.txt               # Core + Streamlit compatibility dependencies
-|-- requirements-desktop.txt       # PySide6 desktop dependency
-|-- README.md
-|-- PROJECT_STATUS.md
-|-- ROADMAP.md
-|-- DESIGN.md
-|-- winbuild/                      # PyInstaller + Inno Setup release tooling
-|-- docs/                          # Design, policy, QA, packaging, and history records
-|-- sample_data/
-`-- src/
-    |-- app_config.py              # Version, paths, app configuration
-    |-- db.py                      # Database connection and initialization
-    |-- entries.py                 # Entry CRUD/search
-    |-- entry_templates.py         # Template management
-    |-- migrations.py              # Schema/app metadata and additive migrations
-    |-- collections.py             # Collections, Cards, ordering
-    |-- card_history.py            # Stable Card identity and revisions
-    |-- quiz.py                    # Quiz sessions and answer logs
-    |-- statistics.py              # Read-only statistics queries
-    |-- learning_workflow.py       # Today workflow queries
-    |-- import_export.py           # Import/export validation and execution
-    |-- backup.py                  # Backup / restore-preview helpers
-    |-- audio_export.py            # Card Audio Export planning/execution
-    |-- ui_desktop/                # Primary PySide6 product surface
-    `-- ui_streamlit/              # Compatibility/reference Streamlit surface
-```
-
-## Release Verification Summary
-
-The M20 Human RC / release process recorded the following evidence before publication:
-
-- Full repository regression: **911 tests, 0 failures, 0 errors** at the Human-RC-accepted RC source
-- Architecture audit: clean
-- Fresh local standard-account install/launch/reinstall/uninstall verification
-- Fresh database creation and representative existing-database import verification
-- Backup-before-upgrade and real schema-migration verification
-- Local Windows speech-voice enumeration verification
-- Release payload/privacy inspection
-- Self-signed Authenticode signing-pipeline verification
-- Final `1.0.0` version/build/signature/install/launch/uninstall smoke verification
-- Canonical release build manifest bound to merged/tagged source SHA `2363e73bbd85ca24f7e227f8007e0046eeabd471`
-
-The detailed release contract and QA evidence are in:
-
-- [M20 Release Contract](docs/packaging/M20_RELEASE_CONTRACT.md)
-- [M20 Distribution QA Checklist](docs/packaging/M20_DISTRIBUTION_QA_CHECKLIST.md)
-- [M20 Code Signing Setup](docs/packaging/M20_CODE_SIGNING_SETUP.md)
-- [PROJECT_STATUS.md](PROJECT_STATUS.md)
-
-## Known Distribution Limitations
-
-- The v1.0 Portfolio release uses a self-signed Authenticode developer certificate, not a publicly trusted signing identity; SmartScreen reputation is not guaranteed.
-- Full pristine clean-machine VM verification was deferred; v1.0 distribution acceptance used a fresh local standard Windows account plus the recorded install/migration/uninstall evidence.
-- v1.0 is Windows 10/11 x64 only.
-- Audio availability depends on compatible speech voices already installed on the user's Windows system.
-- There is no automatic updater; upgrades use a new installer while preserving durable user data and creating migration safety backups.
-
-## Roadmap and History
-
-The completed v1.0 lifecycle was:
-
-```text
-M11 Pre-Desktop Stabilization
--> M12 Repository Restructure
--> M13 Import and Template Evolution Core
--> M14 Learning Analytics and Insight Core
--> M15 Audio Foundation
--> M16 Desktop Architecture and UI Design
--> M17 Desktop Core Workflow Migration
--> M18 Desktop Management and Major Feature Completion
--> M19 Desktop Product Hardening
--> M20 Packaging and Release Candidate
--> v1.0.0 Released
-```
-
-Future work, if any, is outside the completed v1.0 lifecycle and should begin from a new explicitly defined milestone/roadmap decision rather than reopening M20.
-
-Historical evidence remains available throughout `docs/history/`, `docs/qa/`, and the milestone sections of [ROADMAP.md](ROADMAP.md).
+**Port 8501 already in use** — `.\.venv\Scripts\python.exe -m streamlit run app.py --server.port 8502`.
 
 ## License
 
-Vocabulary App is released under the [MIT License](LICENSE).
-
-Copyright (c) 2026 Yunsong Shi (Peter Shi)
+[MIT](LICENSE) © 2026 Yunsong Shi (Peter Shi).
