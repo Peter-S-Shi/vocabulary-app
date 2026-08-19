@@ -952,3 +952,19 @@ satisfied) and in PR #33's description.
 agent prepared PR #33 for merge but has not merged it, merged to `main`,
 created/pushed a version tag, or published a GitHub Release. Each of
 those remains a separate, explicit operator action.
+
+### Release-metadata finalization (2026-08-19, after Human RC PASS)
+
+Per the versioning scheme frozen in § 1 (`v1.0.0-rc.1` → Human RC
+Acceptance → `v1.0.0`), a release-metadata-only finalization was
+applied on top of the PASSed SHA above: `src/app_config.APP_VERSION`
+and `winbuild/version_info.txt`'s `ProductVersion` string both changed
+from `1.0.0-rc.1` to `1.0.0`. No product/runtime behavior or scope
+changed. This did not re-run the full regression suite or re-request
+Human RC Acceptance — the operator's PASS already covers the exact
+underlying artifact/behavior; only the version label advances per the
+already-frozen scheme. Targeted verification only: `python -m unittest`
+against the version-drift-guard and signing tests, a fresh
+`winbuild/build.py` run (self-signed certificate), and independent
+Authenticode/installer smoke verification. See the exact resulting
+SHA, installer filename, and SHA-256 recorded in `PROJECT_STATUS.md`.

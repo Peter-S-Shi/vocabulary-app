@@ -25,7 +25,7 @@ VSVersionInfo(
             StringStruct(u'LegalCopyright', u'Copyright (c) 2026 Yunsong Shi (Peter Shi)'),
             StringStruct(u'OriginalFilename', u'Vocabulary App.exe'),
             StringStruct(u'ProductName', u'Vocabulary App'),
-            StringStruct(u'ProductVersion', u'1.0.0-rc.1'),
+            StringStruct(u'ProductVersion', u'1.0.0'),
           ],
         )
       ]

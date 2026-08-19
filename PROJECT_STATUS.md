@@ -82,6 +82,21 @@ at the accepted SHA):**
 - `LICENSE`, `THIRD_PARTY_NOTICES.md`, and README audio/TTS disclosure
   all reconciled to the shipped RC build.
 
+**Release-metadata finalization (2026-08-19, after Human RC PASS):**
+per the versioning scheme frozen in the Release Contract § 1
+(`v1.0.0-rc.1` → Human RC Acceptance → `v1.0.0`), `APP_VERSION` and
+`winbuild/version_info.txt` were updated from `1.0.0-rc.1` to `1.0.0`
+— metadata only, no product/runtime behavior or scope change, no
+regression re-run, no new Human RC request (the existing PASS already
+covers the underlying artifact/behavior). Targeted verification: the
+version-drift-guard and signing tests (11/11 green), a fresh signed
+build, and an install → isolated-path launch → signature-verify →
+uninstall smoke pass, all real. Final artifact:
+`VocabularyApp-Setup-1.0.0.exe`, SHA-256
+`d39a941a6bff5ed0a9754e08f0cdfbb131ef6bf0b37f83e423abe7e28f1087bf`,
+self-signed `CN=Peter Shi`, status `UnknownError`/untrusted-root as
+expected.
+
 **Known limitations recorded, not blocking:** the existing-database-
 import and destructive-uninstall-opt-in UI flows were verified by
 direct function-level/primary-account evidence rather than a literal
