@@ -1,123 +1,68 @@
 # Vocabulary App
 
-Vocabulary App is a local-first personal vocabulary learning system for people who want to create, edit, organize, review, quiz, analyze, import, export, and back up their own English and French learning entries.
+Vocabulary App is a local-first vocabulary learning system for people who want to create, edit, organize, review, quiz, analyze, import, export, and back up their own learning entries.
 
-The project is currently a Python, Streamlit, and SQLite application. Streamlit is the temporary compatibility UI; reusable learning and data logic is kept in separate core modules for the planned native desktop product.
+**v1.0.0 is the current completed public Portfolio release.** The primary product surface is a native Windows desktop application built with PySide6 and SQLite. The earlier Streamlit UI remains in the repository as a compatibility/reference surface; it is not the v1.0 release target.
+
+## Release Status
+
+- **Current version:** `v1.0.0`
+- **Platform:** Windows 10/11 x64
+- **Distribution:** GitHub Releases
+- **Installer:** `VocabularyApp-Setup-1.0.0.exe`
+- **Release source:** tag `v1.0.0` → merge commit `2363e73bbd85ca24f7e227f8007e0046eeabd471`
+- **Installer SHA-256:** `108095e3ce7d256bc610c33f427a9ee2fee4956cb69dde3bf0e105413865b297`
+- **License:** MIT
+
+The v1.0.0 installer is Authenticode-signed with a **self-signed developer certificate** (`CN=Peter Shi`). This verifies the project signing pipeline but is **not** a publicly trusted certificate, so Windows SmartScreen may still show an unrecognized-app warning. Public-trust reputation is not claimed by this release.
+
+See the [v1.0.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.0.0) for the published installer, checksum metadata, release notes, and known limitations.
 
 ## Overview
 
-Vocabulary App helps users maintain their own vocabulary database and turn it into a repeatable learning workflow:
+Vocabulary App turns a user-owned vocabulary database into a repeatable learning workflow:
 
 1. Create or import entries.
-2. Organize entries into collections and cards.
-3. Browse or study cards as preparation.
+2. Organize entries into Collections and Cards.
+3. Browse or study Cards as preparation.
 4. Complete Card-scoped quizzes as the authoritative Card learning event.
-5. Inspect statistics and daily progress.
-6. Export or back up local data.
+5. Review progress through Today, Review Calendar, and Analytics.
+6. Export, back up, or migrate local data explicitly.
+7. Optionally export Card audio using compatible speech voices already installed on Windows.
 
-The `Today` page acts as the daily learning home. Its Card-learning activity
-and summaries use factual completed Card-scoped Quiz history rather than
-legacy Review-schedule state.
+The `Today` workspace acts as the daily learning home. Its Card-learning activity and summaries use factual completed Card-scoped Quiz history rather than legacy Review-schedule state.
 
 ## Lifecycle Status
 
-Milestones 1-10 feature development and productization are complete historical
-work. **Milestone 11 is complete** and established a **Trustworthy
-Pre-Desktop Baseline**. **Milestone 12 is complete** and established the
-organized repository/documentation structure. **Milestone 13 is complete**
-and established the reusable Import and Template Evolution Core. **Milestone
-14 is complete** and established the Learning Analytics and Insight Core.
-**Milestone 15.0 is closed** and records the selected English, French, and
-Mandarin TTS providers and their license/attribution requirements. **Milestone
-15.1 — Speech Semantics & TTS Provider Foundation** is merged on `main`.
-M15.2 Audio Asset and Card Composition Core is merged on `main`. M15.3 Batch
-Export, Failure Safety, and Milestone Closure merged through PR #17 at
-`9448f2e44940e0d426a965823aa66c48f53ec0f1`. **Milestone 15 — Audio
-Foundation is complete on `main`.** **Milestone 16 — Desktop Architecture and
-UI Design is complete on `main`**; M16.0 Desktop UI Design Baseline is complete
-and frozen in [DESIGN.md](DESIGN.md). **M16.1 Desktop Architecture Foundation
-is complete on `main`**, selecting PySide6 as the desktop framework and
-freezing the controller/view-state/core boundary (see
-[M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md)).
-**M16.2 Minimal Desktop Vertical Slice & M16 Exit is complete on `main`**
-through PR #23 at `2e900d243950ca93aedf5cbde5b836dc6e378f25` — see
-[Milestone 16 Closure](docs/history/MILESTONE16_CLOSURE.md). **Milestone 17 —
-Desktop Core Workflow Migration is complete on `main`**, merged via PR #25:
-Today, Review, Quiz, Quiz Presentation Choice, Entries, Minimum Collection
-Integration, Theme Completion & Cross-Screen Validation, and the final
-Parity + Exit Verification checkpoint are all Human Accepted. Native Human
-Exit PASS recorded 2026-08-17 against final accepted head
-`d232717b6b225e7c798c510ae8e87ce87fe5d8c8`; see
-[ROADMAP.md § Milestone 17](ROADMAP.md#milestone-17-desktop-core-workflow-migration)
-for the full acceptance record. **Milestone 18 — Desktop Management and
-Major Feature Completion is complete on `main`**, merged via PR #29 at
-`9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc` after all three M18 Human
-Gates (Management Grammar, Analytics, and the final native acceptance
-including real Card Audio Export) were Human Accepted. The desktop
-application now covers Collections/Card organization, Templates, Review
-Calendar, Settings, Data Tools (Import/Export, Template Definition CSV,
-Backup / Restore Preview, Card Audio Export), Linked Sources, and
-Analytics. **Milestone 19 — Desktop Product Hardening is complete on
-`main`**, Human Accepted 2026-08-18 and merged via PR #30 at
-`2ad211711d96583b6fffdb65de912fa672502bc8`: a system-wide hardening
-pass covering data and migration integrity, adversarial and
-non-happy-path behavior, Analytics correctness against the frozen M14
-contract, and desktop robustness — see
-[Milestone 19 Hardening QA](docs/qa/MILESTONE19_HARDENING_QA.md) for
-the evidence record. The desktop Feature Freeze remains active.
-**Milestone 20 — Packaging and Release Candidate** has reached RC
-Engineering Exit Candidate with Human RC PASS granted (2026-08-19) for
-SHA `89263a4f0f477fe5455ed22bedffd1968218bb1e` on branch
-`agent/m20-packaging-release-candidate` (Draft PR #33) — not yet merged
-to `main`, pending separate explicit operator authorization to merge,
-tag, and publish. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the
-full evidence record.
+Milestones 1-20 are complete for the v1.0 product lifecycle.
 
-Streamlit remains the currently runnable compatibility/reference UI, but it is
-no longer the intended Release Candidate target. The active lifecycle now
-stabilizes data semantics, builds reusable foundations, migrates the product to
-a native desktop UI, and hardens/packages the desktop product.
+- M11 established the Trustworthy Pre-Desktop Baseline.
+- M12 reorganized repository and documentation structure.
+- M13 established Import and Template Evolution Core.
+- M14 established Learning Analytics and Insight Core.
+- M15 established the reusable Audio Foundation.
+- M16 selected PySide6 and froze the native desktop architecture/design baseline.
+- M17 migrated the core daily workflow to the native desktop product.
+- M18 completed management, data, Analytics, and Card Audio Export workflows.
+- M19 completed system-wide Desktop Product Hardening and Human Acceptance.
+- **M20 completed Windows packaging, distribution QA, release-candidate verification, Human RC Acceptance, version finalization, tagging, and public v1.0.0 publication.**
 
-- [ROADMAP.md](ROADMAP.md) is the authoritative lifecycle and milestone plan.
-- [PROJECT_STATUS.md](PROJECT_STATUS.md) is the authoritative current-state
-  snapshot.
-- [M15.1 Speech Semantic Contract](docs/design/M15_1_SPEECH_SEMANTIC_CONTRACT.md)
-  records the current audio-field and provider-routing invariants.
-- [M15.3 Batch Audio Export Contract](docs/design/M15_3_BATCH_EXPORT_CONTRACT.md)
-  records reusable export, publication, partial-failure, and retry semantics.
-- [Pre-Git history](docs/history/PRE_GIT_HISTORY.md) documents development before the
-  initial public Git baseline.
+Human RC PASS was granted on 2026-08-19 against exact RC SHA `89263a4f0f477fe5455ed22bedffd1968218bb1e`. PR #33 was subsequently merged, release metadata was finalized to `1.0.0`, tag `v1.0.0` was bound to merged `main` SHA `2363e73bbd85ca24f7e227f8007e0046eeabd471`, and the canonical installer was built from that tagged source and published through GitHub Releases.
 
-### Approved Milestone 11 learning semantics
-
-- Review is a Card browse/study/preparation surface and an entry point into
-  Quiz. Browsing alone is not a completed learning event.
-- Completing a Quiz scoped to a specific Card is the authoritative completed
-  learning/review event for that Card. Entering that Quiz directly is equally
-  valid; the user does not need to visit Review first.
-- A random or whole-pool Quiz remains valid Entry-level performance activity,
-  but it must not fabricate completion for an unrelated Card.
-- Independent manual next-review scheduling and Again/Hard/Good/Easy interval
-  scheduling are being retired from the active model during Milestone 11. No
-  replacement SRS algorithm is being introduced in this milestone.
-- `entries.id` is the permanent Entry identity. Cards now have a stable
-  `card_id` with mutable, revisioned, historically traceable Entry membership.
-  Legacy records that only identify `collection_id + card_number` must
-  not be presented as more precise than the stored evidence supports.
+See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the current evidence-based release snapshot and [ROADMAP.md](ROADMAP.md) for milestone definitions and historical lifecycle detail.
 
 ## Product Philosophy
 
-- **Local-first:** learning data is stored in a local SQLite database.
+- **Local-first:** durable learning data is stored locally in SQLite.
 - **User-owned content:** users create, edit, import, and maintain their own entries.
-- **Explicit control:** Card composition, quiz answers, pool membership, imports, deletion, and backup actions remain user-controlled.
+- **Explicit control:** Card composition, quiz answers, pool membership, imports, deletion, backup, and database migration actions remain user-controlled.
 - **No hidden language authority:** the app organizes learning data but does not claim to verify linguistic accuracy.
-- **Migration-friendly architecture:** reusable logic stays outside the Streamlit UI.
+- **No account / cloud dependency:** v1.0 requires no account, telemetry, cloud sync, or mandatory external service.
+- **Migration-safe release design:** application binaries and durable user data are separated, and database upgrades create safety backups before migration.
 
 Users are responsible for ensuring that content they create, import, export, or share is accurate and that they have permission to use it.
 
-This product boundary is intentional: manual editing can support deeper learning, local storage protects personal study data, and avoiding bundled language databases reduces licensing risk. It also keeps the system flexible for English, French, and future user-defined languages or templates.
-
-See [Content Policy](docs/policies/CONTENT_POLICY.md) for the detailed user-owned content policy.
+See [Content Policy](docs/policies/CONTENT_POLICY.md) for the detailed user-owned content boundary.
 
 ## Current Features
 
@@ -130,144 +75,107 @@ See [Content Policy](docs/policies/CONTENT_POLICY.md) for the detailed user-owne
 - Template field values included in search and display
 - Starred and Proficient Pool batch actions
 
-### Collections and cards
+### Collections and Cards
 
-- Configurable collection card sizes
-- Collection-specific entry ordering
-- Dynamic card-number calculation
-- Add, remove, reorder, and delete collection workflows
-- System collections for Mistake Book, Starred, and Proficient Pool
+- Configurable Collection Card sizes
+- Collection-specific Entry ordering
+- Dynamic Card-number calculation
+- Add, remove, reorder, and delete Collection workflows
+- Stable Card identity and membership revision history
+- System Collections for Mistake Book, Starred, and Proficient Pool
 
-### Card study and learning history
+### Study, Quiz, and learning history
 
 - Collection Card browse/study surface
 - Quick Card Quiz and Choose Quiz Type handoff routes
-- Completed Card-scoped Quiz history
-- Legacy Review history available only as explicitly labelled compatibility
-  data
-- Legacy scheduling state retained in storage compatibility code but excluded
-  from active completion truth and Streamlit scheduling controls
-
-### Quiz and learning pools
-
 - Self-graded term/meaning quizzes
-- Multiple-choice and mixed multiple-choice quizzes
-- Matching practice
+- Multiple-choice, mixed multiple-choice, and matching practice
 - Template-aware quiz rules
-- Active-session protection and duplicate-answer protection
-- Entry-level results linked to permanent `entry_id`
-- Mistake Book recovery workflow
-- Proficient Pool random audits
+- Active-session and duplicate-answer protection
+- Completed Card-scoped Quiz history as the authoritative Card learning event
+- Mistake Book recovery and Proficient Pool audit workflows
+- Legacy Review/SRS state retained only where required for compatibility/history
 
-### Statistics and Card learning history
+### Today and Review Calendar
 
-- Entry, template, collection, Card-learning, quiz, and special-pool statistics
-- Completed Card-learning history and historical ranges
-- Learning trends and entry-health views
-- Read-only statistics architecture
-
-### Daily learning workflow
-
-- `Today` as the default learning home
+- `Today` Command Center as the daily learning home
 - Available-Card and never-quizzed workload
-- Daily quiz suggestions
-- Special-pool status
-- Card-study and Quiz focus navigation
+- Daily quiz suggestions and recent activity
+- Card-study / Quiz navigation
 - Daily learning summary based on completed Card-scoped Quiz sessions
+- Review Calendar / Card History workspace
 
-### Import / export
+### Analytics
+
+- Learning Brief and Full Findings desktop views
+- Entry, Template, Collection, Card-learning, Quiz, and special-pool statistics
+- Historical ranges and learning trends
+- Read-only Analytics architecture over reusable core evidence
+
+### Import, export, and backup
 
 - CSV and XLSX export
 - General and template-based import
-- Validation, preview, confirmation, and transaction-safe writes
+- Validate → Preview → Confirm → Import workflow
 - Duplicate handling
-- Collection/card-aware import and export
-- Downloadable sample formats and template field maps
+- Collection/Card-aware import and export
+- Template Definition CSV import/export
+- SQLite backup snapshots
+- Structured XLSX backup and restore preview
+- Explicit existing-database import using copy-with-backup semantics; the source database is never moved
 
-### Backup and restore-lite preview
+### Card Audio Export
 
-- Consistent SQLite backup snapshots
-- Structured XLSX backup
-- Restore preview without overwriting the active database
+- Single Card / Selected Cards / Whole Collection export scopes
+- Repetition and overwrite/skip controls
+- Background provider preflight and progress UI
+- Local Windows Speech Provider / Installed Voice Binding
+- Compatible voices are enumerated from the user's own Windows installation
+- v1.0 does **not** bundle, download, install, or redistribute Kokoro, sherpa-onnx, Piper voices, a third-party TTS runtime, or third-party voice models
+- If no compatible local voice is installed for a supported route, audio capability reports itself unavailable/configuration-required instead of silently downloading a replacement
 
 ## What This App Does Not Include
 
-This project does not include:
+The v1.0 release does not include:
 
 - built-in dictionary databases
-- copyrighted word lists
+- copyrighted bundled word lists
 - bundled pronunciation recordings
-- bundled or downloaded TTS voice models, or any third-party TTS runtime --
-  Card Audio Export speaks using a Windows voice the user already has
-  installed (Settings > Audio's Local Windows Speech Provider / Installed
-  Voice Binding; see the desktop app's Audio Export voice-status panel for
-  configuration state)
+- bundled or downloaded third-party TTS models/runtimes
 - AI-generated vocabulary explanations, examples, or bulk learning content
 - automatic correction of user-created entries
 - cloud sync
 - account login or authentication
-- mobile app packaging
+- telemetry
+- mobile packaging
+- automatic software updating
 - full destructive database restore
 
-These statements describe the current implementation. The active roadmap now
-includes local Card Audio Export and native desktop migration, subject to
-feasibility, licensing, compatibility, and later milestone verification.
+## Install v1.0.0 on Windows
 
-## Tech Stack
+### Recommended: GitHub Release installer
 
-- Python 3
-- Streamlit
-- SQLite
-- openpyxl for XLSX workflows
+Download `VocabularyApp-Setup-1.0.0.exe` from the [v1.0.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.0.0).
 
-## Project Structure
+The installer is per-user and does not require administrator installation mode. The primary installation root is under the current user's Local AppData Programs directory, while durable app data is stored separately under:
 
 ```text
-vocab-app/
-|-- app.py                       # Streamlit app shell and sidebar routing
-|-- requirements.txt
-|-- README.md
-|-- CONTRIBUTING.md
-|-- docs/                        # Documentation index and supporting records
-|-- data/
-|   |-- .gitkeep
-|   `-- vocab.db                 # Local user data; ignored by Git
-|-- sample_data/
-|   `-- README.md
-`-- src/
-    |-- db.py                    # Database connection and initialization
-    |-- entries.py               # Entry CRUD and search
-    |-- entry_templates.py       # Template management
-    |-- migrations.py            # Schema/app metadata and additive migrations
-    |-- collections.py           # Collections, cards, and ordering
-    |-- card_history.py          # Stable Card identity and membership revisions
-    |-- review.py                # Legacy Review/SRS compatibility APIs
-    |-- quiz.py                  # Quiz sessions and answer logs
-    |-- template_quiz.py         # Template-aware quiz rules
-    |-- statistics.py            # Read-only statistics queries
-    |-- learning_workflow.py     # Read-only Today workflow queries
-    |-- import_export.py         # Import/export validation and execution
-    |-- backup.py                # Backup and restore-preview helpers
-    |-- text_parser.py           # Structured Quick Add parsing
-    `-- ui_streamlit/            # Streamlit-specific pages and UI state
+%LOCALAPPDATA%\vocabulary_app\
 ```
 
-Core modules return plain Python data structures and do not depend on Streamlit. Streamlit-specific rendering and session state belong in `app.py` and `src/ui_streamlit/`.
+The installer preserves user data by default when uninstalling. Destructive data removal requires an explicit opt-in.
 
-## Architecture and Migration Readiness
+Verify the published installer if desired:
 
-Streamlit is the current UI layer, while reusable learning and data logic lives under `src/`. Streamlit-specific code stays in `app.py` and `src/ui_streamlit/`.
+```text
+SHA-256  108095e3ce7d256bc610c33f427a9ee2fee4956cb69dde3bf0e105413865b297
+```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for boundary rules and [Migration Readiness](docs/migration/MIGRATION_READINESS.md) for the practical desktop migration assessment.
+Because the release uses a self-signed developer certificate rather than a publicly trusted certificate, SmartScreen may warn even though the artifact is signed. This is an acknowledged distribution limitation of the Portfolio release.
 
-Packaging and desktop options are documented in [Packaging Feasibility](docs/packaging/PACKAGING_FEASIBILITY.md) and the [Desktop Migration Plan](docs/migration/DESKTOP_MIGRATION_PLAN.md).
+## Run from Source
 
-Software update safety is documented in the [Software Update Policy](docs/policies/SOFTWARE_UPDATE_POLICY.md). Milestone 11.3 advances the explicit schema version through an additive migration that establishes stable Card identity and history.
-
-Final M11 semantic, regression, QA, migration, and technical-debt evidence is
-recorded in the [Milestone 11 Closure](docs/history/MILESTONE11_CLOSURE.md).
-
-## Installation
+Source execution is intended for development, inspection, and compatibility work rather than the normal v1.0 installation path.
 
 ### Prerequisites
 
@@ -278,169 +186,138 @@ recorded in the [Milestone 11 Closure](docs/history/MILESTONE11_CLOSURE.md).
 
 ```powershell
 git clone <repository-url>
-cd vocab-app
+cd vocabulary-app
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements-desktop.txt
+.\.venv\Scripts\python.exe -m src.ui_desktop
 ```
 
-### macOS or Linux
-
-```bash
-git clone <repository-url>
-cd vocab-app
-python3 -m venv .venv
-./.venv/bin/python -m pip install --upgrade pip
-./.venv/bin/python -m pip install -r requirements.txt
-```
-
-## Run Locally
-
-Windows:
+### Streamlit compatibility/reference UI
 
 ```powershell
 .\.venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-macOS or Linux:
-
-```bash
-./.venv/bin/python -m streamlit run app.py
-```
-
-Streamlit normally opens:
-
-```text
-http://localhost:8501
-```
-
-Run the command from the directory containing `app.py`.
-
-### Desktop App (Milestones 17-18 Complete on `main`)
-
-The native desktop application under `src/ui_desktop/` is the primary
-product surface. It covers the full daily learning loop — Today
-(Command Center), Entries (Table-First manager with
-search/filter/sort/result count and Custom Entry Type), Collections
-(Navigator plus Collection Manager and Card Organization), Review and
-Quiz (both in Immersive Focus, plus an optional Flip Card + Filmstrip
-Quiz presentation) — and the management/data workflows completed in
-Milestone 18: Templates (Manager and Editor), Review Calendar / Card
-History, Settings (Appearance with live System/Light/Dark theming, Quiz
-presentation, storage information), Data Tools (CSV/XLSX Import/Export,
-Template Definition CSV import/export, Backup / Restore Preview, Card
-Audio Export), Linked Sources, and the Analytics workspace (Learning
-Brief and Full Findings). See
-[ROADMAP.md § Milestone 17](ROADMAP.md#milestone-17-desktop-core-workflow-migration)
-and § Milestone 18 for the accepted scope. Install the additional
-desktop dependency, then launch:
-
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements-desktop.txt
-.\.venv\Scripts\python.exe -m src.ui_desktop
-```
-
-```bash
-./.venv/bin/python -m pip install -r requirements-desktop.txt
-./.venv/bin/python -m src.ui_desktop
-```
-
-Run from the directory containing `app.py`. This does not replace the
-Streamlit application above; both remain independently runnable during the
-migration.
-
-#### Windows desktop launcher (optional, development convenience)
-
-To avoid opening PowerShell every time, generate a Windows Desktop
-shortcut named **Vocabulary App** that double-click-launches the app with
-its own icon:
-
-```powershell
-.\.venv\Scripts\python.exe tools\setup_desktop_launcher.py
-```
-
-Run this once per machine/checkout, and again any time the checkout path
-or Python environment changes (the shortcut records the exact interpreter
-and folder at the time it was created). It uses `pythonw.exe` when
-available so a normal launch does not leave a console window open.
-
-This is a **development launcher, not packaging**: it does not build an
-installer or a standalone executable itself. The actual packaged
-installer is built via `winbuild/build.py` (PyInstaller `--onedir` +
-Inno Setup, Milestone 20). The generated `.lnk` is specific to your
-machine and checkout path and is
-never committed to the repository — `git` ignores `*.lnk` files, and the
-script only ever writes to your own Desktop folder, never into the
-repository.
-
-The shortcut's icon comes from the repository-owned
-`assets/icons/vocabulary_app.ico`; regenerate it with
-`python tools/generate_app_icon.py` if the icon design ever changes.
+Streamlit normally opens at `http://localhost:8501`. It remains useful for compatibility/reference work but is not the packaged v1.0 product surface.
 
 ## Local Data and Privacy
 
-The development database is stored at:
+On the packaged Windows release, the default durable data root is:
 
 ```text
-data/vocab.db
+%LOCALAPPDATA%\vocabulary_app\
 ```
 
-This file may contain personal vocabulary, notes, source references, review history, and quiz activity. It is ignored by Git and must not be committed to a public repository.
+Key locations include:
 
-The application initializes the database automatically when it starts. Do not delete `data/vocab.db` unless you intentionally want to reset all local learning data.
+```text
+%LOCALAPPDATA%\vocabulary_app\vocab.db
+%LOCALAPPDATA%\vocabulary_app\backups\
+%LOCALAPPDATA%\vocabulary_app\preferences.json
+%LOCALAPPDATA%\vocabulary_app\audio-cache\
+```
 
-Before major upgrades or manual database operations, create a backup from the app or copy the database while the app is stopped.
+Application binaries are installed separately from user data. Uninstall preserves the data root by default.
 
-Schema/app metadata supports software update compatibility. The M11.3 migration chain moves `10.6.0-baseline` through `11.3.0-card-history` to `11.3.1-quiz-log-history`, preserves legacy Quiz uncertainty and hard-deleted Entry activity, and leaves optional modules disabled by default.
+Before schema migration, the app creates a safety backup. Existing databases are imported through an explicit user-selected copy workflow with backup protection; the source file is not moved or edited in place.
 
-Advanced users may set `VOCAB_APP_DB_PATH` before launch to select another database path. Normal users do not need this setting, and the app does not automatically move or merge databases.
+Advanced users may use environment overrides such as `VOCAB_APP_DB_PATH` for isolated development/testing. Repository-local databases, exports, backups, logs, caches, virtual environments, secrets, and machine-specific paths must never be committed.
 
-Future packaged versions may use an operating-system app-data directory rather than the source folder. See [Data Storage](docs/policies/DATA_STORAGE.md) for path behavior and [Data Safety](docs/policies/DATA_SAFETY.md) for practical handling guidance.
+See [Data Storage](docs/policies/DATA_STORAGE.md), [Data Safety](docs/policies/DATA_SAFETY.md), and [Software Update Policy](docs/policies/SOFTWARE_UPDATE_POLICY.md) for detailed handling rules.
 
-## Import / Export and Backup Safety
+## Architecture
 
-- Imports follow **Upload -> Validate -> Preview -> Confirm -> Import**.
-- Invalid or unsupported rows are reported before writes.
-- Imports do not create unknown templates silently.
-- Exports are read-only and do not change the database.
-- SQLite backup creates a consistent local snapshot.
-- XLSX restore is preview-only and does not overwrite the active database.
-- Import and export files may contain personal or third-party material; handle and share them carefully.
+The native desktop application under `src/ui_desktop/` is the primary product surface. Reusable learning/data logic remains framework-independent under `src/`; desktop views/controllers consume those APIs rather than duplicating domain logic or SQL.
 
-## Development Milestones
+The Streamlit compatibility UI remains under `app.py` and `src/ui_streamlit/`. PySide6 imports are restricted to the desktop boundary.
 
-Milestones 1-10 completed the current feature set and productization
-foundations:
+Major architecture/design references:
 
-- Local entry and collection management
-- Historical Collection Card review scheduling baseline
-- Quiz sessions and learning pools
-- Template-based entries and French presets
-- Statistics and Review Calendar
-- CSV/XLSX import and export
-- Portable, preview-first Template Definition CSV export/import
-- Reusable Linked Append Source core for manually confirmed CSV/XLSX additions
-- SQLite/XLSX backup and restore preview
-- Today and Daily Learning Workflow
-- Schema/app metadata and software-update compatibility foundation
-- Stable Card identity, membership revisions, Quiz revision linkage, and compact Entry edit history
-- Productization QA and public-repository documentation polish
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+- [DESIGN.md](DESIGN.md)
+- [Desktop Migration Plan](docs/migration/DESKTOP_MIGRATION_PLAN.md)
+- [M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md)
+- [M15.1 Speech Semantic Contract](docs/design/M15_1_SPEECH_SEMANTIC_CONTRACT.md)
+- [M15.3 Batch Audio Export Contract](docs/design/M15_3_BATCH_EXPORT_CONTRACT.md)
 
-Milestone 10 productization closure is not equivalent to current-version
-completion. The active lifecycle begins with Milestone 11 Pre-Desktop
-Stabilization and ends with desktop Product Hardening, packaging, and Release
-Candidate acceptance in Milestones 19-20.
+## Tech Stack
 
-Detailed manual QA documents are available for recent milestones:
+- Python 3
+- PySide6 — primary native desktop UI
+- SQLite — local durable data
+- Streamlit — compatibility/reference UI
+- openpyxl — XLSX workflows
+- PyInstaller `--onedir` — Windows application packaging
+- Inno Setup — per-user Windows installer
+- Windows local speech APIs / installed voices — v1.0 audio provider model
 
-- [Milestone 8 Manual QA](docs/qa/MILESTONE8_MANUAL_QA.md)
-- [Milestone 9 Manual QA](docs/qa/MILESTONE9_MANUAL_QA.md)
-- [Milestone 10 Manual QA](docs/qa/MILESTONE10_MANUAL_QA.md)
-- [Milestone 10 Productization QA](docs/qa/MILESTONE10_PRODUCTIZATION_QA.md)
+## Project Structure
 
-## Roadmap
+```text
+vocabulary-app/
+|-- app.py                         # Streamlit compatibility/reference shell
+|-- requirements.txt               # Core + Streamlit compatibility dependencies
+|-- requirements-desktop.txt       # PySide6 desktop dependency
+|-- README.md
+|-- PROJECT_STATUS.md
+|-- ROADMAP.md
+|-- DESIGN.md
+|-- winbuild/                      # PyInstaller + Inno Setup release tooling
+|-- docs/                          # Design, policy, QA, packaging, and history records
+|-- sample_data/
+`-- src/
+    |-- app_config.py              # Version, paths, app configuration
+    |-- db.py                      # Database connection and initialization
+    |-- entries.py                 # Entry CRUD/search
+    |-- entry_templates.py         # Template management
+    |-- migrations.py              # Schema/app metadata and additive migrations
+    |-- collections.py             # Collections, Cards, ordering
+    |-- card_history.py            # Stable Card identity and revisions
+    |-- quiz.py                    # Quiz sessions and answer logs
+    |-- statistics.py              # Read-only statistics queries
+    |-- learning_workflow.py       # Today workflow queries
+    |-- import_export.py           # Import/export validation and execution
+    |-- backup.py                  # Backup / restore-preview helpers
+    |-- audio_export.py            # Card Audio Export planning/execution
+    |-- ui_desktop/                # Primary PySide6 product surface
+    `-- ui_streamlit/              # Compatibility/reference Streamlit surface
+```
 
-The active product lifecycle is:
+## Release Verification Summary
+
+The M20 Human RC / release process recorded the following evidence before publication:
+
+- Full repository regression: **911 tests, 0 failures, 0 errors** at the Human-RC-accepted RC source
+- Architecture audit: clean
+- Fresh local standard-account install/launch/reinstall/uninstall verification
+- Fresh database creation and representative existing-database import verification
+- Backup-before-upgrade and real schema-migration verification
+- Local Windows speech-voice enumeration verification
+- Release payload/privacy inspection
+- Self-signed Authenticode signing-pipeline verification
+- Final `1.0.0` version/build/signature/install/launch/uninstall smoke verification
+- Canonical release build manifest bound to merged/tagged source SHA `2363e73bbd85ca24f7e227f8007e0046eeabd471`
+
+The detailed release contract and QA evidence are in:
+
+- [M20 Release Contract](docs/packaging/M20_RELEASE_CONTRACT.md)
+- [M20 Distribution QA Checklist](docs/packaging/M20_DISTRIBUTION_QA_CHECKLIST.md)
+- [M20 Code Signing Setup](docs/packaging/M20_CODE_SIGNING_SETUP.md)
+- [PROJECT_STATUS.md](PROJECT_STATUS.md)
+
+## Known Distribution Limitations
+
+- The v1.0 Portfolio release uses a self-signed Authenticode developer certificate, not a publicly trusted signing identity; SmartScreen reputation is not guaranteed.
+- Full pristine clean-machine VM verification was deferred; v1.0 distribution acceptance used a fresh local standard Windows account plus the recorded install/migration/uninstall evidence.
+- v1.0 is Windows 10/11 x64 only.
+- Audio availability depends on compatible speech voices already installed on the user's Windows system.
+- There is no automatic updater; upgrades use a new installer while preserving durable user data and creating migration safety backups.
+
+## Roadmap and History
+
+The completed v1.0 lifecycle was:
 
 ```text
 M11 Pre-Desktop Stabilization
@@ -453,49 +330,15 @@ M11 Pre-Desktop Stabilization
 -> M18 Desktop Management and Major Feature Completion
 -> M19 Desktop Product Hardening
 -> M20 Packaging and Release Candidate
+-> v1.0.0 Released
 ```
 
-Streamlit is not the final release target. See [ROADMAP.md](ROADMAP.md) for
-scope and exit criteria and the [Desktop Migration Plan](docs/migration/DESKTOP_MIGRATION_PLAN.md)
-for the migration strategy.
+Future work, if any, is outside the completed v1.0 lifecycle and should begin from a new explicitly defined milestone/roadmap decision rather than reopening M20.
 
-## Common Errors
-
-### `python` is not recognized
-
-Install Python and enable the option to add it to `PATH`, then reopen the terminal.
-
-### PowerShell blocks `Activate.ps1`
-
-Activation is optional. The commands in this README call the virtual-environment Python directly.
-
-If activation is preferred:
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\.venv\Scripts\Activate.ps1
-```
-
-### `streamlit` is not recognized
-
-Use Python module execution:
-
-```powershell
-.\.venv\Scripts\python.exe -m streamlit run app.py
-```
-
-### `ModuleNotFoundError: No module named 'src'`
-
-Start the application from the project directory containing `app.py`.
-
-### Port 8501 is already in use
-
-Choose another port:
-
-```powershell
-.\.venv\Scripts\python.exe -m streamlit run app.py --server.port 8502
-```
+Historical evidence remains available throughout `docs/history/`, `docs/qa/`, and the milestone sections of [ROADMAP.md](ROADMAP.md).
 
 ## License
 
-A final open-source license has not yet been selected. See [LICENSE](LICENSE).
+Vocabulary App is released under the [MIT License](LICENSE).
+
+Copyright (c) 2026 Yunsong Shi (Peter Shi)
