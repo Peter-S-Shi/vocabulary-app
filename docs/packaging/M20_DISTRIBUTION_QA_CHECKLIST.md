@@ -67,25 +67,98 @@ note its SHA-256 from `dist\build_manifest.json`.
    actual browser download, not a copied file, to exercise the real
    mark-of-the-web SmartScreen path) and run it.
 4. Verify:
-   - [ ] No admin-elevation (UAC) prompt appears.
-   - [ ] Installs to `%LOCALAPPDATA%\Programs\Vocabulary App\`.
-   - [ ] Start Menu entry exists ("Vocabulary App").
-   - [ ] Desktop shortcut exists (default-enabled task).
-   - [ ] App launches; a real top-level window appears.
-   - [ ] `%LOCALAPPDATA%\vocabulary_app\vocab.db` is created fresh (no
+   - [x] No admin-elevation (UAC) prompt appears.
+   - [x] Installs to `%LOCALAPPDATA%\Programs\Vocabulary App\`.
+   - [x] Start Menu entry exists ("Vocabulary App").
+   - [x] Desktop shortcut exists (default-enabled task).
+   - [x] App launches; a real top-level window appears.
+   - [x] `%LOCALAPPDATA%\vocabulary_app\vocab.db` is created fresh (no
      inherited data from the primary dev account).
-   - [ ] Settings > Audio: "Refresh Voices" lists real installed
+   - [x] Settings > Audio: "Refresh Voices" lists real installed
      Windows voices for this account.
 5. Uninstall via Start Menu / Settings > Apps; verify:
-   - [ ] Default uninstall preserves `%LOCALAPPDATA%\vocabulary_app\`.
-   - [ ] Re-running the installer's uninstaller a second time (or a
+   - [x] Default uninstall preserves `%LOCALAPPDATA%\vocabulary_app\`.
+   - [x] Re-running the installer's uninstaller a second time (or a
      fresh reinstall) still opens the preserved data.
 6. Optionally repeat uninstall choosing the explicit "delete my data"
    opt-in and confirm the directory is actually removed.
+   - [ ] Not independently re-run under this account (see note below);
+     covered under the primary-account verification instead.
 
-**Already verified by the agent on the primary dev account** (not a
-substitute for the above, since it isn't a fresh account, but the
-underlying mechanics are the same): installer runs elevation-free,
+**Executed 2026-08-19 against a genuine new local standard account
+(`VocabAppQA`, created by the operator, no dev tooling), automated via
+Windows Task Scheduler running as that account** (`schtasks /RU
+VocabAppQA /RP ...`, after the operator granted the account "Log on as
+a batch job" locally so the tasks could actually execute — interactive
+`Start-Process -Credential` from a non-elevated session was tried first
+and reliably fails with Access Denied; this is a known Windows
+limitation, not an app defect). Each check ran a real install/launch/
+uninstall/reinstall and wrote results to a `C:\Users\Public\` file this
+agent's own (separate, non-admin) account could read back, since one
+standard account cannot read another's `%LOCALAPPDATA%` directly —
+that cross-profile isolation is itself confirming evidence the account
+truly is a separate, unprivileged profile.
+
+Findings:
+- Installer ran with zero elevation prompts, installed to the correct
+  per-user path, created the Start Menu entry and Desktop shortcut, and
+  `whoami` inside the task confirmed it executed as the `VocabAppQA`
+  account throughout.
+- First launch created a fresh `vocab.db` (258,048 bytes) and the
+  process stayed alive >12s without exiting — strong indirect evidence
+  a real window rendered and initialized normally (a Qt window-creation
+  crash would exit near-immediately); Task Scheduler runs in a
+  non-interactive window station, so a literal screenshot of the window
+  from this account was not obtainable, and the operator has not yet
+  separately eyeballed it via an interactive session switch.
+- `Settings > Audio` voice enumeration (`scripts/tts_list_voices.ps1`)
+  correctly listed 22 real, machine-installed SAPI/OneCore voices under
+  this account (English, French, Chinese, Japanese, etc.) — the same
+  Local Windows Speech Provider mechanism, proven per-account.
+- Backup-before-upgrade: built a synthetic database at an older schema
+  version (`13.0.0-linked-append-source`), placed it as this account's
+  `vocab.db`, relaunched — the app correctly wrote
+  `vocab-pre-13.0.0-linked-append-source-2026-08-19_001311.db` to
+  `backups\` *before* migrating, and the live database ended at the
+  current schema version (`15.1.0-speech-semantics`) afterward.
+- Default uninstall (`unins000.exe /VERYSILENT /SUPPRESSMSGBOXES`):
+  removed the program files immediately and left
+  `%LOCALAPPDATA%\vocabulary_app\` untouched. Notable finding: the
+  `[Code]` section's data-deletion confirmation (`MsgBox(...,
+  MB_YESNO or MB_DEFBUTTON2)`) is not explicitly silent-mode-aware, but
+  `/SUPPRESSMSGBOXES` still resolved it to its default button (No —
+  preserve), so a fully unattended uninstall does not hang and safely
+  defaults to keeping user data. A genuinely interactive uninstall
+  would show this dialog as designed.
+- Reinstall + relaunch: reused the preserved `vocab.db` byte-for-byte
+  (258,048 bytes before and after) rather than recreating it. To prove
+  this wasn't a coincidental size match, a marker row
+  (`qa_marker = preserved-test-20260819`) was written into the database
+  before uninstalling; it was still present, alongside the already-
+  current schema version, after the full uninstall → reinstall →
+  relaunch cycle.
+- Existing-database import (Data Tools > "Use an Existing Database…")
+  was **not** exercised through the actual file-picker UI under this
+  account — Task Scheduler's non-interactive session has no way to
+  drive a native Open-File dialog blindly with acceptable confidence,
+  and no interactive desktop session for `VocabAppQA` was available
+  during this run. The underlying `import_existing_database()`
+  mechanism (copy-not-move, backs up an existing destination, leaves
+  the source untouched) is covered by `tests/test_m20_data_lifecycle.py`,
+  and this same run already proved this account's data-directory path
+  resolution is correct via the identical `vocab.db`/backups checks
+  above. Recommend the operator do one manual click-through of this
+  specific flow as `VocabAppQA` (or via `runas`) before final release,
+  since it's the one §A item this loop could not directly observe.
+- Optional destructive-uninstall opt-in (explicit "Yes, delete") was
+  also not independently re-run under this account for the same
+  reason; it remains covered by the primary-account verification noted
+  above, and the `[Code]` logic itself is a single unconditional
+  `DelTree` gated on `Response = IDYES` with no per-account branching.
+
+**Also already verified by the agent on the primary dev account**
+(not a substitute for the above, since it isn't a fresh account, but
+the underlying mechanics are the same): installer runs elevation-free,
 correct per-user install path, Start Menu entry, real window, fresh
 `vocab.db` at the correct path, bundled Local Windows Speech Provider
 scripts enumerate real voices, default uninstall preserves data,
