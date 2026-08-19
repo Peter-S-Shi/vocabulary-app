@@ -10,6 +10,8 @@ from src.backup import (
     get_database_file_bytes,
     preview_backup_workbook,
 )
+from src.db_import import DatabaseImportError
+from src.db_import import import_existing_database as _import_existing_database
 from src.entry_templates import get_entry_templates
 from src.import_export import (
     ImportPreviewError,
@@ -340,3 +342,12 @@ class DataToolsController(QObject):
             return
         self.restore_preview_result = preview_backup_workbook(self.restore_preview_file_bytes)
         self.restore_preview_state_changed.emit()
+
+    # -- Existing-database import (M20 Release Contract § 2.6) -----------
+    # A distinct, raw-SQLite-file operation from Restore Preview above --
+    # it replaces the active database file itself (with a backup of
+    # whatever was there first), rather than inspecting a backup workbook.
+
+    def import_existing_database(self, source_path: str) -> dict:
+        """May raise ``DatabaseImportError``."""
+        return _import_existing_database(source_path)

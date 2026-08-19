@@ -78,6 +78,31 @@ details remain Phase B/RC scope. (3) the fresh-user-account-plus-clean-VM
 clean-machine verification decision (§ 2.8) is explicitly **not**
 reopened by this revision.
 
+*Fourth revision (operator decision amendment, replaces — not merely
+defers — the Third Revision's code-signing decision only)*: the
+requirement for a real, publicly trusted Windows Authenticode signing
+workflow before release (Third Revision item 2 above, § 2.7, § 3
+decision 6, OB-6) is **replaced** for this v1.0 Portfolio RC. v1.0 uses
+a **self-signed Authenticode developer certificate**, Subject/Publisher
+`Peter Shi`, solely to complete and verify the Windows code-signing
+*pipeline* end-to-end (the build hook, the signature, and its
+verification) — not to obtain SmartScreen reputation, which self-signed
+certificates do not earn and are not chained to any trusted root.
+**SmartScreen trust/reputation handling is explicitly not an M20/v1.0
+exit criterion under this revision.** Public-facing documentation
+(README, release notes, the RC report) must describe the certificate
+accurately as self-signed and must not state or imply it is publicly
+trusted or that it suppresses/reduces SmartScreen warnings. No paid
+signing service, provider account, or identity-verification step is
+required or to be pursued for this v1.0 Portfolio RC. The publicly
+trusted signing research already on record (Azure Artifact Signing,
+traditional CA certificates — § 2.7) is **retained below only as
+candidate reference for a possible future public/commercial/Microsoft
+Store distribution effort**, which remains out of scope for v1.0. The
+fresh-user-account-plus-clean-VM clean-machine verification decision
+(§ 2.8) and the Third Revision's TTS/Local Windows Speech Provider
+decision are both unaffected by this revision.
+
 ---
 
 ## 1. Frozen Operator Decisions
@@ -132,28 +157,30 @@ change requires an explicit new operator decision.
   licensed on the user's own device. This amendment does not authorize new
   product-language support during M20 (Feature Freeze, § 2.3) merely
   because additional installed Windows voices happen to be discoverable.
-- **Windows code signing (product-level, frozen — supersedes the earlier
-  "sign/unsigned left open" position, see the Third Revision note above
-  and § 2.7):** the v1.0 Release Candidate and the public GitHub-
-  distributed installer **must** go through a real, publicly trusted
-  Windows Authenticode code-signing workflow before final public release.
-  The purpose is a verifiable publisher identity, a credible Windows
-  release-engineering workflow, and improved (not guaranteed) SmartScreen
-  trust/reputation handling — signing does **not** guarantee SmartScreen
-  will never warn or will auto-approve a newly released installer. Exact
-  implementation (signing provider/service, certificate/account setup,
-  the exact validated certificate subject/publisher name, and
-  timestamping/signing command integration) remains Phase B/RC-packaging
-  work, not decided here. The public portfolio/author identity may
-  continue to use Peter Shi, but the Authenticode certificate subject
-  must follow whatever identity the selected trusted signing provider
-  actually validates — an unsupported certificate subject must not be
-  hard-coded merely for branding consistency. SHA-256 publication/
-  verification for release assets, signed-artifact verification as RC
-  evidence, and the existing GitHub Releases distribution target are all
-  preserved unchanged. A longer-term possibility of Microsoft Store
-  distribution is not a current M20 exit criterion and this amendment
-  does not expand M20 into Store/MSIX work.
+- **Windows code signing (product-level, frozen — Fourth Revision
+  operator decision amendment, supersedes the Third Revision's
+  "publicly trusted signing required" position, see the Fourth Revision
+  note above and § 2.7):** for this v1.0 **Portfolio RC**, the installer
+  is signed with a **self-signed Authenticode developer certificate**
+  (Subject/Publisher `Peter Shi`), used solely to complete and verify
+  the Windows code-signing pipeline — not to obtain publicly trusted
+  SmartScreen reputation, which a self-signed certificate cannot earn.
+  **SmartScreen trust/reputation improvement is explicitly not an
+  M20/v1.0 exit criterion.** No publicly trusted CA/signing-service
+  account, payment, or identity verification is required or pursued for
+  this v1.0 release. Public-facing documentation must describe the
+  certificate accurately as self-signed and must never state or imply
+  it is publicly trusted or reduces/suppresses SmartScreen warnings.
+  SHA-256 publication/verification for release assets, signed-artifact
+  verification as RC evidence (now: verifying the self-signed signature
+  is present and valid against the certificate actually used, not
+  chain-of-trust to a public root), and the existing GitHub Releases
+  distribution target are all preserved unchanged. A publicly trusted
+  signing workflow (Azure Artifact Signing or a traditional CA — see the
+  candidate research retained in § 2.7) remains available for a future
+  public/commercial/Microsoft Store distribution effort, which is not a
+  current M20 exit criterion and is not expanded into scope by this
+  amendment.
 
 ---
 
@@ -438,10 +465,18 @@ not a packaging-tool detail.
 
 ### 2.7 Code-signing and SmartScreen
 
-**Frozen (Third Revision operator decision amendment, § 1): the v1.0 RC
-and public installer must be code-signed before final release.** The
-earlier position leaving signed vs. unsigned as a later, open M20
-decision is superseded — this is no longer optional or deferred.
+**Frozen (Fourth Revision operator decision amendment, § 1): the v1.0
+Portfolio RC installer is signed with a self-signed Authenticode
+developer certificate (Subject/Publisher `Peter Shi`), not a publicly
+trusted certificate.** This supersedes the Third Revision's "must go
+through a real, publicly trusted Authenticode signing workflow"
+position below — the Third Revision's research and reasoning are
+retained as candidate reference for a possible future public/
+commercial/Microsoft Store distribution effort, not as v1.0's actual
+requirement. **SmartScreen trust/reputation handling is explicitly not
+an M20/v1.0 exit criterion**; public documentation must not claim or
+imply the self-signed certificate is publicly trusted or reduces
+SmartScreen warnings.
 
 - An unsigned PyInstaller/Inno Setup executable **will** trigger Windows
   SmartScreen's "Windows protected your PC" interstitial on first run for
@@ -490,6 +525,24 @@ decision is superseded — this is no longer optional or deferred.
   GitHub Releases distribution target (§ 1). A longer-term possibility of
   Microsoft Store distribution is not a current M20 exit criterion and
   this section does not expand M20 into Store/MSIX work (§ 1, § 6).
+- **What v1.0 Portfolio RC actually does (Fourth Revision, current and
+  binding):** the four bullets immediately above are retained as
+  candidate research for a possible future publicly-trusted-signing
+  effort, not as v1.0's requirement. v1.0 signs the installer and the
+  bundled onedir executable with a **self-signed Authenticode developer
+  certificate**, Subject/Publisher `Peter Shi`, generated locally (e.g.
+  `New-SelfSignedCertificate`) and used only through the existing
+  provider-agnostic `VOCAB_APP_SIGN_COMMAND` hook (`winbuild/build.py`,
+  § 8.2). This exercises the exact same signing/verification pipeline a
+  publicly trusted certificate would use, so switching to one later is a
+  configuration change, not new engineering. Independent verification
+  (`Get-AuthenticodeSignature`) is expected to report the signature as
+  present and matching the certificate's own subject/thumbprint, with a
+  chain-of-trust status of `UnknownError`/untrusted-root — this is the
+  **correct, expected** result for a self-signed certificate, not a
+  defect, and must be recorded and reported as such, never described as
+  "Valid" in the publicly-trusted sense. No signing-service account,
+  payment, or identity verification occurs for v1.0.
 
 ### 2.8 Clean-machine verification strategy (this actual dev environment)
 
@@ -616,18 +669,18 @@ Phase B implementation planning:
    the release notes, as an independent, additional verification
    mechanism alongside the Authenticode signature required by decision 6
    below, not a substitute for it.
-6. **Code-signing:** **required for the v1.0 RC and public release**
-   (frozen operator decision, § 1, § 2.7 — supersedes the earlier "not
-   decided" position). Azure Artifact Signing (≈US$9.99/month Basic, no
-   hardware token, individual-developer-eligible) is the current
-   Microsoft-recommended low-cost option; a traditional OV/EV CA
-   certificate remains a viable alternative. Exact provider, certificate/
-   account setup, the exact validated certificate subject, and
-   timestamping/signing command integration are Phase B/RC-packaging
-   decisions, not made here. The public author identity may stay "Peter
-   Shi"; the certificate subject itself must be whatever the chosen
-   provider actually validates. Signing does not eliminate SmartScreen
-   warnings outright and must not be documented as if it does.
+6. **Code-signing:** **self-signed Authenticode developer certificate for
+   this v1.0 Portfolio RC** (Fourth Revision operator decision amendment,
+   § 1, § 2.7 — supersedes the Third Revision's "publicly trusted signing
+   required" position). Subject/Publisher `Peter Shi`; used solely to
+   complete and verify the signing pipeline, not to obtain SmartScreen
+   reputation. No paid provider, account setup, or identity verification
+   for v1.0. SmartScreen trust/reputation is explicitly not an M20/v1.0
+   exit criterion, and documentation must not claim or imply the
+   certificate is publicly trusted or reduces SmartScreen warnings.
+   Azure Artifact Signing / traditional CA research (Third Revision)
+   remains on record as a candidate path for a future public/commercial/
+   Microsoft Store distribution effort, out of scope for v1.0.
 7. **Clean-machine verification:** a fresh local Windows user account on
    the current dev machine is a per-user-installation-path check only, not
    clean-machine verification. The actual clean-machine verification path
@@ -720,16 +773,16 @@ Ranked by what actually blocks Phase B start:
   runs; Phase B should add a documented, scripted build command (not
   necessarily CI) before RC verification (ROADMAP § 20.3) can credibly
   claim "reproducible packaging succeeds."
-- **OB-6 (code-signing provider/account setup not yet made — blocks final
-  RC release, not earlier Phase B work):** the frozen decision (§ 1, § 2.7,
-  § 3 decision 6) requires the v1.0 RC and public installer to be signed,
-  but the signing provider (Azure Artifact Signing vs. a traditional CA),
-  account/certificate setup, the exact validated certificate subject, and
-  timestamping/signing command integration into the Inno Setup/PyInstaller
-  build are all undecided. This does not block earlier Phase B packaging
-  work (bundler/installer scripting, path fixes, TTS provider mechanism)
-  but does block declaring an RC installer artifact final and ready for
-  public release.
+- **OB-6 — RESOLVED by Fourth Revision (was: code-signing provider/account
+  setup not yet made):** the frozen decision (§ 1, § 2.7, § 3 decision 6)
+  no longer requires a publicly trusted signing provider/account for
+  v1.0 — a locally-generated self-signed Authenticode developer
+  certificate (Subject/Publisher `Peter Shi`) is used instead, wired
+  through the existing `VOCAB_APP_SIGN_COMMAND` hook. No operator
+  payment, account, or identity action remains outstanding for this
+  blocker. A publicly trusted provider remains open for a future public/
+  commercial/Microsoft Store distribution effort, tracked as a Deferred
+  item (§ 6), not as a blocker here.
 
 None of these blockers required a Phase A code change to document; all are
 scoped for Phase B.
@@ -777,11 +830,16 @@ product, to be executed once as the single concentrated Final Human RC Gate
    inclusion of `.venv`, test fixtures, developer-machine-specific paths,
    or any third-party TTS runtime/model/voice asset — none should be
    present at all under the § 2.3 distribution model).
-9. **Signed-artifact verification (new, § 2.7, OB-6):** confirm the public
-   installer carries a valid Authenticode signature from the selected
-   trusted signing provider, and confirm the published SHA-256 checksum
+9. **Signed-artifact verification (§ 2.7, OB-6 — Fourth Revision: self-
+   signed, not publicly trusted, for v1.0):** confirm the installer and
+   the onedir executable both carry an Authenticode signature from the
+   self-signed `Peter Shi` developer certificate (subject/thumbprint
+   match expected, `Get-AuthenticodeSignature` reports the signature
+   present — an untrusted-root chain status is the correct, expected
+   result and not a failure), and confirm the published SHA-256 checksum
    matches the actual release asset — both checks are required, neither
-   substitutes for the other.
+   substitutes for the other. Do not report or document this as a
+   publicly trusted signature.
 10. **Documentation reconciliation:** README install instructions
     (including the Local Windows Speech Provider disclosure required by
     § 2.3 — no bundled/redistributed third-party TTS claim, audio depends
@@ -819,6 +877,12 @@ later milestones don't silently reopen them without an operator decision:
 - CI-automated release builds (Phase B may add a local reproducible build
   script per OB-5; a full CI pipeline is not required for v1.0 and is not
   addressed by this contract).
+- **Publicly trusted code signing** (Fourth Revision, § 1, § 2.7, OB-6):
+  v1.0 Portfolio RC ships with a self-signed Authenticode developer
+  certificate only. Azure Artifact Signing or a traditional CA
+  certificate — already researched in § 2.7 — remain candidate options
+  for a future public/commercial/Microsoft Store distribution effort,
+  not required or pursued for this release.
 
 ---
 
@@ -849,10 +913,70 @@ this-file-and-PR-only scope — but **not for the same reason in each
 case** (§ 2.3 above records the distinction in full): `docs/policies/
 TTS_LICENSE_AND_ATTRIBUTION.md` may remain as-is because it is a
 historical evidentiary record, not a claim about what v1.0 currently
-ships. `THIRD_PARTY_NOTICES.md` is left unedited only because editing it
-is Phase B/RC work, not because its current Kokoro/sherpa-onnx/Piper
-content is still accurate — it explicitly presents itself as a
-distribution-facing summary and, as of this writing, still lists
-distribution obligations for TTS assets the Third Revision decision means
-v1.0 does not ship. It is stale relative to that decision and must be
-revised (§ 5 item 10) before public release.
+ships. `THIRD_PARTY_NOTICES.md` was left unedited in Phase A because
+editing it was Phase B/RC work, not because its Kokoro/sherpa-onnx/
+Piper content was accurate at the time — that content was genuinely
+stale relative to the Third Revision decision. **Resolved in Phase B**
+(§ 5 item 10): `THIRD_PARTY_NOTICES.md` now correctly states v1.0 does
+not bundle, download, or redistribute any third-party TTS runtime,
+model, or voice package, and describes the Local Windows Speech
+Provider model instead.
+
+**Fourth Revision (operator decision amendment) reconciliation check:**
+`docs/packaging/M20_CODE_SIGNING_SETUP.md` and PR #33's description were
+reviewed and updated to match — both previously described publicly
+trusted signing as the operator's remaining action item for this release;
+both now describe the self-signed-certificate approach actually used and
+retain the publicly-trusted-provider material only as candidate reference
+for a future distribution effort. `README.md` was checked and does not
+make any code-signing/SmartScreen claim requiring a change. `ROADMAP.md`
+and `PROJECT_STATUS.md` do not commit to a specific signing provider or
+trust level and required no changes.
+
+---
+
+## RC Engineering Exit Candidate — Human RC PASS (closure record)
+
+**RC Engineering Exit Candidate reached and Human RC PASS granted
+2026-08-19** for the exact SHA `89263a4f0f477fe5455ed22bedffd1968218bb1e`
+on branch `agent/m20-packaging-release-candidate` (Draft PR #33) and the
+installer built from it (`VocabularyApp-Setup-1.0.0-rc.1.exe`, SHA-256
+`8b435657c5cecfecd52f96a6f49d648e1fcaa2e4b58cada03cfc3baf7ea87710`). This
+is the authoritative M20 RC acceptance decision; full evidence is
+recorded in `PROJECT_STATUS.md` under "Current Milestone" (full
+regression 911/911 clean, architecture audit clean, self-signed
+Authenticode verification, § 5's RC Verification Contract items all
+satisfied) and in PR #33's description.
+
+**Not yet merged.** Per § 13's GitHub/release authority boundaries, the
+agent prepared PR #33 for merge but has not merged it, merged to `main`,
+created/pushed a version tag, or published a GitHub Release. Each of
+those remains a separate, explicit operator action.
+
+### Release-metadata finalization (2026-08-19, after Human RC PASS)
+
+Per the versioning scheme frozen in § 1 (`v1.0.0-rc.1` → Human RC
+Acceptance → `v1.0.0`), a release-metadata-only finalization was
+applied on top of the PASSed SHA above: `src/app_config.APP_VERSION`
+and `winbuild/version_info.txt`'s `ProductVersion` string both changed
+from `1.0.0-rc.1` to `1.0.0`. No product/runtime behavior or scope
+changed. This did not re-run the full regression suite or re-request
+Human RC Acceptance — the operator's PASS already covers the exact
+underlying artifact/behavior; only the version label advances per the
+already-frozen scheme. Targeted verification only: `python -m unittest`
+against the version-drift-guard and signing tests, a fresh
+`winbuild/build.py` run (self-signed certificate), and independent
+Authenticode/installer smoke verification.
+
+**Provenance note:** the pre-merge build used for this verification is
+evidence only, not the canonical v1.0.0 release artifact — its SHA-256
+is not published as the release hash. PyInstaller/Inno Setup builds
+embed a build timestamp and are not byte-for-byte reproducible, so any
+hash recorded in a docs commit would already be stale relative to the
+next rebuild, and recording it moves `HEAD` again — a self-referential
+provenance loop no pre-merge documentation commit can close. The
+canonical v1.0.0 installer must be built after PR #33 merges, from the
+actual merged `main` SHA / `v1.0.0` tag, with that build's SHA-256
+published in the GitHub Release notes / checksum metadata directly,
+not recorded via a further source commit. See `PROJECT_STATUS.md` for
+the verification-build detail.

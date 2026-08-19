@@ -1,0 +1,12 @@
+# Build-only dependency for the M20 Windows Release Candidate packaging
+# path (winbuild/build.py). Not a runtime dependency of the app itself --
+# never listed in requirements.txt or requirements-desktop.txt, and never
+# bundled into the packaged distribution (winbuild/vocabulary_app.spec's
+# own Analysis only picks up what src/ui_desktop actually imports).
+#
+# Install alongside requirements-desktop.txt only when building the
+# Windows installer:
+#   pip install -r requirements-desktop.txt -r requirements-build.txt
+#   python winbuild/build.py
+
+PyInstaller>=6.22,<7

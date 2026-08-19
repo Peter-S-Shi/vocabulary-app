@@ -209,7 +209,7 @@ class AudioExportControllerScopeTests(_SyntheticDatabaseTestCase):
         unavailable_rows = controller.voice_assignment_rows()
         for _language, _provider_id, _voice_id, available, detail in unavailable_rows:
             self.assertFalse(available)
-            self.assertIn("VOCAB_APP_SHARED_TTS_DIR", detail)
+            self.assertIn("VOCAB_APP_VOICE_BINDINGS", detail)
 
         controller_module.build_provider_registry = lambda preferences=None: _fake_registry()
         try:
@@ -217,7 +217,7 @@ class AudioExportControllerScopeTests(_SyntheticDatabaseTestCase):
         finally:
             controller_module.build_provider_registry = self._original_build_registry
         if self._saved_shared_tts_env is not None:
-            os.environ["VOCAB_APP_SHARED_TTS_DIR"] = self._saved_shared_tts_env
+            os.environ["VOCAB_APP_VOICE_BINDINGS"] = self._saved_shared_tts_env
         for _language, _provider_id, _voice_id, available, _detail in available_rows:
             self.assertTrue(available)
 
@@ -225,16 +225,16 @@ class AudioExportControllerScopeTests(_SyntheticDatabaseTestCase):
         super().setUp()
         self._original_build_registry = controller_module.build_provider_registry
         # M19 hermeticity: a developer machine may legitimately have
-        # VOCAB_APP_SHARED_TTS_DIR set system-wide (the operator did so
+        # VOCAB_APP_VOICE_BINDINGS set system-wide (the operator did so
         # after M18 closed, which made every "real unconfigured path"
         # test in this file fail against a real runtime). Tests that
         # exercise the unconfigured path must isolate the environment.
-        self._saved_shared_tts_env = os.environ.pop("VOCAB_APP_SHARED_TTS_DIR", None)
+        self._saved_shared_tts_env = os.environ.pop("VOCAB_APP_VOICE_BINDINGS", None)
 
     def tearDown(self) -> None:
         controller_module.build_provider_registry = self._original_build_registry
         if self._saved_shared_tts_env is not None:
-            os.environ["VOCAB_APP_SHARED_TTS_DIR"] = self._saved_shared_tts_env
+            os.environ["VOCAB_APP_VOICE_BINDINGS"] = self._saved_shared_tts_env
         super().tearDown()
 
 
@@ -248,16 +248,16 @@ class AudioExportControllerRunTests(_SyntheticDatabaseTestCase):
         super().setUp()
         self._original_build_registry = controller_module.build_provider_registry
         # M19 hermeticity: a developer machine may legitimately have
-        # VOCAB_APP_SHARED_TTS_DIR set system-wide (the operator did so
+        # VOCAB_APP_VOICE_BINDINGS set system-wide (the operator did so
         # after M18 closed, which made every "real unconfigured path"
         # test in this file fail against a real runtime). Tests that
         # exercise the unconfigured path must isolate the environment.
-        self._saved_shared_tts_env = os.environ.pop("VOCAB_APP_SHARED_TTS_DIR", None)
+        self._saved_shared_tts_env = os.environ.pop("VOCAB_APP_VOICE_BINDINGS", None)
 
     def tearDown(self) -> None:
         controller_module.build_provider_registry = self._original_build_registry
         if self._saved_shared_tts_env is not None:
-            os.environ["VOCAB_APP_SHARED_TTS_DIR"] = self._saved_shared_tts_env
+            os.environ["VOCAB_APP_VOICE_BINDINGS"] = self._saved_shared_tts_env
         super().tearDown()
 
     def _patch_registry(self, registry: ProviderRegistry) -> None:
@@ -399,7 +399,7 @@ class AudioExportDialogTests(_SyntheticDatabaseTestCase):
         for row in range(dialog._voice_table.rowCount()):
             status_text = dialog._voice_table.item(row, 3).text()
             self.assertIn("Unavailable", status_text)
-            self.assertIn("VOCAB_APP_SHARED_TTS_DIR", status_text)
+            self.assertIn("VOCAB_APP_VOICE_BINDINGS", status_text)
 
     def test_plan_table_preserves_partial_batch_honesty_for_mixed_availability(self) -> None:
         """Review-required semantics: ready Cards proceed, unresolved
@@ -439,16 +439,16 @@ class AudioExportDialogTests(_SyntheticDatabaseTestCase):
         super().setUp()
         self._original_build_registry = controller_module.build_provider_registry
         # M19 hermeticity: a developer machine may legitimately have
-        # VOCAB_APP_SHARED_TTS_DIR set system-wide (the operator did so
+        # VOCAB_APP_VOICE_BINDINGS set system-wide (the operator did so
         # after M18 closed, which made every "real unconfigured path"
         # test in this file fail against a real runtime). Tests that
         # exercise the unconfigured path must isolate the environment.
-        self._saved_shared_tts_env = os.environ.pop("VOCAB_APP_SHARED_TTS_DIR", None)
+        self._saved_shared_tts_env = os.environ.pop("VOCAB_APP_VOICE_BINDINGS", None)
 
     def tearDown(self) -> None:
         controller_module.build_provider_registry = self._original_build_registry
         if self._saved_shared_tts_env is not None:
-            os.environ["VOCAB_APP_SHARED_TTS_DIR"] = self._saved_shared_tts_env
+            os.environ["VOCAB_APP_VOICE_BINDINGS"] = self._saved_shared_tts_env
         super().tearDown()
 
     def test_plan_table_shows_concrete_per_card_reason_when_not_ready(self) -> None:
@@ -469,8 +469,8 @@ class AudioExportDialogTests(_SyntheticDatabaseTestCase):
         for row in range(dialog._plan_table.rowCount()):
             self.assertEqual(dialog._plan_table.item(row, 2).text(), "Not ready")
             reason = dialog._plan_table.item(row, 3).text()
-            self.assertIn("shared_tts_dir_not_configured", reason)
-            self.assertIn("VOCAB_APP_SHARED_TTS_DIR", reason)
+            self.assertIn("voice_not_configured", reason)
+            self.assertIn("VOCAB_APP_VOICE_BINDINGS", reason)
 
     def test_choosing_a_collection_populates_card_selectors(self) -> None:
         collection_id = self._collection(2)

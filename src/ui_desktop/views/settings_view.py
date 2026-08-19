@@ -3,7 +3,6 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
-    QFileDialog,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -16,6 +15,17 @@ from src.ui_desktop.controllers.settings_controller import SettingsController
 from src.ui_desktop.state.preferences import QUIZ_PRESENTATION_LABELS
 from src.ui_desktop.theming.metrics import SPACING
 from src.ui_desktop.theming.theme_manager import Appearance
+
+# M20 Local Windows Speech Provider / Installed Voice Binding (Release
+# Contract § 7.3): the frozen v1.0 language scope, in the fixed display
+# order Settings > Audio always shows it. Discovering other installed
+# Windows voices never expands this set.
+VOICE_BINDING_LANGUAGES: tuple[tuple[str, str], ...] = (
+    ("en", "English"),
+    ("fr", "French"),
+    ("zh-CN", "Mandarin (zh-CN)"),
+)
+NOT_BOUND_VOICE_ID = ""
 
 """
 Settings -- Management Mode, P8 Settings Form (DESIGN.md § 8: "Management
@@ -172,69 +182,72 @@ class SettingsView(QWidget):
         audio_heading.setObjectName("settings-section-heading")
         root.addWidget(audio_heading)
 
-        # M19 hardening (ROADMAP § "Mandatory M19 / M20 Productization
-        # Handoff -- Card Audio Export"): the durable, product-facing
-        # shared TTS runtime configuration surface. A normal user
-        # configures the runtime folder here; the environment variable
+        # M20 Local Windows Speech Provider / Installed Voice Binding
+        # (Release Contract § 2.3, § 7): Vocabulary App never bundles or
+        # downloads a voice. A normal user binds an already-installed
+        # Windows voice per language here; the environment variable
         # remains an advanced per-process override surfaced honestly in
-        # the source row (state/tts_runtime.py resolution order).
-        tts_row = QWidget(body)
-        tts_row.setObjectName("settings-row")
-        tts_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        tts_row_layout = QHBoxLayout(tts_row)
-        tts_row_layout.setContentsMargins(SPACING.md, SPACING.md, SPACING.md, SPACING.md)
-        tts_row_layout.setSpacing(SPACING.md)
-
-        tts_row_label = QLabel("Shared TTS runtime folder", tts_row)
-        tts_row_label.setObjectName("settings-row-label")
-        tts_row_layout.addWidget(tts_row_label, 0)
-
-        self._tts_dir_value = QLabel("", tts_row)
-        self._tts_dir_value.setObjectName("settings-row-value")
-        self._tts_dir_value.setWordWrap(True)
-        self._tts_dir_value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        tts_row_layout.addWidget(self._tts_dir_value, 1)
-
-        self._tts_browse_button = QPushButton("Browse...", tts_row)
-        self._tts_browse_button.setObjectName("settings-tts-browse-button")
-        self._tts_browse_button.clicked.connect(self._on_tts_browse)
-        tts_row_layout.addWidget(self._tts_browse_button, 0)
-
-        self._tts_clear_button = QPushButton("Clear", tts_row)
-        self._tts_clear_button.setObjectName("settings-tts-clear-button")
-        self._tts_clear_button.clicked.connect(self._on_tts_clear)
-        tts_row_layout.addWidget(self._tts_clear_button, 0)
-
-        root.addWidget(tts_row)
-
-        source_row = QWidget(body)
-        source_row.setObjectName("settings-row")
-        source_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        source_row_layout = QHBoxLayout(source_row)
-        source_row_layout.setContentsMargins(SPACING.md, SPACING.md, SPACING.md, SPACING.md)
-        source_row_layout.setSpacing(SPACING.md)
-
-        source_row_label = QLabel("Runtime in use", source_row)
-        source_row_label.setObjectName("settings-row-label")
-        source_row_layout.addWidget(source_row_label, 0)
-        source_row_layout.addStretch(1)
-
-        self._tts_source_value = QLabel("", source_row)
-        self._tts_source_value.setObjectName("settings-row-value")
-        self._tts_source_value.setWordWrap(True)
-        self._tts_source_value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        source_row_layout.addWidget(self._tts_source_value, 1)
-
-        root.addWidget(source_row)
-
-        tts_note = QLabel(
-            "Card Audio Export uses this runtime for speech synthesis. "
-            "Per-voice availability is shown in Data Tools > Card Audio Export.",
+        # each row's status text (state/tts_runtime.py resolution order).
+        audio_note = QLabel(
+            "Card Audio Export speaks using a voice already installed on this "
+            "Windows system -- nothing is downloaded. Bind one per language below.",
             body,
         )
-        tts_note.setObjectName("settings-section-note")
-        tts_note.setWordWrap(True)
-        root.addWidget(tts_note)
+        audio_note.setObjectName("settings-section-note")
+        audio_note.setWordWrap(True)
+        root.addWidget(audio_note)
+
+        refresh_row = QHBoxLayout()
+        refresh_row.addStretch(1)
+        self._voice_refresh_button = QPushButton("Refresh Voices", body)
+        self._voice_refresh_button.setObjectName("settings-voice-refresh-button")
+        self._voice_refresh_button.clicked.connect(self._on_voice_refresh)
+        refresh_row.addWidget(self._voice_refresh_button)
+        root.addLayout(refresh_row)
+
+        self._voice_combos: dict[str, QComboBox] = {}
+        self._voice_status_labels: dict[str, QLabel] = {}
+
+        for language, display_name in VOICE_BINDING_LANGUAGES:
+            voice_row = QWidget(body)
+            voice_row.setObjectName("settings-row")
+            voice_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+            voice_row_layout = QHBoxLayout(voice_row)
+            voice_row_layout.setContentsMargins(SPACING.md, SPACING.md, SPACING.md, SPACING.md)
+            voice_row_layout.setSpacing(SPACING.md)
+
+            voice_row_label = QLabel(display_name, voice_row)
+            voice_row_label.setObjectName("settings-row-label")
+            voice_row_layout.addWidget(voice_row_label, 0)
+            voice_row_layout.addStretch(1)
+
+            combo = QComboBox(voice_row)
+            combo.setObjectName("settings-voice-binding-combo")
+            voice_row_layout.addWidget(combo, 0)
+            self._voice_combos[language] = combo
+
+            root.addWidget(voice_row)
+
+            status_label = QLabel("", body)
+            status_label.setObjectName("settings-section-note")
+            status_label.setWordWrap(True)
+            root.addWidget(status_label)
+            self._voice_status_labels[language] = status_label
+
+            # Connected after population below, so the initial
+            # population doesn't fire a spurious "user changed this"
+            # write.
+
+        for language, _display_name in VOICE_BINDING_LANGUAGES:
+            # Static population only (no PowerShell/WinRT call) --
+            # opening Settings must never block the UI thread on a real
+            # enumeration, the exact freeze the M19 Audio Export
+            # corrective fixed for Card Audio Export. Real installed
+            # voices only load when the user clicks "Refresh Voices".
+            self._populate_voice_combo_static(language)
+            self._voice_combos[language].currentIndexChanged.connect(
+                lambda _index, lang=language: self._on_voice_binding_changed(lang)
+            )
 
         storage_heading = QLabel("Storage", body)
         storage_heading.setObjectName("settings-section-heading")
@@ -284,24 +297,91 @@ class SettingsView(QWidget):
 
         return row
 
-    def _on_tts_browse(self) -> None:
-        start_dir = self._controller.shared_tts_dir_setting() or ""
-        chosen = QFileDialog.getExistingDirectory(self, "Choose the shared TTS runtime folder", start_dir)
-        if chosen:
-            self._controller.set_shared_tts_dir(chosen)
+    def _populate_voice_combo_static(self, language: str) -> None:
+        """Cheap, no-subprocess-call population: "Not bound" plus (if a
+        binding already exists) a placeholder item for it. Opening
+        Settings must never block the UI thread on a real PowerShell/
+        WinRT enumeration -- see the class-construction comment above."""
+        combo = self._voice_combos[language]
+        bound_voice_id = self._controller.voice_binding(language)
 
-    def _on_tts_clear(self) -> None:
-        self._controller.clear_shared_tts_dir()
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem("Not bound", NOT_BOUND_VOICE_ID)
+        if bound_voice_id:
+            combo.addItem(f"{bound_voice_id} (click Refresh Voices for its name)", bound_voice_id)
+        index = combo.findData(bound_voice_id)
+        combo.setCurrentIndex(index if index >= 0 else 0)
+        combo.blockSignals(False)
+
+        self._update_voice_status_label(language)
+
+    def _reload_voice_combo(self, language: str, installed: list | None = None) -> None:
+        """Repopulates ``language``'s combo with real installed voices.
+        ``installed`` lets a caller that already enumerated once (e.g.
+        "Refresh Voices", across all languages) avoid repeating the
+        PowerShell/WinRT call per language; a standalone caller may omit
+        it to enumerate just this language."""
+        combo = self._voice_combos[language]
+        bound_voice_id = self._controller.voice_binding(language)
+        voices = installed if installed is not None else self._controller.installed_voices(language)
+
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem("Not bound", NOT_BOUND_VOICE_ID)
+        known_ids = {NOT_BOUND_VOICE_ID}
+        for voice in voices:
+            combo.addItem(voice.display_name, voice.voice_id)
+            known_ids.add(voice.voice_id)
+        if bound_voice_id and bound_voice_id not in known_ids:
+            combo.addItem(f"{bound_voice_id} (not installed)", bound_voice_id)
+
+        index = combo.findData(bound_voice_id)
+        combo.setCurrentIndex(index if index >= 0 else 0)
+        combo.blockSignals(False)
+
+        self._update_voice_status_label(language)
+
+    def _update_voice_status_label(self, language: str) -> None:
+        status = self._controller.voice_binding_status(language)
+        label = self._voice_status_labels[language]
+        if status["voice_id"]:
+            label.setText(f'{status["voice_id"]} — {status["source_label"]}')
+        else:
+            label.setText(status["source_label"])
+
+    def _on_voice_binding_changed(self, language: str) -> None:
+        combo = self._voice_combos[language]
+        voice_id = combo.currentData()
+        self._controller.set_voice_binding(language, voice_id or "")
+
+    def _on_voice_refresh(self) -> None:
+        all_voices = self._controller.all_installed_voices()
+        for language, _display_name in VOICE_BINDING_LANGUAGES:
+            matching = [voice for voice in all_voices if voice.canonical_language == language]
+            self._reload_voice_combo(language, matching)
 
     def _sync_from_controller(self) -> None:
-        saved_tts = self._controller.shared_tts_dir_setting()
-        self._tts_dir_value.setText(saved_tts if saved_tts else "Not configured")
-        self._tts_clear_button.setEnabled(bool(saved_tts))
-        status = self._controller.shared_tts_status()
-        if status["directory"]:
-            self._tts_source_value.setText(f'{status["directory"]} — {status["source_label"]}')
-        else:
-            self._tts_source_value.setText(status["source_label"])
+        for language, _display_name in VOICE_BINDING_LANGUAGES:
+            combo = self._voice_combos[language]
+            bound_voice_id = self._controller.voice_binding(language)
+            index = combo.findData(bound_voice_id)
+            if index < 0 and bound_voice_id:
+                # A binding exists that this combo's current item list
+                # doesn't know about yet (e.g. changed without a
+                # "Refresh Voices" reload since). Add a cheap
+                # placeholder rather than re-populating the whole combo
+                # -- that would discard any real enumerated names
+                # "Refresh Voices" already loaded.
+                combo.blockSignals(True)
+                combo.addItem(f"{bound_voice_id} (click Refresh Voices for its name)", bound_voice_id)
+                combo.blockSignals(False)
+                index = combo.findData(bound_voice_id)
+            if index >= 0 and combo.currentIndex() != index:
+                combo.blockSignals(True)
+                combo.setCurrentIndex(index)
+                combo.blockSignals(False)
+            self._update_voice_status_label(language)
 
         current_appearance = self._controller.appearance()
         appearance_index = self._appearance_combo.findData(current_appearance)

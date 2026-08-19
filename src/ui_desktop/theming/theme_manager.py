@@ -1090,7 +1090,8 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_muted};
         font-size: 12px;
     }}
-    QComboBox#settings-quiz-presentation-combo, QComboBox#settings-appearance-combo {{
+    QComboBox#settings-quiz-presentation-combo, QComboBox#settings-appearance-combo,
+    QComboBox#settings-voice-binding-combo {{
         background-color: {neutral.surface_primary};
         color: {neutral.text_primary};
         border: 1px solid {neutral.border_default};
@@ -1099,13 +1100,12 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         font-size: 14px;
         min-width: 200px;
     }}
-    /* M19 Settings > Audio (shared TTS runtime configuration). Explicit
-    QSS for every new control, per the M18 Human Gate 1 lesson: a
-    workspace QPushButton without explicit coverage renders at
-    effectively-invisible Light Mode contrast. Same secondary-action
-    treatment as the collections-organize family. */
-    QPushButton#settings-tts-browse-button,
-    QPushButton#settings-tts-clear-button {{
+    /* M20 Settings > Audio (Local Windows Speech Provider / Installed
+    Voice Binding). Explicit QSS for every new control, per the M18
+    Human Gate 1 lesson: a workspace QPushButton without explicit
+    coverage renders at effectively-invisible Light Mode contrast. Same
+    secondary-action treatment as the collections-organize family. */
+    QPushButton#settings-voice-refresh-button {{
         background-color: {accent.primary.background};
         color: {accent.primary.foreground};
         border: none;
@@ -1114,13 +1114,11 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         font-size: 13px;
         font-weight: 600;
     }}
-    QPushButton#settings-tts-browse-button:hover:enabled,
-    QPushButton#settings-tts-clear-button:hover:enabled {{
+    QPushButton#settings-voice-refresh-button:hover:enabled {{
         background-color: {accent.hover.background};
         color: {accent.hover.foreground};
     }}
-    QPushButton#settings-tts-browse-button:disabled,
-    QPushButton#settings-tts-clear-button:disabled {{
+    QPushButton#settings-voice-refresh-button:disabled {{
         background-color: {neutral.surface_secondary};
         color: {neutral.text_disabled};
         border: 1px solid {neutral.border_subtle};

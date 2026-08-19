@@ -34,15 +34,19 @@ to ``src.audio_export`` -- no SQL, no second export engine, no
 desktop-only synthesis path.
 
 Voice configuration (DESIGN.md § 7.4 "voice/repetition configuration:
-B, P6 focused form") is READ-ONLY here, not a picker: M15 froze
-provider/language routing (``src.tts_providers.FROZEN_PROVIDER_SPECS``)
-and the M18 contract § 5 forbids reopening it "without evidence of an
-actual blocker" -- none exists. The workspace instead surfaces which
-frozen voice each Card's languages will use, so "configuration" means
-confirming the deterministic assignment before running a batch, not
-choosing among voices. Repetition mode/count are the genuinely
-configurable half of ``CompositionConfig`` the roadmap actually names
-("repetition count; repetition-mode selection") and are exposed as such.
+B, P6 focused form") is READ-ONLY here, not a picker: the actual
+Installed Voice Binding choice (M20 Release Contract § 2.3 -- which
+Windows-installed voice a language uses) is made in Settings > Audio,
+not this workspace. The frozen scope this workspace still may not
+reopen is *which languages* are supported
+(``src.tts_providers.FROZEN_PROVIDER_SPECS`` keys) -- M18 contract § 5
+forbids expanding that "without evidence of an actual blocker". The
+workspace surfaces which voice each Card's languages are currently
+bound to (from Settings), so "configuration" here means confirming the
+current assignment before running a batch, not choosing among voices.
+Repetition mode/count are the genuinely configurable half of
+``CompositionConfig`` the roadmap actually names ("repetition count;
+repetition-mode selection") and are exposed as such.
 
 Export is genuinely long-running (`DESIGN.md § 12.4`), so it runs on a
 background ``QThread`` via ``_AudioExportWorker`` -- the same shape
@@ -65,8 +69,8 @@ class _VoicePreflightWorker(QObject):
 
     Final Human Acceptance Gate corrective: ``voice_assignment_rows()``
     calls ``ProviderRegistry.preflight()`` for each frozen language, and
-    the Mandarin route's preflight spawns ``powershell.exe`` through
-    ``subprocess.run`` (``src/tts_providers.py``'s
+    every bound-voice route's preflight spawns ``powershell.exe``
+    through ``subprocess.run`` (``src/tts_providers.py``'s
     ``CommandSpeechProvider.preflight``, 30s timeout). On a real machine
     that cold PowerShell start costs seconds -- and it used to run
     synchronously inside ``AudioExportDialog.__init__``, so the Audio
@@ -92,12 +96,13 @@ class _VoicePreflightWorker(QObject):
     def run(self) -> None:
         try:
             registry = build_provider_registry(self._preferences)
-            specs = list(FROZEN_PROVIDER_SPECS.values())
-            total = len(specs)
+            languages = sorted(FROZEN_PROVIDER_SPECS)
+            total = len(languages)
             rows: list[tuple[str, str, str, bool, str]] = []
             self.progress.emit(self._generation, 0, total)
-            for spec in specs:
-                availability = registry.preflight(spec.language)
+            for language in languages:
+                spec = registry.selected_spec(language) or FROZEN_PROVIDER_SPECS[language]
+                availability = registry.preflight(language)
                 rows.append(
                     (spec.language, spec.provider_id, spec.voice_id, availability.available, availability.detail)
                 )
@@ -293,9 +298,9 @@ class AudioExportController(QObject):
         M15 language. ``available``/``detail`` come from a real, live
         ``build_provider_registry().preflight()`` call -- not a
         cached/plan-time snapshot -- so this panel honestly reflects
-        whether the current process can actually reach the configured
-        shared TTS runtime (Settings > Audio app setting, or the
-        VOCAB_APP_SHARED_TTS_DIR per-process override; see
+        whether the current process can actually use the bound Windows
+        voices (Settings > Audio app setting, or the
+        VOCAB_APP_VOICE_BINDINGS per-process override; see
         state/tts_runtime.py) *before* the user spends effort
         building a Plan (HG3 corrective: "0 of X Cards ready" with no
         visible reason was the reported blocker).
@@ -309,8 +314,9 @@ class AudioExportController(QObject):
             return list(self.voice_rows)
         registry = build_provider_registry(self._preferences)
         rows = []
-        for spec in FROZEN_PROVIDER_SPECS.values():
-            availability = registry.preflight(spec.language)
+        for language in sorted(FROZEN_PROVIDER_SPECS):
+            spec = registry.selected_spec(language) or FROZEN_PROVIDER_SPECS[language]
+            availability = registry.preflight(language)
             rows.append((spec.language, spec.provider_id, spec.voice_id, availability.available, availability.detail))
         return rows
 

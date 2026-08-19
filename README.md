@@ -65,8 +65,13 @@ non-happy-path behavior, Analytics correctness against the frozen M14
 contract, and desktop robustness — see
 [Milestone 19 Hardening QA](docs/qa/MILESTONE19_HARDENING_QA.md) for
 the evidence record. The desktop Feature Freeze remains active.
-**Milestone 20 — Packaging and Release Candidate** is the current/next
-objective.
+**Milestone 20 — Packaging and Release Candidate** has reached RC
+Engineering Exit Candidate with Human RC PASS granted (2026-08-19) for
+SHA `89263a4f0f477fe5455ed22bedffd1968218bb1e` on branch
+`agent/m20-packaging-release-candidate` (Draft PR #33) — not yet merged
+to `main`, pending separate explicit operator authorization to merge,
+tag, and publish. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the
+full evidence record.
 
 Streamlit remains the currently runnable compatibility/reference UI, but it is
 no longer the intended Release Candidate target. The active lifecycle now
@@ -192,16 +197,16 @@ This project does not include:
 - built-in dictionary databases
 - copyrighted word lists
 - bundled pronunciation recordings
-- bundled or downloaded TTS voice models in the current implementation
+- bundled or downloaded TTS voice models, or any third-party TTS runtime --
+  Card Audio Export speaks using a Windows voice the user already has
+  installed (Settings > Audio's Local Windows Speech Provider / Installed
+  Voice Binding; see the desktop app's Audio Export voice-status panel for
+  configuration state)
 - AI-generated vocabulary explanations, examples, or bulk learning content
 - automatic correction of user-created entries
 - cloud sync
 - account login or authentication
 - mobile app packaging
-- bundled TTS runtime provisioning in the current implementation (Card
-  Audio Export requires an externally provided shared TTS runtime; see
-  the desktop app's Audio Export voice-status panel for configuration
-  state)
 - full destructive database restore
 
 These statements describe the current implementation. The active roadmap now
@@ -360,9 +365,10 @@ and folder at the time it was created). It uses `pythonw.exe` when
 available so a normal launch does not leave a console window open.
 
 This is a **development launcher, not packaging**: it does not build an
-installer or a standalone executable, and it does not choose or freeze a
-Nuitka/PyInstaller packaging decision (that remains Milestone 20 scope).
-The generated `.lnk` is specific to your machine and checkout path and is
+installer or a standalone executable itself. The actual packaged
+installer is built via `winbuild/build.py` (PyInstaller `--onedir` +
+Inno Setup, Milestone 20). The generated `.lnk` is specific to your
+machine and checkout path and is
 never committed to the repository — `git` ignores `*.lnk` files, and the
 script only ever writes to your own Desktop folder, never into the
 repository.

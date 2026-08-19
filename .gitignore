@@ -59,6 +59,11 @@ Thumbs.db
 build/
 dist/
 *.spec
+# ...except the hand-authored, version-controlled PyInstaller spec itself
+# (M20 winbuild/build.py always regenerates dist/build/ from this, never
+# the other way around -- only an accidentally auto-generated stray
+# .spec elsewhere should ever be ignored).
+!winbuild/vocabulary_app.spec
 
 # Machine-specific desktop launcher shortcuts (tools/setup_desktop_launcher.py)
 *.lnk

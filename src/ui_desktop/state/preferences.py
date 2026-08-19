@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from src.app_config import get_app_preferences_path
+from src.tts_providers import normalize_supported_language
 
 """
 Durable application-preference storage (Appearance, Accent, Motion, Quiz
@@ -49,16 +50,17 @@ class Preferences:
     accent: str = DEFAULT_ACCENT
     motion: str = DEFAULT_MOTION
     quiz_presentation: str = DEFAULT_QUIZ_PRESENTATION
-    # M19 hardening (ROADMAP § "Mandatory M19 / M20 Productization
-    # Handoff -- Card Audio Export"): the durable, product-facing shared
-    # TTS runtime folder. Empty string = not configured through the app.
+    # M20 Local Windows Speech Provider / Installed Voice Binding (M20
+    # Release Contract § 2.3): {language: voice_id} for whichever
+    # supported language (en / fr / zh-CN) the user has explicitly bound
+    # to an installed Windows voice. Empty dict = nothing bound yet.
     # Machine-local application configuration, never learning data --
     # stored here (outside vocab.db) exactly like Appearance/Motion. An
-    # explicitly set VOCAB_APP_SHARED_TTS_DIR environment variable
+    # explicitly set VOCAB_APP_VOICE_BINDINGS environment variable
     # remains an advanced per-process override (the same precedence
     # model VOCAB_APP_DB_PATH already established for the database
     # path); see state/tts_runtime.py for the resolution order.
-    shared_tts_dir: str = ""
+    voice_bindings: dict[str, str] = field(default_factory=dict)
 
 
 def load_preferences(path: Path | None = None) -> Preferences:
@@ -88,14 +90,30 @@ def load_preferences(path: Path | None = None) -> Preferences:
     accent = str(raw.get("accent") or DEFAULT_ACCENT)
     motion = str(raw.get("motion") or DEFAULT_MOTION)
     quiz_presentation = parse_quiz_presentation(str(raw.get("quiz_presentation") or DEFAULT_QUIZ_PRESENTATION))
-    shared_tts_dir = str(raw.get("shared_tts_dir") or "").strip()
+    voice_bindings = _parse_voice_bindings(raw.get("voice_bindings"))
     return Preferences(
         appearance=appearance,
         accent=accent,
         motion=motion,
         quiz_presentation=quiz_presentation,
-        shared_tts_dir=shared_tts_dir,
+        voice_bindings=voice_bindings,
     )
+
+
+def _parse_voice_bindings(raw_value: object) -> dict[str, str]:
+    """An old preferences file without this field, a malformed value, or
+    an unrecognized language key all degrade safely to no bindings --
+    never a load failure -- the same discipline every other preference
+    field here follows."""
+    if not isinstance(raw_value, dict):
+        return {}
+    bindings: dict[str, str] = {}
+    for raw_language, raw_voice_id in raw_value.items():
+        language = normalize_supported_language(str(raw_language))
+        voice_id = str(raw_voice_id or "").strip()
+        if language and voice_id:
+            bindings[language] = voice_id
+    return bindings
 
 
 def save_preferences(preferences: Preferences, path: Path | None = None) -> Path:

@@ -1,9 +1,25 @@
 param(
+    [string]$VoiceId,
     [string]$Text,
     [string]$ExpectedCodeUnits,
     [string]$OutputPath,
     [switch]$Preflight
 )
+
+<#
+Local Windows Speech Provider / Installed Voice Binding (M20 Release
+Contract § 2.3): invokes whatever Windows-installed speech voice the
+caller names by ``-VoiceId`` -- never a fixed, hardcoded voice. This
+generalizes the M15.1 Mandarin-only Yaoyao path (the prior art this
+project already proved works) across every M20-supported language
+(English, French, Mandarin): same WinRT mechanism
+(``Windows.Media.SpeechSynthesis.SpeechSynthesizer``), same explicit
+"voice must already be installed, never silently substituted" contract,
+same Unicode-code-unit preflight safety check against command-line
+text corruption -- previously justified as Mandarin-specific, but
+equally applicable to accented French text, so it now runs for every
+language rather than being special-cased to one.
+#>
 
 $ErrorActionPreference = "Stop"
 
@@ -18,14 +34,18 @@ function Await-WinRT {
     return $netTask.Result
 }
 
+if ([string]::IsNullOrWhiteSpace($VoiceId)) {
+    Write-Error "VoiceId is required."
+    exit 1
+}
+
 [Windows.Media.SpeechSynthesis.SpeechSynthesizer,Windows.Media.SpeechSynthesis,ContentType=WindowsRuntime] | Out-Null
 [Windows.Storage.Streams.IRandomAccessStream,Windows.Storage.Streams,ContentType=WindowsRuntime] | Out-Null
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
 
-$voiceId = "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech_OneCore\Voices\Tokens\MSTTS_V110_zhCN_YaoyaoM"
-$voice = [Windows.Media.SpeechSynthesis.SpeechSynthesizer]::AllVoices | Where-Object { $_.Id -eq $voiceId }
+$voice = [Windows.Media.SpeechSynthesis.SpeechSynthesizer]::AllVoices | Where-Object { $_.Id -eq $VoiceId }
 if (-not $voice) {
-    Write-Error "The selected Yaoyao voice is unavailable."
+    Write-Error "The selected voice is unavailable: $VoiceId"
     exit 2
 }
 if ($Preflight) {
@@ -38,7 +58,7 @@ if ([string]::IsNullOrWhiteSpace($Text) -or [string]::IsNullOrWhiteSpace($Output
 
 # Text arrives through the Unicode Windows process-command-line boundary. Verify
 # the exact UTF-16 code units immediately before invoking WinRT; no file read or
-# PowerShell source-code literal is used for Mandarin input.
+# PowerShell source-code literal is used for the input text.
 $actualCodeUnits = ($Text.ToCharArray() | ForEach-Object { [int]$_ }) -join ","
 if ([string]::IsNullOrWhiteSpace($ExpectedCodeUnits) -or $ExpectedCodeUnits -ne $actualCodeUnits) {
     Write-Error "Unicode preflight failed."

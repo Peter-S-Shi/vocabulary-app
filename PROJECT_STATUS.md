@@ -1,6 +1,6 @@
 # Vocabulary App Project Status
 
-Last reviewed: 2026-08-18
+Last reviewed: 2026-08-19
 
 This file is the authoritative evidence-based snapshot of the current project
 state.
@@ -12,13 +12,113 @@ Desktop-specific migration principles and workflow mapping are defined in
 
 ## Current Phase
 
-**Milestone 19 — Desktop Product Hardening (Complete on `main`, Human
-Accepted 2026-08-18, merged via PR #30 at
-`2ad211711d96583b6fffdb65de912fa672502bc8` from accepted product head
-`a128c50d75154ff3f85eacfd3a96e54d27d11c4d`); Milestone 20 — Packaging
-and Release Candidate is the current/next lifecycle objective**
+**Milestone 20 — Packaging and Release Candidate: RC Engineering Exit
+Candidate reached, Human RC PASS granted (2026-08-19) for SHA
+`89263a4f0f477fe5455ed22bedffd1968218bb1e` on branch
+`agent/m20-packaging-release-candidate` (Draft PR #33). Not yet merged
+to `main` — merge, tag, and GitHub Release publication all require the
+operator's separate, explicit authorization per the M20 execution
+contract's authority boundaries; the agent does not perform any of
+those itself.**
 
 ## Current Milestone
+
+**Milestone 20 — Packaging and Release Candidate: RC Engineering Exit
+Candidate reached, Human RC PASS granted.** Developed under the M20
+Autonomous Release Engineering Loop on the single long-lived branch
+`agent/m20-packaging-release-candidate` (Draft PR #33), from the M19
+merge baseline `f615ab79b4266810fd6a88937f1917c473607136`.
+
+**Human RC Acceptance Gate: PASS.** The operator granted Human RC PASS
+(2026-08-19) for the exact SHA `89263a4f0f477fe5455ed22bedffd1968218bb1e`
+and the installer built from it
+(`VocabularyApp-Setup-1.0.0-rc.1.exe`, SHA-256
+`8b435657c5cecfecd52f96a6f49d648e1fcaa2e4b58cada03cfc3baf7ea87710`).
+This is the authoritative M20 RC acceptance decision. Per the loop
+contract's GitHub/release authority boundaries (§ 13), the agent may
+prepare the PR for merge but must not merge it, merge to `main`,
+create/push a version tag, or publish a GitHub Release without a
+further, separate explicit operator instruction to do so.
+
+**RC Engineering Exit Candidate evidence (agent-verified, 2026-08-19,
+at the accepted SHA):**
+
+- Application version: `1.0.0-rc.1`.
+- Full repository regression: **911 tests, 0 failures, 0 errors**
+  (`unittest discover`, 1450.7s) — a full clean run, including the
+  earlier-known `test_m18_review_calendar.py` failures that had
+  appeared in an intermediate Phase B run but are absent here.
+- Architecture audit: clean (90 Python files, 0 serious violations, 0
+  warnings).
+- Build: `python winbuild/build.py` — PyInstaller `--onedir` (126.0
+  MiB / 132,089,241 bytes) + Inno Setup, both stages succeeded;
+  `dist/build_manifest.json` `source_sha` matches the accepted HEAD
+  exactly, `source_dirty: false`.
+- Code signing (operator decision amendment — self-signed for this
+  v1.0 Portfolio RC, not a publicly trusted certificate; SmartScreen
+  reputation is explicitly not an M20 exit criterion, see
+  `docs/packaging/M20_RELEASE_CONTRACT.md` § 2.7 Fourth Revision):
+  both the onedir `.exe` and the installer carry a valid Authenticode
+  signature from the self-signed `CN=Peter Shi` certificate, verified
+  independently via `Get-AuthenticodeSignature` (status
+  `UnknownError`/untrusted-root — the correct, expected result for a
+  self-signed certificate, not a defect).
+- Distribution QA § A (fresh local Windows account, `VocabAppQA` —
+  operator decision amendment supersedes the earlier clean-VM
+  requirement for v1.0, see `docs/packaging/M20_DISTRIBUTION_QA_CHECKLIST.md`):
+  elevation-free install, correct per-user paths, Start Menu/Desktop
+  shortcuts, fresh-DB first launch, per-account Local Windows Speech
+  Provider voice enumeration (22 real voices), backup-before-upgrade
+  with a real schema migration, default-preserve uninstall, and a
+  marker-row-verified reinstall that reopens preserved data — all
+  confirmed for real under that account.
+- Representative existing-database import: verified end-to-end via the
+  real `import_existing_database()` function against isolated,
+  disposable data (copy-not-move, destination backed up, source
+  untouched, reopens correctly after import).
+- Release-archive/privacy scan: 181 files in the onedir payload, no
+  `.venv`/`.env`/test fixtures/personal `vocab.db`; the compiled `.exe`
+  binary-scanned for embedded local dev-machine paths — none found.
+- `LICENSE`, `THIRD_PARTY_NOTICES.md`, and README audio/TTS disclosure
+  all reconciled to the shipped RC build.
+
+**Release-metadata finalization (2026-08-19, after Human RC PASS):**
+per the versioning scheme frozen in the Release Contract § 1
+(`v1.0.0-rc.1` → Human RC Acceptance → `v1.0.0`), `APP_VERSION` and
+`winbuild/version_info.txt` were updated from `1.0.0-rc.1` to `1.0.0`
+— metadata only, no product/runtime behavior or scope change, no
+regression re-run, no new Human RC request (the existing PASS already
+covers the underlying artifact/behavior). Targeted verification: the
+version-drift-guard and signing tests (11/11 green), plus a real
+build → install → isolated-path launch → signature-verify → uninstall
+smoke pass confirming the version-bumped pipeline itself works
+end-to-end.
+
+**This pre-merge build is verification evidence only, not the
+canonical v1.0.0 release artifact.** PyInstaller/Inno Setup builds
+embed a build timestamp and are not byte-for-byte reproducible, so any
+SHA-256 recorded here would be stale the moment it's committed (a docs
+commit recording a hash moves `HEAD`, which the next rebuild would
+hash differently — a self-referential provenance loop that pre-merge
+documentation cannot close). Accordingly, no installer SHA-256 from
+this pre-merge verification build is published as *the* release hash.
+**The canonical v1.0.0 installer must be built after PR #33 merges,
+from the actual merged `main` SHA / `v1.0.0` tag**, with its resulting
+SHA-256 published in the GitHub Release notes / checksum metadata at
+that time — not requiring a further source commit to record it.
+
+**Known limitations recorded, not blocking:** the existing-database-
+import and destructive-uninstall-opt-in UI flows were verified by
+direct function-level/primary-account evidence rather than a literal
+file-picker click-through under the fresh `VocabAppQA` account (no
+interactive desktop session was available to automate a native
+dialog); full clean-machine VM verification (Release Contract § 2.8
+§ B) is deferred beyond v1.0 per an earlier operator decision
+amendment; publicly trusted code signing is deferred to a possible
+future public/commercial/Microsoft Store distribution effort per the
+Fourth Revision amendment.
+
+---
 
 **Milestone 19 — Desktop Product Hardening is Complete on `main`,
 Human Accepted.** Developed under the M19 Autonomous Product
@@ -1738,7 +1838,10 @@ Human Accepted** (2026-08-18, accepted product head
 `9dae05c49caec8f2a33fdaf74d0a1f3fd1db43bc`). See "Current Milestone"
 above for the full evidence record and the three Final Human
 Acceptance Gate attempts. **Milestone 20 — Packaging and Release
-Candidate is the current/next lifecycle objective.**
+Candidate has reached RC Engineering Exit Candidate with Human RC
+PASS granted; see "Current Milestone" above for the full evidence
+record.** Not yet merged to `main` — awaiting separate operator
+authorization to merge, tag, and publish.
 
 However, pre-desktop stabilization and full-product manual QA have already
 identified issues that must be corrected before major migration work.

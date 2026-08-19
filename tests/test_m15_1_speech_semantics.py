@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import csv
 import io
+import os
 from pathlib import Path
 import sqlite3
 import tempfile
 import unittest
 
 from src import db
+from src.app_config import BACKUP_DIR_ENV
 from src.entries import add_entry, create_entry_with_template
 from src.entry_templates import (
     FRENCH_VERB_PRESENT_TEMPLATE_NAME,
@@ -87,10 +89,19 @@ class M151SpeechSemanticsTests(unittest.TestCase):
         self.original_db_path = db.DB_PATH
         self.test_db_path = Path(self.temp_dir.name) / "m15_1.sqlite3"
         db.DB_PATH = self.test_db_path
+        # M20 backup-before-pending-migration writes real files under
+        # get_backup_dir() -- must not land in the real
+        # %LOCALAPPDATA%\vocabulary_app\backups\ during a test.
+        self._original_backup_dir_env = os.environ.get(BACKUP_DIR_ENV)
+        os.environ[BACKUP_DIR_ENV] = str(Path(self.temp_dir.name) / "backups")
         db.init_db()
 
     def tearDown(self) -> None:
         db.DB_PATH = self.original_db_path
+        if self._original_backup_dir_env is None:
+            os.environ.pop(BACKUP_DIR_ENV, None)
+        else:
+            os.environ[BACKUP_DIR_ENV] = self._original_backup_dir_env
         self.temp_dir.cleanup()
 
     def test_fresh_database_reaches_m15_1_schema_and_is_idempotent(self) -> None:
@@ -331,7 +342,7 @@ class M151SpeechSemanticsTests(unittest.TestCase):
         self.assertTrue(plan.ready)
         self.assertEqual([unit.field_key for unit in plan.units], ["term", "meaning"])
         self.assertEqual([unit.language for unit in plan.units], ["en", "zh-CN"])
-        self.assertEqual([unit.provider_id for unit in plan.units], ["kokoro", "windows-winrt"])
+        self.assertEqual([unit.provider_id for unit in plan.units], ["windows-winrt", "windows-winrt"])
 
     def test_french_entry_english_explanation_routes_morphology(self) -> None:
         template = get_entry_template_by_name(FRENCH_VERB_PRESENT_TEMPLATE_NAME)
@@ -344,8 +355,8 @@ class M151SpeechSemanticsTests(unittest.TestCase):
         self.assertTrue(plan.ready)
         self.assertEqual([unit.field_key for unit in plan.units][:2], ["infinitive", "meaning"])
         self.assertEqual([unit.language for unit in plan.units], ["fr", "en", "fr", "fr", "fr", "fr", "fr", "fr"])
-        self.assertEqual(plan.units[0].provider_id, "sherpa-onnx")
-        self.assertEqual(plan.units[1].provider_id, "kokoro")
+        self.assertEqual(plan.units[0].provider_id, "windows-winrt")
+        self.assertEqual(plan.units[1].provider_id, "windows-winrt")
 
     def test_missing_value_unresolved_role_unsupported_language_and_yaoyao_unavailable_are_controlled(self) -> None:
         custom_id = create_entry_template("Unresolved Custom", "", "English", "custom")

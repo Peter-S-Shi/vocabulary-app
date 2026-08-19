@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import os
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -9,6 +10,7 @@ import unittest
 from openpyxl import Workbook
 
 from src import db
+from src.app_config import BACKUP_DIR_ENV
 from src.backup import get_database_file_bytes
 from src.collections import create_collection, get_entries_in_collection
 from src.entry_templates import create_entry_template, create_template_field
@@ -57,10 +59,19 @@ class M13BatchCClosureTests(unittest.TestCase):
         self.root = Path(self.temp_dir.name)
         self.original_db_path = db.DB_PATH
         db.DB_PATH = self.root / "m13_batch_c.sqlite3"
+        # M20 backup-before-pending-migration writes real files under
+        # get_backup_dir() -- must not land in the real
+        # %LOCALAPPDATA%\vocabulary_app\backups\ during a test.
+        self._original_backup_dir_env = os.environ.get(BACKUP_DIR_ENV)
+        os.environ[BACKUP_DIR_ENV] = str(self.root / "backups")
         db.init_db()
 
     def tearDown(self) -> None:
         db.DB_PATH = self.original_db_path
+        if self._original_backup_dir_env is None:
+            os.environ.pop(BACKUP_DIR_ENV, None)
+        else:
+            os.environ[BACKUP_DIR_ENV] = self._original_backup_dir_env
         self.temp_dir.cleanup()
 
     def _general_row(self, term: str, meaning: str) -> dict:

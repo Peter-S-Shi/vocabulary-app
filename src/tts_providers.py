@@ -1,13 +1,36 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import os
 from pathlib import Path
 import subprocess
 from typing import Callable, Protocol
 
+"""
+Local Windows Speech Provider / Installed Voice Binding (M20 Release
+Contract §§ 2.3, 7): Vocabulary App v1.0 does not bundle, download, or
+provision any third-party TTS runtime, model, or voice. Speech playback
+enumerates and invokes whatever compatible voice the user's own Windows
+installation already has installed, through the OS-provided WinRT
+``Windows.Media.SpeechSynthesis.SpeechSynthesizer`` API
+(``scripts/tts_windows_voice.ps1``, ``scripts/tts_list_voices.ps1``).
+There is never a silent fallback to an unapproved voice/provider -- an
+unbound or no-longer-installed voice reports an honest unavailable
+status instead.
 
-SHARED_TTS_ENV = "VOCAB_APP_SHARED_TTS_DIR"
+This supersedes the earlier M15.0 "shared external TTS runtime folder"
+model (Kokoro for English, sherpa-onnx for French, WinRT for Mandarin
+only), whose evidence remains in
+``docs/policies/TTS_LICENSE_AND_ATTRIBUTION.md`` as history. The M15.1
+Mandarin-only WinRT path proved this exact mechanism works; this module
+generalizes it across all three supported languages instead of
+introducing a second one.
+"""
+
+VOICE_BINDINGS_ENV = "VOCAB_APP_VOICE_BINDINGS"
+
+WINDOWS_VOICE_PROVIDER_ID = "windows-winrt"
 
 
 @dataclass(frozen=True)
@@ -48,10 +71,18 @@ class SpeechProvider(Protocol):
     def synthesize_one(self, text: str, output_path: Path) -> SynthesisResult: ...
 
 
+# The M20 supported-language scope itself is frozen (English, French,
+# zh-CN Mandarin -- docs/packaging/M20_RELEASE_CONTRACT.md § 7.3);
+# discovering other installed Windows voices never expands it. Unlike
+# the superseded model, ``voice_id`` is not a fixed constant here -- it
+# is chosen by the user per installation (§ 2.3) -- so these placeholder
+# specs exist only to name the supported languages and the (frozen)
+# provider mechanism; real specs are built per bound voice in
+# ``build_installed_voice_registry()``.
 FROZEN_PROVIDER_SPECS = {
-    "en": ProviderSpec("en", "kokoro", "Kokoro-82M/af_heart"),
-    "fr": ProviderSpec("fr", "sherpa-onnx", "fr_FR-siwis-medium"),
-    "zh-CN": ProviderSpec("zh-CN", "windows-winrt", "Yaoyao/zh-CN"),
+    "en": ProviderSpec("en", WINDOWS_VOICE_PROVIDER_ID, ""),
+    "fr": ProviderSpec("fr", WINDOWS_VOICE_PROVIDER_ID, ""),
+    "zh-CN": ProviderSpec("zh-CN", WINDOWS_VOICE_PROVIDER_ID, ""),
 }
 
 _LANGUAGE_ALIASES = {
@@ -83,6 +114,19 @@ def _utf16_code_units(text: str) -> str:
     return ",".join(
         str(int.from_bytes(encoded[index:index + 2], "little"))
         for index in range(0, len(encoded), 2)
+    )
+
+
+def _scripts_dir() -> Path:
+    from src.app_config import get_project_root
+
+    return get_project_root() / "scripts"
+
+
+def _voice_not_bound_detail(language: str) -> str:
+    return (
+        f"No installed voice is bound for {language}. Choose one in Settings > Audio, "
+        f"or set {VOICE_BINDINGS_ENV} for this process."
     )
 
 
@@ -213,13 +257,146 @@ class UnavailableSpeechProvider:
         )
 
 
+@dataclass(frozen=True)
+class InstalledVoice:
+    """One Windows-installed speech voice, as WinRT reports it (never a
+    bundled/downloaded asset -- this project never possesses the voice
+    itself, only invokes it through the OS)."""
+    voice_id: str
+    display_name: str
+    language_tag: str
+
+    @property
+    def canonical_language(self) -> str | None:
+        return normalize_supported_language(self.language_tag)
+
+
+def list_installed_voices() -> list[InstalledVoice]:
+    """Enumerate every speech voice installed on this Windows system.
+
+    Read-only and never raises: PowerShell/WinRT being unavailable, the
+    script being missing, or malformed output all degrade to an empty
+    list rather than a hard error, so a caller can honestly report "no
+    compatible voice installed" instead of crashing.
+    """
+    script = _scripts_dir() / "tts_list_voices.ps1"
+    if not script.exists():
+        return []
+    try:
+        completed = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)],
+            check=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    if completed.returncode != 0 or not completed.stdout.strip():
+        return []
+    try:
+        raw = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        return []
+    if isinstance(raw, dict):
+        raw = [raw]
+    if not isinstance(raw, list):
+        return []
+
+    voices = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        voice_id = str(entry.get("id") or "").strip()
+        if not voice_id:
+            continue
+        voices.append(InstalledVoice(
+            voice_id=voice_id,
+            display_name=str(entry.get("display_name") or voice_id).strip() or voice_id,
+            language_tag=str(entry.get("language") or "").strip(),
+        ))
+    return voices
+
+
+def list_installed_voices_for_language(language: str) -> list[InstalledVoice]:
+    canonical = normalize_supported_language(language)
+    if canonical is None:
+        return []
+    return [voice for voice in list_installed_voices() if voice.canonical_language == canonical]
+
+
+def _build_windows_voice_provider(spec: ProviderSpec) -> CommandSpeechProvider:
+    script = _scripts_dir() / "tts_windows_voice.ps1"
+    voice_id = spec.voice_id
+    return CommandSpeechProvider(
+        spec,
+        (script,),
+        lambda text, output: [
+            "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+            str(script), "-VoiceId", voice_id, "-Text", text,
+            "-ExpectedCodeUnits", _utf16_code_units(text), "-OutputPath", str(output),
+        ],
+        preflight_command=[
+            "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+            str(script), "-VoiceId", voice_id, "-Preflight",
+        ],
+    )
+
+
+def build_installed_voice_registry(bindings: dict[str, str]) -> "ProviderRegistry":
+    """Build a registry from persisted Installed Voice Binding
+    selections: ``{language: voice_id}`` for whichever M20 canonical
+    language (en / fr / zh-CN) the user has bound. A language with no
+    binding, or one bound to a voice ID that is no longer installed,
+    resolves to an honest unavailable provider -- never a silent
+    fallback to a different voice or provider (M20 Release Contract
+    § 2.3). Never enumerates installed voices (a real PowerShell/WinRT
+    call) when there is nothing bound to check against -- an empty or
+    fully-unconfigured ``bindings`` short-circuits before that cost."""
+    bound_voice_ids = {
+        language: str(bindings.get(language) or "").strip() for language in FROZEN_PROVIDER_SPECS
+    }
+    installed_ids = (
+        {voice.voice_id for voice in list_installed_voices()}
+        if any(bound_voice_ids.values())
+        else set()
+    )
+    providers: list[SpeechProvider] = []
+    for language, base_spec in FROZEN_PROVIDER_SPECS.items():
+        voice_id = bound_voice_ids[language]
+        if not voice_id:
+            providers.append(UnavailableSpeechProvider(
+                base_spec, "voice_not_configured", _voice_not_bound_detail(language),
+            ))
+            continue
+        spec = ProviderSpec(language, base_spec.provider_id, voice_id)
+        if voice_id not in installed_ids:
+            providers.append(UnavailableSpeechProvider(
+                spec, "voice_not_installed",
+                f"The bound voice is no longer installed on this Windows system: {voice_id}",
+            ))
+            continue
+        providers.append(_build_windows_voice_provider(spec))
+    return ProviderRegistry(providers)
+
+
 class ProviderRegistry:
     def __init__(self, providers: list[SpeechProvider]) -> None:
         self._providers = {provider.spec.language: provider for provider in providers}
 
     def selected_spec(self, language: str) -> ProviderSpec | None:
+        """The spec actually in effect for ``language`` -- the same
+        provider ``provider_for()``/``preflight()`` would use, so a
+        caller that records this spec (e.g. into a persisted speech
+        plan) stays consistent with what will actually synthesize, even
+        as the user rebinds which installed voice a language uses."""
         canonical = normalize_supported_language(language)
-        return FROZEN_PROVIDER_SPECS.get(canonical) if canonical else None
+        if canonical is None:
+            return None
+        provider = self._providers.get(canonical)
+        return provider.spec if provider is not None else None
 
     def provider_for(self, language: str) -> SpeechProvider | None:
         canonical = normalize_supported_language(language)
@@ -239,61 +416,20 @@ class ProviderRegistry:
         return cls([UnavailableSpeechProvider(spec) for spec in FROZEN_PROVIDER_SPECS.values()])
 
     @classmethod
-    def _shared_tts_dir_not_configured(cls) -> "ProviderRegistry":
-        """Distinct from ``unavailable_defaults()``'s generic message: this
-        is specifically the "the current process has no
-        VOCAB_APP_SHARED_TTS_DIR at all" case, so the detail names the
-        exact env var to set rather than a generic "unavailable" -- the
-        HG3 corrective this exists for is precisely that a desktop
-        session with no env var gave no way to tell that apart from a
-        configured-but-broken runtime."""
-        return cls([
-            UnavailableSpeechProvider(
-                spec, "shared_tts_dir_not_configured",
-                f"{SHARED_TTS_ENV} is not set for this process.",
-            )
-            for spec in FROZEN_PROVIDER_SPECS.values()
-        ])
-
-    @classmethod
     def from_environment(cls) -> "ProviderRegistry":
-        root_value = os.environ.get(SHARED_TTS_ENV, "").strip()
-        if not root_value:
-            return cls._shared_tts_dir_not_configured()
-        return build_shared_runtime_registry(Path(root_value))
-
-
-def build_shared_runtime_registry(shared_root: Path) -> ProviderRegistry:
-    root = shared_root.expanduser()
-    project_root = Path(__file__).resolve().parent.parent
-    python_bridge = project_root / "scripts" / "tts_python_adapter.py"
-    yaoyao_script = project_root / "scripts" / "tts_yaoyao.ps1"
-    python_exe = root / "venv" / "Scripts" / "python.exe"
-    kokoro_script = root / "kokoro" / "synth.py"
-    french_script = root / "sherpa-onnx" / "synth.py"
-    french_voice = root / "sherpa-onnx" / "voices" / "vits-piper-fr_FR-siwis-medium"
-
-    kokoro = CommandSpeechProvider(
-        FROZEN_PROVIDER_SPECS["en"],
-        (python_exe, kokoro_script, python_bridge),
-        lambda text, output: [str(python_exe), str(python_bridge), str(kokoro_script), text, str(output)],
-    )
-    french = CommandSpeechProvider(
-        FROZEN_PROVIDER_SPECS["fr"],
-        (python_exe, french_script, french_voice, python_bridge),
-        lambda text, output: [str(python_exe), str(python_bridge), str(french_script), text, str(output)],
-    )
-    yaoyao = CommandSpeechProvider(
-        FROZEN_PROVIDER_SPECS["zh-CN"],
-        (yaoyao_script,),
-        lambda text, output: [
-            "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-            str(yaoyao_script), "-Text", text, "-ExpectedCodeUnits", _utf16_code_units(text),
-            "-OutputPath", str(output),
-        ],
-        preflight_command=[
-            "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-            str(yaoyao_script), "-Preflight",
-        ],
-    )
-    return ProviderRegistry([kokoro, french, yaoyao])
+        """Advanced, per-process override (the same precedence model
+        ``VOCAB_APP_DB_PATH`` established): a JSON object mapping
+        language -> voice ID. Used by core/scripts/Streamlit-era
+        callers that pass no explicit registry; the desktop app instead
+        resolves through ``ui_desktop.state.tts_runtime``, which also
+        considers the persisted Settings > Audio bindings."""
+        raw_value = os.environ.get(VOICE_BINDINGS_ENV, "").strip()
+        bindings: dict[str, str] = {}
+        if raw_value:
+            try:
+                parsed = json.loads(raw_value)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, dict):
+                bindings = {str(key): str(value) for key, value in parsed.items()}
+        return build_installed_voice_registry(bindings)
