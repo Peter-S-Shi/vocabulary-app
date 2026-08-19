@@ -142,14 +142,23 @@ Findings:
   account — Task Scheduler's non-interactive session has no way to
   drive a native Open-File dialog blindly with acceptable confidence,
   and no interactive desktop session for `VocabAppQA` was available
-  during this run. The underlying `import_existing_database()`
-  mechanism (copy-not-move, backs up an existing destination, leaves
-  the source untouched) is covered by `tests/test_m20_data_lifecycle.py`,
-  and this same run already proved this account's data-directory path
-  resolution is correct via the identical `vocab.db`/backups checks
-  above. Recommend the operator do one manual click-through of this
-  specific flow as `VocabAppQA` (or via `runas`) before final release,
-  since it's the one §A item this loop could not directly observe.
+  during this run. As a substantive (not GUI-click) substitute, the
+  real `import_existing_database()` function was separately exercised
+  end-to-end on the primary account (isolated to a disposable temp
+  location, never touching real personal data): built a pre-existing
+  "already installed" destination database and a separate synthetic
+  "existing user database" with a distinguishing marker row, ran the
+  actual import function unmodified, and confirmed all three frozen
+  behaviors for real — the destination was backed up before being
+  overwritten (and that backup opens correctly, at the current schema
+  version), the source file's hash was byte-identical before and
+  after (never modified), and the destination now carries the
+  imported data with the marker intact even after a fresh `init_db()`
+  reopen. This closes the RC Verification Contract's "representative
+  existing-database testing" item on real evidence; only the literal
+  file-picker button-click sequence remains unobserved. Recommend the
+  operator do one manual click-through of that specific UI flow before
+  final release for full end-to-end confidence.
 - Optional destructive-uninstall opt-in (explicit "Yes, delete") was
   also not independently re-run under this account for the same
   reason; it remains covered by the primary-account verification noted
