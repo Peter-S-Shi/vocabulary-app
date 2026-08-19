@@ -1,16 +1,24 @@
 # M20 Code Signing Setup
 
-Companion to `docs/packaging/M20_RELEASE_CONTRACT.md` § 2.7 and the
-`M20_AUTONOMOUS_RELEASE_ENGINEERING_LOOP.md` prompt § 9. Records exactly
-what remains before the v1.0 RC/public installer can carry a real,
-publicly trusted Authenticode signature, and exactly what
-`winbuild/build.py` needs from the operator once a provider is chosen.
+Companion to `docs/packaging/M20_RELEASE_CONTRACT.md` § 2.7 (Fourth
+Revision) and the `M20_AUTONOMOUS_RELEASE_ENGINEERING_LOOP.md` prompt § 9.
 
-**Frozen (not open for reconsideration here):** the installer must be
-signed before final public release. **Not frozen, and the subject of
-this document:** which provider, and the account/certificate setup that
-requires the operator's own identity, payment, and judgment — none of
-which this agent can or should do autonomously.
+**Operator decision amendment (supersedes this document's original
+"publicly trusted signing required" scope):** for this v1.0 **Portfolio
+RC**, no publicly trusted code-signing service is required and no paid
+signing cost is incurred. The installer and the bundled onedir
+executable are signed with a **self-signed Authenticode developer
+certificate**, Subject/Publisher `Peter Shi`, used solely to complete
+and verify the Windows signing pipeline. **SmartScreen trust/reputation
+handling is explicitly not an M20/v1.0 exit criterion** — a self-signed
+certificate does not chain to a trusted root and does not earn
+SmartScreen reputation. Public-facing documentation and the RC report
+must describe the certificate accurately as self-signed and must never
+state or imply it is publicly trusted or reduces/suppresses SmartScreen
+warnings. A publicly trusted provider remains a legitimate option for a
+future public/commercial/Microsoft Store distribution effort — the
+original research is retained below in § 3 as candidate reference for
+that future work, not as v1.0's requirement.
 
 ---
 
@@ -32,66 +40,66 @@ which this agent can or should do autonomously.
   (`onedir_exe_signed`/`onedir_exe_signature`,
   `installer_signed`/`installer_signature`) for the RC report to quote
   directly.
-- **Verified end-to-end** (not just written, actually run) against a
-  locally-generated, non-trusted self-signed test certificate: created
-  a throwaway code-signing certificate with PowerShell's
-  `New-SelfSignedCertificate`, pointed `VOCAB_APP_SIGN_COMMAND` at a
-  `Set-AuthenticodeSignature` wrapper script, ran a full
-  `winbuild/build.py` build, and confirmed the manifest correctly
-  recorded the signed `.exe` and the exact (expected-untrusted)
-  signature status/subject read back from the file. The test
-  certificate and script were deleted afterward; nothing from that test
-  is committed. This proves the wiring — swapping in a real trusted
-  signing command needs no code changes, only the environment variable.
-- No secret, credential, certificate, or provider-specific tool
-  invocation is hard-coded anywhere in this repository. The signing
-  command itself (which may reference a certificate thumbprint, a cloud
-  account, or a hardware token) lives only in the operator's own build
-  environment/CI secret store, never committed.
+- A locally-generated **self-signed Authenticode developer certificate**
+  (Subject `CN=Peter Shi`), created once via PowerShell's
+  `New-SelfSignedCertificate` (Code Signing EKU, stored in the local
+  user's certificate store) and referenced by `VOCAB_APP_SIGN_COMMAND`
+  pointing at a `Set-AuthenticodeSignature` invocation. This is the
+  actual v1.0 signing configuration, not a throwaway test — the
+  certificate is kept (not deleted after use) so the same signing
+  identity is reused across RC rebuilds.
+- No secret, credential, or private key material is committed to this
+  repository. The self-signed certificate lives only in the local
+  Windows certificate store; `VOCAB_APP_SIGN_COMMAND` lives only in the
+  local build environment.
 
-## 2. What genuinely requires the operator
+## 2. Verified result (expected and correct for a self-signed certificate)
 
-Nothing below can be done by an autonomous agent: it requires the
-operator's real-world identity, a payment method, and a judgment call
-about which provider fits their budget and country of residence.
+Running `winbuild/build.py` with `VOCAB_APP_SIGN_COMMAND` configured
+signs both artifacts and records, via `Get-AuthenticodeSignature`:
 
-### 2.1 Recommended starting point: Azure Artifact Signing
+- the signature is **present** on the file, with a **subject and
+  thumbprint matching the self-signed `Peter Shi` certificate**;
+- the trust/chain status reflects an **untrusted root** (a self-signed
+  certificate is not chained to any public CA) — this is the correct,
+  expected outcome, not a defect, and must be reported honestly as
+  "self-signed, untrusted root" rather than "Valid" in the publicly
+  trusted sense.
+
+Both are recorded in `dist/build_manifest.json` exactly as produced —
+never overwritten or reworded to imply a stronger trust level than the
+certificate actually has.
+
+## 3. Retained for a possible future public/commercial/Store distribution
+   (not required or pursued for v1.0)
+
+The publicly trusted signing research from before this amendment is
+kept here as candidate reference only:
+
+### 3.1 Candidate: Azure Artifact Signing
 
 Formerly branded "Azure Trusted Signing" — Microsoft's low-cost,
 non-Store code-signing service, still in public preview as of this
 writing. Advantages for an individual developer: no physical hardware
 token required (unlike most traditional OV certificates), and identity
 verification happens through Microsoft's own managed flow rather than a
-separate CA's paperwork process.
+separate CA's paperwork process. Historical research found Basic-tier
+pricing of approximately US$9.99/month; the operator must verify current
+eligibility, pricing, and identity-verification steps directly at
+signup time before relying on any of this, since these are
+provider-controlled and change. Official starting points:
+`https://learn.microsoft.com/en-us/azure/artifact-signing/` and the
+Azure Portal's "Artifact Signing" resource creation flow.
 
-**The operator must verify directly, at signup time, before relying on
-any of this** — these details are provider-controlled and change:
+### 3.2 Candidate: a traditional CA certificate
 
-- current eligibility for *individual* (not organization) identity
-  validation, including which countries/regions currently qualify;
-- current Basic-tier pricing (Microsoft's own pricing page does not
-  publish a committed figure at the time of this document; Phase A's
-  earlier research found approximately US$9.99/month, but treat that as
-  historical evidence, not a quote);
-- exactly which documents/verification steps the individual identity
-  path requires today.
-
-Official starting points: `https://learn.microsoft.com/en-us/azure/artifact-signing/`
-and the Azure Portal's "Artifact Signing" resource creation flow.
-
-### 2.2 Fallback: a traditional CA certificate
-
-If individual-developer eligibility for Azure Artifact Signing does not
-work out (geography, timing, or preview-service risk tolerance), a
-standard OV (Organization/Individual Validation) code-signing
+A standard OV (Organization/Individual Validation) code-signing
 certificate from any CA in the Microsoft Trusted Root Program (e.g.
-SSL.com, Certum, Sectigo — not an exhaustive or ranked list) remains a
-viable alternative, typically **$100–700+/year** and, for most
-providers, requiring either a physical hardware token or a
-provider-hosted HSM/cloud-signing add-on. Compare current offerings at
-signup time; do not assume last year's pricing or process still holds.
+SSL.com, Certum, Sectigo — not an exhaustive or ranked list), typically
+**$100–700+/year** and, for most providers, requiring either a physical
+hardware token or a provider-hosted HSM/cloud-signing add-on.
 
-### 2.3 What the operator must NOT do here
+### 3.3 What the operator must still NOT do, if this is revisited later
 
 Per the loop prompt's authority boundaries: do not paste API keys,
 account credentials, private key material, or certificate files into
@@ -99,32 +107,17 @@ chat, and do not commit them to this repository under any filename.
 `VOCAB_APP_SIGN_COMMAND` and whatever it references belong only in a
 local shell environment variable or a CI secret store.
 
-## 3. Minimum operator action to unblock signing
+### 3.4 What would need to happen to adopt one later
 
-1. Choose a provider (§ 2.1 or § 2.2) and complete its account/identity
+1. Choose a provider (§ 3.1 or § 3.2) and complete its account/identity
    setup and payment — outside this repository, on the provider's own
    site.
 2. Confirm the exact validated certificate subject/publisher name the
-   provider issues. Per the Release Contract, this is whatever identity
-   the provider actually validates — it must not be hard-coded as
-   "Peter Shi" if the provider validates a different legal identity;
-   the public portfolio/author identity may still say "Peter Shi"
-   regardless of what the certificate itself says.
+   provider issues — it must not be hard-coded as "Peter Shi" if the
+   provider validates a different legal identity.
 3. Determine the exact CLI signing invocation for the chosen provider
-   (e.g. `AzureSignTool sign -kvu ... -kvc ... -tr ... -td sha256 {file}`
-   for Azure Artifact Signing, or `signtool.exe sign /sha1 <thumbprint>
-   /tr ... /td sha256 {file}` for a traditional CA with a local/HSM
-   certificate) and set it as `VOCAB_APP_SIGN_COMMAND` in the build
-   environment.
-4. Re-run `python winbuild/build.py`. It will sign both artifacts
-   automatically and report the verified signature status in
-   `dist/build_manifest.json` — no further code changes needed.
-
-## 4. What happens automatically afterward
-
-Once `VOCAB_APP_SIGN_COMMAND` is set correctly, every future
-`winbuild/build.py` run signs and verifies both the payload `.exe` and
-the installer `.exe`, and the RC Engineering Exit Candidate report can
-quote the manifest's real `Valid` status and certificate subject
-directly, alongside the independently-recorded SHA-256 of the release
-asset.
+   and set it as `VOCAB_APP_SIGN_COMMAND`, replacing the self-signed
+   `Set-AuthenticodeSignature` command.
+4. Re-run `python winbuild/build.py`. No code changes are needed — only
+   the environment variable changes, since both signing paths use the
+   identical hook.
