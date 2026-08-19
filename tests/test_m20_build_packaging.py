@@ -80,12 +80,18 @@ class SigningHookTests(unittest.TestCase):
     """§ 9.2 "proving the provisional artifact reaches the exact
     signing stage": these mock the configured command's own execution
     (no real signing tool needed to test the *wiring*) -- the wiring
-    itself was additionally proven for real against a locally-generated
-    self-signed test certificate during M20 packaging work (see the
-    commit this test file was introduced in): sign_file() correctly
-    invoked a configured PowerShell signing command, and
-    verify_signature() correctly read back the resulting (untrusted,
-    as expected for a test cert) signature's subject and status."""
+    itself was additionally proven for real, twice: first against a
+    throwaway self-signed test certificate (deleted afterward), then
+    for real against the actual v1.0 Portfolio RC signing
+    configuration -- a self-signed Authenticode developer certificate,
+    Subject `CN=Peter Shi`, kept (not deleted) since the operator's
+    Fourth Revision amendment to docs/packaging/M20_RELEASE_CONTRACT.md
+    replaces the earlier "must be publicly trusted" requirement for
+    this release. Both runs: sign_file() correctly invoked the
+    configured PowerShell signing command, and verify_signature()
+    correctly read back the resulting signature's subject and status
+    (`UnknownError`/untrusted-root -- the correct, expected result for
+    a self-signed certificate, not a defect)."""
 
     def setUp(self) -> None:
         self._original = os.environ.get(SIGN_COMMAND_ENV)
