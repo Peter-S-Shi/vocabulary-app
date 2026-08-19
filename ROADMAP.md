@@ -107,7 +107,13 @@ target.
 **Milestone 19 — Desktop Product Hardening Complete on `main` (Human
 Accepted 2026-08-18, merged via PR #30 at
 `2ad211711d96583b6fffdb65de912fa672502bc8`); Milestone 20 — Packaging
-and Release Candidate is the current/next lifecycle objective**
+and Release Candidate has reached RC Engineering Exit Candidate with
+Human RC PASS granted (2026-08-19) for SHA
+`89263a4f0f477fe5455ed22bedffd1968218bb1e` on branch
+`agent/m20-packaging-release-candidate` (Draft PR #33). Not yet merged
+to `main` — merge, tag, and GitHub Release publication all require the
+operator's separate, explicit authorization. See § Milestone 20 below
+for the full evidence record.**
 
 The trustworthy data/business-logic baseline, repository restructure, Import
 and Template Evolution foundation, and Learning Analytics and Insight Core are

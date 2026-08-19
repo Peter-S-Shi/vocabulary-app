@@ -913,13 +913,14 @@ this-file-and-PR-only scope — but **not for the same reason in each
 case** (§ 2.3 above records the distinction in full): `docs/policies/
 TTS_LICENSE_AND_ATTRIBUTION.md` may remain as-is because it is a
 historical evidentiary record, not a claim about what v1.0 currently
-ships. `THIRD_PARTY_NOTICES.md` is left unedited only because editing it
-is Phase B/RC work, not because its current Kokoro/sherpa-onnx/Piper
-content is still accurate — it explicitly presents itself as a
-distribution-facing summary and, as of this writing, still lists
-distribution obligations for TTS assets the Third Revision decision means
-v1.0 does not ship. It is stale relative to that decision and must be
-revised (§ 5 item 10) before public release.
+ships. `THIRD_PARTY_NOTICES.md` was left unedited in Phase A because
+editing it was Phase B/RC work, not because its Kokoro/sherpa-onnx/
+Piper content was accurate at the time — that content was genuinely
+stale relative to the Third Revision decision. **Resolved in Phase B**
+(§ 5 item 10): `THIRD_PARTY_NOTICES.md` now correctly states v1.0 does
+not bundle, download, or redistribute any third-party TTS runtime,
+model, or voice package, and describes the Local Windows Speech
+Provider model instead.
 
 **Fourth Revision (operator decision amendment) reconciliation check:**
 `docs/packaging/M20_CODE_SIGNING_SETUP.md` and PR #33's description were
@@ -931,3 +932,23 @@ for a future distribution effort. `README.md` was checked and does not
 make any code-signing/SmartScreen claim requiring a change. `ROADMAP.md`
 and `PROJECT_STATUS.md` do not commit to a specific signing provider or
 trust level and required no changes.
+
+---
+
+## RC Engineering Exit Candidate — Human RC PASS (closure record)
+
+**RC Engineering Exit Candidate reached and Human RC PASS granted
+2026-08-19** for the exact SHA `89263a4f0f477fe5455ed22bedffd1968218bb1e`
+on branch `agent/m20-packaging-release-candidate` (Draft PR #33) and the
+installer built from it (`VocabularyApp-Setup-1.0.0-rc.1.exe`, SHA-256
+`8b435657c5cecfecd52f96a6f49d648e1fcaa2e4b58cada03cfc3baf7ea87710`). This
+is the authoritative M20 RC acceptance decision; full evidence is
+recorded in `PROJECT_STATUS.md` under "Current Milestone" (full
+regression 911/911 clean, architecture audit clean, self-signed
+Authenticode verification, § 5's RC Verification Contract items all
+satisfied) and in PR #33's description.
+
+**Not yet merged.** Per § 13's GitHub/release authority boundaries, the
+agent prepared PR #33 for merge but has not merged it, merged to `main`,
+created/pushed a version tag, or published a GitHub Release. Each of
+those remains a separate, explicit operator action.

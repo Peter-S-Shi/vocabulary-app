@@ -227,3 +227,11 @@ Whoever runs § A/§ B (operator or agent, once authorized for the
 specific machine action involved) should report pass/fail per checkbox
 here; any failure returns to the M20 engineering loop as a defect to
 fix, not a reason to waive the checklist.
+
+**Closure: Human RC PASS granted 2026-08-19** for SHA
+`89263a4f0f477fe5455ed22bedffd1968218bb1e`, with § A's checklist and the
+representative existing-database verification above accepted as the
+v1.0 Portfolio RC acceptance evidence (per the operator decision
+amendment at the top of this file). See
+`docs/packaging/M20_RELEASE_CONTRACT.md` "RC Engineering Exit Candidate
+— Human RC PASS" for the full closure record.
