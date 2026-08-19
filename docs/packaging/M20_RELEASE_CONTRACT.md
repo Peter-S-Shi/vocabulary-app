@@ -966,5 +966,17 @@ underlying artifact/behavior; only the version label advances per the
 already-frozen scheme. Targeted verification only: `python -m unittest`
 against the version-drift-guard and signing tests, a fresh
 `winbuild/build.py` run (self-signed certificate), and independent
-Authenticode/installer smoke verification. See the exact resulting
-SHA, installer filename, and SHA-256 recorded in `PROJECT_STATUS.md`.
+Authenticode/installer smoke verification.
+
+**Provenance note:** the pre-merge build used for this verification is
+evidence only, not the canonical v1.0.0 release artifact — its SHA-256
+is not published as the release hash. PyInstaller/Inno Setup builds
+embed a build timestamp and are not byte-for-byte reproducible, so any
+hash recorded in a docs commit would already be stale relative to the
+next rebuild, and recording it moves `HEAD` again — a self-referential
+provenance loop no pre-merge documentation commit can close. The
+canonical v1.0.0 installer must be built after PR #33 merges, from the
+actual merged `main` SHA / `v1.0.0` tag, with that build's SHA-256
+published in the GitHub Release notes / checksum metadata directly,
+not recorded via a further source commit. See `PROJECT_STATUS.md` for
+the verification-build detail.

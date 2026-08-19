@@ -89,18 +89,23 @@ per the versioning scheme frozen in the Release Contract § 1
 — metadata only, no product/runtime behavior or scope change, no
 regression re-run, no new Human RC request (the existing PASS already
 covers the underlying artifact/behavior). Targeted verification: the
-version-drift-guard and signing tests (11/11 green), a fresh signed
-build, and an install → isolated-path launch → signature-verify →
-uninstall smoke pass, all real. Final artifact, built from this exact commit
-(`source_dirty: false` in `dist/build_manifest.json`):
-`VocabularyApp-Setup-1.0.0.exe`, SHA-256
-`fea34ecf2ef5340bf2ab7356ef7e725ef35f748fe79d32761b60826ac1b66504`,
-self-signed `CN=Peter Shi`, status `UnknownError`/untrusted-root as
-expected. (An earlier smoke build made before this commit, used only
-for the install/launch/uninstall check above, produced a different
-SHA-256 — expected, since PyInstaller/Inno Setup builds embed a build
-timestamp and are not byte-for-byte reproducible; this recorded value
-is the one tied to the actual final commit.)
+version-drift-guard and signing tests (11/11 green), plus a real
+build → install → isolated-path launch → signature-verify → uninstall
+smoke pass confirming the version-bumped pipeline itself works
+end-to-end.
+
+**This pre-merge build is verification evidence only, not the
+canonical v1.0.0 release artifact.** PyInstaller/Inno Setup builds
+embed a build timestamp and are not byte-for-byte reproducible, so any
+SHA-256 recorded here would be stale the moment it's committed (a docs
+commit recording a hash moves `HEAD`, which the next rebuild would
+hash differently — a self-referential provenance loop that pre-merge
+documentation cannot close). Accordingly, no installer SHA-256 from
+this pre-merge verification build is published as *the* release hash.
+**The canonical v1.0.0 installer must be built after PR #33 merges,
+from the actual merged `main` SHA / `v1.0.0` tag**, with its resulting
+SHA-256 published in the GitHub Release notes / checksum metadata at
+that time — not requiring a further source commit to record it.
 
 **Known limitations recorded, not blocking:** the existing-database-
 import and destructive-uninstall-opt-in UI flows were verified by
