@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from src.app_config import (
     APP_SLUG,
@@ -108,6 +110,35 @@ class ProductionDataRootTests(_EnvIsolationMixin):
         os.environ[BACKUP_DIR_ENV] = r"D:\override\backups"
 
         self.assertEqual(get_backup_dir(), Path(r"D:\override\backups").resolve())
+
+
+class FrozenProjectRootTests(unittest.TestCase):
+    """PyInstaller places bundled ``datas`` under ``sys._MEIPASS``, one
+    level deeper than ``sys.executable``'s own directory under the
+    default --onedir ``_internal\\`` layout -- confirmed against a real
+    PyInstaller 6.22 onedir build during M20 packaging work. Getting
+    this wrong silently breaks the packaged app's icon and Local
+    Windows Speech Provider scripts without any error until launch."""
+
+    def test_frozen_resolves_via_meipass_not_executable_dir(self) -> None:
+        with patch.object(sys, "frozen", True, create=True), \
+                patch.object(sys, "_MEIPASS", r"C:\Program Files\Vocabulary App\_internal", create=True), \
+                patch.object(sys, "executable", r"C:\Program Files\Vocabulary App\Vocabulary App.exe"):
+            root = get_project_root()
+        self.assertEqual(root, Path(r"C:\Program Files\Vocabulary App\_internal"))
+
+    def test_frozen_without_meipass_falls_back_to_executable_dir(self) -> None:
+        with patch.object(sys, "frozen", True, create=True), \
+                patch.object(sys, "executable", r"C:\Program Files\Vocabulary App\Vocabulary App.exe"):
+            if hasattr(sys, "_MEIPASS"):
+                delattr(sys, "_MEIPASS")
+            root = get_project_root()
+        self.assertEqual(root, Path(r"C:\Program Files\Vocabulary App"))
+
+    def test_not_frozen_still_resolves_to_repo_root_from_source(self) -> None:
+        self.assertFalse(getattr(sys, "frozen", False))
+        root = get_project_root()
+        self.assertTrue((root / "src" / "app_config.py").is_file())
 
 
 def _connection_with_schema_version(version: str | None) -> sqlite3.Connection:

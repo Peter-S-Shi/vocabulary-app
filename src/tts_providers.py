@@ -118,7 +118,9 @@ def _utf16_code_units(text: str) -> str:
 
 
 def _scripts_dir() -> Path:
-    return Path(__file__).resolve().parent.parent / "scripts"
+    from src.app_config import get_project_root
+
+    return get_project_root() / "scripts"
 
 
 def _voice_not_bound_detail(language: str) -> str:
