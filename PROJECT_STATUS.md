@@ -91,11 +91,16 @@ regression re-run, no new Human RC request (the existing PASS already
 covers the underlying artifact/behavior). Targeted verification: the
 version-drift-guard and signing tests (11/11 green), a fresh signed
 build, and an install → isolated-path launch → signature-verify →
-uninstall smoke pass, all real. Final artifact:
+uninstall smoke pass, all real. Final artifact, built from this exact commit
+(`source_dirty: false` in `dist/build_manifest.json`):
 `VocabularyApp-Setup-1.0.0.exe`, SHA-256
-`d39a941a6bff5ed0a9754e08f0cdfbb131ef6bf0b37f83e423abe7e28f1087bf`,
+`fea34ecf2ef5340bf2ab7356ef7e725ef35f748fe79d32761b60826ac1b66504`,
 self-signed `CN=Peter Shi`, status `UnknownError`/untrusted-root as
-expected.
+expected. (An earlier smoke build made before this commit, used only
+for the install/launch/uninstall check above, produced a different
+SHA-256 — expected, since PyInstaller/Inno Setup builds embed a build
+timestamp and are not byte-for-byte reproducible; this recorded value
+is the one tied to the actual final commit.)
 
 **Known limitations recorded, not blocking:** the existing-database-
 import and destructive-uninstall-opt-in UI flows were verified by
