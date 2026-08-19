@@ -83,6 +83,9 @@ if PYSIDE6_AVAILABLE:
                 return ProviderAvailability(True, "available", "")
             return ProviderAvailability(False, "provider_unavailable", "fake unavailable")
 
+        def selected_spec(self, language: str):
+            return FROZEN_PROVIDER_SPECS.get(language)
+
     def _wait_for_preflight(controller: "AudioExportController", timeout_ms: int = 15000) -> None:
         loop = QEventLoop()
 

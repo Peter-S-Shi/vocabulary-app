@@ -113,7 +113,9 @@ class M152AudioCompositionTests(unittest.TestCase):
             self.assertEqual((reader.getnchannels(), reader.getsampwidth(), reader.getframerate()), (1, 2, CANONICAL_SAMPLE_RATE_HZ))
 
     def test_cache_reuses_identical_speech_across_entries_and_repairs_corruption(self) -> None:
-        request = AudioAssetRequest("shared", "en", "kokoro", "Kokoro-82M/af_heart")
+        request = AudioAssetRequest(
+            "shared", "en", FROZEN_PROVIDER_SPECS["en"].provider_id, FROZEN_PROVIDER_SPECS["en"].voice_id
+        )
         first = self.store.materialize(request, self.providers)
         second = self.store.materialize(request, self.providers)
         self.assertTrue(first.succeeded and second.succeeded)
@@ -137,7 +139,9 @@ class M152AudioCompositionTests(unittest.TestCase):
         self.assertEqual(self.fake_providers["en"].calls, 2)
 
     def test_concurrent_same_asset_requests_publish_one_valid_result(self) -> None:
-        request = AudioAssetRequest("concurrent", "en", "kokoro", "Kokoro-82M/af_heart")
+        request = AudioAssetRequest(
+            "concurrent", "en", FROZEN_PROVIDER_SPECS["en"].provider_id, FROZEN_PROVIDER_SPECS["en"].voice_id
+        )
         with ThreadPoolExecutor(max_workers=4) as executor:
             results = list(executor.map(
                 lambda _: self.store.materialize(request, self.providers), range(4)
@@ -148,7 +152,9 @@ class M152AudioCompositionTests(unittest.TestCase):
 
     def test_failed_synthesis_leaves_no_final_asset(self) -> None:
         failing_registry, _ = registry(fail_language="en")
-        request = AudioAssetRequest("failure", "en", "kokoro", "Kokoro-82M/af_heart")
+        request = AudioAssetRequest(
+            "failure", "en", FROZEN_PROVIDER_SPECS["en"].provider_id, FROZEN_PROVIDER_SPECS["en"].voice_id
+        )
         result = self.store.materialize(request, failing_registry)
         self.assertEqual(result.error_code, "synthetic_failure")
         self.assertFalse(self.store.asset_path(request.asset_key).exists())
@@ -244,7 +250,7 @@ class M152AudioCompositionTests(unittest.TestCase):
         language_changed = build_current_card_audio_plan(collection_id, 1, providers=self.providers)
         self.assertEqual(text_changed.units[0].asset_key, language_changed.units[0].asset_key)
         self.assertNotEqual(text_changed.units[1].asset_key, language_changed.units[1].asset_key)
-        self.assertEqual(language_changed.units[1].provider_id, "sherpa-onnx")
+        self.assertEqual(language_changed.units[1].provider_id, FROZEN_PROVIDER_SPECS["fr"].provider_id)
 
     def test_card_reorder_changes_render_identity_without_rewriting_history(self) -> None:
         first = add_entry("English", "English", "word", "one", "first")

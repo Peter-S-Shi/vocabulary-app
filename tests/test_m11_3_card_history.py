@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -7,6 +8,7 @@ import unittest
 from unittest.mock import patch
 
 from src import db, quiz
+from src.app_config import BACKUP_DIR_ENV
 from src.card_history import (
     get_card_revision_entry_ids,
     get_current_card_identity,
@@ -51,10 +53,19 @@ class M113CardHistoryTests(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.original_db_path = db.DB_PATH
         db.DB_PATH = Path(self.temp_dir.name) / "m11_3_test.sqlite3"
+        # M20 backup-before-pending-migration writes real files under
+        # get_backup_dir() -- must not land in the real
+        # %LOCALAPPDATA%\vocabulary_app\backups\ during a test.
+        self._original_backup_dir_env = os.environ.get(BACKUP_DIR_ENV)
+        os.environ[BACKUP_DIR_ENV] = str(Path(self.temp_dir.name) / "backups")
         db.init_db()
 
     def tearDown(self) -> None:
         db.DB_PATH = self.original_db_path
+        if self._original_backup_dir_env is None:
+            os.environ.pop(BACKUP_DIR_ENV, None)
+        else:
+            os.environ[BACKUP_DIR_ENV] = self._original_backup_dir_env
         self.temp_dir.cleanup()
 
     def _collection_with_entries(self, count: int, card_size: int = 3) -> tuple[int, list[int]]:

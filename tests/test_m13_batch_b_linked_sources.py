@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+import os
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -11,6 +12,7 @@ from unittest.mock import patch
 from openpyxl import Workbook, load_workbook
 
 from src import db
+from src.app_config import BACKUP_DIR_ENV
 from src.backup import BACKUP_TABLES, build_full_backup_workbook_bytes, get_database_file_bytes
 from src.collections import create_collection, delete_collection, get_entries_in_collection
 from src.entries import delete_entry, get_entry_by_id, update_entry
@@ -54,11 +56,20 @@ class M13BatchBLinkedSourceTests(unittest.TestCase):
         self.root = Path(self.temp_dir.name)
         self.original_db_path = db.DB_PATH
         db.DB_PATH = self.root / "m13_batch_b.sqlite3"
+        # M20 backup-before-pending-migration writes real files under
+        # get_backup_dir() -- must not land in the real
+        # %LOCALAPPDATA%\vocabulary_app\backups\ during a test.
+        self._original_backup_dir_env = os.environ.get(BACKUP_DIR_ENV)
+        os.environ[BACKUP_DIR_ENV] = str(self.root / "backups")
         db.init_db()
         self.collection_id = create_collection("Synthetic Linked Collection", card_size=2)
 
     def tearDown(self) -> None:
         db.DB_PATH = self.original_db_path
+        if self._original_backup_dir_env is None:
+            os.environ.pop(BACKUP_DIR_ENV, None)
+        else:
+            os.environ[BACKUP_DIR_ENV] = self._original_backup_dir_env
         self.temp_dir.cleanup()
 
     def _row(self, term: str, meaning: str, **overrides) -> dict:

@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.backup import BackupError
+from src.db_import import DatabaseImportError
 from src.template_definitions import TemplateDefinitionError
 from src.ui_desktop.controllers.data_tools_controller import (
     EXPORT_SCOPE_LABELS,
@@ -1066,6 +1067,33 @@ class _BackupRestoreDialog(QDialog):
         self._sheets_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self._sheets_table, 1)
 
+        existing_db_heading = QLabel("Existing Database", self)
+        existing_db_heading.setObjectName("data-tools-section-heading")
+        layout.addWidget(existing_db_heading)
+
+        existing_db_notice = QLabel(
+            "Point the app at a vocab.db file you already have (a previous install, "
+            "another machine). The file is copied in -- your selected file is never "
+            "modified -- and whatever database is currently active is backed up first "
+            "if it isn't empty. Restart the app afterward for the change to take effect.",
+            self,
+        )
+        existing_db_notice.setObjectName("data-tools-restore-notice")
+        existing_db_notice.setWordWrap(True)
+        layout.addWidget(existing_db_notice)
+
+        existing_db_row = QHBoxLayout()
+        existing_db_row.addStretch(1)
+        existing_db_button = QPushButton("Use an Existing Database…", self)
+        existing_db_button.setObjectName("data-tools-import-database-button")
+        existing_db_button.clicked.connect(self._on_import_existing_database)
+        existing_db_row.addWidget(existing_db_button)
+        layout.addLayout(existing_db_row)
+
+        self._existing_db_result_label = QLabel("", self)
+        self._existing_db_result_label.setWordWrap(True)
+        layout.addWidget(self._existing_db_result_label)
+
         layout.addStretch(1)
 
         close_row = QHBoxLayout()
@@ -1128,6 +1156,37 @@ class _BackupRestoreDialog(QDialog):
             self._restore_issues_label.setText("Choose a backup workbook first.")
             return
         self._controller.run_restore_preview()
+
+    def _on_import_existing_database(self) -> None:
+        path, _filter = QFileDialog.getOpenFileName(
+            self, "Choose an Existing Database", "", "SQLite Database Files (*.db *.sqlite *.sqlite3)"
+        )
+        if not path:
+            return
+        confirmed = QMessageBox.question(
+            self,
+            "Use an Existing Database",
+            f"Replace the active database with:\n{path}\n\n"
+            "Your currently active database will be backed up first if it isn't "
+            "empty. This cannot be undone from within the app. Continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirmed != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            result = self._controller.import_existing_database(path)
+        except DatabaseImportError as error:
+            self._existing_db_result_label.setText(str(error))
+            return
+        if result["destination_backed_up"]:
+            message = (
+                f"Imported. Previous database backed up to {result['backup_path']}. "
+                "Restart the app for the imported database to take effect."
+            )
+        else:
+            message = "Imported. Restart the app for the imported database to take effect."
+        self._existing_db_result_label.setText(message)
 
     def _reload(self) -> None:
         controller = self._controller

@@ -82,18 +82,22 @@ class SettingsViewStorageStructureTests(unittest.TestCase):
         self.addCleanup(view.deleteLater)
 
         value_labels = view.findChildren(QLabel, "settings-row-value")
-        # 7 read-only Storage rows + the 2 M19 Audio rows (shared TTS
-        # runtime folder value, effective runtime-in-use source).
-        self.assertEqual(len(value_labels), 9)
+        # 7 read-only Storage rows. The M20 Audio section's per-language
+        # Installed Voice Binding rows use a QComboBox + a
+        # "settings-section-note" status label instead of a
+        # "settings-row-value" label -- there is no fixed value to show
+        # read-only, the binding is the editable control itself.
+        self.assertEqual(len(value_labels), 7)
         rendered_values = {label.text() for label in value_labels}
         summary = controller.storage_summary()
         self.assertIn(str(summary["database_path"]), rendered_values)
         self.assertIn(str(summary["app_version"]), rendered_values)
 
         # Storage rows are informational only -- no editable combo exists
-        # for any of them (unlike Appearance/Quiz presentation).
+        # for any of them (unlike Appearance/Quiz presentation/the M20
+        # per-language voice bindings).
         combos = view.findChildren(QComboBox)
-        self.assertEqual(len(combos), 2)
+        self.assertEqual(len(combos), 5)
 
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")

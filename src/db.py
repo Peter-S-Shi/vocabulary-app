@@ -2,7 +2,7 @@
 import sqlite3
 
 from src.app_config import get_database_path
-from src.migrations import run_migrations
+from src.migrations import backup_before_pending_migration, run_migrations
 
 
 DB_PATH = get_database_path()
@@ -303,6 +303,13 @@ def _ensure_entries_template_id_column(connection: sqlite3.Connection) -> None:
 
 def init_db() -> None:
     with get_connection() as connection:
+        # Must run before any DDL below touches `connection`: the backup
+        # reads a consistent snapshot through this same connection, and
+        # SQLite's online backup API can stall indefinitely against a
+        # source connection that already has an uncommitted transaction
+        # open on itself (as the CREATE/ALTER statements below would
+        # leave it, until this `with` block's implicit commit on exit).
+        backup_before_pending_migration(connection, DB_PATH)
         connection.execute(CREATE_ENTRIES_TABLE_SQL)
         _ensure_entries_quiz_count_columns(connection)
         _ensure_entries_template_id_column(connection)

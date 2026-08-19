@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Callable
 import sqlite3
 
@@ -418,6 +419,40 @@ def get_feature_flag(conn: sqlite3.Connection, feature_key: str, default: bool =
 
 def set_feature_flag(conn: sqlite3.Connection, feature_key: str, enabled: bool) -> None:
     set_metadata(conn, feature_key, "enabled" if enabled else "disabled")
+
+
+def build_pre_migration_backup_filename(schema_version: str, now: datetime | None = None) -> str:
+    timestamp = (now or datetime.now()).strftime("%Y-%m-%d_%H%M%S")
+    safe_version = schema_version.replace("/", "-").replace("\\", "-").replace(" ", "_")
+    return f"vocab-pre-{safe_version}-{timestamp}.db"
+
+
+def backup_before_pending_migration(conn: sqlite3.Connection, db_path: Path) -> Path | None:
+    """Copy the on-disk database to the frozen backup location before any
+    pending schema migration runs (M20 Release Contract § 2.6
+    "Backup-before-upgrade"). A no-op for a brand-new database (no prior
+    ``schema_version`` metadata -- nothing to protect) or one already at
+    the current schema (no migration about to run). Must be called before
+    ``run_migrations()``, on the same connection, so the copied file
+    reflects pre-migration state."""
+    stored_version = get_metadata(conn, "schema_version")
+    if stored_version is None or stored_version == CURRENT_SCHEMA_VERSION:
+        return None
+    if not db_path.exists():
+        return None
+
+    from src.app_config import get_backup_dir
+
+    backup_dir = get_backup_dir()
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    backup_path = backup_dir / build_pre_migration_backup_filename(stored_version)
+
+    destination = sqlite3.connect(backup_path)
+    try:
+        conn.backup(destination)
+    finally:
+        destination.close()
+    return backup_path
 
 
 def run_migrations(conn: sqlite3.Connection) -> list[str]:

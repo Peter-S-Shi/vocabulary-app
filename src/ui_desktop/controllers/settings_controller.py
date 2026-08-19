@@ -3,8 +3,9 @@ from __future__ import annotations
 from PySide6.QtCore import QObject, Signal
 
 from src.app_config import get_app_storage_summary
+from src.tts_providers import InstalledVoice, list_installed_voices, list_installed_voices_for_language
 from src.ui_desktop.state.preferences import Preferences, parse_quiz_presentation, save_preferences
-from src.ui_desktop.state.tts_runtime import SOURCE_LABELS, resolve_shared_tts_dir
+from src.ui_desktop.state.tts_runtime import SOURCE_LABELS, resolve_voice_binding
 from src.ui_desktop.theming.theme_manager import ThemeManager, parse_accent, parse_appearance
 
 """
@@ -62,33 +63,50 @@ class SettingsController(QObject):
             self._theme_manager.apply(normalized, parse_accent(self.preferences.accent))
         self.state_changed.emit()
 
-    # -- Shared TTS runtime (M19 hardening; state/tts_runtime.py) --------
+    # -- Local Windows Speech Provider / Installed Voice Binding (M20) ---
 
-    def shared_tts_dir_setting(self) -> str:
+    def installed_voices(self, language: str) -> list[InstalledVoice]:
+        """Windows-installed voices compatible with ``language``, for
+        the Settings > Audio voice-selection control. Never bundles,
+        downloads, or possesses the voice itself -- this only lists what
+        the user's own Windows installation already has."""
+        return list_installed_voices_for_language(language)
+
+    def all_installed_voices(self) -> list[InstalledVoice]:
+        """Every Windows-installed voice, across all languages, from one
+        real enumeration call -- used by "Refresh Voices" so refreshing
+        all language rows costs one PowerShell/WinRT scan, not one per
+        language."""
+        return list_installed_voices()
+
+    def voice_binding(self, language: str) -> str:
         """The persisted app-setting value itself (may be empty), as
         distinct from the *effective* resolution below -- Settings edits
         this value; the environment variable is never written here."""
-        return self.preferences.shared_tts_dir
+        return self.preferences.voice_bindings.get(language, "")
 
-    def set_shared_tts_dir(self, path: str) -> None:
-        normalized = (path or "").strip()
-        if normalized == self.preferences.shared_tts_dir:
+    def set_voice_binding(self, language: str, voice_id: str) -> None:
+        normalized = (voice_id or "").strip()
+        if normalized == self.preferences.voice_bindings.get(language, ""):
             return
-        self.preferences.shared_tts_dir = normalized
+        if normalized:
+            self.preferences.voice_bindings[language] = normalized
+        else:
+            self.preferences.voice_bindings.pop(language, None)
         save_preferences(self.preferences)
         self.state_changed.emit()
 
-    def clear_shared_tts_dir(self) -> None:
-        self.set_shared_tts_dir("")
+    def clear_voice_binding(self, language: str) -> None:
+        self.set_voice_binding(language, "")
 
-    def shared_tts_status(self) -> dict:
-        """Effective resolution for display: the directory actually in
-        use (or None), which source supplied it, and a human-readable
-        source label. Uses the live Preferences instance so an edit made
-        one row above is reflected immediately."""
-        resolved, source = resolve_shared_tts_dir(self.preferences)
+    def voice_binding_status(self, language: str) -> dict:
+        """Effective resolution for display: the voice ID actually in
+        use for ``language`` (or None), which source supplied it, and a
+        human-readable source label. Uses the live Preferences instance
+        so an edit made one row above is reflected immediately."""
+        resolved, source = resolve_voice_binding(language, self.preferences)
         return {
-            "directory": resolved,
+            "voice_id": resolved,
             "source": source,
             "source_label": SOURCE_LABELS.get(source, source),
         }

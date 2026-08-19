@@ -8,6 +8,7 @@ APP_NAME = "Vocabulary App"
 APP_SLUG = "vocabulary_app"
 APP_VERSION = "0.11.3"
 DATABASE_PATH_ENV = "VOCAB_APP_DB_PATH"
+BACKUP_DIR_ENV = "VOCAB_APP_BACKUP_DIR"
 AUDIO_CACHE_PATH_ENV = "VOCAB_APP_AUDIO_CACHE_DIR"
 APP_PREFERENCES_PATH_ENV = "VOCAB_APP_PREFERENCES_PATH"
 
@@ -17,7 +18,19 @@ def get_project_root() -> Path:
 
 
 def get_default_data_dir() -> Path:
-    return get_project_root() / "data"
+    """Per-user application-data root for durable user data (database,
+    backups) -- the frozen ``%LOCALAPPDATA%\\vocabulary_app\\`` root on
+    Windows (falls back to XDG data-home semantics off Windows), matching
+    the pattern ``get_audio_cache_dir()``/``get_app_preferences_path()``
+    already establish. Never inside the repository/install tree -- see
+    docs/packaging/M20_RELEASE_CONTRACT.md §§ 2.2, 2.6."""
+    local_data = os.environ.get("LOCALAPPDATA", "").strip()
+    if local_data:
+        return Path(local_data) / APP_SLUG
+    xdg_data = os.environ.get("XDG_DATA_HOME", "").strip()
+    if xdg_data:
+        return Path(xdg_data) / APP_SLUG
+    return Path.home() / ".local" / "share" / APP_SLUG
 
 
 def get_default_db_path() -> Path:
@@ -32,7 +45,10 @@ def get_database_path() -> Path:
 
 
 def get_backup_dir() -> Path:
-    return get_project_root() / "backups"
+    override = os.environ.get(BACKUP_DIR_ENV, "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return (get_default_data_dir() / "backups").resolve()
 
 
 def get_audio_cache_dir() -> Path:

@@ -192,16 +192,16 @@ This project does not include:
 - built-in dictionary databases
 - copyrighted word lists
 - bundled pronunciation recordings
-- bundled or downloaded TTS voice models in the current implementation
+- bundled or downloaded TTS voice models, or any third-party TTS runtime --
+  Card Audio Export speaks using a Windows voice the user already has
+  installed (Settings > Audio's Local Windows Speech Provider / Installed
+  Voice Binding; see the desktop app's Audio Export voice-status panel for
+  configuration state)
 - AI-generated vocabulary explanations, examples, or bulk learning content
 - automatic correction of user-created entries
 - cloud sync
 - account login or authentication
 - mobile app packaging
-- bundled TTS runtime provisioning in the current implementation (Card
-  Audio Export requires an externally provided shared TTS runtime; see
-  the desktop app's Audio Export voice-status panel for configuration
-  state)
 - full destructive database restore
 
 These statements describe the current implementation. The active roadmap now
