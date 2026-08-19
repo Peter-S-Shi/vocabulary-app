@@ -40,7 +40,7 @@ Vocabulary App is built around your own entries: you create or import your own E
 
 ## How it works
 
-Reusable learning and data logic lives in framework-independent core modules under `src/`, on top of a local SQLite database. Two independent, swappable UI layers sit on that core: a Streamlit compatibility UI (`app.py`, `src/ui_streamlit/`) and the native PySide6 desktop UI (`src/ui_desktop/`), the primary product surface as of v1.0.0. In the packaged build, application binaries and durable user data are installed to separate locations, and schema upgrades create a safety backup before migrating.
+Reusable learning and data logic lives in framework-independent core modules under `src/`, on top of a local SQLite database. Two UI layers consume that same framework-independent core: a Streamlit compatibility UI (`app.py`, `src/ui_streamlit/`) and the native PySide6 desktop UI (`src/ui_desktop/`), the primary product surface as of v1.0.0. Application binaries and durable user data are installed to separate locations, and schema upgrades create a safety backup before migrating.
 
 Schema changes are additive-only: an explicit schema/app-metadata version chain has carried real user data through 20 development milestones without a destructive rewrite. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full boundary rules.
 
@@ -51,7 +51,7 @@ Schema changes are additive-only: an explicit schema/app-metadata version chain 
 - **Additive migration chain** — schema/app-metadata versioning designed to preserve legacy Review history, Quiz logs, and Card revisions across every milestone rather than resetting user data.
 - **Import/export safety** — a transaction-safe Validate → Preview → Confirm pipeline for CSV/XLSX import, read-only exports, and a restore-preview flow that never silently overwrites the active database; existing-database import uses explicit copy-with-backup semantics and never moves or edits the source file.
 - **Deliberate no-bundled-TTS decision** — Card Audio Export renders audio using compatible speech voices already installed on Windows, instead of shipping or redistributing a third-party voice model — trading convenience for lower licensing risk (see [Third-Party Notices](THIRD_PARTY_NOTICES.md)).
-- **Windows packaging pipeline** — PyInstaller `--onedir` + Inno Setup, Authenticode-signed with a self-signed developer certificate, with a published, independently re-verified SHA-256 checksum for every release asset (see [M20 Release Contract](docs/packaging/M20_RELEASE_CONTRACT.md)).
+- **Windows packaging pipeline** — PyInstaller `--onedir` + Inno Setup, Authenticode-signed with a self-signed developer certificate, with a published, independently re-verified SHA-256 checksum for the canonical v1.0.0 installer (see [M20 Release Contract](docs/packaging/M20_RELEASE_CONTRACT.md)).
 
 ## Download (Windows desktop app)
 
@@ -113,7 +113,7 @@ These are current, deliberate product boundaries — see [Content Policy](docs/p
 
 ## Local data and privacy
 
-Your core learning data (entries, Collections, Quiz history) lives in a local SQLite database, never uploaded anywhere. It's separate from your preferences, backups, and the optional audio cache, which are their own local files alongside it. In a source checkout that's `data/vocab.db`; in the packaged Windows build, the durable data root is:
+Your core learning data (entries, Collections, Quiz history) lives in a local SQLite database, never uploaded anywhere. It's separate from your preferences, backups, and the optional audio cache, which are their own local files alongside it. This is the same whether you run the packaged Windows build or from source: the default durable data root is a per-user app-data location, not the project checkout. On Windows that's:
 
 ```text
 %LOCALAPPDATA%\vocabulary_app\vocab.db
@@ -122,7 +122,7 @@ Your core learning data (entries, Collections, Quiz history) lives in a local SQ
 %LOCALAPPDATA%\vocabulary_app\audio-cache\
 ```
 
-Application binaries are installed separately from this data root, and uninstalling preserves it by default — destructive removal requires an explicit opt-in. Schema upgrades create a safety backup before migrating, and importing an existing database uses copy-with-backup semantics; the source file is never moved or edited in place. Advanced users can override the source-checkout path with `VOCAB_APP_DB_PATH`.
+Off Windows it falls back to XDG data-home semantics (`$XDG_DATA_HOME` or `~/.local/share/vocabulary_app`). Application binaries are installed separately from this data root, and uninstalling preserves it by default — destructive removal requires an explicit opt-in. Schema upgrades create a safety backup before migrating, and importing an existing database uses copy-with-backup semantics; the source file is never moved or edited in place. `VOCAB_APP_DB_PATH` is an explicit database-path override for advanced or development use.
 
 See [Data Storage](docs/policies/DATA_STORAGE.md) and [Data Safety](docs/policies/DATA_SAFETY.md) for the full behavior.
 
