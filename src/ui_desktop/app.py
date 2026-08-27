@@ -23,7 +23,7 @@ independently during the migration.
 """
 
 
-WINDOWS_APP_USER_MODEL_ID = "PeterShi.VocabularyApp.Desktop.1.1.0"
+WINDOWS_APP_USER_MODEL_ID = "PeterShi.VocabularyApp.Desktop"
 
 
 def configure_windows_identity(app_id: str = WINDOWS_APP_USER_MODEL_ID) -> bool:
@@ -32,8 +32,13 @@ def configure_windows_identity(app_id: str = WINDOWS_APP_USER_MODEL_ID) -> bool:
     On Windows, processes running under python.exe / pythonw.exe share the generic
     Python host identity by default, which causes taskbar grouping collisions and
     icon confusion with other Python desktop applications (e.g. ListenTrace).
-    Setting an explicit AUMID isolates the Vocab App into its own dedicated taskbar
-    and Alt+Tab group with its own window icon and pinning lifecycle.
+    Setting a static, version-agnostic AUMID ("PeterShi.VocabularyApp.Desktop")
+    ensures:
+    1. The app remains isolated in its own dedicated taskbar group with its own icon.
+    2. The application identity is stable across version upgrades (v1.1, v1.2, v1.3),
+       preserving pinned taskbar buttons, Start Menu entries, and jump lists without
+       splintering into separate per-version identities.
+    3. Both the dev launcher and packaged installer binaries share the identical AUMID.
     """
     if sys.platform == "win32":
         try:

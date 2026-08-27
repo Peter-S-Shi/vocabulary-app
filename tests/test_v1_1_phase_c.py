@@ -178,9 +178,13 @@ class V11PhaseCWindowsIdentityTests(unittest.TestCase):
 
         self.assertEqual(app.applicationName(), "Vocabulary App")
         self.assertEqual(app.applicationDisplayName(), "Vocabulary App")
+        self.assertEqual(WINDOWS_APP_USER_MODEL_ID, "PeterShi.VocabularyApp.Desktop")
         self.assertEqual(app.desktopFileName(), WINDOWS_APP_USER_MODEL_ID)
         self.assertEqual(app.organizationName(), "PeterShi")
         self.assertEqual(app.organizationDomain(), "github.com/Peter-S-Shi")
+        # Invariant: AUMID must be version-agnostic to preserve pinned shortcuts across upgrades
+        self.assertNotIn("1.1", WINDOWS_APP_USER_MODEL_ID)
+        self.assertNotIn("v1", WINDOWS_APP_USER_MODEL_ID)
 
     def test_multi_resolution_app_icon_asset(self) -> None:
         icon_path = get_app_icon_path()
