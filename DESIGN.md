@@ -1119,7 +1119,7 @@ Theme changes apply live without restart and must not mutate vocabulary data, Qu
 
 ### 13.2 Presets & Constrained Semantic Theme Customization
 
-The product provides four official authoritative Presets:
+The product provides four official Presets. In v1.1.0, a Preset selects the mode's official accent-family baseline; Light/Dark neutral Background, Surface, and Text baselines remain the Appearance defaults unless the user customizes them.
 
 1. **Calm Blue / Slate** — default baseline;
 2. **Sage / Teal**;
@@ -1132,34 +1132,24 @@ Rather than exposing unconstrained arbitrary RGB/hex modifications that could br
 
 1. **Independent Per-Mode Customization**: Light Mode and Dark Mode can be customized and persisted independently (`preferences.custom_theme.light` and `preferences.custom_theme.dark`), each anchored to an official Preset.
 2. **Constrained Customization Dimensions**:
-   - **Preset**: Official starting baseline for the mode.
+   - **Preset**: Official accent-family starting baseline for the mode.
    - **Accent Color**: Interactive emphasis color.
    - **Background**: Application outermost window canvas color.
    - **Surfaces**: Primary content surface and card container color.
    - **Text**: Main typography color.
-3. **Automatic Interaction Token Family Derivation**: Customizing an Accent color does not merely replace a single hex; the theme engine automatically derives a complete, internally consistent semantic token family (`accent-primary`, `on-accent-primary`, `accent-hover`, `on-accent-hover`, `accent-pressed`, `on-accent-pressed`, `accent-soft`, `on-accent-soft`, `accent-selected`, `on-accent-selected`, `accent-border`, and `focus-ring`).
-4. **Mathematical Contrast Guard**: All custom Accent, Surface, and Text combinations are guarded to strictly achieve WCAG AA ($\ge 4.5:1$) contrast for readable text and text-bearing interactive components. The "Auto Guard" text option automatically resolves optimal readable typography against customized background and surface tones.
+3. **Automatic Interaction Token Family Derivation**: Customizing an Accent color does not merely replace a single hex; the theme engine automatically derives a complete, internally consistent semantic token family including paired primary, hover, pressed, and soft Accent states, plus the derived selected background, Accent border, and focus ring.
+4. **Mathematical Contrast Guard**: Text-bearing custom Accent states (primary, hover, pressed, and soft) are resolved with a WCAG AA 4.5:1 contrast guard. A custom primary Text color is accepted only when it clears the defined contrast checks against the resolved primary Surface and app Background; otherwise the engine substitutes a readable fallback. The Settings UI exposes Auto Guard and a contrast readout. This contract does not imply that every decorative or non-text color pairing is itself a 4.5:1 text-bearing pair.
 5. **Semantic State Immutability**: Business, assessment, and feedback state colors (`success`, `warning`, `danger`, `info`, `quiz-correct`, `quiz-wrong`, and `star`) are immutable invariants. They are **strictly protected from pollution or alteration by custom themes or accents**.
 
 ---
 
 ## 14. Theme Controls & Customization UX
 
-### 14.1 Quick Theme Control
+### 14.1 Quick Theme Control — Deferred
 
-Compact popover reachable from the Management shell for immediate switching between Appearance modes and baseline Presets:
+A compact Management-shell quick theme control remains an optional future access point, not part of the accepted v1.1.0 Phase D implementation. The authoritative v1.1.0 theme configuration surface is Settings → Appearance / Theme Customization. A future implementation must require a new product decision and must reuse the existing ThemeManager / ThemeTokens / Preferences architecture rather than introducing a second theme-control path.
 
-```text
-Appearance          Preset
-○ System             ● Calm Blue
-○ Light              ○ Sage / Teal
-○ Dark               ○ Indigo / Violet
-                     ○ Warm Neutral
-```
-
-Changes apply immediately. Quick theme controls do not permanently occupy prominent navigation space.
-
-### 14.2 Settings Theme Customization Studio (AG2.0 Experience)
+### 14.2 Settings Theme Customization
 
 The authoritative configuration surface is located at **Settings → Theme Customization**:
 
@@ -1168,7 +1158,7 @@ The authoritative configuration surface is located at **Settings → Theme Custo
 3. **In-Picker Real-Time Live Preview**: While selecting colors via the native color picker dialog (`QColorDialog`), interactive adjustments (dragging wheels or sliders) immediately preview live across the entire window. Rejecting or canceling the picker reverts the preview to the pre-picker staged state; accepting retains the selection in staged configuration.
 4. **Staging vs. Committed Apply**:
    - Changes made in the editor are staged in memory with live visual feedback, but are **never written to disk (`preferences.json`) before `Apply` is clicked**.
-   - **Cancel**: Discards all unstaged edits and completely restores the pre-editing theme snapshot.
+   - **Cancel**: Discards all uncommitted staged edits and restores the latest committed theme state.
    - **Apply**: Commits the staged theme to disk preferences, applies it permanently, and records an undo snapshot.
 5. **Separated Staged vs. Committed Undo Lifecycle**:
    - **Staged Undo**: Undoing staged operations (e.g. `Reset to Preset` or `Reset All to Default` prior to Apply) restores the in-memory staged snapshot and active tab live preview, **without writing uncommitted changes to disk or modifying committed preferences**.
