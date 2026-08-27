@@ -3,6 +3,7 @@ import random
 
 from src.collections import (
     add_entries_to_system_collection,
+    get_card_entries_for_study,
     get_card_groups_for_collection,
     get_entries_in_collection,
     get_system_collection_by_type_or_name,
@@ -179,17 +180,20 @@ def create_quiz_session(
     return int(cursor.lastrowid)
 
 
-def get_entries_for_quiz(collection_id: int, card_number: int) -> list[dict]:
+def get_entries_for_quiz(
+    collection_id: int,
+    card_number: int,
+    *,
+    include_proficient: bool = True,
+) -> list[dict]:
     if card_number < 1:
         raise ValueError("card_number must be at least 1")
 
-    card_groups = get_card_groups_for_collection(collection_id)
-
-    for card_group in card_groups:
-        if card_group["card_number"] == card_number:
-            return card_group["entries"]
-
-    return []
+    return get_card_entries_for_study(
+        collection_id,
+        card_number,
+        include_proficient=include_proficient,
+    )
 
 
 def get_random_entries_from_collection(collection_id: int, item_count: int) -> list[dict]:
@@ -1142,11 +1146,17 @@ def generate_mcq_items(
     collection_id: int,
     card_number: int,
     mode: str,
+    *,
+    include_proficient: bool = True,
 ) -> list[dict]:
     if mode not in {"term_to_meaning_mcq", "meaning_to_term_mcq", "mixed_mcq"}:
         raise ValueError(f"Unsupported MCQ mode: {mode}")
 
-    target_entries = get_entries_for_quiz(collection_id, card_number)
+    target_entries = get_entries_for_quiz(
+        collection_id,
+        card_number,
+        include_proficient=include_proficient,
+    )
     if not target_entries:
         return []
 

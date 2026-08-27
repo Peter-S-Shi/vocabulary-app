@@ -5,6 +5,7 @@ from PySide6.QtCore import QObject, Signal
 from src import db
 from src.collections import (
     add_entries_to_system_collection,
+    get_card_entries_for_study,
     get_card_groups_for_collection,
     get_entries_in_collection,
     get_entry_ids_in_system_collection,
@@ -14,6 +15,7 @@ from src.learning_workflow import get_card_learning_history, get_study_cards
 from src.quiz import QUIZ_TYPES
 from src.template_quiz import get_available_template_quiz_sources_for_card, get_template_quiz_rules
 from src.ui_desktop.state.handoff import QUICK_QUIZ_DEFAULT_TYPE, QUIZ_TYPE_LABELS, QuizLaunchIntent
+from src.ui_desktop.state.preferences import Preferences
 
 """
 ReviewController owns the Study Mode / Review workspace's transient
@@ -54,8 +56,9 @@ class ReviewController(QObject):
     state_changed = Signal()
     starred_changed = Signal(int, bool)
 
-    def __init__(self) -> None:
+    def __init__(self, preferences: Preferences | None = None) -> None:
         super().__init__()
+        self.preferences = preferences
         self._study_cards: list[dict] = []
         self._card_index: int = -1
         self._entries: list[dict] = []
@@ -63,6 +66,12 @@ class ReviewController(QObject):
         self._visited_entry_ids: set[int] = set()
         self._starred_entry_ids: set[int] = set()
         self._history: list[dict] = []
+
+    @property
+    def include_proficient_in_study(self) -> bool:
+        if self.preferences is not None:
+            return bool(self.preferences.include_proficient_in_study)
+        return True
 
     # -- loading -----------------------------------------------------------
 
@@ -117,6 +126,11 @@ class ReviewController(QObject):
         self._select_card_index(index)
         return True
 
+    def reload_current_card(self) -> None:
+        """Re-read entries for the currently selected Card (e.g. after preference change)."""
+        if self._card_index >= 0 and self._card_index < len(self._study_cards):
+            self._select_card_index(self._card_index)
+
     def _select_card_index(self, index: int) -> None:
         self._card_index = index
         card = self._study_cards[index]
@@ -134,12 +148,25 @@ class ReviewController(QObject):
             self._history = get_card_learning_history(connection, card["collection_id"], card["card_number"])
         self.state_changed.emit()
 
-    @staticmethod
-    def _entries_for_card(collection_id: int, card_number: int) -> list[dict]:
-        for group in get_card_groups_for_collection(collection_id):
-            if group["card_number"] == card_number:
-                return list(group["entries"])
-        return []
+    def _entries_for_card(self, collection_id: int, card_number: int) -> list[dict]:
+        return get_card_entries_for_study(
+            collection_id,
+            card_number,
+            include_proficient=self.include_proficient_in_study,
+        )
+
+    def is_current_card_all_proficient(self) -> bool:
+        """Return True if the current Card has structural entries, but all of them
+        are currently excluded because they reside in the Proficient Pool."""
+        card = self.current_card()
+        if card is None or bool(self._entries):
+            return False
+        raw_entries = get_card_entries_for_study(
+            card["collection_id"],
+            card["card_number"],
+            include_proficient=True,
+        )
+        return len(raw_entries) > 0
 
     # -- current state -------------------------------------------------------
 
@@ -308,7 +335,11 @@ class ReviewController(QObject):
         card = self.current_card()
         if card is None:
             return []
-        return get_available_template_quiz_sources_for_card(card["collection_id"], card["card_number"])
+        return get_available_template_quiz_sources_for_card(
+            card["collection_id"],
+            card["card_number"],
+            include_proficient=self.include_proficient_in_study,
+        )
 
     def template_rules(self, template_type: str) -> list[dict]:
         return get_template_quiz_rules(template_type)

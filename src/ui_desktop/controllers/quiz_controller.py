@@ -8,6 +8,7 @@ from PySide6.QtCore import QObject, Signal
 
 from src.collections import (
     add_entries_to_system_collection,
+    get_card_entries_for_study,
     get_entry_ids_in_system_collection,
     remove_entries_from_system_collection,
 )
@@ -27,6 +28,7 @@ from src.quiz import (
 from src.review_schedule import get_card_schedule, schedule_card_after_days, set_card_next_review
 from src.template_quiz import generate_template_multi_rule_quiz_items, get_template_quiz_rule
 from src.ui_desktop.state.handoff import QuizLaunchIntent
+from src.ui_desktop.state.preferences import Preferences
 
 """
 QuizController owns the active-quiz presentation/session-interaction state
@@ -96,9 +98,15 @@ class QuizController(QObject):
     # user's scroll position and already-selected answers on every pick.
     matching_selection_changed = Signal()
 
-    def __init__(self, *, today_provider: Callable[[], date] = date.today) -> None:
+    def __init__(
+        self,
+        *,
+        today_provider: Callable[[], date] = date.today,
+        preferences: Preferences | None = None,
+    ) -> None:
         super().__init__()
         self._today_provider = today_provider
+        self.preferences = preferences
         self.session_id: int | None = None
         self.intent: QuizLaunchIntent | None = None
         self.items: list[dict] = []
@@ -125,6 +133,12 @@ class QuizController(QObject):
         # second source of grading truth.
         self.item_results: list[bool | None] = []
         self._starred_entry_ids: set[int] = set()
+
+    @property
+    def include_proficient_in_study(self) -> bool:
+        if self.preferences is not None:
+            return bool(self.preferences.include_proficient_in_study)
+        return True
 
     # -- family classification --------------------------------------------
 
@@ -175,7 +189,18 @@ class QuizController(QObject):
 
         items = list(generation.get("quiz_items") or [])
         if not items:
-            self.start_error = NOT_ENOUGH_ENTRIES_ERROR
+            if intent.card_number > 0 and not self.include_proficient_in_study:
+                raw_entries = get_card_entries_for_study(
+                    intent.collection_id,
+                    intent.card_number,
+                    include_proficient=True,
+                )
+                if raw_entries:
+                    self.start_error = "All entries in this Card are marked as proficient. No regular Quiz items available."
+                else:
+                    self.start_error = NOT_ENOUGH_ENTRIES_ERROR
+            else:
+                self.start_error = NOT_ENOUGH_ENTRIES_ERROR
             self.state_changed.emit()
             return False
 
@@ -237,6 +262,7 @@ class QuizController(QObject):
                 rules,
                 quiz_type,
                 intent.template_difficulty,
+                include_proficient=self.include_proficient_in_study,
             )
 
         if quiz_type == "matching":
@@ -250,11 +276,20 @@ class QuizController(QObject):
             return generate_random_quiz_items(intent.collection_id, quiz_type, intent.item_count)
 
         if quiz_type in PLAIN_SELF_GRADED_TYPES:
-            entries = get_entries_for_quiz(intent.collection_id, intent.card_number)
+            entries = get_entries_for_quiz(
+                intent.collection_id,
+                intent.card_number,
+                include_proficient=self.include_proficient_in_study,
+            )
             return {"quiz_items": create_quiz_items(entries, quiz_type), "meaning_choices": None, "warning": ""}
 
         if quiz_type in PLAIN_MCQ_TYPES:
-            items = generate_mcq_items(intent.collection_id, intent.card_number, quiz_type)
+            items = generate_mcq_items(
+                intent.collection_id,
+                intent.card_number,
+                quiz_type,
+                include_proficient=self.include_proficient_in_study,
+            )
             return {"quiz_items": items, "meaning_choices": None, "warning": ""}
 
         raise ValueError(f"Unsupported quiz type: {quiz_type}")

@@ -288,7 +288,12 @@ class ReviewView(QWidget):
 
         entry = self._controller.current_entry()
         if entry is None:
-            self._column_layout.addWidget(_empty_state_label("This Card has no Entries."))
+            if self._controller.is_current_card_all_proficient():
+                self._column_layout.addWidget(
+                    _empty_state_label("All entries in this Card are marked as proficient. No regular study content needed.")
+                )
+            else:
+                self._column_layout.addWidget(_empty_state_label("This Card has no Entries."))
             self._drawer.render(self._controller)
             return
 

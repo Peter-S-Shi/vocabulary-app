@@ -203,6 +203,39 @@ class SettingsView(QWidget):
         row_layout.addWidget(self._quiz_presentation_combo, 0)
         root.addWidget(row)
 
+        # -- Study & Review Section (Patch B1) ------------------------------
+        study_heading = QLabel("Study & Review", body)
+        study_heading.setObjectName("settings-section-heading")
+        root.addWidget(study_heading)
+
+        study_note = QLabel(
+            "Configure how regular Card study and Card-scoped Quiz interact with practice pools.",
+            body,
+        )
+        study_note.setObjectName("settings-section-note")
+        study_note.setWordWrap(True)
+        root.addWidget(study_note)
+
+        proficient_row = QWidget(body)
+        proficient_row.setObjectName("settings-row")
+        proficient_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        proficient_row_layout = QHBoxLayout(proficient_row)
+        proficient_row_layout.setContentsMargins(SPACING.md, SPACING.md, SPACING.md, SPACING.md)
+        proficient_row_layout.setSpacing(SPACING.md)
+
+        proficient_row_label = QLabel("Proficient entries", proficient_row)
+        proficient_row_label.setObjectName("settings-row-label")
+        proficient_row_layout.addWidget(proficient_row_label, 0)
+        proficient_row_layout.addStretch(1)
+
+        self._include_proficient_checkbox = QCheckBox("Include proficient entries in regular study", proficient_row)
+        self._include_proficient_checkbox.setObjectName("settings-include-proficient-checkbox")
+        self._include_proficient_checkbox.toggled.connect(
+            self._controller.set_include_proficient_in_study
+        )
+        proficient_row_layout.addWidget(self._include_proficient_checkbox, 0)
+        root.addWidget(proficient_row)
+
         # -- Collections Section --------------------------------------------
         collections_heading = QLabel("Collections", body)
         collections_heading.setObjectName("settings-section-heading")
@@ -714,6 +747,12 @@ class SettingsView(QWidget):
             self._reload_voice_combo(language, matching)
 
     def _sync_from_controller(self) -> None:
+        include_proficient = self._controller.include_proficient_in_study()
+        if self._include_proficient_checkbox.isChecked() != include_proficient:
+            self._include_proficient_checkbox.blockSignals(True)
+            self._include_proficient_checkbox.setChecked(include_proficient)
+            self._include_proficient_checkbox.blockSignals(False)
+
         progress_bars_visible = self._controller.collection_progress_bars_visible()
         if self._collection_progress_bars_checkbox.isChecked() != progress_bars_visible:
             self._collection_progress_bars_checkbox.blockSignals(True)

@@ -102,13 +102,17 @@ class MainWindow(QMainWindow):
         self.today_controller = TodayController()
         self.entries_controller = EntriesController()
         self.collections_controller = CollectionsController()
-        self.review_controller = ReviewController()
-        self.quiz_controller = QuizController()
         self.settings_controller = SettingsController(preferences, self.theme_manager)
+        self.review_controller = ReviewController(self.settings_controller.preferences)
+        self.quiz_controller = QuizController(preferences=self.settings_controller.preferences)
         self.templates_controller = TemplatesController()
         self.review_calendar_controller = ReviewCalendarController()
         self.data_tools_controller = DataToolsController()
         self.analytics_controller = AnalyticsController()
+
+        self.settings_controller.include_proficient_in_study_changed.connect(
+            lambda _: self.review_controller.reload_current_card()
+        )
 
         self.today_view = TodayView(self.today_controller)
         self.today_view.navigate_to_entries_requested.connect(

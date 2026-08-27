@@ -56,16 +56,17 @@ class Preferences:
     motion: str = DEFAULT_MOTION
     quiz_presentation: str = DEFAULT_QUIZ_PRESENTATION
     show_collection_progress_bars: bool = True
+    include_proficient_in_study: bool = True
     voice_bindings: dict[str, str] = field(default_factory=dict)
     custom_theme: CustomThemeConfig = field(default_factory=CustomThemeConfig)
 
 
 def load_preferences(path: Path | None = None) -> Preferences:
-    """Load Appearance/Accent/Theme Customization/Motion/Quiz presentation
+    """Load Appearance/Accent/Theme Customization/Motion/Quiz presentation/Study preferences
     from the persistent preferences file.
 
     A missing, unreadable, or malformed file -- or an old preferences file
-    written before custom themes existed -- degrades safely to defaults
+    written before custom themes or new settings existed -- degrades safely to defaults
     rather than blocking access to vocabulary data.
     """
     target = path or get_app_preferences_path()
@@ -90,6 +91,9 @@ def load_preferences(path: Path | None = None) -> Preferences:
     show_collection_progress_bars = raw.get("show_collection_progress_bars", True)
     if not isinstance(show_collection_progress_bars, bool):
         show_collection_progress_bars = True
+    include_proficient_in_study = raw.get("include_proficient_in_study", True)
+    if not isinstance(include_proficient_in_study, bool):
+        include_proficient_in_study = True
     voice_bindings = _parse_voice_bindings(raw.get("voice_bindings"))
 
     custom_theme_raw = raw.get("custom_theme")
@@ -108,6 +112,7 @@ def load_preferences(path: Path | None = None) -> Preferences:
         motion=motion,
         quiz_presentation=quiz_presentation,
         show_collection_progress_bars=show_collection_progress_bars,
+        include_proficient_in_study=include_proficient_in_study,
         voice_bindings=voice_bindings,
         custom_theme=custom_theme,
     )

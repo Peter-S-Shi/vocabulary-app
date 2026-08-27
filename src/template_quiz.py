@@ -1,4 +1,4 @@
-from src.collections import get_card_groups_for_collection, get_entries_in_collection
+from src.collections import get_card_entries_for_study, get_card_groups_for_collection, get_entries_in_collection
 from src.db import get_connection
 from src.entry_templates import get_entry_field_values
 from src.quiz import shuffle_mcq_options, shuffle_quiz_items, shuffle_sequence
@@ -32,7 +32,7 @@ TEMPLATE_QUIZ_RULES = {
         {"id": "masculine_singular_to_masculine_plural", "source_field_key": "masculine_singular", "target_field_key": "masculine_plural", "label": "Masculine Singular -> Masculine Plural"},
         {"id": "masculine_singular_to_feminine_plural", "source_field_key": "masculine_singular", "target_field_key": "feminine_plural", "label": "Masculine Singular -> Feminine Plural"},
         {"id": "meaning_to_masculine_singular", "source_field_key": "meaning", "target_field_key": "masculine_singular", "label": "Meaning -> Masculine Singular"},
-        {"id": "masculine_singular_to_meaning", "source_field_key": "masculine_singular", "target_field_key": "meaning", "label": "Masculine Singular -> Meaning"},
+        {"id": "masculine_singular_to_meaning", "source_field_key": "meaning", "target_field_key": "meaning", "label": "Masculine Singular -> Meaning"},
     ],
     "french_noun_gender_plural": [
         {"id": "singular_to_plural", "source_field_key": "singular", "target_field_key": "plural", "label": "Singular -> Plural"},
@@ -82,42 +82,49 @@ def get_entries_for_template_quiz_card(
     collection_id: int,
     card_number: int,
     template_id: int,
+    *,
+    include_proficient: bool = True,
 ) -> list[dict]:
-    for card_group in get_card_groups_for_collection(collection_id):
-        if int(card_group["card_number"]) == int(card_number):
-            return [
-                entry
-                for entry in card_group["entries"]
-                if int(entry.get("template_id") or 0) == int(template_id)
-            ]
-    return []
+    entries = get_card_entries_for_study(
+        collection_id,
+        card_number,
+        include_proficient=include_proficient,
+    )
+    return [
+        entry
+        for entry in entries
+        if int(entry.get("template_id") or 0) == int(template_id)
+    ]
 
 
 def get_available_template_quiz_sources_for_card(
     collection_id: int,
     card_number: int,
+    *,
+    include_proficient: bool = True,
 ) -> list[dict]:
     sources_by_template_id: dict[int, dict] = {}
-    for card_group in get_card_groups_for_collection(collection_id):
-        if int(card_group["card_number"]) != int(card_number):
+    entries = get_card_entries_for_study(
+        collection_id,
+        card_number,
+        include_proficient=include_proficient,
+    )
+    for entry in entries:
+        template_id = entry.get("template_id")
+        template_type = entry.get("template_type") or ""
+        if template_id is None or template_type not in TEMPLATE_QUIZ_RULES:
             continue
 
-        for entry in card_group["entries"]:
-            template_id = entry.get("template_id")
-            template_type = entry.get("template_type") or ""
-            if template_id is None or template_type not in TEMPLATE_QUIZ_RULES:
-                continue
-
-            source = sources_by_template_id.setdefault(
-                int(template_id),
-                {
-                    "template_id": int(template_id),
-                    "template_name": entry.get("template_name") or f"Template {template_id}",
-                    "template_type": template_type,
-                    "entry_count": 0,
-                },
-            )
-            source["entry_count"] += 1
+        source = sources_by_template_id.setdefault(
+            int(template_id),
+            {
+                "template_id": int(template_id),
+                "template_name": entry.get("template_name") or f"Template {template_id}",
+                "template_type": template_type,
+                "entry_count": 0,
+            },
+        )
+        source["entry_count"] += 1
 
     return sorted(sources_by_template_id.values(), key=lambda source: source["template_name"].lower())
 
@@ -330,6 +337,8 @@ def generate_template_multi_rule_quiz_items(
     rules: list[dict],
     quiz_type: str,
     difficulty: str = "Normal",
+    *,
+    include_proficient: bool = True,
 ) -> dict:
     if quiz_type not in TEMPLATE_QUIZ_TYPES.values():
         raise ValueError(f"Unsupported template quiz type: {quiz_type}")
@@ -338,7 +347,12 @@ def generate_template_multi_rule_quiz_items(
     if not rules:
         raise ValueError("Select at least one template quiz rule.")
 
-    card_entries = get_entries_for_template_quiz_card(collection_id, card_number, template_id)
+    card_entries = get_entries_for_template_quiz_card(
+        collection_id,
+        card_number,
+        template_id,
+        include_proficient=include_proficient,
+    )
     collection_entries = [
         entry
         for entry in get_entries_in_collection(collection_id)

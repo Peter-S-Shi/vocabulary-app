@@ -36,6 +36,7 @@ are managed through this controller and live-applied via ThemeManager.
 class SettingsController(QObject):
     state_changed = Signal()
     collection_progress_bars_changed = Signal(bool)
+    include_proficient_in_study_changed = Signal(bool)
     update_status_changed = Signal(object)  # Emits UpdateCheckResult
 
     def __init__(
@@ -190,6 +191,18 @@ class SettingsController(QObject):
         self.preferences.show_collection_progress_bars = normalized
         save_preferences(self.preferences, self.preferences_path)
         self.collection_progress_bars_changed.emit(normalized)
+        self.state_changed.emit()
+
+    def include_proficient_in_study(self) -> bool:
+        return self.preferences.include_proficient_in_study
+
+    def set_include_proficient_in_study(self, include: bool) -> None:
+        normalized = bool(include)
+        if normalized == self.preferences.include_proficient_in_study:
+            return
+        self.preferences.include_proficient_in_study = normalized
+        save_preferences(self.preferences, self.preferences_path)
+        self.include_proficient_in_study_changed.emit(normalized)
         self.state_changed.emit()
 
     # -- Local Windows Speech Provider / Installed Voice Binding (M20) ---
