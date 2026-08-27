@@ -79,7 +79,7 @@ def build_application(argv: list[str] | None = None) -> tuple[QApplication, Main
 
     theme_manager = ThemeManager(application)
     preferences = load_preferences()
-    theme_manager.apply(parse_appearance(preferences.appearance), parse_accent(preferences.accent))
+    theme_manager.apply_preferences(preferences)
     # Live OS Light/Dark reaction while Appearance=System (M17 Theme
     # Completion prompt § 7.3); the one production ThemeManager opts in
     # once, here -- tests constructing their own ThemeManager never do.

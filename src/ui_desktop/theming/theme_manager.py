@@ -10,25 +10,35 @@ from PySide6.QtWidgets import QApplication
 from src.ui_desktop.theming.metrics import RADIUS_DEFAULT, SPACING
 from src.ui_desktop.theming.system_appearance import detect_system_color_scheme
 from src.ui_desktop.theming.tokens import (
+    PRESET_CALM_BLUE,
+    PRESET_INDIGO_VIOLET,
+    PRESET_NAMES,
+    PRESET_SAGE_TEAL,
+    PRESET_WARM_NEUTRAL,
     THEME_CALM_BLUE_DARK,
     THEME_CALM_BLUE_LIGHT,
+    THEME_INDIGO_VIOLET_DARK,
+    THEME_INDIGO_VIOLET_LIGHT,
+    THEME_SAGE_TEAL_DARK,
+    THEME_SAGE_TEAL_LIGHT,
+    THEME_WARM_NEUTRAL_DARK,
+    THEME_WARM_NEUTRAL_LIGHT,
+    CustomThemeConfig,
+    ModeCustomization,
     ThemeTokens,
+    build_resolved_theme_tokens,
 )
 
 """
-Resolves (Appearance, Accent) into a QPalette + QSS pair and applies both
-through one call site, per the M16.1 contract § 14 theme/token
-implementation boundary. This module decides only the PySide6 plumbing; it
-does not redesign any DESIGN.md token value.
+Resolves (Appearance, Accent, Customization) into a QPalette + QSS pair and applies both
+through one call site, per the M16.1 contract § 14 theme/token implementation boundary.
+This module decides only the PySide6 plumbing; it does not redesign any DESIGN.md token value.
 
-M17 Theme Completion & Cross-Screen Validation closes the Appearance axis:
-``System`` now resolves through a real, live OS Light/Dark read
-(``system_appearance.detect_system_color_scheme``) instead of the M16.2
-placeholder that always resolved to Light, and ``ThemeManager.apply()`` is
-now safely re-callable at any point during a running session -- Settings'
-Appearance control and a live OS appearance change (while ``System`` is
-selected) both drive re-application through this same single call site,
-never a second theme-switch mechanism.
+Phase D Theme Engine:
+- Four official presets (Calm Blue, Sage / Teal, Indigo / Violet, Warm Neutral) as safe starters.
+- Independent Light and Dark mode custom state with automatic WCAG contrast protection.
+- Live staging & real-time preview (Cancel / Apply / Undo / Reset lifecycle).
+- Dynamic re-application on OS light/dark scheme changes.
 """
 
 LOGGER = logging.getLogger("vocabulary_app.ui")
@@ -42,6 +52,9 @@ class Appearance(str, Enum):
 
 class Accent(str, Enum):
     CALM_BLUE = "Calm Blue"
+    SAGE_TEAL = "Sage / Teal"
+    INDIGO_VIOLET = "Indigo / Violet"
+    WARM_NEUTRAL = "Warm Neutral"
 
 
 DEFAULT_APPEARANCE = Appearance.SYSTEM
@@ -59,6 +72,14 @@ def parse_accent(value: str) -> Accent:
     try:
         return Accent(value)
     except ValueError:
+        # Fallback aliases
+        v_low = str(value).lower().strip()
+        if "sage" in v_low or "teal" in v_low:
+            return Accent.SAGE_TEAL
+        if "indigo" in v_low or "violet" in v_low:
+            return Accent.INDIGO_VIOLET
+        if "warm" in v_low or "neutral" in v_low:
+            return Accent.WARM_NEUTRAL
         return DEFAULT_ACCENT
 
 
@@ -70,8 +91,7 @@ def resolve_effective_appearance(appearance: Appearance) -> Appearance:
     If the platform cannot report an appearance (``Qt.ColorScheme.
     Unknown`` -- an unsupported platform/Qt build, not an error), this
     falls back to ``Light`` explicitly and logs the fallback rather than
-    silently pretending ``System`` detection succeeded (M17 Theme
-    Completion prompt § 7).
+    silently pretending ``System`` detection succeeded.
     """
     if appearance is not Appearance.SYSTEM:
         return appearance
@@ -90,17 +110,26 @@ def resolve_effective_appearance(appearance: Appearance) -> Appearance:
 _TOKENS_BY_THEME: dict[tuple[Appearance, Accent], ThemeTokens] = {
     (Appearance.LIGHT, Accent.CALM_BLUE): THEME_CALM_BLUE_LIGHT,
     (Appearance.DARK, Accent.CALM_BLUE): THEME_CALM_BLUE_DARK,
+    (Appearance.LIGHT, Accent.SAGE_TEAL): THEME_SAGE_TEAL_LIGHT,
+    (Appearance.DARK, Accent.SAGE_TEAL): THEME_SAGE_TEAL_DARK,
+    (Appearance.LIGHT, Accent.INDIGO_VIOLET): THEME_INDIGO_VIOLET_LIGHT,
+    (Appearance.DARK, Accent.INDIGO_VIOLET): THEME_INDIGO_VIOLET_DARK,
+    (Appearance.LIGHT, Accent.WARM_NEUTRAL): THEME_WARM_NEUTRAL_LIGHT,
+    (Appearance.DARK, Accent.WARM_NEUTRAL): THEME_WARM_NEUTRAL_DARK,
 }
 
 
-def resolve_tokens(appearance: Appearance, accent: Accent) -> ThemeTokens:
+def resolve_tokens(
+    appearance: Appearance,
+    accent: Accent = DEFAULT_ACCENT,
+    customization: ModeCustomization | None = None,
+) -> ThemeTokens:
     effective_appearance = resolve_effective_appearance(appearance)
+    if customization is not None and customization.is_customized():
+        return build_resolved_theme_tokens(effective_appearance.value, customization)
+
     key = (effective_appearance, accent)
     if key not in _TOKENS_BY_THEME:
-        # Only Calm Blue is transcribed in M16.2 (tokens.py docstring);
-        # fall back to the default accent rather than raising for an
-        # unimplemented family so a malformed/future preference value
-        # degrades safely instead of crashing the shell.
         key = (effective_appearance, DEFAULT_ACCENT)
     return _TOKENS_BY_THEME[key]
 
@@ -2335,23 +2364,14 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
 
 
 class ThemeManager(QObject):
-    """Single apply point for (Appearance, Accent) -> QPalette + QSS.
+    """Single apply point for (Appearance, Accent, Customization) -> QPalette + QSS.
 
-    ``apply()`` is safely re-callable at any point during a running
-    session -- both Settings' Appearance control (live explicit
-    Light/Dark/System switching) and ``watch_system_appearance()``'s live
-    OS-change reaction call back through this one method, never a second
-    theme-switch mechanism (M17 Theme Completion prompt § 6/§ 8). Because
-    every custom-drawn widget in this app is styled through the single
-    application-level QSS ``build_stylesheet()`` returns (module
-    docstring; every ``QToolButton``/dialog/menu/etc. rule lives there),
-    re-calling ``QApplication.setStyleSheet()``/``setPalette()`` re-themes
-    the entire already-rendered widget tree automatically, including
-    dialogs/menus opened afterward -- no per-view re-theme wiring is
-    needed for anything QSS/QPalette-driven. ``theme_applied`` exists only
-    for the one narrow exception: presentation baked into custom
-    ``QAbstractItemModel`` data roles (the Entries Star column's semantic color),
-    which Qt's style engine cannot re-paint on its own.
+    ``apply()`` is safely re-callable at any point during a running session.
+    Supports:
+    - 4 official presets as safe starters.
+    - Independent Light and Dark customization state.
+    - Live staging & real-time preview (Cancel / Apply / Undo / Reset lifecycle).
+    - Dynamic re-application on OS light/dark scheme changes while Appearance=System.
     """
 
     theme_applied = Signal(object)  # emits the just-applied ThemeTokens
@@ -2361,6 +2381,9 @@ class ThemeManager(QObject):
         self._application = application
         self._current: tuple[Appearance, Accent] | None = None
         self._current_tokens: ThemeTokens | None = None
+        self._current_custom_config: CustomThemeConfig | None = None
+        self._active_customization: ModeCustomization | None = None
+        self._staged_customization: ModeCustomization | None = None
         self._watching_system = False
 
     @property
@@ -2371,14 +2394,106 @@ class ThemeManager(QObject):
     def current_tokens(self) -> ThemeTokens | None:
         return self._current_tokens
 
-    def apply(self, appearance: Appearance, accent: Accent) -> ThemeTokens:
-        tokens = resolve_tokens(appearance, accent)
+    @property
+    def custom_config(self) -> CustomThemeConfig:
+        if self._current_custom_config is None:
+            self._current_custom_config = CustomThemeConfig()
+        return self._current_custom_config
+
+    def get_effective_appearance(self, appearance: Appearance | None = None) -> Appearance:
+        app = appearance or (self._current[0] if self._current else DEFAULT_APPEARANCE)
+        return resolve_effective_appearance(app)
+
+    def get_mode_customization(self, appearance: Appearance | None = None) -> ModeCustomization:
+        eff = self.get_effective_appearance(appearance)
+        cfg = self.custom_config
+        return cfg.dark if eff is Appearance.DARK else cfg.light
+
+    def apply(
+        self,
+        appearance: Appearance,
+        accent: Accent = DEFAULT_ACCENT,
+        customization: ModeCustomization | None = None,
+        custom_config: CustomThemeConfig | None = None,
+    ) -> ThemeTokens:
+        if custom_config is not None:
+            self._current_custom_config = custom_config
+
+        eff = resolve_effective_appearance(appearance)
+        if customization is None:
+            cfg = self.custom_config
+            mode_custom = cfg.dark if eff is Appearance.DARK else cfg.light
+            tokens = resolve_tokens(appearance, accent, mode_custom)
+            self._active_customization = mode_custom
+        else:
+            tokens = resolve_tokens(appearance, accent, customization)
+            self._active_customization = customization
+
         self._application.setPalette(build_palette(tokens))
         self._application.setStyleSheet(build_stylesheet(tokens))
         self._current = (appearance, accent)
         self._current_tokens = tokens
+        self._staged_customization = None
         self.theme_applied.emit(tokens)
         return tokens
+
+    def apply_preferences(self, preferences: object) -> ThemeTokens:
+        """Apply preferences object containing appearance, accent, and custom_theme."""
+        appearance = parse_appearance(getattr(preferences, "appearance", DEFAULT_APPEARANCE.value))
+        accent = parse_accent(getattr(preferences, "accent", DEFAULT_ACCENT.value))
+        custom_theme = getattr(preferences, "custom_theme", None)
+        if isinstance(custom_theme, CustomThemeConfig):
+            return self.apply(appearance, accent, custom_config=custom_theme)
+        return self.apply(appearance, accent)
+
+    def preview_customization(
+        self,
+        appearance: Appearance,
+        customization: ModeCustomization,
+    ) -> ThemeTokens:
+        """Stage and immediately apply live preview without committing to preferences."""
+        eff = resolve_effective_appearance(appearance)
+        tokens = build_resolved_theme_tokens(eff.value, customization)
+        self._application.setPalette(build_palette(tokens))
+        self._application.setStyleSheet(build_stylesheet(tokens))
+        self._staged_customization = customization
+        self._current_tokens = tokens
+        self.theme_applied.emit(tokens)
+        return tokens
+
+    def revert_preview(self) -> ThemeTokens:
+        """Cancel live preview and restore the committed active theme."""
+        if self._current is not None:
+            return self.apply(
+                self._current[0],
+                self._current[1],
+                customization=self._active_customization,
+                custom_config=self._current_custom_config,
+            )
+        return self.apply(DEFAULT_APPEARANCE, DEFAULT_ACCENT)
+
+    def reset_mode_to_preset(self, appearance: Appearance, preset_name: str) -> ThemeTokens:
+        """Reset the specified appearance mode to an official preset."""
+        eff = resolve_effective_appearance(appearance)
+        cfg = self.custom_config
+        clean_custom = ModeCustomization(preset=preset_name)
+        if eff is Appearance.DARK:
+            new_cfg = CustomThemeConfig(light=cfg.light, dark=clean_custom)
+        else:
+            new_cfg = CustomThemeConfig(light=clean_custom, dark=cfg.dark)
+        self._current_custom_config = new_cfg
+        return self.apply(
+            appearance,
+            parse_accent(preset_name),
+            customization=clean_custom,
+            custom_config=new_cfg,
+        )
+
+    def reset_all_to_default(self) -> ThemeTokens:
+        """Reset both Light and Dark modes to default Calm Blue preset."""
+        new_cfg = CustomThemeConfig()
+        self._current_custom_config = new_cfg
+        return self.apply(Appearance.SYSTEM, DEFAULT_ACCENT, custom_config=new_cfg)
 
     def watch_system_appearance(self) -> None:
         """Opt-in, idempotent: wires a live reaction to the OS Light/Dark
@@ -2411,4 +2526,8 @@ class ThemeManager(QObject):
         this stays correct even if multiple OS changes coalesce into one
         emission."""
         if self._current is not None and self._current[0] is Appearance.SYSTEM:
-            self.apply(*self._current)
+            self.apply(
+                self._current[0],
+                self._current[1],
+                custom_config=self._current_custom_config,
+            )

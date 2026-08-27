@@ -7,13 +7,18 @@ from pathlib import Path
 
 from src.app_config import get_app_preferences_path
 from src.tts_providers import normalize_supported_language
+from src.ui_desktop.theming.tokens import (
+    CustomThemeConfig,
+    ModeCustomization,
+    PRESET_CALM_BLUE,
+    PRESET_NAMES,
+)
 
 """
-Durable application-preference storage (Appearance, Accent, Motion, Quiz
-presentation), per the M16.1 contract § 11.B / § 12 and DESIGN.md § 23
-(Motion / Transition System). This is UI/application preference state, not
-learning data: it is never written to ``vocab.db`` and never touched by
-``src/`` core modules.
+Durable application-preference storage (Appearance, Accent, Custom Themes, Motion,
+Quiz presentation), per the M16.1 contract § 11.B / § 12 and DESIGN.md § 23.
+This is UI/application preference state, not learning data: it is never written
+to ``vocab.db`` and never touched by ``src/`` core modules.
 """
 
 LOGGER = logging.getLogger("vocabulary_app.ui")
@@ -51,25 +56,16 @@ class Preferences:
     motion: str = DEFAULT_MOTION
     quiz_presentation: str = DEFAULT_QUIZ_PRESENTATION
     show_collection_progress_bars: bool = True
-    # M20 Local Windows Speech Provider / Installed Voice Binding (M20
-    # Release Contract § 2.3): {language: voice_id} for whichever
-    # supported language (en / fr / zh-CN) the user has explicitly bound
-    # to an installed Windows voice. Empty dict = nothing bound yet.
-    # Machine-local application configuration, never learning data --
-    # stored here (outside vocab.db) exactly like Appearance/Motion. An
-    # explicitly set VOCAB_APP_VOICE_BINDINGS environment variable
-    # remains an advanced per-process override (the same precedence
-    # model VOCAB_APP_DB_PATH already established for the database
-    # path); see state/tts_runtime.py for the resolution order.
     voice_bindings: dict[str, str] = field(default_factory=dict)
+    custom_theme: CustomThemeConfig = field(default_factory=CustomThemeConfig)
 
 
 def load_preferences(path: Path | None = None) -> Preferences:
-    """Load Appearance/Accent/Motion/Quiz presentation from the persistent
-    preferences file.
+    """Load Appearance/Accent/Theme Customization/Motion/Quiz presentation
+    from the persistent preferences file.
 
     A missing, unreadable, or malformed file -- or an old preferences file
-    written before Quiz presentation existed -- degrades safely to defaults
+    written before custom themes existed -- degrades safely to defaults
     rather than blocking access to vocabulary data.
     """
     target = path or get_app_preferences_path()
@@ -95,6 +91,17 @@ def load_preferences(path: Path | None = None) -> Preferences:
     if not isinstance(show_collection_progress_bars, bool):
         show_collection_progress_bars = True
     voice_bindings = _parse_voice_bindings(raw.get("voice_bindings"))
+
+    custom_theme_raw = raw.get("custom_theme")
+    if isinstance(custom_theme_raw, dict):
+        custom_theme = CustomThemeConfig.from_dict(custom_theme_raw)
+    else:
+        legacy_preset = accent if accent in PRESET_NAMES else PRESET_CALM_BLUE
+        custom_theme = CustomThemeConfig(
+            light=ModeCustomization(preset=legacy_preset),
+            dark=ModeCustomization(preset=legacy_preset),
+        )
+
     return Preferences(
         appearance=appearance,
         accent=accent,
@@ -102,6 +109,7 @@ def load_preferences(path: Path | None = None) -> Preferences:
         quiz_presentation=quiz_presentation,
         show_collection_progress_bars=show_collection_progress_bars,
         voice_bindings=voice_bindings,
+        custom_theme=custom_theme,
     )
 
 
