@@ -97,6 +97,7 @@ class V11PhaseCDesktopUiLocalTimeTests(unittest.TestCase):
         set_card_next_review(card_id, "2026-09-15")
 
         controller = ReviewCalendarController()
+        controller.set_selected_date("2026-09-15")
         view = ReviewCalendarView(controller)
         self.addCleanup(view.deleteLater)
         view.refresh()

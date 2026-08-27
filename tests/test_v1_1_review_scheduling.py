@@ -607,6 +607,7 @@ class ReviewCalendarScheduleTests(ReviewScheduleTestCase):
 
     def test_schedule_table_and_date_editor_update_the_selected_card(self) -> None:
         card_id = self._card_id(name="Synthetic Schedule UI")
+        set_card_next_review(card_id, date.today().isoformat())
         controller = ReviewCalendarController()
         view = ReviewCalendarView(controller)
         self.addCleanup(view.deleteLater)

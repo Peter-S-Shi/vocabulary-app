@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QDate, QLocale, Qt
+from PySide6.QtCore import QDate, QEvent, QLocale, Qt
 from PySide6.QtGui import QColor, QPalette, QTextCharFormat
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -148,10 +148,7 @@ class ReviewCalendarView(QWidget):
         self._calendar.setGridVisible(True)
         self._calendar.setVerticalHeaderFormat(QCalendarWidget.VerticalHeaderFormat.NoVerticalHeader)
         self._calendar.setLocale(english_locale)
-        fmt_weekday = QTextCharFormat()
-        fmt_weekday.setForeground(self.palette().color(QPalette.ColorRole.Text))
-        self._calendar.setWeekdayTextFormat(Qt.DayOfWeek.Saturday, fmt_weekday)
-        self._calendar.setWeekdayTextFormat(Qt.DayOfWeek.Sunday, fmt_weekday)
+        self._update_weekend_format()
         self._calendar.selectionChanged.connect(self._on_calendar_date_changed)
         self._calendar.setFixedWidth(300)
         self._calendar.setMinimumHeight(220)
@@ -272,18 +269,43 @@ class ReviewCalendarView(QWidget):
         controller.entries_changed.connect(self._render_table)
         controller.selection_changed.connect(self._render_detail)
 
+    def changeEvent(self, event: QEvent) -> None:
+        super().changeEvent(event)
+        if event.type() in (
+            QEvent.Type.PaletteChange,
+            QEvent.Type.ApplicationPaletteChange,
+            QEvent.Type.StyleChange,
+        ):
+            self._update_weekend_format()
+
+    def _update_weekend_format(self) -> None:
+        text_color = self.palette().color(QPalette.ColorRole.Text)
+        fmt = QTextCharFormat()
+        fmt.setForeground(text_color)
+        self._calendar.setWeekdayTextFormat(Qt.DayOfWeek.Saturday, fmt)
+        self._calendar.setWeekdayTextFormat(Qt.DayOfWeek.Sunday, fmt)
+
     def refresh(self) -> None:
         self._controller.refresh()
+        cur_qdate = QDate.fromString(self._controller.selected_date, "yyyy-MM-dd")
+        if cur_qdate.isValid():
+            self._calendar.blockSignals(True)
+            self._calendar.setSelectedDate(cur_qdate)
+            self._calendar.blockSignals(False)
+        self._schedule_heading.setText(f"Review Schedule ({self._controller.selected_date})")
 
     def _on_today_clicked(self) -> None:
         today_qdate = QDate.currentDate()
+        self._calendar.blockSignals(True)
         self._calendar.setSelectedDate(today_qdate)
+        self._calendar.blockSignals(False)
+        self._schedule_heading.setText(f"Review Schedule ({today_qdate.toString('yyyy-MM-dd')})")
         self._controller.go_to_today()
 
     def _on_calendar_date_changed(self) -> None:
         selected_date_str = self._calendar.selectedDate().toString("yyyy-MM-dd")
-        self._controller.set_selected_date(selected_date_str)
         self._schedule_heading.setText(f"Review Schedule ({selected_date_str})")
+        self._controller.set_selected_date(selected_date_str)
 
     def _render_table(self) -> None:
         self._table.blockSignals(True)
@@ -318,7 +340,7 @@ class ReviewCalendarView(QWidget):
         try:
             self._schedule_table.clearSelection()
             self._schedule_table.setCurrentCell(-1, -1)
-            schedules = self._controller.schedules
+            schedules = self._controller.scheduled_cards_for_date(self._controller.selected_date)
             self._schedule_table.setRowCount(len(schedules))
             for row, schedule in enumerate(schedules):
                 self._schedule_table.setItem(row, 0, QTableWidgetItem(str(schedule["collection_name"])))

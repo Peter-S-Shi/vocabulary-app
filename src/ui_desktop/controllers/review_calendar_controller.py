@@ -68,9 +68,10 @@ class ReviewCalendarController(QObject):
         self.current_schedule: dict | None = None
 
     def set_selected_date(self, target_date: str) -> None:
-        if self.selected_date == target_date:
-            return
         self.selected_date = target_date
+        if not self.selected_from_history:
+            self.clear_selection()
+        self.entries_changed.emit()
         self.selection_changed.emit()
 
     def go_to_today(self) -> None:
