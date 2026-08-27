@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import unittest
 import urllib.error
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from src.app_config import APP_VERSION
 from src.update_checker import (
@@ -22,7 +22,7 @@ if PYSIDE6_AVAILABLE:
 
 
 class SemVerTests(unittest.TestCase):
-    def test_semver_parse_valid_variants(self) -> None:
+    def test_semver_parse_valid_canonical_variants(self) -> None:
         v1 = SemVer.parse("1.1.0")
         self.assertIsNotNone(v1)
         self.assertEqual((v1.major, v1.minor, v1.patch), (1, 1, 0))
@@ -39,28 +39,37 @@ class SemVerTests(unittest.TestCase):
         self.assertIsNotNone(v3)
         self.assertEqual((v3.major, v3.minor, v3.patch), (2, 0, 0))
 
-        # Two-part short version (1.2 -> 1.2.0)
-        v4 = SemVer.parse("v1.2")
-        self.assertIsNotNone(v4)
-        self.assertEqual((v4.major, v4.minor, v4.patch), (1, 2, 0))
-
-        # Single part (2 -> 2.0.0)
-        v5 = SemVer.parse("2")
-        self.assertIsNotNone(v5)
-        self.assertEqual((v5.major, v5.minor, v5.patch), (2, 0, 0))
-
         # Prerelease tag
-        v6 = SemVer.parse("v1.1.0-beta.1")
-        self.assertIsNotNone(v6)
-        self.assertTrue(v6.is_prerelease)
-        self.assertEqual(v6.prerelease, "beta.1")
-        self.assertEqual(v6.to_version_string(), "1.1.0-beta.1")
+        v4 = SemVer.parse("v1.1.0-beta.1")
+        self.assertIsNotNone(v4)
+        self.assertTrue(v4.is_prerelease)
+        self.assertEqual(v4.prerelease, "beta.1")
+        self.assertEqual(v4.to_version_string(), "1.1.0-beta.1")
 
         # Build metadata
-        v7 = SemVer.parse("1.0.0+build.42")
-        self.assertIsNotNone(v7)
-        self.assertEqual(v7.build, "build.42")
-        self.assertEqual(v7.to_version_string(), "1.0.0")
+        v5 = SemVer.parse("1.0.0+build.42")
+        self.assertIsNotNone(v5)
+        self.assertEqual(v5.build, "build.42")
+        self.assertEqual(v5.to_version_string(), "1.0.0")
+
+        # Prerelease + Build metadata
+        v6 = SemVer.parse("v1.1.0-rc.2+sha.abcdef")
+        self.assertIsNotNone(v6)
+        self.assertEqual(v6.prerelease, "rc.2")
+        self.assertEqual(v6.build, "sha.abcdef")
+
+    def test_semver_parse_rejects_non_standard_short_versions(self) -> None:
+        short_cases = [
+            "1",
+            "v1",
+            "1.2",
+            "v1.2",
+            "V1.0",
+            "1.0.0.0",
+            "1.2.3.4",
+        ]
+        for item in short_cases:
+            self.assertIsNone(SemVer.parse(item), f"Expected None for non-standard version '{item}'")
 
     def test_semver_parse_invalid_inputs_return_none(self) -> None:
         invalid_cases = [
@@ -69,15 +78,16 @@ class SemVerTests(unittest.TestCase):
             "   ",
             "abc",
             "v",
-            "1.2.3.4",
             "-1.0.0",
             "1.-2.0",
             "v1.x.3",
+            "1.0.0-",
+            "1.0.0+",
             {},
             [],
         ]
         for item in invalid_cases:
-            self.assertIsNone(SemVer.parse(item), f"Expected None for {item!r}")
+            self.assertIsNone(SemVer.parse(item), f"Expected None for invalid '{item}'")
 
     def test_semver_comparison_ordering(self) -> None:
         v1_0_0 = SemVer.parse("1.0.0")
@@ -101,13 +111,33 @@ class SemVerTests(unittest.TestCase):
         self.assertFalse(v1_1_0 < v1_1_0_dup)
         self.assertFalse(v1_1_0 > v1_1_0_dup)
 
-        # Prerelease precedence: normal version > prerelease
+    def test_semver_prerelease_precedence_semantics(self) -> None:
+        # Standard SemVer 2.0 ordering chain:
+        # 1.1.0-alpha < 1.1.0-alpha.1 < 1.1.0-alpha.beta < 1.1.0-beta < 1.1.0-beta.2 < 1.1.0-beta.11 < 1.1.0-rc.1 < 1.1.0
+        v_alpha = SemVer.parse("1.1.0-alpha")
+        v_alpha1 = SemVer.parse("1.1.0-alpha.1")
+        v_alpha_beta = SemVer.parse("1.1.0-alpha.beta")
         v_beta = SemVer.parse("1.1.0-beta")
-        v_rc = SemVer.parse("1.1.0-rc.1")
-        self.assertTrue(v_beta < v1_1_0)
-        self.assertTrue(v_rc < v1_1_0)
-        self.assertTrue(v_beta < v_rc)
-        self.assertFalse(v1_1_0 < v_beta)
+        v_beta2 = SemVer.parse("1.1.0-beta.2")
+        v_beta11 = SemVer.parse("1.1.0-beta.11")
+        v_rc1 = SemVer.parse("1.1.0-rc.1")
+        v_final = SemVer.parse("1.1.0")
+
+        self.assertTrue(v_alpha < v_alpha1)
+        self.assertTrue(v_alpha1 < v_alpha_beta)
+        self.assertTrue(v_alpha_beta < v_beta)
+        self.assertTrue(v_beta < v_beta2)
+        self.assertTrue(v_beta2 < v_beta11)  # Numeric comparison: 2 < 11
+        self.assertTrue(v_beta11 < v_rc1)
+        self.assertTrue(v_rc1 < v_final)     # Normal release > prerelease
+        self.assertFalse(v_final < v_rc1)
+
+    def test_semver_build_metadata_ignored_in_comparison(self) -> None:
+        v_build1 = SemVer.parse("1.1.0+build.1")
+        v_build2 = SemVer.parse("1.1.0+build.2")
+        self.assertEqual(v_build1, v_build2)
+        self.assertFalse(v_build1 < v_build2)
+        self.assertFalse(v_build2 < v_build1)
 
 
 class ReleaseFilteringTests(unittest.TestCase):
@@ -147,6 +177,11 @@ class ReleaseFilteringTests(unittest.TestCase):
             },
             {
                 "tag_name": "invalid-tag-format",
+                "draft": False,
+                "prerelease": False,
+            },
+            {
+                "tag_name": "v1.2",  # Non-standard short version rejected
                 "draft": False,
                 "prerelease": False,
             },
@@ -227,7 +262,8 @@ class UpdateCheckerEngineTests(unittest.TestCase):
         self.assertEqual(result_ahead.state, UpdateCheckState.UP_TO_DATE)
         self.assertFalse(result_ahead.has_update)
 
-    def test_check_for_updates_ignores_drafts_and_prereleases(self) -> None:
+    def test_check_for_updates_fails_when_no_stable_release_found(self) -> None:
+        # Remote only has prerelease/draft releases
         payload = [
             {
                 "tag_name": "v2.0.0-beta.1",
@@ -236,9 +272,8 @@ class UpdateCheckerEngineTests(unittest.TestCase):
                 "prerelease": True,
             },
             {
-                "tag_name": "v1.1.0",
-                "name": "v1.1.0 Stable",
-                "draft": False,
+                "tag_name": "v1.2.0-draft",
+                "draft": True,
                 "prerelease": False,
             },
         ]
@@ -246,9 +281,22 @@ class UpdateCheckerEngineTests(unittest.TestCase):
         def fake_fetcher(url: str, timeout: float):
             return 200, json.dumps(payload).encode("utf-8"), {}
 
-        result = check_for_updates(current_version="1.1.0", fetcher=fake_fetcher)
-        self.assertEqual(result.state, UpdateCheckState.UP_TO_DATE)
-        self.assertEqual(result.latest_version, "1.1.0")
+        result = check_for_updates(current_version="1.0.0", fetcher=fake_fetcher)
+        self.assertEqual(result.state, UpdateCheckState.CHECK_FAILED)
+        self.assertFalse(result.has_update)
+        self.assertFalse(result.is_success)
+        self.assertIsNone(result.latest_version)
+        self.assertIn("No published stable release found", result.error_message)
+
+    def test_check_for_updates_fails_on_empty_releases_list(self) -> None:
+        def empty_fetcher(url: str, timeout: float):
+            return 200, json.dumps([]).encode("utf-8"), {}
+
+        result = check_for_updates(current_version="1.0.0", fetcher=empty_fetcher)
+        self.assertEqual(result.state, UpdateCheckState.CHECK_FAILED)
+        self.assertFalse(result.is_success)
+        self.assertIsNone(result.latest_version)
+        self.assertIn("No published stable release found", result.error_message)
 
     def test_failure_isolation_network_timeout(self) -> None:
         def timeout_fetcher(url: str, timeout: float):
@@ -351,6 +399,21 @@ class UpdateAwarenessAsyncServiceTests(unittest.TestCase):
         self.assertEqual(result.state, UpdateCheckState.UPDATE_AVAILABLE)
         self.assertEqual(result.latest_version, "1.2.0")
         self.assertGreaterEqual(spy.count(), 2)  # CHECKING + UPDATE_AVAILABLE
+
+    def test_service_shutdown_handles_active_worker_safely(self) -> None:
+        def slow_fetcher(url: str, timeout: float):
+            import time
+            time.sleep(0.05)
+            return 200, json.dumps([]).encode("utf-8"), {}
+
+        service = UpdateAwarenessService(
+            current_version="1.0.0",
+            fetcher=slow_fetcher,
+        )
+        service.check_for_updates()
+        # Shutdown should gracefully wait and not raise
+        service.shutdown(wait_ms=1000)
+        self.assertFalse(service.is_checking())
 
 
 if __name__ == "__main__":

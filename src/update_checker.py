@@ -40,10 +40,15 @@ class UpdateCheckState(str, Enum):
 
 @dataclass(frozen=True)
 class SemVer:
-    """Lightweight Semantic Version representation (SemVer 2.0.0 subset)
+    """Canonical Semantic Version model (SemVer 2.0.0 specification for product releases).
 
-    Supports format: [v|V]MAJOR.MINOR.PATCH[-PRERELEASE][+BUILD]
-    Examples: '1.0.0', 'v1.1.0', 'v1.2.0-beta.1', '1.0.9+build.42'
+    Strict Baseline Requirements:
+    - Official release tag MUST have exact 3 numeric components: [v|V]MAJOR.MINOR.PATCH
+    - Optional prerelease identifier: -PRERELEASE (e.g. -alpha, -beta.1, -rc.2)
+    - Optional build metadata: +BUILD (e.g. +build.123, ignored for precedence)
+
+    Rejected as non-standard:
+    - '1', '1.2', 'v1.2', '1.2.3.4', negative numbers, non-digits.
     """
 
     major: int
@@ -67,21 +72,25 @@ class SemVer:
         build = ""
         if "+" in v:
             v, build = v.split("+", 1)
+            if not build.strip():
+                return None
 
         # Extract prerelease identifier (-...)
         prerelease = ""
         if "-" in v:
             v, prerelease = v.split("-", 1)
+            if not prerelease.strip():
+                return None
 
         parts = v.split(".")
-        if len(parts) == 1:
-            parts = [parts[0], "0", "0"]
-        elif len(parts) == 2:
-            parts = [parts[0], parts[1], "0"]
-        elif len(parts) > 3:
+        # Strict rule: exactly 3 numeric components (MAJOR.MINOR.PATCH)
+        if len(parts) != 3:
             return None
 
         try:
+            for p in parts:
+                if not p.isdigit():
+                    return None
             major = int(parts[0])
             minor = int(parts[1])
             patch = int(parts[2])
@@ -109,19 +118,49 @@ class SemVer:
             base = f"{base}-{self.prerelease}"
         return base
 
+    def _prerelease_tokens(self) -> list[tuple[int, Any]]:
+        """Tokenizes dot-separated prerelease identifiers according to SemVer 2.0.0.
+
+        Numeric identifiers are compared numerically (e.g. 2 < 10);
+        string identifiers are compared lexicographically (e.g. alpha < beta).
+        """
+        if not self.prerelease:
+            return []
+        tokens: list[tuple[int, Any]] = []
+        for item in self.prerelease.split("."):
+            if item.isdigit():
+                tokens.append((0, int(item)))  # Type 0 = numeric
+            else:
+                tokens.append((1, item))       # Type 1 = string
+        return tokens
+
     def __lt__(self, other: object) -> bool:
         if not isinstance(other, SemVer):
             return NotImplemented
         if (self.major, self.minor, self.patch) != (other.major, other.minor, other.patch):
             return (self.major, self.minor, self.patch) < (other.major, other.minor, other.patch)
-        # Normal version has higher precedence than a prerelease version
+
+        # Equal (major, minor, patch):
+        # Normal version has higher precedence than any prerelease version
         if not self.prerelease and other.prerelease:
-            return False  # 1.0.0 > 1.0.0-beta
+            return False  # normal > prerelease
         if self.prerelease and not other.prerelease:
-            return True  # 1.0.0-beta < 1.0.0
-        if self.prerelease and other.prerelease:
-            return self.prerelease < other.prerelease
-        return False
+            return True   # prerelease < normal
+        if not self.prerelease and not other.prerelease:
+            return False
+
+        # Both are prereleases: compare identifier tokens
+        self_tokens = self._prerelease_tokens()
+        other_tokens = other._prerelease_tokens()
+        for (s_type, s_val), (o_type, o_val) in zip(self_tokens, other_tokens):
+            if (s_type, s_val) != (o_type, o_val):
+                if s_type != o_type:
+                    # Numeric identifiers have lower precedence than alphanumeric (type 0 < type 1)
+                    return s_type < o_type
+                return s_val < o_val
+
+        # Shorter identifier set has lower precedence if all common identifiers match
+        return len(self_tokens) < len(other_tokens)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, SemVer):
@@ -189,12 +228,12 @@ def _default_http_fetcher(url: str, timeout: float) -> tuple[int, bytes, dict[st
 
 
 def extract_highest_stable_release(payload: Any) -> dict[str, Any] | None:
-    """Extracts the highest valid stable release from a GitHub releases payload.
+    """Extracts the highest valid official stable release from a GitHub releases payload.
 
-    Filters out:
-    - draft releases (draft == True)
-    - prereleases (prerelease == True)
-    - malformed tags or versions containing prerelease identifiers
+    Strict filtering rules:
+    - Rejects draft releases (`draft == True`)
+    - Rejects prereleases (`prerelease == True`)
+    - Rejects malformed tags or versions containing prerelease identifiers
     """
     candidates: list[tuple[SemVer, dict[str, Any]]] = []
 
@@ -240,9 +279,10 @@ def check_for_updates(
 
     Guarantees:
     - Never raises network, decoding, or parsing exceptions to caller.
-    - All network or payload failures fail gracefully to `CHECK_FAILED`.
-    - local APP_VERSION is authoritative for current version.
-    - GitHub stable Releases are authoritative for latest public version.
+    - All network, HTTP, or payload failures fail gracefully to `CHECK_FAILED`.
+    - Local APP_VERSION is authoritative for current version truth.
+    - GitHub stable Releases are authoritative for latest public version truth.
+    - If no published stable release can be verified, returns `CHECK_FAILED`.
     """
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
     current_semver = SemVer.parse(current_version)
@@ -312,12 +352,12 @@ def check_for_updates(
 
     highest_release = extract_highest_stable_release(payload)
     if highest_release is None:
-        # No stable releases found (e.g. empty releases or only drafts/prereleases)
+        # No verified stable releases found on remote repository
         return UpdateCheckResult(
-            state=UpdateCheckState.UP_TO_DATE,
+            state=UpdateCheckState.CHECK_FAILED,
             current_version=current_version,
-            latest_version=current_version,
-            error_message=None,
+            latest_version=None,
+            error_message="No published stable release found on GitHub.",
             checked_at=now_iso,
         )
 
@@ -453,7 +493,14 @@ if PYSIDE6_AVAILABLE:
                 parent=self,
             )
             self._active_worker.finished_result.connect(self._on_worker_finished)
+            self._active_worker.finished.connect(self._active_worker.deleteLater)
             self._active_worker.start()
+
+        def shutdown(self, wait_ms: int = 2000) -> None:
+            """Gracefully waits for any active worker to finish before teardown."""
+            if self._active_worker is not None and self._active_worker.isRunning():
+                self._active_worker.wait(wait_ms)
+                self._active_worker = None
 
         def _on_worker_finished(self, result: UpdateCheckResult) -> None:
             self._current_result = result
