@@ -1,12 +1,54 @@
 # Vocabulary App Project Status
 
-Last reviewed: 2026-08-19
+Last reviewed: 2026-08-27
 
 This file is the authoritative evidence-based snapshot of the current project state. Detailed milestone history remains in `ROADMAP.md`, milestone QA/design/packaging documents, and the frozen pre-release snapshot archived at `docs/history/PROJECT_STATUS_PRE_V1_RELEASE_2026-08-19.md`.
 
 ## Current Phase
 
-**Current Version Complete — Vocabulary App v1.0.0 is released.**
+**Vocabulary App v1.1.0 development — Phase B implementation complete; independent exit review is next.**
+
+Phase B started from the accepted Phase A HEAD
+`5054fc221215c6e6c8c608cd246af7107fb74ade` on branch
+`milestone/v1.1-phase-b-study-star-progress`. The product implementation is
+recorded in commit `2ac8cde9767b5e3c31ea5c6e8b40569eec685237`.
+
+Phase B contains exactly the approved changes:
+
+- Study/Review, self-graded Quiz, MCQ, template-aware Quiz, and Matching now
+  reuse the existing Starred system Collection and collection APIs for direct
+  Star/Unstar actions. The mutation path does not submit, grade, advance,
+  clear drafts/selections, or recreate the active Quiz session, and existing
+  cross-Card removal confirmation remains authoritative.
+- Normal Collections expose learned/total current stable Cards and a percentage.
+  Learning truth is aggregated from the existing `get_study_cards` projection:
+  distinct active stable `card_id` values with at least one completed
+  Card-scoped Quiz count as learned. Legacy `card_id = NULL` sessions do not
+  count, Card revision changes do not reset learning, and system practice pools
+  receive no normal Collection progress.
+
+Phase B validation evidence:
+
+- New scoped TDD module: **16 tests, 0 failures, 0 errors**.
+- Related Review/Quiz/Collections regression: **182 tests, 0 failures, 0 errors**.
+- Current repository suite size: **944 tests**. Complete module coverage was
+  exercised in two complementary batches: the later batch reported
+  **391 tests, OK**; the earlier batch ran through its final test with no
+  failure output, and that final Qt system-appearance listener was rerun
+  independently as **1 test, OK** after its aggregate summary was lost during
+  an interactive status interruption.
+- Architecture audit: **91 Python files, 0 serious violations, 0 warnings**.
+- Privacy review: staged Phase B diff contained no credentials, local absolute
+  paths, personal data, real emails, or user databases; required local/cache/
+  database/export ignore rules remain active.
+
+No Phase C work, merge, tag, release, packaging, or version-publication work was
+started. Native human visual/interaction acceptance and independent Phase B
+exit review remain required before Phase B is formally accepted.
+
+## Released Baseline
+
+**Vocabulary App v1.0.0 remains the current released version.**
 
 Milestone 20 — Packaging and Release Candidate is **Complete**. Human RC Acceptance passed, PR #33 was merged to `main`, tag `v1.0.0` was created from the merged release source, the canonical Windows installer was built from that tagged source, and the GitHub Release was published.
 
