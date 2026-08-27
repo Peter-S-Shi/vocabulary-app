@@ -5,16 +5,18 @@ from datetime import date, timedelta
 from PySide6.QtCore import QObject, Signal
 
 from src.db import get_connection
+from src.card_history import get_current_card_identity
 from src.learning_workflow import get_card_learning_history
 from src.review import get_card_review_logs
+from src.review_schedule import get_card_schedule, list_card_schedules, set_card_next_review
 from src.statistics import get_card_learning_sessions_between_dates
 
 """
 ReviewCalendarController owns the Review Calendar / Card History
 workspace's transient date-range/selection state, calling existing
 ``src.statistics``/``src.learning_workflow``/``src.review`` reads for
-every fact it projects -- no SQL, no mutation, no second learning-
-completion model.
+historical evidence and delegates active next-review changes to
+``src.review_schedule`` -- no SQL and no second learning-completion model.
 
 Primary evidence (DESIGN.md § 8 P7 "primary evidence surface"):
 ``get_card_learning_sessions_between_dates`` -- completed Card-scoped
@@ -48,17 +50,20 @@ class ReviewCalendarController(QObject):
         super().__init__()
         self.range_days: int = DEFAULT_RANGE_DAYS
         self.entries: list[dict] = []
+        self.schedules: list[dict] = []
         self.selected_collection_id: int | None = None
         self.selected_card_number: int | None = None
         self.selected_collection_name: str = ""
         self.card_history: list[dict] = []
         self.legacy_logs: list[dict] = []
+        self.current_schedule: dict | None = None
 
     def refresh(self) -> None:
         end_date = date.today()
         start_date = end_date - timedelta(days=self.range_days)
         with get_connection() as connection:
             self.entries = get_card_learning_sessions_between_dates(connection, start_date, end_date)
+        self.schedules = list_card_schedules()
         # The primary evidence table is a chronological *event* log, not a
         # list of stable entities -- multiple rows can share the same
         # (collection_id, card_number), so "the row that was selected" has
@@ -88,6 +93,7 @@ class ReviewCalendarController(QObject):
         self.selected_collection_name = ""
         self.card_history = []
         self.legacy_logs = []
+        self.current_schedule = None
         self.selection_changed.emit()
 
     def _reload_selection(self) -> None:
@@ -97,5 +103,33 @@ class ReviewCalendarController(QObject):
             self.card_history = get_card_learning_history(
                 connection, self.selected_collection_id, self.selected_card_number
             )
+            identity = get_current_card_identity(
+                connection,
+                self.selected_collection_id,
+                self.selected_card_number,
+            )
         self.legacy_logs = get_card_review_logs(self.selected_collection_id, self.selected_card_number)
+        self.current_schedule = (
+            None
+            if identity is None
+            else get_card_schedule(int(identity["card_id"]))
+        )
         self.selection_changed.emit()
+
+    def set_selected_next_review(
+        self,
+        next_due_at: str,
+        *,
+        today: str | None = None,
+    ) -> dict:
+        if self.current_schedule is None:
+            raise ValueError("Select a current Card before setting its schedule.")
+        self.current_schedule = set_card_next_review(
+            int(self.current_schedule["card_id"]),
+            next_due_at,
+            today=today,
+        )
+        self.schedules = list_card_schedules(today=today)
+        self.entries_changed.emit()
+        self.selection_changed.emit()
+        return self.current_schedule

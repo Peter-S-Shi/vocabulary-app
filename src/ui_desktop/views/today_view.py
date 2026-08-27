@@ -45,12 +45,9 @@ only the remaining two regions:
         Quick Actions
 
 Every number/recommendation is read directly from ``TodayController``
-projections over ``src.learning_workflow`` -- no duplicated business
-logic, no legacy Review-due scheduling reintroduced (DESIGN.md § 6.1
-product semantics). The summary intentionally uses this app's real
-metrics (available/never-quizzed/quizzed-today/learned-today) rather than
-the canonical reference's "Due today" framing, which would imply a
-Review-scheduling due-date concept this product does not have.
+projections over ``src.learning_workflow`` and the active stable-Card
+schedule query -- no duplicated business logic and no legacy Review/SRS
+truth. Quiz-backed learning metrics remain separate from due scheduling.
 
 Since M17 Feature 3, a Learning Queue item whose ``LearningActionIntent``
 represents a real supported Quiz target (``action == "quiz"``) is wired to

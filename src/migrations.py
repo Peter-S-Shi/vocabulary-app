@@ -11,9 +11,10 @@ CARD_HISTORY_SCHEMA_VERSION = "11.3.0-card-history"
 QUIZ_LOG_HISTORY_SCHEMA_VERSION = "11.3.1-quiz-log-history"
 LINKED_APPEND_SOURCE_SCHEMA_VERSION = "13.0.0-linked-append-source"
 SPEECH_SEMANTICS_SCHEMA_VERSION = "15.1.0-speech-semantics"
-CURRENT_SCHEMA_VERSION = SPEECH_SEMANTICS_SCHEMA_VERSION
+REVIEW_SCHEDULE_SCHEMA_VERSION = "21.1.0-review-schedule"
+CURRENT_SCHEMA_VERSION = REVIEW_SCHEDULE_SCHEMA_VERSION
 M11_APP_DATA_VERSION = "11.3"
-APP_DATA_VERSION = "15.1"
+APP_DATA_VERSION = "21.1"
 
 METADATA_KEYS = {
     "schema_version",
@@ -308,6 +309,32 @@ def migrate_to_m15_1_speech_semantics(conn: sqlite3.Connection) -> None:
     set_metadata(conn, "app_data_version", APP_DATA_VERSION)
 
 
+def migrate_to_v1_1_review_schedule(conn: sqlite3.Connection) -> None:
+    """Add active scheduling keyed only by stable Card identity.
+
+    Legacy ``card_review_*`` rows remain untouched because their
+    collection/card-number identity can be ambiguous after Card mutation.
+    """
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS card_review_schedules (
+            card_id INTEGER PRIMARY KEY,
+            next_due_at TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(card_id) REFERENCES cards(id) ON DELETE CASCADE
+        )
+        """
+    )
+    set_metadata(conn, "app_data_version", APP_DATA_VERSION)
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_card_review_schedules_next_due_at
+        ON card_review_schedules(next_due_at)
+        """
+    )
+
+
 MIGRATIONS: list[dict[str, str | MigrationFunction]] = [
     {
         "from": BASELINE_SCHEMA_VERSION,
@@ -332,6 +359,12 @@ MIGRATIONS: list[dict[str, str | MigrationFunction]] = [
         "to": SPEECH_SEMANTICS_SCHEMA_VERSION,
         "name": "m15.1_template_speech_semantics",
         "function": migrate_to_m15_1_speech_semantics,
+    },
+    {
+        "from": SPEECH_SEMANTICS_SCHEMA_VERSION,
+        "to": REVIEW_SCHEDULE_SCHEMA_VERSION,
+        "name": "v1.1_stable_card_review_schedule",
+        "function": migrate_to_v1_1_review_schedule,
     },
 ]
 

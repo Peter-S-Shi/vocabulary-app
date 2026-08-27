@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QDate, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QDateEdit,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QPushButton,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -55,12 +57,11 @@ canonical mockup or exact rail placement for this surface:
   7. Surface Hierarchy       -> table on `surface_primary`, matching
                                  Entries/Templates; unchanged detail
                                  vocabulary.
-  8. Action Hierarchy        -> no destructive/mutating actions exist
-                                 here at all (read-only evidence browsing,
-                                 like the M17 Collections Navigator before
-                                 M18.1 added writes) -- selection is the
-                                 only interaction.
-  9. Editing Container       -> none; purely a read surface.
+  8. Action Hierarchy        -> next-review editing is the sole active
+                                 mutation; Quiz completion history remains
+                                 read-only evidence.
+  9. Editing Container       -> compact date editor attached to the
+                                 separate current-Card Schedule table.
  10. Navigation/Chrome       -> full Management shell retained.
  11. Motion/Transition       -> reuses the existing shared
                                  `TransitionManager.fade_in` on workspace
@@ -77,10 +78,10 @@ canonical mockup or exact rail placement for this surface:
                                  (including its legacy-compatibility
                                  section) in Light and Dark Mode.
 
-Read-only: this workspace never mutates SQLite, never revives legacy
-due/interval/rating scheduling as active product truth (frozen semantic
-boundary), and keeps Quiz-backed completion evidence visually distinct
-from legacy Review compatibility records.
+This workspace mutates only stable-Card next-review schedules. It never
+revives legacy rating/SRS history as active product truth and keeps
+Quiz-backed completion evidence visually distinct from schedule state and
+legacy Review compatibility records.
 """
 
 
@@ -110,6 +111,38 @@ class ReviewCalendarView(QWidget):
         self._range_combo.currentIndexChanged.connect(self._on_range_changed)
         toolbar.addWidget(self._range_combo)
         layout.addLayout(toolbar)
+
+        schedule_heading = QLabel("Review Schedule", self)
+        schedule_heading.setObjectName("review-calendar-schedule-heading")
+        layout.addWidget(schedule_heading)
+
+        self._schedule_table = QTableWidget(self)
+        self._schedule_table.setObjectName("review-calendar-schedule-table")
+        self._schedule_table.setColumnCount(4)
+        self._schedule_table.setHorizontalHeaderLabels(["Collection", "Card", "Status", "Next Review"])
+        self._schedule_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._schedule_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._schedule_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self._schedule_table.verticalHeader().setVisible(False)
+        self._schedule_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self._schedule_table.itemSelectionChanged.connect(self._on_schedule_selected)
+        layout.addWidget(self._schedule_table, 1)
+
+        schedule_editor = QHBoxLayout()
+        schedule_editor.addWidget(QLabel("Next review", self))
+        self._schedule_date = QDateEdit(self)
+        self._schedule_date.setObjectName("review-calendar-schedule-date")
+        self._schedule_date.setCalendarPopup(True)
+        self._schedule_date.setDisplayFormat("yyyy-MM-dd")
+        self._schedule_date.setDate(QDate.currentDate())
+        schedule_editor.addWidget(self._schedule_date)
+        self._schedule_save_button = QPushButton("Save schedule", self)
+        self._schedule_save_button.setObjectName("review-calendar-schedule-save-button")
+        self._schedule_save_button.setEnabled(False)
+        self._schedule_save_button.clicked.connect(self._save_schedule)
+        schedule_editor.addWidget(self._schedule_save_button)
+        schedule_editor.addStretch(1)
+        layout.addLayout(schedule_editor)
 
         self._table = QTableWidget(self)
         self._table.setObjectName("review-calendar-table")
@@ -205,6 +238,22 @@ class ReviewCalendarView(QWidget):
         finally:
             self._table.blockSignals(False)
 
+        schedules = self._controller.schedules
+        self._schedule_table.setRowCount(len(schedules))
+        for row, schedule in enumerate(schedules):
+            self._schedule_table.setItem(row, 0, QTableWidgetItem(str(schedule["collection_name"])))
+            self._schedule_table.setItem(row, 1, QTableWidgetItem(f"#{schedule['card_number']}"))
+            self._schedule_table.setItem(row, 2, QTableWidgetItem(str(schedule["state"])))
+            self._schedule_table.setItem(row, 3, QTableWidgetItem(str(schedule.get("next_due_at") or "Unscheduled")))
+            self._schedule_table.item(row, 0).setData(
+                Qt.ItemDataRole.UserRole,
+                (int(schedule["collection_id"]), int(schedule["card_number"])),
+            )
+            self._schedule_table.item(row, 0).setData(
+                Qt.ItemDataRole.UserRole + 1,
+                str(schedule["collection_name"]),
+            )
+
     def _on_range_changed(self, index: int) -> None:
         days = self._range_combo.itemData(index)
         if days is not None:
@@ -221,13 +270,39 @@ class ReviewCalendarView(QWidget):
         collection_name = item.data(Qt.ItemDataRole.UserRole + 1)
         self._controller.select_card(collection_id, card_number, collection_name)
 
+    def _on_schedule_selected(self) -> None:
+        row = self._schedule_table.currentRow()
+        item = self._schedule_table.item(row, 0) if row >= 0 else None
+        if item is None:
+            return
+        collection_id, card_number = item.data(Qt.ItemDataRole.UserRole)
+        self._controller.select_card(
+            collection_id,
+            card_number,
+            item.data(Qt.ItemDataRole.UserRole + 1),
+        )
+
+    def _save_schedule(self) -> None:
+        if self._controller.current_schedule is None:
+            return
+        self._controller.set_selected_next_review(
+            self._schedule_date.date().toString("yyyy-MM-dd")
+        )
+
     def _render_detail(self) -> None:
         controller = self._controller
         if controller.selected_collection_id is None:
             self._detail_summary.setText("Select a completion above to see its Card's full history.")
             self._history_table.setRowCount(0)
             self._legacy_table.setRowCount(0)
+            self._schedule_save_button.setEnabled(False)
             return
+
+        self._schedule_save_button.setEnabled(controller.current_schedule is not None)
+        if controller.current_schedule and controller.current_schedule.get("next_due_at"):
+            due = QDate.fromString(controller.current_schedule["next_due_at"], "yyyy-MM-dd")
+            if due.isValid():
+                self._schedule_date.setDate(due)
 
         self._detail_summary.setText(
             f"{controller.selected_collection_name} — Card #{controller.selected_card_number}"

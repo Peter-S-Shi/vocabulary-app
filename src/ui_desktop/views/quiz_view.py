@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QDate, Qt, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
     QDialog,
+    QDateEdit,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -701,6 +702,60 @@ class QuizView(QWidget):
         mistakes_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         mistakes_label.setWordWrap(True)
         layout.addWidget(mistakes_label)
+
+        if controller.completion_schedule() is not None:
+            layout.addWidget(_section_divider(block))
+            schedule_heading = QLabel("Next Review", block)
+            schedule_heading.setObjectName("quiz-completion-schedule-heading")
+            schedule_heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(schedule_heading)
+
+            schedule = controller.completion_schedule()
+            schedule_status = QLabel(
+                str(schedule.get("next_due_at") or "Unscheduled"),
+                block,
+            )
+            schedule_status.setObjectName("quiz-completion-schedule-status")
+            schedule_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(schedule_status)
+
+            preset_row = QWidget(block)
+            preset_layout = QHBoxLayout(preset_row)
+            preset_layout.setSpacing(SPACING.sm)
+            preset_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            for label, days, suffix in (
+                ("Again Today", 0, "today"),
+                ("+1 day", 1, "1-day"),
+                ("+2 days", 2, "2-days"),
+                ("+7 days", 7, "7-days"),
+            ):
+                button = QPushButton(label, preset_row)
+                button.setObjectName(f"quiz-completion-schedule-{suffix}")
+                button.clicked.connect(
+                    lambda _checked=False, days=days: controller.schedule_next_review_after_days(days)
+                )
+                preset_layout.addWidget(button)
+            layout.addWidget(preset_row)
+
+            custom_row = QWidget(block)
+            custom_layout = QHBoxLayout(custom_row)
+            custom_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+            custom_date = QDateEdit(custom_row)
+            custom_date.setObjectName("quiz-completion-schedule-custom-date")
+            custom_date.setCalendarPopup(True)
+            custom_date.setDisplayFormat("yyyy-MM-dd")
+            custom_date.setMinimumDate(QDate.currentDate())
+            custom_date.setDate(QDate.currentDate().addDays(1))
+            custom_layout.addWidget(custom_date)
+            custom_button = QPushButton("Set custom date", custom_row)
+            custom_button.setObjectName("quiz-completion-schedule-custom-button")
+            custom_button.clicked.connect(
+                lambda: controller.schedule_next_review(
+                    custom_date.date().toString("yyyy-MM-dd")
+                )
+            )
+            custom_layout.addWidget(custom_button)
+            layout.addWidget(custom_row)
 
         actions_row = QWidget(block)
         actions_layout = QHBoxLayout(actions_row)

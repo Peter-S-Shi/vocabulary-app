@@ -4,16 +4,14 @@ from PySide6.QtCore import QObject, Signal
 
 from src import db
 from src.learning_workflow import get_today_overview, normalize_today
+from src.review_schedule import list_actionable_schedules
 from src.ui_desktop.state.handoff import LearningActionIntent, learning_action_intent_from_recommendation
 
 """
-TodayController calls the existing reusable Today/learning-workflow core
-exactly as src/ui_streamlit/today_page.py does, and owns no domain state of
-its own -- only the last-fetched overview and read-only presentation
-projections over it, all transient presentation state (M16.1 contract
-§ 10/§ 11.C). It performs no SQL and no learning-completion logic; every
-number and recommendation below is read directly from
-src.learning_workflow.get_today_overview().
+TodayController combines the reusable Today/learning-workflow overview
+with the active stable-Card schedule query. It owns no domain state of its
+own -- only the last-fetched read-only presentation projection. It performs
+no SQL and no learning-completion logic.
 """
 
 
@@ -24,9 +22,12 @@ class TodayController(QObject):
         super().__init__()
         self.overview: dict | None = None
 
-    def refresh(self) -> dict:
+    def refresh(self, *, today: str | None = None) -> dict:
+        today_iso = normalize_today(today)
         with db.get_connection() as connection:
-            overview = get_today_overview(connection, normalize_today())
+            overview = get_today_overview(connection, today_iso)
+        due_schedules = list_actionable_schedules(today=today_iso)
+        overview["due_schedules"] = due_schedules
         self.overview = overview
         self.overview_changed.emit(overview)
         return overview
@@ -40,7 +41,23 @@ class TodayController(QObject):
         the raw listing has no priority/actionability and is not a queue."""
         if self.overview is None:
             return []
-        return list(self.overview.get("daily_quiz_recommendations") or [])
+        due_items = [
+            {
+                "recommendation_type": "scheduled_review",
+                "collection_id": schedule["collection_id"],
+                "collection_name": schedule["collection_name"],
+                "card_number": schedule["card_number"],
+                "card_id": schedule["card_id"],
+                "entry_count": schedule["entry_count"],
+                "quiz_mode": "card",
+                "preferred_quiz_type": "mixed_mcq",
+                "reason": "Scheduled review is due." if schedule["state"] == "due_today" else "Scheduled review is overdue.",
+                "next_due_at": schedule["next_due_at"],
+                "schedule_state": schedule["state"],
+            }
+            for schedule in self.overview.get("due_schedules") or []
+        ]
+        return due_items + list(self.overview.get("daily_quiz_recommendations") or [])
 
     def primary_recommendation(self) -> dict | None:
         """The single top suggested next action (DESIGN.md § 4.1 hierarchy

@@ -58,6 +58,7 @@ migration; `src/ui_streamlit/*.py` should not import PySide6 or
 - `src/collections.py`: collection membership, cards, positions, and system pools
 - `src/card_history.py`: stable Card identity, revision reconciliation, cross-Card movement detection, and historical queries
 - `src/review.py`: isolated legacy Review/SRS compatibility state and logs
+- `src/review_schedule.py`: active user-managed scheduling keyed by stable `card_id`
 - `src/quiz.py`: quiz sessions, item generation, answers, logs, and idempotent completion
 - `src/template_quiz.py`: template-aware quiz rules
 - `src/statistics.py`: factual read-only statistics/calendar queries and legacy Entry Health compatibility projections over M14
@@ -137,9 +138,10 @@ Only a material ordered-membership change creates a revision. New Card-scoped
 Quiz sessions bind to the current `card_id` and `card_revision_id`; legacy
 sessions remain unknown when their historical composition cannot be proved.
 
-Review is a browse, study, and Quiz-launch surface. Legacy Review scheduling
-tables and APIs remain compatibility-only and must not drive active Today,
-Statistics, or Learning History completion claims.
+Review is a browse, study, and Quiz-launch surface. Active next-review
+scheduling is separate from completion truth and uses stable `card_id`.
+Legacy Review scheduling tables and APIs remain compatibility-only and must
+not drive active Today, Statistics, or Learning History completion claims.
 
 ## Learning Analytics Authority
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import date
+from typing import Callable
 
 from PySide6.QtCore import QObject, Signal
 
@@ -17,6 +19,7 @@ from src.quiz import (
     complete_quiz_session,
     record_quiz_answer,
 )
+from src.review_schedule import get_card_schedule, schedule_card_after_days, set_card_next_review
 from src.template_quiz import generate_template_multi_rule_quiz_items, get_template_quiz_rule
 from src.ui_desktop.state.handoff import QuizLaunchIntent
 
@@ -87,8 +90,9 @@ class QuizController(QObject):
     # user's scroll position and already-selected answers on every pick.
     matching_selection_changed = Signal()
 
-    def __init__(self) -> None:
+    def __init__(self, *, today_provider: Callable[[], date] = date.today) -> None:
         super().__init__()
+        self._today_provider = today_provider
         self.session_id: int | None = None
         self.intent: QuizLaunchIntent | None = None
         self.items: list[dict] = []
@@ -385,6 +389,46 @@ class QuizController(QObject):
         self.reviewing_mistakes = False
         self.mistake_index = 0
         self.state_changed.emit()
+
+    def completion_schedule(self, *, today: str | None = None) -> dict | None:
+        session = self.completed_session
+        if not session or not session.get("card_id") or int(session.get("card_number") or 0) <= 0:
+            return None
+        return get_card_schedule(int(session["card_id"]), today=today)
+
+    def schedule_next_review(
+        self,
+        next_due_at: str,
+        *,
+        today: str | None = None,
+    ) -> dict:
+        session = self.completed_session
+        if not session or not session.get("card_id") or int(session.get("card_number") or 0) <= 0:
+            raise ValueError("Only a completed Card-scoped Quiz can be scheduled.")
+        schedule = set_card_next_review(
+            int(session["card_id"]),
+            next_due_at,
+            today=today,
+        )
+        self.state_changed.emit()
+        return schedule
+
+    def schedule_next_review_after_days(
+        self,
+        days: int,
+        *,
+        today: str | None = None,
+    ) -> dict:
+        session = self.completed_session
+        if not session or not session.get("card_id") or int(session.get("card_number") or 0) <= 0:
+            raise ValueError("Only a completed Card-scoped Quiz can be scheduled.")
+        schedule = schedule_card_after_days(
+            int(session["card_id"]),
+            days,
+            today=today or self._today_provider().isoformat(),
+        )
+        self.state_changed.emit()
+        return schedule
 
     # -- post-Quiz mistake review --------------------------------------------
 
