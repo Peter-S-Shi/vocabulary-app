@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 import unittest
 import urllib.error
 from unittest.mock import MagicMock
@@ -71,8 +72,8 @@ class SemVerTests(unittest.TestCase):
         for item in short_cases:
             self.assertIsNone(SemVer.parse(item), f"Expected None for non-standard version '{item}'")
 
-    def test_semver_parse_invalid_inputs_return_none(self) -> None:
-        invalid_cases = [
+    def test_semver_parse_rejects_malformed_tags_and_dangling_delimiters(self) -> None:
+        malformed_cases = [
             None,
             "",
             "   ",
@@ -83,11 +84,16 @@ class SemVerTests(unittest.TestCase):
             "v1.x.3",
             "1.0.0-",
             "1.0.0+",
+            "1.0.0-alpha..1",
+            "1.0.0+build..1",
+            "v1..0",
+            "1.0.",
+            ".1.0.0",
             {},
             [],
         ]
-        for item in invalid_cases:
-            self.assertIsNone(SemVer.parse(item), f"Expected None for invalid '{item}'")
+        for item in malformed_cases:
+            self.assertIsNone(SemVer.parse(item), f"Expected None for malformed '{item}'")
 
     def test_semver_comparison_ordering(self) -> None:
         v1_0_0 = SemVer.parse("1.0.0")
@@ -182,6 +188,11 @@ class ReleaseFilteringTests(unittest.TestCase):
             },
             {
                 "tag_name": "v1.2",  # Non-standard short version rejected
+                "draft": False,
+                "prerelease": False,
+            },
+            {
+                "tag_name": "v1.0.0-",  # Dangling delimiter rejected
                 "draft": False,
                 "prerelease": False,
             },
@@ -400,10 +411,26 @@ class UpdateAwarenessAsyncServiceTests(unittest.TestCase):
         self.assertEqual(result.latest_version, "1.2.0")
         self.assertGreaterEqual(spy.count(), 2)  # CHECKING + UPDATE_AVAILABLE
 
-    def test_service_shutdown_handles_active_worker_safely(self) -> None:
+    def test_service_shutdown_cleanly_when_worker_finishes_in_window(self) -> None:
+        def fast_fetcher(url: str, timeout: float):
+            return 200, json.dumps([]).encode("utf-8"), {}
+
+        service = UpdateAwarenessService(
+            current_version="1.0.0",
+            fetcher=fast_fetcher,
+        )
+        service.check_for_updates()
+        # Shutdown with ample wait window should return True and clear worker
+        completed = service.shutdown(wait_ms=2000)
+        self.assertTrue(completed)
+        self.assertFalse(service.is_checking())
+        self.assertIsNone(service._active_worker)
+        self.assertEqual(len(service._retained_workers), 0)
+
+    def test_service_shutdown_safely_retains_worker_exceeding_wait_window(self) -> None:
+        # Worker sleeps longer than the short shutdown wait window
         def slow_fetcher(url: str, timeout: float):
-            import time
-            time.sleep(0.05)
+            time.sleep(0.15)
             return 200, json.dumps([]).encode("utf-8"), {}
 
         service = UpdateAwarenessService(
@@ -411,9 +438,22 @@ class UpdateAwarenessAsyncServiceTests(unittest.TestCase):
             fetcher=slow_fetcher,
         )
         service.check_for_updates()
-        # Shutdown should gracefully wait and not raise
-        service.shutdown(wait_ms=1000)
-        self.assertFalse(service.is_checking())
+        worker = service._active_worker
+        self.assertIsNotNone(worker)
+
+        # Calling shutdown with a short wait window (10ms)
+        completed = service.shutdown(wait_ms=10)
+        self.assertFalse(completed)
+        self.assertIsNone(service._active_worker)
+        # Worker must be safely retained in _retained_workers to prevent running-QThread destruction
+        self.assertIn(worker, service._retained_workers)
+
+        # Wait for the slow worker to finish naturally
+        worker.wait(2000)
+        QApplication.processEvents()
+
+        # After finishing, worker cleans itself up from retained list
+        self.assertNotIn(worker, service._retained_workers)
 
 
 if __name__ == "__main__":

@@ -40,15 +40,21 @@ class UpdateCheckState(str, Enum):
 
 @dataclass(frozen=True)
 class SemVer:
-    """Canonical Semantic Version model (SemVer 2.0.0 specification for product releases).
+    """Vocabulary App release-tag and version precedence model.
 
-    Strict Baseline Requirements:
-    - Official release tag MUST have exact 3 numeric components: [v|V]MAJOR.MINOR.PATCH
-    - Optional prerelease identifier: -PRERELEASE (e.g. -alpha, -beta.1, -rc.2)
-    - Optional build metadata: +BUILD (e.g. +build.123, ignored for precedence)
+    This parser models product release tags for Level 1 Update Awareness.
+    It does not claim to be a general-purpose SemVer 2.0 library/validator.
 
-    Rejected as non-standard:
-    - '1', '1.2', 'v1.2', '1.2.3.4', negative numbers, non-digits.
+    Strict Baseline Requirements for Stable Releases:
+    - Official release tag MUST have exactly 3 non-negative integer components: [v|V]MAJOR.MINOR.PATCH
+    - Prerelease identifiers (-PRERELEASE, e.g. -alpha, -beta.1, -rc.2) and build metadata (+BUILD)
+      are supported specifically for filtering out non-stable releases and resolving precedence.
+
+    Rejected as non-standard / invalid:
+    - Incomplete versions: '1', '1.2', 'v1.2'
+    - Extra numeric components: '1.2.3.4'
+    - Non-digit or negative segments: '1.a.3', '-1.0.0'
+    - Dangling delimiters: '1.0.0-', '1.0.0+', '1.0.0-alpha..1'
     """
 
     major: int
@@ -72,14 +78,16 @@ class SemVer:
         build = ""
         if "+" in v:
             v, build = v.split("+", 1)
-            if not build.strip():
+            build = build.strip()
+            if not build or any(not token for token in build.split(".")):
                 return None
 
         # Extract prerelease identifier (-...)
         prerelease = ""
         if "-" in v:
             v, prerelease = v.split("-", 1)
-            if not prerelease.strip():
+            prerelease = prerelease.strip()
+            if not prerelease or any(not token for token in prerelease.split(".")):
                 return None
 
         parts = v.split(".")
@@ -103,8 +111,8 @@ class SemVer:
             major=major,
             minor=minor,
             patch=patch,
-            prerelease=prerelease.strip(),
-            build=build.strip(),
+            prerelease=prerelease,
+            build=build,
             raw=version_str.strip(),
         )
 
@@ -119,10 +127,10 @@ class SemVer:
         return base
 
     def _prerelease_tokens(self) -> list[tuple[int, Any]]:
-        """Tokenizes dot-separated prerelease identifiers according to SemVer 2.0.0.
+        """Tokenizes dot-separated prerelease identifiers for precedence ordering.
 
-        Numeric identifiers are compared numerically (e.g. 2 < 10);
-        string identifiers are compared lexicographically (e.g. alpha < beta).
+        Numeric identifiers compare numerically (e.g. 2 < 11);
+        string identifiers compare lexicographically (e.g. alpha < beta).
         """
         if not self.prerelease:
             return []
@@ -159,7 +167,7 @@ class SemVer:
                     return s_type < o_type
                 return s_val < o_val
 
-        # Shorter identifier set has lower precedence if all common identifiers match
+        # Shorter identifier list has lower precedence if all common identifiers match
         return len(self_tokens) < len(other_tokens)
 
     def __eq__(self, other: object) -> bool:
@@ -462,6 +470,7 @@ if PYSIDE6_AVAILABLE:
                 current_version=current_version,
             )
             self._active_worker: UpdateCheckWorker | None = None
+            self._retained_workers: list[UpdateCheckWorker] = []
 
         def current_result(self) -> UpdateCheckResult:
             return self._current_result
@@ -496,11 +505,43 @@ if PYSIDE6_AVAILABLE:
             self._active_worker.finished.connect(self._active_worker.deleteLater)
             self._active_worker.start()
 
-        def shutdown(self, wait_ms: int = 2000) -> None:
-            """Gracefully waits for any active worker to finish before teardown."""
-            if self._active_worker is not None and self._active_worker.isRunning():
-                self._active_worker.wait(wait_ms)
+        def shutdown(self, wait_ms: int = 2000) -> bool:
+            """Gracefully waits for active worker to complete before teardown.
+
+            If wait times out while worker is still running, disconnects callbacks
+            and retains worker reference so the running QThread is not deleted mid-flight.
+
+            Returns:
+                True if all workers terminated cleanly within wait_ms.
+                False if an in-flight worker exceeded wait_ms and was safely retained.
+            """
+            if self._active_worker is None:
+                return True
+
+            worker = self._active_worker
+            if not worker.isRunning():
                 self._active_worker = None
+                return True
+
+            completed = worker.wait(wait_ms)
+            if completed:
+                self._active_worker = None
+                return True
+
+            # In-flight worker exceeded wait_ms: disconnect callback and safely retain reference
+            try:
+                worker.finished_result.disconnect(self._on_worker_finished)
+            except (RuntimeError, TypeError):
+                pass
+
+            self._retained_workers.append(worker)
+            worker.finished.connect(lambda w=worker: self._cleanup_retained_worker(w))
+            self._active_worker = None
+            return False
+
+        def _cleanup_retained_worker(self, worker: UpdateCheckWorker) -> None:
+            if worker in self._retained_workers:
+                self._retained_workers.remove(worker)
 
         def _on_worker_finished(self, result: UpdateCheckResult) -> None:
             self._current_result = result
