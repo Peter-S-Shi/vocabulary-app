@@ -50,6 +50,7 @@ class Preferences:
     accent: str = DEFAULT_ACCENT
     motion: str = DEFAULT_MOTION
     quiz_presentation: str = DEFAULT_QUIZ_PRESENTATION
+    show_collection_progress_bars: bool = True
     # M20 Local Windows Speech Provider / Installed Voice Binding (M20
     # Release Contract § 2.3): {language: voice_id} for whichever
     # supported language (en / fr / zh-CN) the user has explicitly bound
@@ -90,12 +91,16 @@ def load_preferences(path: Path | None = None) -> Preferences:
     accent = str(raw.get("accent") or DEFAULT_ACCENT)
     motion = str(raw.get("motion") or DEFAULT_MOTION)
     quiz_presentation = parse_quiz_presentation(str(raw.get("quiz_presentation") or DEFAULT_QUIZ_PRESENTATION))
+    show_collection_progress_bars = raw.get("show_collection_progress_bars", True)
+    if not isinstance(show_collection_progress_bars, bool):
+        show_collection_progress_bars = True
     voice_bindings = _parse_voice_bindings(raw.get("voice_bindings"))
     return Preferences(
         appearance=appearance,
         accent=accent,
         motion=motion,
         quiz_presentation=quiz_presentation,
+        show_collection_progress_bars=show_collection_progress_bars,
         voice_bindings=voice_bindings,
     )
 

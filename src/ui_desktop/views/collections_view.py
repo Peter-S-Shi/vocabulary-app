@@ -180,6 +180,7 @@ class CollectionsView(QWidget):
         super().__init__(parent)
         self.setObjectName("collections-root")
         self._controller = controller
+        self._learning_progress_bars_visible = True
 
         root = QHBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -228,10 +229,24 @@ class CollectionsView(QWidget):
     def refresh(self) -> None:
         self._controller.refresh()
 
+    def set_learning_progress_bars_visible(self, visible: bool) -> None:
+        self._learning_progress_bars_visible = bool(visible)
+        for object_name in (
+            "collections-list-learning-progress",
+            "collections-detail-learning-progress",
+        ):
+            for progress_bar in self.findChildren(QProgressBar, object_name):
+                progress_bar.setVisible(self._learning_progress_bars_visible)
+
     # -- reactions ------------------------------------------------------
 
     def _on_collections_changed(self) -> None:
-        self._list_pane.render(self._controller.collections, self._controller.system_pools, self._controller.selected_id)
+        self._list_pane.render(
+            self._controller.collections,
+            self._controller.system_pools,
+            self._controller.selected_id,
+            show_progress_bars=self._learning_progress_bars_visible,
+        )
 
     def _on_item_selected(self, collection_id: int, is_system: bool) -> None:
         self._controller.select_collection(collection_id, is_system=is_system)
@@ -349,6 +364,7 @@ class CollectionsView(QWidget):
         progress_bar.setRange(0, 100)
         progress_bar.setValue(learning_percent)
         progress_bar.setTextVisible(False)
+        progress_bar.setVisible(self._learning_progress_bars_visible)
         self._detail_layout.addWidget(progress_bar)
 
         actions_row = QWidget(self._detail_container)
@@ -531,7 +547,14 @@ class _CollectionsListPane(QWidget):
         self._group.setExclusive(True)
         self._buttons: dict[int, QPushButton] = {}
 
-    def render(self, collections: list[dict], system_pools: list[dict], active_id: int | None) -> None:
+    def render(
+        self,
+        collections: list[dict],
+        system_pools: list[dict],
+        active_id: int | None,
+        *,
+        show_progress_bars: bool = True,
+    ) -> None:
         _clear_layout(self._layout)
         for button in list(self._group.buttons()):
             self._group.removeButton(button)
@@ -541,16 +564,28 @@ class _CollectionsListPane(QWidget):
         if not collections:
             self._layout.addWidget(_message_label("No Collections yet."))
         for collection in collections:
-            self._add_item(collection, active_id, is_system=False)
+            self._add_item(
+                collection,
+                active_id,
+                is_system=False,
+                show_progress_bars=show_progress_bars,
+            )
 
         self._layout.addWidget(_list_divider())
         self._layout.addWidget(_list_heading("Practice Pools"))
         if not system_pools:
             self._layout.addWidget(_message_label("No practice pools yet."))
         for pool in system_pools:
-            self._add_item(pool, active_id, is_system=True)
+            self._add_item(pool, active_id, is_system=True, show_progress_bars=False)
 
-    def _add_item(self, collection: dict, active_id: int | None, *, is_system: bool) -> None:
+    def _add_item(
+        self,
+        collection: dict,
+        active_id: int | None,
+        *,
+        is_system: bool,
+        show_progress_bars: bool,
+    ) -> None:
         collection_id = int(collection["id"])
         count = int(collection.get("entry_count") or 0)
         name = _pool_display_name(collection.get("name")) if is_system else str(collection.get("name") or "")
@@ -578,6 +613,7 @@ class _CollectionsListPane(QWidget):
             progress_bar.setRange(0, 100)
             progress_bar.setValue(learning_percent)
             progress_bar.setTextVisible(False)
+            progress_bar.setVisible(show_progress_bars)
             self._layout.addWidget(progress_bar)
 
 

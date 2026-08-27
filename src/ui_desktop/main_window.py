@@ -117,6 +117,12 @@ class MainWindow(QMainWindow):
         self.today_view.quiz_launch_requested.connect(self._start_quiz)
         self.entries_view = EntriesView(self.entries_controller)
         self.collections_view = CollectionsView(self.collections_controller)
+        self.collections_view.set_learning_progress_bars_visible(
+            self.settings_controller.collection_progress_bars_visible()
+        )
+        self.settings_controller.collection_progress_bars_changed.connect(
+            self.collections_view.set_learning_progress_bars_visible
+        )
         self.collections_view.open_entries_requested.connect(self._open_entries_with_scope)
         self.collections_view.open_in_study_requested.connect(self._open_review_at_card)
         self.review_view = ReviewView(self.review_controller)

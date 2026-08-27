@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QHBoxLayout,
     QLabel,
@@ -177,6 +178,30 @@ class SettingsView(QWidget):
         row_layout.addWidget(self._quiz_presentation_combo, 0)
 
         root.addWidget(row)
+
+        collections_heading = QLabel("Collections", body)
+        collections_heading.setObjectName("settings-section-heading")
+        root.addWidget(collections_heading)
+
+        progress_row = QWidget(body)
+        progress_row.setObjectName("settings-row")
+        progress_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        progress_row_layout = QHBoxLayout(progress_row)
+        progress_row_layout.setContentsMargins(SPACING.md, SPACING.md, SPACING.md, SPACING.md)
+        progress_row_layout.setSpacing(SPACING.md)
+
+        progress_row_label = QLabel("Learning progress", progress_row)
+        progress_row_label.setObjectName("settings-row-label")
+        progress_row_layout.addWidget(progress_row_label, 0)
+        progress_row_layout.addStretch(1)
+
+        self._collection_progress_bars_checkbox = QCheckBox("Show progress bars", progress_row)
+        self._collection_progress_bars_checkbox.setObjectName("settings-collection-progress-bars-checkbox")
+        self._collection_progress_bars_checkbox.toggled.connect(
+            self._controller.set_collection_progress_bars_visible
+        )
+        progress_row_layout.addWidget(self._collection_progress_bars_checkbox, 0)
+        root.addWidget(progress_row)
 
         audio_heading = QLabel("Audio", body)
         audio_heading.setObjectName("settings-section-heading")
@@ -362,6 +387,12 @@ class SettingsView(QWidget):
             self._reload_voice_combo(language, matching)
 
     def _sync_from_controller(self) -> None:
+        progress_bars_visible = self._controller.collection_progress_bars_visible()
+        if self._collection_progress_bars_checkbox.isChecked() != progress_bars_visible:
+            self._collection_progress_bars_checkbox.blockSignals(True)
+            self._collection_progress_bars_checkbox.setChecked(progress_bars_visible)
+            self._collection_progress_bars_checkbox.blockSignals(False)
+
         for language, _display_name in VOICE_BINDING_LANGUAGES:
             combo = self._voice_combos[language]
             bound_voice_id = self._controller.voice_binding(language)

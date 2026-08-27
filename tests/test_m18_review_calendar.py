@@ -9,7 +9,8 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication, QScrollArea
 
     PYSIDE6_AVAILABLE = True
 except ImportError:  # pragma: no cover - exercised only when PySide6 is absent
@@ -259,6 +260,35 @@ class ReviewCalendarViewStructureTests(_SyntheticDatabaseTestCase):
         self.assertEqual(
             view._detail_summary.text(), "Select a completion above to see its Card's full history."
         )
+
+    def test_page_and_each_table_remain_scrollable_with_large_results_in_a_short_window(self) -> None:
+        controller = ReviewCalendarController()
+        view = ReviewCalendarView(controller)
+        self.addCleanup(view.deleteLater)
+
+        tables = (view._schedule_table, view._table, view._history_table, view._legacy_table)
+        for table in tables:
+            table.setRowCount(40)
+
+        view.resize(640, 420)
+        view.show()
+        self.app.processEvents()
+        self.app.processEvents()
+
+        page_scroll = view.findChild(QScrollArea, "review-calendar-scroll")
+        self.assertIsNotNone(page_scroll)
+        self.assertGreater(page_scroll.verticalScrollBar().maximum(), 0)
+        for table in tables:
+            with self.subTest(table=table.objectName()):
+                self.assertEqual(
+                    table.verticalScrollBarPolicy(),
+                    Qt.ScrollBarPolicy.ScrollBarAsNeeded,
+                )
+                self.assertEqual(
+                    table.horizontalScrollBarPolicy(),
+                    Qt.ScrollBarPolicy.ScrollBarAsNeeded,
+                )
+                self.assertGreater(table.verticalScrollBar().maximum(), 0)
 
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")

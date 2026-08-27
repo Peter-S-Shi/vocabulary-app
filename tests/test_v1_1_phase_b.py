@@ -7,9 +7,10 @@ import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication, QLabel, QProgressBar, QPushButton
+from PySide6.QtWidgets import QApplication, QCheckBox, QLabel, QProgressBar, QPushButton
 
 from src import db, learning_workflow, quiz
+from src.app_config import APP_PREFERENCES_PATH_ENV
 from src.collections import (
     CrossCardMoveConfirmationRequired,
     add_entries_to_collection,
@@ -22,7 +23,9 @@ from src.entry_templates import ensure_french_verb_present_template
 from src.ui_desktop.controllers.review_controller import ReviewController
 from src.ui_desktop.controllers.quiz_controller import QuizController
 from src.ui_desktop.controllers.collections_controller import CollectionsController
+from src.ui_desktop.main_window import MainWindow
 from src.ui_desktop.state.handoff import QuizLaunchIntent
+from src.ui_desktop.state.preferences import load_preferences
 from src.ui_desktop.views.review_view import ReviewView
 from src.ui_desktop.views.quiz_view import QuizView
 from src.ui_desktop.views.collections_view import CollectionsView
@@ -36,11 +39,17 @@ class PhaseBTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.original_db_path = db.DB_PATH
+        self.original_preferences_path = os.environ.get(APP_PREFERENCES_PATH_ENV)
         db.DB_PATH = Path(self.temp_dir.name) / "phase-b.sqlite3"
+        os.environ[APP_PREFERENCES_PATH_ENV] = str(Path(self.temp_dir.name) / "preferences.json")
         db.init_db()
 
     def tearDown(self) -> None:
         db.DB_PATH = self.original_db_path
+        if self.original_preferences_path is None:
+            os.environ.pop(APP_PREFERENCES_PATH_ENV, None)
+        else:
+            os.environ[APP_PREFERENCES_PATH_ENV] = self.original_preferences_path
         self.temp_dir.cleanup()
 
     def _collection_with_entries(self, count: int = 1, *, card_size: int = 8) -> tuple[int, list[int]]:
@@ -539,6 +548,60 @@ class CollectionProgressVisibilityTests(PhaseBTestCase):
         detail_progress_bar = view.findChild(QProgressBar, "collections-detail-learning-progress")
         self.assertIsNotNone(detail_progress_bar)
         self.assertEqual(detail_progress_bar.value(), 0)
+
+
+class CollectionProgressVisibilityPreferenceTests(PhaseBTestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = _qt_app()
+
+    def test_settings_can_persistently_hide_bars_without_hiding_progress_text(self) -> None:
+        collection_id, _entry_ids = self._collection_with_entries()
+        window = MainWindow()
+        self.addCleanup(window.deleteLater)
+        window.collections_view.refresh()
+        window.collections_controller.select_collection(collection_id, is_system=False)
+
+        checkbox = window.settings_view.findChild(
+            QCheckBox,
+            "settings-collection-progress-bars-checkbox",
+        )
+        self.assertIsNotNone(checkbox)
+        self.assertTrue(checkbox.isChecked())
+        self.assertTrue(
+            window.collections_view.findChildren(QProgressBar, "collections-list-learning-progress")
+        )
+
+        checkbox.click()
+        self.app.processEvents()
+
+        self.assertTrue(
+            all(
+                bar.isHidden()
+                for bar in window.collections_view.findChildren(
+                    QProgressBar,
+                    "collections-list-learning-progress",
+                )
+            )
+        )
+        normal_button = next(
+            button
+            for button in window.collections_view.findChildren(QPushButton, "collections-list-item")
+            if button.text().startswith("Synthetic Phase B")
+        )
+        self.assertIn("0/1 Cards · 0%", normal_button.text())
+        progress_label = window.collections_view.findChild(QLabel, "collections-learning-progress")
+        self.assertIsNotNone(progress_label)
+        self.assertIn("0 of 1 Cards learned (0%)", progress_label.text())
+        detail_progress_bar = window.collections_view.findChild(
+            QProgressBar,
+            "collections-detail-learning-progress",
+        )
+        self.assertIsNotNone(detail_progress_bar)
+        self.assertTrue(detail_progress_bar.isHidden())
+        self.assertFalse(
+            load_preferences(Path(os.environ[APP_PREFERENCES_PATH_ENV])).show_collection_progress_bars
+        )
 
 
 if __name__ == "__main__":

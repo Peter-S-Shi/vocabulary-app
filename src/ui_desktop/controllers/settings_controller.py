@@ -33,6 +33,7 @@ the preference, it just cannot live-apply it in that context.
 
 class SettingsController(QObject):
     state_changed = Signal()
+    collection_progress_bars_changed = Signal(bool)
 
     def __init__(self, preferences: Preferences | None = None, theme_manager: ThemeManager | None = None) -> None:
         super().__init__()
@@ -61,6 +62,18 @@ class SettingsController(QObject):
         save_preferences(self.preferences)
         if self._theme_manager is not None:
             self._theme_manager.apply(normalized, parse_accent(self.preferences.accent))
+        self.state_changed.emit()
+
+    def collection_progress_bars_visible(self) -> bool:
+        return self.preferences.show_collection_progress_bars
+
+    def set_collection_progress_bars_visible(self, visible: bool) -> None:
+        normalized = bool(visible)
+        if normalized == self.preferences.show_collection_progress_bars:
+            return
+        self.preferences.show_collection_progress_bars = normalized
+        save_preferences(self.preferences)
+        self.collection_progress_bars_changed.emit(normalized)
         self.state_changed.emit()
 
     # -- Local Windows Speech Provider / Installed Voice Binding (M20) ---

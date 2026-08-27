@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QPushButton,
+    QScrollArea,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -91,7 +92,22 @@ class ReviewCalendarView(QWidget):
         self.setObjectName("review-calendar-root")
         self._controller = controller
 
-        layout = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        scroll = QScrollArea(self)
+        scroll.setObjectName("review-calendar-scroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        outer.addWidget(scroll)
+
+        body = QWidget(scroll)
+        scroll.setWidget(body)
+
+        layout = QVBoxLayout(body)
         layout.setContentsMargins(SPACING.lg, SPACING.lg, SPACING.lg, SPACING.lg)
         layout.setSpacing(SPACING.md)
 
@@ -123,6 +139,9 @@ class ReviewCalendarView(QWidget):
         self._schedule_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._schedule_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._schedule_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self._schedule_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._schedule_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._schedule_table.setMinimumHeight(180)
         self._schedule_table.verticalHeader().setVisible(False)
         self._schedule_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self._schedule_table.itemSelectionChanged.connect(self._on_schedule_selected)
@@ -156,6 +175,9 @@ class ReviewCalendarView(QWidget):
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self._table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._table.setMinimumHeight(220)
         self._table.verticalHeader().setVisible(False)
         self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self._table.itemSelectionChanged.connect(self._on_row_selected)
@@ -176,6 +198,9 @@ class ReviewCalendarView(QWidget):
         self._history_table.setHorizontalHeaderLabels(["Completed", "Quiz Type", "Correct", "Wrong"])
         self._history_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._history_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self._history_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._history_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._history_table.setMinimumHeight(180)
         self._history_table.verticalHeader().setVisible(False)
         self._history_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self._history_table, 1)
@@ -198,6 +223,9 @@ class ReviewCalendarView(QWidget):
         self._legacy_table.setHorizontalHeaderLabels(["Reviewed", "Rating", "Entries"])
         self._legacy_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._legacy_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self._legacy_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._legacy_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._legacy_table.setMinimumHeight(180)
         self._legacy_table.verticalHeader().setVisible(False)
         self._legacy_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self._legacy_table, 1)
