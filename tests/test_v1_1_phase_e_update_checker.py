@@ -425,9 +425,11 @@ class UpdateAwarenessAsyncServiceTests(unittest.TestCase):
         self.assertTrue(completed)
         self.assertFalse(service.is_checking())
         self.assertIsNone(service._active_worker)
-        self.assertEqual(len(service._retained_workers), 0)
 
-    def test_service_shutdown_safely_retains_worker_exceeding_wait_window(self) -> None:
+    def test_service_teardown_while_worker_running_does_not_destroy_running_qthread(self) -> None:
+        import gc
+        from src.update_checker import _ACTIVE_WORKER_REGISTRY
+
         # Worker sleeps longer than the short shutdown wait window
         def slow_fetcher(url: str, timeout: float):
             time.sleep(0.15)
@@ -441,19 +443,29 @@ class UpdateAwarenessAsyncServiceTests(unittest.TestCase):
         worker = service._active_worker
         self.assertIsNotNone(worker)
 
-        # Calling shutdown with a short wait window (10ms)
+        # Worker MUST be unparented from Service to avoid Qt parent-child cascading destruction
+        self.assertIsNone(worker.parent())
+        self.assertIn(worker, _ACTIVE_WORKER_REGISTRY)
+
+        # Shutdown times out
         completed = service.shutdown(wait_ms=10)
         self.assertFalse(completed)
         self.assertIsNone(service._active_worker)
-        # Worker must be safely retained in _retained_workers to prevent running-QThread destruction
-        self.assertIn(worker, service._retained_workers)
 
-        # Wait for the slow worker to finish naturally
+        # Simulate immediate destruction / garbage collection of Service during app teardown
+        del service
+        gc.collect()
+        QApplication.processEvents()
+
+        # The unparented worker continues executing safely without C++ premature destruction
+        self.assertTrue(worker.isRunning() or worker.isFinished())
+
+        # Wait for worker to finish naturally
         worker.wait(2000)
         QApplication.processEvents()
 
-        # After finishing, worker cleans itself up from retained list
-        self.assertNotIn(worker, service._retained_workers)
+        # After finishing, worker cleans itself up from the global registry
+        self.assertNotIn(worker, _ACTIVE_WORKER_REGISTRY)
 
 
 if __name__ == "__main__":

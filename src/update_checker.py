@@ -414,6 +414,8 @@ except ImportError:
 
 if PYSIDE6_AVAILABLE:
 
+    _ACTIVE_WORKER_REGISTRY: set[UpdateCheckWorker] = set()
+
     class UpdateCheckWorker(QThread):
         """Background QThread worker ensuring network checks never block the Qt main thread."""
 
@@ -470,7 +472,6 @@ if PYSIDE6_AVAILABLE:
                 current_version=current_version,
             )
             self._active_worker: UpdateCheckWorker | None = None
-            self._retained_workers: list[UpdateCheckWorker] = []
 
         def current_result(self) -> UpdateCheckResult:
             return self._current_result
@@ -493,55 +494,51 @@ if PYSIDE6_AVAILABLE:
             )
             self.state_changed.emit(self._current_result)
 
-            self._active_worker = UpdateCheckWorker(
+            # Note: parent=None ensures Service destruction never cascades into deleting
+            # an active running QThread in Qt C++ object tree.
+            worker = UpdateCheckWorker(
                 current_version=self._current_version,
                 repo=self._repo,
                 timeout=self._timeout,
                 fetcher=self._fetcher,
                 api_url=self._api_url,
-                parent=self,
+                parent=None,
             )
-            self._active_worker.finished_result.connect(self._on_worker_finished)
-            self._active_worker.finished.connect(self._active_worker.deleteLater)
-            self._active_worker.start()
+            self._active_worker = worker
+            _ACTIVE_WORKER_REGISTRY.add(worker)
+
+            worker.finished_result.connect(self._on_worker_finished)
+            worker.finished.connect(worker.deleteLater)
+            worker.finished.connect(lambda w=worker: _ACTIVE_WORKER_REGISTRY.discard(w))
+            worker.start()
 
         def shutdown(self, wait_ms: int = 2000) -> bool:
             """Gracefully waits for active worker to complete before teardown.
 
             If wait times out while worker is still running, disconnects callbacks
-            and retains worker reference so the running QThread is not deleted mid-flight.
+            and leaves the unparented worker safely in _ACTIVE_WORKER_REGISTRY to finish
+            naturally without running-QThread destruction risks.
 
             Returns:
                 True if all workers terminated cleanly within wait_ms.
-                False if an in-flight worker exceeded wait_ms and was safely retained.
+                False if an in-flight worker exceeded wait_ms.
             """
             if self._active_worker is None:
                 return True
 
             worker = self._active_worker
+            self._active_worker = None
+
             if not worker.isRunning():
-                self._active_worker = None
                 return True
 
-            completed = worker.wait(wait_ms)
-            if completed:
-                self._active_worker = None
-                return True
-
-            # In-flight worker exceeded wait_ms: disconnect callback and safely retain reference
+            # Disconnect callback so post-teardown execution doesn't invoke service
             try:
                 worker.finished_result.disconnect(self._on_worker_finished)
             except (RuntimeError, TypeError):
                 pass
 
-            self._retained_workers.append(worker)
-            worker.finished.connect(lambda w=worker: self._cleanup_retained_worker(w))
-            self._active_worker = None
-            return False
-
-        def _cleanup_retained_worker(self, worker: UpdateCheckWorker) -> None:
-            if worker in self._retained_workers:
-                self._retained_workers.remove(worker)
+            return worker.wait(wait_ms)
 
         def _on_worker_finished(self, result: UpdateCheckResult) -> None:
             self._current_result = result
