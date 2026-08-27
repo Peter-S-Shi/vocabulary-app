@@ -166,7 +166,6 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     semantic = tokens.semantic
     danger = tokens.semantic.danger
     star = tokens.semantic.star
-    high_contrast_blue = accent.pressed.background
     radius = RADIUS_DEFAULT
     sp = SPACING
 
@@ -1116,11 +1115,6 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_muted};
         font-size: 12px;
     }}
-    QLabel#settings-collections-heading,
-    QLabel#settings-collection-progress-label,
-    QCheckBox#settings-collection-progress-bars-checkbox {{
-        color: {high_contrast_blue};
-    }}
     QComboBox#settings-quiz-presentation-combo, QComboBox#settings-appearance-combo,
     QComboBox#settings-voice-binding-combo {{
         background-color: {neutral.surface_primary};
@@ -1549,10 +1543,9 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_primary};
         font-weight: 600;
     }}
-    QPushButton#collections-list-item[normalCollection="true"],
-    QPushButton#collections-list-item[normalCollection="true"]:checked,
     QLabel#collections-learning-progress {{
-        color: {high_contrast_blue};
+        color: {neutral.text_secondary};
+        font-size: 13px;
     }}
     QProgressBar#collections-list-learning-progress,
     QProgressBar#collections-detail-learning-progress {{
@@ -1844,72 +1837,102 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     Browser). Every control below lives directly in the workspace, not a
     QDialog, so -- per the Human Gate 1 corrective lesson -- each needs
     its own explicit rule rather than relying on any generic fallback. */
-    QWidget#review-calendar-root QLabel,
-    QWidget#review-calendar-root QComboBox,
-    QWidget#review-calendar-root QDateEdit,
-    QWidget#review-calendar-root QPushButton,
-    QWidget#review-calendar-root QTableWidget {{
-        color: {high_contrast_blue};
+    QLabel#review-calendar-title {{
+        color: {neutral.text_primary};
+        font-size: 21px;
+        font-weight: 700;
     }}
-    QWidget#review-calendar-root QComboBox,
-    QWidget#review-calendar-root QDateEdit,
-    QWidget#review-calendar-root QPushButton,
-    QWidget#review-calendar-root QTableWidget {{
+    QLabel#review-calendar-range-label {{
+        color: {neutral.text_muted};
+        font-size: 12px;
+    }}
+    QComboBox#review-calendar-range-combo {{
         background-color: {neutral.surface_primary};
-        border-color: {neutral.border_default};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 3px 8px;
+        font-size: 12px;
     }}
-    QWidget#review-calendar-root QHeaderView::section {{
+    QLabel#review-calendar-schedule-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QDateEdit#review-calendar-schedule-date {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 3px 8px;
+        font-size: 12px;
+        min-width: 125px;
+    }}
+    QPushButton#review-calendar-schedule-save-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 4px 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }}
+    QPushButton#review-calendar-schedule-save-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#review-calendar-schedule-save-button:disabled {{
         background-color: {neutral.surface_secondary};
-        color: {high_contrast_blue};
-        border-color: {neutral.border_default};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QPushButton#review-calendar-schedule-clear-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 4px 12px;
+        font-size: 12px;
+    }}
+    QPushButton#review-calendar-schedule-clear-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QPushButton#review-calendar-schedule-clear-button:disabled {{
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QLabel#review-calendar-detail-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#review-calendar-detail-summary {{
+        color: {neutral.text_primary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#review-calendar-legacy-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#review-calendar-legacy-caption {{
+        color: {neutral.text_muted};
+        font-style: italic;
+        font-size: 12px;
     }}
     QCalendarWidget#review-calendar-popup QWidget,
     QCalendarWidget#review-calendar-popup QToolButton,
     QCalendarWidget#review-calendar-popup QSpinBox,
     QCalendarWidget#review-calendar-popup QAbstractItemView {{
         background-color: {neutral.surface_primary};
-        color: {high_contrast_blue};
+        color: {neutral.text_primary};
     }}
     QCalendarWidget#review-calendar-popup QAbstractItemView {{
         selection-background-color: {accent.soft.background};
-        selection-color: {high_contrast_blue};
-    }}
-    QLabel#review-calendar-title {{
-        color: {high_contrast_blue};
-        font-size: 21px;
-        font-weight: 700;
-    }}
-    QLabel#review-calendar-range-label {{
-        color: {high_contrast_blue};
-        font-size: 12px;
-    }}
-    QComboBox#review-calendar-range-combo {{
-        background-color: {neutral.surface_primary};
-        color: {high_contrast_blue};
-        border: 1px solid {neutral.border_default};
-        border-radius: {radius}px;
-        padding: 3px 8px;
-        font-size: 12px;
-    }}
-    QLabel#review-calendar-detail-heading {{
-        color: {high_contrast_blue};
-        font-size: 13px;
-        font-weight: 600;
-    }}
-    QLabel#review-calendar-detail-summary {{
-        color: {high_contrast_blue};
-        font-size: 13px;
-        font-weight: 600;
-    }}
-    QLabel#review-calendar-legacy-heading {{
-        color: {high_contrast_blue};
-        font-size: 13px;
-        font-weight: 600;
-    }}
-    QLabel#review-calendar-legacy-caption {{
-        color: {high_contrast_blue};
-        font-style: italic;
-        font-size: 12px;
+        selection-color: {accent.soft.foreground};
     }}
 
     /* M18 Phase C3 -- Data Tools hub (P6 Utility Workflow). Title/

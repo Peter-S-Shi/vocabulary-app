@@ -134,9 +134,11 @@ class _WrappingLabel(QLabel):
 
     def resizeEvent(self, event) -> None:  # noqa: N802 (Qt override)
         super().resizeEvent(event)
-        needed = self.heightForWidth(self.width())
-        if needed >= 0 and self.minimumHeight() != needed:
-            self.setMinimumHeight(needed)
+        w = self.width()
+        if w > 0:
+            needed = self.heightForWidth(w)
+            if needed >= 0 and self.minimumHeight() != needed:
+                self.setMinimumHeight(needed)
 
 
 class ReviewView(QWidget):
@@ -243,8 +245,10 @@ class ReviewView(QWidget):
         content_layout.setSpacing(0)
 
         column = QWidget(content)
+        column.setMinimumWidth(min(MAIN_COLUMN_MAX_WIDTH, 560))
         column.setMaximumWidth(MAIN_COLUMN_MAX_WIDTH)
         self._column_layout = QVBoxLayout(column)
+        self._column_layout.setContentsMargins(0, 0, 0, 0)
         # Looser than any one group's *internal* spacing (e.g.
         # _build_entry_content's term/Meaning/Example) so the canvas reads
         # as deliberate groups -- prompt block, then nav, then Quiz

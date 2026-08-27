@@ -11,7 +11,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 try:
     from PySide6.QtCore import QLocale, Qt
     from PySide6.QtGui import QColor, QPalette
-    from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QScrollArea, QToolButton
+    from PySide6.QtWidgets import QApplication, QHeaderView, QLabel, QPushButton, QScrollArea, QToolButton
 
     PYSIDE6_AVAILABLE = True
 except ImportError:  # pragma: no cover - exercised only when PySide6 is absent
@@ -302,7 +302,7 @@ class ReviewCalendarViewStructureTests(_SyntheticDatabaseTestCase):
             QLocale.Language.English,
         )
 
-    def test_light_mode_uses_deep_blue_text_throughout_review_calendar(self) -> None:
+    def test_light_mode_review_calendar_typography_hierarchy_and_column_resizing(self) -> None:
         original_palette = self.app.palette()
         original_stylesheet = self.app.styleSheet()
         self.addCleanup(self.app.setPalette, original_palette)
@@ -316,27 +316,40 @@ class ReviewCalendarViewStructureTests(_SyntheticDatabaseTestCase):
         view.show()
         self.app.processEvents()
 
-        expected = QColor("#2C4C6C")
-        text_widgets = [
-            *view.findChildren(QLabel),
-            view._range_combo,
-            view._schedule_date,
-            view._schedule_save_button,
-            view._schedule_clear_button,
-        ]
-        for widget in text_widgets:
-            with self.subTest(widget=widget.objectName() or widget.text()):
-                self.assertEqual(
-                    widget.palette().color(widget.foregroundRole()).name(),
-                    expected.name(),
-                )
-
+        # Verify all 4 tables have stretchLastSection and interactive columns enabled
         for table in (view._schedule_table, view._table, view._history_table, view._legacy_table):
             with self.subTest(table=table.objectName()):
+                self.assertTrue(table.horizontalHeader().stretchLastSection())
+                self.assertEqual(
+                    table.horizontalHeader().sectionResizeMode(0),
+                    QHeaderView.ResizeMode.Interactive,
+                )
                 self.assertEqual(
                     table.palette().color(QPalette.ColorRole.Text).name(),
-                    expected.name(),
+                    QColor(THEME_CALM_BLUE_LIGHT.neutral.text_primary).name(),
                 )
+
+        # Verify title, headings, and labels follow standard neutral hierarchy
+        title = view.findChild(QLabel, "review-calendar-title")
+        self.assertEqual(
+            title.palette().color(title.foregroundRole()).name(),
+            QColor(THEME_CALM_BLUE_LIGHT.neutral.text_primary).name(),
+        )
+
+        schedule_heading = view.findChild(QLabel, "review-calendar-schedule-heading")
+        self.assertEqual(
+            schedule_heading.palette().color(schedule_heading.foregroundRole()).name(),
+            QColor(THEME_CALM_BLUE_LIGHT.neutral.text_secondary).name(),
+        )
+
+        range_label = view.findChild(QLabel, "review-calendar-range-label")
+        self.assertEqual(
+            range_label.palette().color(range_label.foregroundRole()).name(),
+            QColor(THEME_CALM_BLUE_LIGHT.neutral.text_muted).name(),
+        )
+
+        # Verify schedule date editor is wide enough not to clip text
+        self.assertGreaterEqual(view._schedule_date.minimumWidth(), 125)
 
         calendar = view._schedule_date.calendarWidget()
         calendar.ensurePolished()
@@ -344,7 +357,7 @@ class ReviewCalendarViewStructureTests(_SyntheticDatabaseTestCase):
             with self.subTest(calendar_button=button.objectName()):
                 self.assertEqual(
                     button.palette().color(button.foregroundRole()).name(),
-                    expected.name(),
+                    QColor(THEME_CALM_BLUE_LIGHT.neutral.text_primary).name(),
                 )
 
 

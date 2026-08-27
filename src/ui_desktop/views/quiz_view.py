@@ -141,9 +141,11 @@ class _WrappingLabel(QLabel):
 
     def resizeEvent(self, event) -> None:  # noqa: N802 (Qt override)
         super().resizeEvent(event)
-        needed = self.heightForWidth(self.width())
-        if needed >= 0 and self.minimumHeight() != needed:
-            self.setMinimumHeight(needed)
+        w = self.width()
+        if w > 0:
+            needed = self.heightForWidth(w)
+            if needed >= 0 and self.minimumHeight() != needed:
+                self.setMinimumHeight(needed)
 
 
 class _MatchingComboBox(QComboBox):

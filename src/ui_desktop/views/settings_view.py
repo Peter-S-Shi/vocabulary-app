@@ -180,7 +180,7 @@ class SettingsView(QWidget):
         root.addWidget(row)
 
         collections_heading = QLabel("Collections", body)
-        collections_heading.setObjectName("settings-collections-heading")
+        collections_heading.setObjectName("settings-section-heading")
         root.addWidget(collections_heading)
 
         progress_row = QWidget(body)
@@ -191,7 +191,7 @@ class SettingsView(QWidget):
         progress_row_layout.setSpacing(SPACING.md)
 
         progress_row_label = QLabel("Learning progress", progress_row)
-        progress_row_label.setObjectName("settings-collection-progress-label")
+        progress_row_label.setObjectName("settings-row-label")
         progress_row_layout.addWidget(progress_row_label, 0)
         progress_row_layout.addStretch(1)
 

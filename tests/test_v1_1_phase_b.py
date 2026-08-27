@@ -639,7 +639,7 @@ class CollectionProgressVisibilityPreferenceTests(PhaseBTestCase):
             load_preferences(Path(os.environ[APP_PREFERENCES_PATH_ENV])).show_collection_progress_bars
         )
 
-    def test_light_mode_uses_deep_blue_for_progress_and_its_setting(self) -> None:
+    def test_settings_and_collections_progress_theme_consistency(self) -> None:
         collection_id, _entry_ids = self._collection_with_entries()
         window = MainWindow()
         self.addCleanup(window.deleteLater)
@@ -659,29 +659,41 @@ class CollectionProgressVisibilityPreferenceTests(PhaseBTestCase):
             label.text(): label
             for label in window.settings_view.findChildren(QLabel)
         }
-        normal_button = next(
-            button
-            for button in window.collections_view.findChildren(QPushButton, "collections-list-item")
-            if button.text().startswith("Synthetic Phase B")
+        self.assertEqual(labels_by_text["Collections"].objectName(), "settings-section-heading")
+        self.assertEqual(labels_by_text["Learning progress"].objectName(), "settings-row-label")
+        self.assertEqual(
+            labels_by_text["Collections"].palette().color(labels_by_text["Collections"].foregroundRole()).name(),
+            QColor(THEME_CALM_BLUE_LIGHT.neutral.text_secondary).name(),
+        )
+        self.assertEqual(
+            labels_by_text["Learning progress"].palette().color(labels_by_text["Learning progress"].foregroundRole()).name(),
+            QColor(THEME_CALM_BLUE_LIGHT.neutral.text_secondary).name(),
         )
         progress_label = window.collections_view.findChild(QLabel, "collections-learning-progress")
-        checkbox = window.settings_view.findChild(
-            QCheckBox,
-            "settings-collection-progress-bars-checkbox",
+        self.assertIsNotNone(progress_label)
+        self.assertEqual(
+            progress_label.palette().color(progress_label.foregroundRole()).name(),
+            QColor(THEME_CALM_BLUE_LIGHT.neutral.text_secondary).name(),
         )
-        expected = QColor("#2C4C6C")
-        for widget in (
-            labels_by_text["Collections"],
-            labels_by_text["Learning progress"],
-            checkbox,
-            normal_button,
-            progress_label,
-        ):
-            with self.subTest(widget=widget.objectName() or widget.text()):
-                self.assertEqual(
-                    widget.palette().color(widget.foregroundRole()).name(),
-                    expected.name(),
-                )
+
+    def test_first_study_navigation_maintains_wide_column_and_compact_caption(self) -> None:
+        collection_id, _entry_ids = self._collection_with_entries()
+        window = MainWindow()
+        self.addCleanup(window.deleteLater)
+        window.resize(1024, 768)
+        window.show()
+        self.app.processEvents()
+
+        # Navigate to study on first click
+        window._on_rail_destination_activated("study")
+        self.app.processEvents()
+
+        rv = window.review_view
+        caption = rv.findChild(QLabel, "review-safety-caption")
+        self.assertIsNotNone(caption)
+        # Column must be wide (>= 480px) and safety caption should not inflate vertically
+        self.assertGreaterEqual(caption.width(), 480)
+        self.assertLessEqual(caption.minimumHeight(), 40)
 
 
 if __name__ == "__main__":
