@@ -1196,7 +1196,7 @@ def generate_random_quiz_items(
     warning = ""
     if len(quiz_items) < len(sampled_entries):
         warning = (
-            "Some Proficient Pool items were skipped because there were not enough "
+            "Some quiz items were skipped because there were not enough "
             "unambiguous distractors."
         )
 

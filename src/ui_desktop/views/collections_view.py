@@ -343,7 +343,10 @@ class CollectionsView(QWidget):
                 )
 
         self._detail_layout.addWidget(
-            _message_label("Practice pools are managed automatically and browsed here as a factual, read-only context.")
+            _message_label(
+                "Practice pools reflect saved learning memberships and quiz evidence. "
+                "Available practice actions depend on the pool."
+            )
         )
         self._detail_layout.addStretch(1)
 
