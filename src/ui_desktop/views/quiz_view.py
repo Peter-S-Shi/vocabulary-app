@@ -770,6 +770,81 @@ class QuizView(QWidget):
         mistakes_label.setWordWrap(True)
         layout.addWidget(mistakes_label)
 
+        audit_candidates = controller.completion_proficient_audit_candidates()
+        if audit_candidates:
+            layout.addWidget(_section_divider(block))
+            audit_heading = QLabel("Review Proficient Status", block)
+            audit_heading.setObjectName("quiz-completion-proficient-audit-heading")
+            audit_heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(audit_heading)
+
+            removed_audit_ids = set(controller.completion_proficient_audit_removals())
+            audit_checks: list[QCheckBox] = []
+            for candidate in audit_candidates:
+                entry_id = int(candidate["entry_id"])
+                term = str(candidate.get("term") or f"Entry #{entry_id}")
+                meaning = str(candidate.get("meaning") or "")
+                checkbox = QCheckBox(f"{term} — {meaning}" if meaning else term, block)
+                checkbox.setObjectName(f"quiz-completion-proficient-audit-entry-{entry_id}")
+                checkbox.setProperty("entryId", entry_id)
+                checkbox.setChecked(
+                    controller.is_completion_proficient_audit_candidate_selected(entry_id)
+                )
+                checkbox.setEnabled(entry_id not in removed_audit_ids)
+                audit_checks.append(checkbox)
+                layout.addWidget(checkbox, 0, Qt.AlignmentFlag.AlignLeft)
+
+            if removed_audit_ids:
+                removed_terms = [
+                    str(candidate.get("term") or f"Entry #{candidate['entry_id']}")
+                    for candidate in audit_candidates
+                    if int(candidate["entry_id"]) in removed_audit_ids
+                ]
+                removed_status = QLabel(
+                    f"Removed from Proficient Pool: {', '.join(removed_terms)}",
+                    block,
+                )
+                removed_status.setObjectName("quiz-completion-proficient-audit-removed-status")
+                removed_status.setWordWrap(True)
+                layout.addWidget(removed_status)
+
+            audit_actions = QWidget(block)
+            audit_actions_layout = QHBoxLayout(audit_actions)
+            audit_actions_layout.setContentsMargins(0, 0, 0, 0)
+            keep_button = QPushButton("Keep All in Proficient Pool", audit_actions)
+            keep_button.setObjectName("quiz-completion-proficient-audit-keep-button")
+            keep_button.clicked.connect(controller.keep_all_completion_proficient_audit_entries)
+            audit_actions_layout.addWidget(keep_button)
+            remove_button = QPushButton("Remove Selected from Proficient Pool", audit_actions)
+            remove_button.setObjectName("quiz-completion-proficient-audit-remove-button")
+            audit_actions_layout.addWidget(remove_button)
+
+            def _sync_audit_selection() -> None:
+                for candidate_checkbox in audit_checks:
+                    controller.set_completion_proficient_audit_candidate_selected(
+                        int(candidate_checkbox.property("entryId")),
+                        candidate_checkbox.isChecked(),
+                    )
+                remove_button.setEnabled(
+                    any(checkbox.isEnabled() and checkbox.isChecked() for checkbox in audit_checks)
+                )
+
+            def _remove_selected_audit_entries(*, confirm_cross_card: bool = False) -> None:
+                _sync_audit_selection()
+                try:
+                    controller.remove_selected_completion_proficient_audit_entries(
+                        confirm_cross_card=confirm_cross_card
+                    )
+                except CrossCardMoveConfirmationRequired:
+                    if _confirm_cross_card_reorganization(self):
+                        _remove_selected_audit_entries(confirm_cross_card=True)
+
+            for checkbox in audit_checks:
+                checkbox.toggled.connect(_sync_audit_selection)
+            remove_button.clicked.connect(_remove_selected_audit_entries)
+            _sync_audit_selection()
+            layout.addWidget(audit_actions, 0, Qt.AlignmentFlag.AlignHCenter)
+
         candidates = controller.completion_proficient_candidates()
         if candidates:
             layout.addWidget(_section_divider(block))

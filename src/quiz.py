@@ -1260,7 +1260,12 @@ def is_proficient_pool_collection(collection_id: int | None) -> bool:
 
 def get_failed_proficient_pool_entries_for_session(session_id: int) -> list[dict]:
     session = get_quiz_session(session_id)
-    if session is None or not is_proficient_pool_collection(session["collection_id"]):
+    if (
+        session is None
+        or session.get("status") != "completed"
+        or int(session.get("card_number") or 0) != 0
+        or not is_proficient_pool_collection(session["collection_id"])
+    ):
         return []
 
     with get_connection() as connection:

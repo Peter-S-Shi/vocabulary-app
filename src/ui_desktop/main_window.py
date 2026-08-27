@@ -131,6 +131,7 @@ class MainWindow(QMainWindow):
         )
         self.collections_view.open_entries_requested.connect(self._open_entries_with_scope)
         self.collections_view.open_in_study_requested.connect(self._open_review_at_card)
+        self.collections_view.quiz_launch_requested.connect(self._start_quiz)
         self.review_view = ReviewView(self.review_controller)
         self.review_view.set_motion(self._motion)
         self.review_view.exit_requested.connect(self._exit_study_mode)

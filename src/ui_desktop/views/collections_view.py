@@ -30,7 +30,7 @@ from src.collections import (
 )
 from src.ui_desktop.controllers.collections_controller import CollectionsController
 from src.ui_desktop.controllers.linked_source_controller import LinkedSourceController
-from src.ui_desktop.state.handoff import EntriesScopeIntent, StudyTargetIntent
+from src.ui_desktop.state.handoff import EntriesScopeIntent, QUIZ_TYPE_LABELS, QuizLaunchIntent, StudyTargetIntent
 from src.ui_desktop.theming.metrics import SPACING
 from src.ui_desktop.views.linked_source_view import LinkedSourceDialog
 
@@ -74,10 +74,11 @@ DESIGN.md § 6.8):
                              is supplied, and never a silent fallback if
                              the Card is gone by the time the handoff is
                              consumed.
-  no Quiz launcher here    -> Quiz is only ever reached through Review's
-                             existing Quick Quiz / Choose Quiz Type
-                             affordances after "Open in Study" -- this
-                             surface never talks to src.quiz directly.
+  Quiz launcher boundary   -> Starred and Proficient Pool alone expose a
+                             lightweight whole-pool Random Quiz setup. It
+                             emits the shared ``QuizLaunchIntent`` and never
+                             talks to ``src.quiz`` directly; normal
+                             Collections and Mistake Book remain unchanged.
 
 Corrective pass (M17_Minimum_Collection_Integration_Corrective_Pass.md
 § 2-4): a Collection's Card list is no longer rendered in full. A compact
@@ -175,6 +176,7 @@ _SORT_LABELS: tuple[tuple[str, str], ...] = (
 class CollectionsView(QWidget):
     open_entries_requested = Signal(object)  # EntriesScopeIntent
     open_in_study_requested = Signal(object)  # StudyTargetIntent
+    quiz_launch_requested = Signal(object)  # QuizLaunchIntent
 
     def __init__(self, controller: CollectionsController, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -273,6 +275,11 @@ class CollectionsView(QWidget):
         dialog = LinkedSourceDialog(linked_source_controller, parent=self)
         dialog.exec()
 
+    def _on_system_pool_random_quiz(self) -> None:
+        dialog = _SystemPoolRandomQuizDialog(self._controller, parent=self)
+        dialog.launch_requested.connect(self.quiz_launch_requested.emit)
+        dialog.exec()
+
     def _on_rename_card(self, card_number: int, current_name: str) -> None:
         text, confirmed = QInputDialog.getText(self, "Rename Card", "Card name:", text=current_name)
         if not confirmed:
@@ -322,6 +329,18 @@ class CollectionsView(QWidget):
         else:
             open_button.setEnabled(False)
         self._detail_layout.addWidget(open_button, 0)
+
+        if system_type in ("starred", "proficient_pool"):
+            random_quiz_button = QPushButton("Random Quiz", self._detail_container)
+            random_quiz_button.setObjectName("collections-system-pool-random-quiz-button")
+            random_quiz_button.setEnabled(bool(self._controller.random_quiz_type_options()))
+            random_quiz_button.clicked.connect(self._on_system_pool_random_quiz)
+            self._detail_layout.addWidget(random_quiz_button, 0)
+
+            if not random_quiz_button.isEnabled():
+                self._detail_layout.addWidget(
+                    _message_label("Add Entries to this pool before starting a Random Quiz.")
+                )
 
         self._detail_layout.addWidget(
             _message_label("Practice pools are managed automatically and browsed here as a factual, read-only context.")
@@ -523,6 +542,71 @@ class CollectionsView(QWidget):
         layout.addWidget(open_in_study_button, 0)
 
         return row
+
+
+class _SystemPoolRandomQuizDialog(QDialog):
+    """Lightweight whole-pool setup; QuizController remains the engine."""
+
+    launch_requested = Signal(object)  # QuizLaunchIntent
+
+    def __init__(self, controller: CollectionsController, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("collections-system-pool-random-quiz-dialog")
+        self.setWindowTitle("Random Quiz")
+        self._controller = controller
+
+        layout = QVBoxLayout(self)
+        collection = controller.selected_collection() or {}
+        layout.addWidget(QLabel(str(collection.get("name") or "Practice Pool"), self))
+
+        form = QFormLayout()
+        self._type_combo = QComboBox(self)
+        self._type_combo.setObjectName("collections-system-pool-random-quiz-type")
+        for quiz_type in controller.random_quiz_type_options():
+            self._type_combo.addItem(QUIZ_TYPE_LABELS.get(quiz_type, quiz_type), quiz_type)
+        self._type_combo.currentIndexChanged.connect(self._sync_count_range)
+        form.addRow("Quiz Type", self._type_combo)
+
+        self._count_spin = QSpinBox(self)
+        self._count_spin.setObjectName("collections-system-pool-random-quiz-count")
+        form.addRow("Item Count", self._count_spin)
+        layout.addLayout(form)
+
+        self._warning = QLabel("", self)
+        self._warning.setObjectName("collections-system-pool-random-quiz-warning")
+        self._warning.setWordWrap(True)
+        layout.addWidget(self._warning)
+
+        buttons = QHBoxLayout()
+        cancel = QPushButton("Cancel", self)
+        cancel.clicked.connect(self.reject)
+        buttons.addWidget(cancel)
+        buttons.addStretch(1)
+        self._start = QPushButton("Start Quiz", self)
+        self._start.setObjectName("collections-system-pool-random-quiz-start")
+        self._start.clicked.connect(self._launch)
+        buttons.addWidget(self._start)
+        layout.addLayout(buttons)
+        self._sync_count_range()
+
+    def _sync_count_range(self) -> None:
+        quiz_type = self._type_combo.currentData()
+        minimum, maximum = self._controller.random_quiz_item_count_range(quiz_type or "")
+        self._count_spin.setRange(max(minimum, 1), max(maximum, 1))
+        self._count_spin.setValue(min(maximum, 5) if maximum else 1)
+        self._start.setEnabled(minimum > 0 and maximum >= minimum)
+
+    def _launch(self) -> None:
+        try:
+            intent = self._controller.build_system_pool_random_quiz_intent(
+                str(self._type_combo.currentData() or ""),
+                self._count_spin.value(),
+            )
+        except ValueError as error:
+            self._warning.setText(str(error))
+            return
+        self.launch_requested.emit(intent)
+        self.accept()
 
 
 class _CollectionsListPane(QWidget):

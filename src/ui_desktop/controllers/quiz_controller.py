@@ -19,6 +19,7 @@ from src.quiz import (
     create_quiz_session,
     generate_mcq_items,
     generate_random_quiz_items,
+    get_failed_proficient_pool_entries_for_session,
     get_active_quiz_session,
     get_entries_for_quiz,
     get_quiz_item_log_view,
@@ -138,6 +139,9 @@ class QuizController(QObject):
         self._completion_proficient_candidates: list[dict] = []
         self._selected_completion_proficient_entry_ids: set[int] = set()
         self._added_completion_proficient_entry_ids: set[int] = set()
+        self._completion_proficient_audit_candidates: list[dict] = []
+        self._selected_completion_proficient_audit_entry_ids: set[int] = set()
+        self._removed_completion_proficient_audit_entry_ids: set[int] = set()
 
     @property
     def include_proficient_in_study(self) -> bool:
@@ -250,6 +254,9 @@ class QuizController(QObject):
         self._completion_proficient_candidates = []
         self._selected_completion_proficient_entry_ids = set()
         self._added_completion_proficient_entry_ids = set()
+        self._completion_proficient_audit_candidates = []
+        self._selected_completion_proficient_audit_entry_ids = set()
+        self._removed_completion_proficient_audit_entry_ids = set()
         self.pending_intent = None
         self.item_results = [None] * len(items)
         self.state_changed.emit()
@@ -475,6 +482,13 @@ class QuizController(QObject):
             for candidate in self._completion_proficient_candidates
         }
         self._added_completion_proficient_entry_ids = set()
+        self._completion_proficient_audit_candidates = [
+            row
+            for row in get_failed_proficient_pool_entries_for_session(self.session_id)
+            if row.get("currently_in_proficient_pool")
+        ]
+        self._selected_completion_proficient_audit_entry_ids = set()
+        self._removed_completion_proficient_audit_entry_ids = set()
         self.items = []
         self.current_index = 0
         self.feedback = None
@@ -523,6 +537,62 @@ class QuizController(QObject):
         add_entries_to_system_collection(selected_ids, "proficient_pool")
         self._added_completion_proficient_entry_ids.update(selected_ids)
         self._selected_completion_proficient_entry_ids.difference_update(selected_ids)
+        self.state_changed.emit()
+        return selected_ids
+
+    def completion_proficient_audit_candidates(self) -> list[dict]:
+        if self.completed_session is None:
+            return []
+        return [dict(candidate) for candidate in self._completion_proficient_audit_candidates]
+
+    def is_completion_proficient_audit_candidate_selected(self, entry_id: int) -> bool:
+        return int(entry_id) in self._selected_completion_proficient_audit_entry_ids
+
+    def set_completion_proficient_audit_candidate_selected(self, entry_id: int, selected: bool) -> None:
+        entry_id = int(entry_id)
+        candidate_ids = {
+            int(candidate["entry_id"])
+            for candidate in self._completion_proficient_audit_candidates
+        }
+        if entry_id not in candidate_ids or entry_id in self._removed_completion_proficient_audit_entry_ids:
+            return
+        if selected:
+            self._selected_completion_proficient_audit_entry_ids.add(entry_id)
+        else:
+            self._selected_completion_proficient_audit_entry_ids.discard(entry_id)
+
+    def keep_all_completion_proficient_audit_entries(self) -> None:
+        self._selected_completion_proficient_audit_entry_ids.clear()
+        self.state_changed.emit()
+
+    def completion_proficient_audit_removals(self) -> list[int]:
+        return sorted(self._removed_completion_proficient_audit_entry_ids)
+
+    def remove_selected_completion_proficient_audit_entries(
+        self,
+        *,
+        confirm_cross_card: bool = False,
+    ) -> list[int]:
+        if self.completed_session is None or self.session_id is None:
+            return []
+        currently_removable_ids = {
+            int(row["entry_id"])
+            for row in get_failed_proficient_pool_entries_for_session(self.session_id)
+            if row.get("currently_in_proficient_pool")
+        }
+        selected_ids = sorted(
+            (self._selected_completion_proficient_audit_entry_ids & currently_removable_ids)
+            - self._removed_completion_proficient_audit_entry_ids
+        )
+        if not selected_ids:
+            return []
+        remove_entries_from_system_collection(
+            selected_ids,
+            "proficient_pool",
+            confirm_cross_card=confirm_cross_card,
+        )
+        self._removed_completion_proficient_audit_entry_ids.update(selected_ids)
+        self._selected_completion_proficient_audit_entry_ids.difference_update(selected_ids)
         self.state_changed.emit()
         return selected_ids
 
@@ -690,5 +760,8 @@ class QuizController(QObject):
         self._completion_proficient_candidates = []
         self._selected_completion_proficient_entry_ids = set()
         self._added_completion_proficient_entry_ids = set()
+        self._completion_proficient_audit_candidates = []
+        self._selected_completion_proficient_audit_entry_ids = set()
+        self._removed_completion_proficient_audit_entry_ids = set()
         if not silent:
             self.state_changed.emit()
