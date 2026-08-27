@@ -8,6 +8,7 @@ import unittest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication, QCheckBox, QLabel, QProgressBar, QPushButton
+from PySide6.QtGui import QColor
 
 from src import db, learning_workflow, quiz
 from src.app_config import APP_PREFERENCES_PATH_ENV
@@ -26,7 +27,7 @@ from src.ui_desktop.controllers.collections_controller import CollectionsControl
 from src.ui_desktop.main_window import MainWindow
 from src.ui_desktop.state.handoff import QuizLaunchIntent
 from src.ui_desktop.state.preferences import load_preferences
-from src.ui_desktop.theming.theme_manager import build_stylesheet
+from src.ui_desktop.theming.theme_manager import build_palette, build_stylesheet
 from src.ui_desktop.theming.tokens import THEME_CALM_BLUE_DARK, THEME_CALM_BLUE_LIGHT
 from src.ui_desktop.views.review_view import ReviewView
 from src.ui_desktop.views.quiz_view import QuizView
@@ -166,6 +167,19 @@ class StudyStarActionTests(PhaseBTestCase):
         self.assertTrue(button.property("learningStar"))
         self.assertGreaterEqual(button.minimumWidth(), 112)
         self.assertGreaterEqual(button.minimumHeight(), 40)
+
+        original_palette = self.app.palette()
+        original_stylesheet = self.app.styleSheet()
+        self.addCleanup(self.app.setPalette, original_palette)
+        self.addCleanup(self.app.setStyleSheet, original_stylesheet)
+        self.app.setPalette(build_palette(THEME_CALM_BLUE_LIGHT))
+        self.app.setStyleSheet(build_stylesheet(THEME_CALM_BLUE_LIGHT))
+        view.show()
+        self.app.processEvents()
+        self.assertEqual(
+            button.palette().color(button.foregroundRole()).name(),
+            QColor("#2C4C6C").name(),
+        )
 
         for tokens in (THEME_CALM_BLUE_LIGHT, THEME_CALM_BLUE_DARK):
             stylesheet = build_stylesheet(tokens)
@@ -624,6 +638,50 @@ class CollectionProgressVisibilityPreferenceTests(PhaseBTestCase):
         self.assertFalse(
             load_preferences(Path(os.environ[APP_PREFERENCES_PATH_ENV])).show_collection_progress_bars
         )
+
+    def test_light_mode_uses_deep_blue_for_progress_and_its_setting(self) -> None:
+        collection_id, _entry_ids = self._collection_with_entries()
+        window = MainWindow()
+        self.addCleanup(window.deleteLater)
+        window.collections_view.refresh()
+        window.collections_controller.select_collection(collection_id, is_system=False)
+
+        original_palette = self.app.palette()
+        original_stylesheet = self.app.styleSheet()
+        self.addCleanup(self.app.setPalette, original_palette)
+        self.addCleanup(self.app.setStyleSheet, original_stylesheet)
+        self.app.setPalette(build_palette(THEME_CALM_BLUE_LIGHT))
+        self.app.setStyleSheet(build_stylesheet(THEME_CALM_BLUE_LIGHT))
+        window.show()
+        self.app.processEvents()
+
+        labels_by_text = {
+            label.text(): label
+            for label in window.settings_view.findChildren(QLabel)
+        }
+        normal_button = next(
+            button
+            for button in window.collections_view.findChildren(QPushButton, "collections-list-item")
+            if button.text().startswith("Synthetic Phase B")
+        )
+        progress_label = window.collections_view.findChild(QLabel, "collections-learning-progress")
+        checkbox = window.settings_view.findChild(
+            QCheckBox,
+            "settings-collection-progress-bars-checkbox",
+        )
+        expected = QColor("#2C4C6C")
+        for widget in (
+            labels_by_text["Collections"],
+            labels_by_text["Learning progress"],
+            checkbox,
+            normal_button,
+            progress_label,
+        ):
+            with self.subTest(widget=widget.objectName() or widget.text()):
+                self.assertEqual(
+                    widget.palette().color(widget.foregroundRole()).name(),
+                    expected.name(),
+                )
 
 
 if __name__ == "__main__":

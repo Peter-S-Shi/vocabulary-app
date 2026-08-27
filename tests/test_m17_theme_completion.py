@@ -443,7 +443,7 @@ class EntriesStarThemeAwareTests(unittest.TestCase):
     def test_default_star_color_is_a_safe_placeholder_before_any_theme_push(self) -> None:
         model = EntriesTableModel([{"id": 1, "starred": True}])
         color = model.data(model.index(0, model.COLUMNS.index(model.STAR_COLUMN)), Qt.ItemDataRole.ForegroundRole)
-        self.assertEqual(color, EntriesTableModel.DEFAULT_STAR_COLOR)
+        self.assertEqual(color.name(), QColor("#2C4C6C").name())
 
     def test_set_star_color_repaints_only_filled_stars(self) -> None:
         model = EntriesTableModel([{"id": 1, "starred": True}, {"id": 2, "starred": False}])
@@ -663,8 +663,8 @@ class ContrastAuditTests(unittest.TestCase):
                 )
 
     def test_star_semantic_stays_hue_distinct_from_warning(self) -> None:
-        """M17 Theme Completion prompt § 13: "Star gold does not become
-        visually indistinguishable from warning." A fixed hue-distance
+        """Star must not become visually indistinguishable from warning.
+        A fixed hue-distance
         floor is a coarse but real guard against the two semantics
         converging on the same amber."""
         MIN_HUE_SEPARATION_DEGREES = 8.0

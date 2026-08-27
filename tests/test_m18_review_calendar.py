@@ -10,7 +10,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
     from PySide6.QtCore import QLocale, Qt
-    from PySide6.QtWidgets import QApplication, QScrollArea
+    from PySide6.QtGui import QColor, QPalette
+    from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QScrollArea, QToolButton
 
     PYSIDE6_AVAILABLE = True
 except ImportError:  # pragma: no cover - exercised only when PySide6 is absent
@@ -38,7 +39,7 @@ if PYSIDE6_AVAILABLE:
         DEFAULT_RANGE_DAYS,
         ReviewCalendarController,
     )
-    from src.ui_desktop.theming.theme_manager import build_stylesheet
+    from src.ui_desktop.theming.theme_manager import build_palette, build_stylesheet
     from src.ui_desktop.theming.tokens import THEME_CALM_BLUE_DARK, THEME_CALM_BLUE_LIGHT
     from src.ui_desktop.views.review_calendar_view import ReviewCalendarView
     from src.ui_desktop.widgets.navigation_rail import NavigationRail
@@ -300,6 +301,51 @@ class ReviewCalendarViewStructureTests(_SyntheticDatabaseTestCase):
             view._schedule_date.calendarWidget().locale().language(),
             QLocale.Language.English,
         )
+
+    def test_light_mode_uses_deep_blue_text_throughout_review_calendar(self) -> None:
+        original_palette = self.app.palette()
+        original_stylesheet = self.app.styleSheet()
+        self.addCleanup(self.app.setPalette, original_palette)
+        self.addCleanup(self.app.setStyleSheet, original_stylesheet)
+        self.app.setPalette(build_palette(THEME_CALM_BLUE_LIGHT))
+        self.app.setStyleSheet(build_stylesheet(THEME_CALM_BLUE_LIGHT))
+
+        controller = ReviewCalendarController()
+        view = ReviewCalendarView(controller)
+        self.addCleanup(view.deleteLater)
+        view.show()
+        self.app.processEvents()
+
+        expected = QColor("#2C4C6C")
+        text_widgets = [
+            *view.findChildren(QLabel),
+            view._range_combo,
+            view._schedule_date,
+            view._schedule_save_button,
+            view._schedule_clear_button,
+        ]
+        for widget in text_widgets:
+            with self.subTest(widget=widget.objectName() or widget.text()):
+                self.assertEqual(
+                    widget.palette().color(widget.foregroundRole()).name(),
+                    expected.name(),
+                )
+
+        for table in (view._schedule_table, view._table, view._history_table, view._legacy_table):
+            with self.subTest(table=table.objectName()):
+                self.assertEqual(
+                    table.palette().color(QPalette.ColorRole.Text).name(),
+                    expected.name(),
+                )
+
+        calendar = view._schedule_date.calendarWidget()
+        calendar.ensurePolished()
+        for button in calendar.findChildren(QToolButton):
+            with self.subTest(calendar_button=button.objectName()):
+                self.assertEqual(
+                    button.palette().color(button.foregroundRole()).name(),
+                    expected.name(),
+                )
 
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")

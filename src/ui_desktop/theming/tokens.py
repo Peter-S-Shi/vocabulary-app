@@ -170,15 +170,10 @@ SEMANTIC_LIGHT = SemanticTokens(
     danger_soft="#F7E4E3",
     info=ColorPair("#3F6D82", "#FFFFFF"),
     info_soft="#E4EEF1",
-    # M17 Theme Completion (prompt § 13): the desktop Entries Star column
-    # previously used one fixed hardcoded gold (#C9972E) with no theme
-    # awareness. It measured only 2.64:1 against Light surface-primary
-    # (fails WCAG AA) and sits at hue ~41 deg, only ~4 deg from warning's
-    # own ~37 deg hue in both Appearances -- close enough to risk reading
-    # as a warning badge. #8A6D00 clears 4.5:1+ against every Light
-    # surface it appears on and shifts to hue ~47 deg (clearly more
-    # yellow/gold, less brown/amber) for real separation from warning.
-    star=ColorPair("#8A6D00", "#FFFFFF"),
+    # Star is an interactive learning action, not a warning state. Reuse
+    # Calm Blue's pressed pair so it stays high-contrast on Light surfaces
+    # without introducing a competing yellow/amber semantic.
+    star=ColorPair("#2C4C6C", "#FFFFFF"),
 )
 
 SEMANTIC_DARK = SemanticTokens(
@@ -190,9 +185,8 @@ SEMANTIC_DARK = SemanticTokens(
     danger_soft="#3A2323",
     info=ColorPair("#7CAFC2", "#17181A"),
     info_soft="#21313A",
-    # Same Star rationale as Light: #E8C547 keeps hue ~47 deg (vs
-    # warning's ~37 deg) and contrasts ~9.7:1 against Dark surface-primary.
-    star=ColorPair("#E8C547", "#17181A"),
+    # Dark counterpart of the same Calm Blue Star action.
+    star=ColorPair("#6E97BC", "#17181A"),
 )
 
 THEME_CALM_BLUE_LIGHT = ThemeTokens(

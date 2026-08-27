@@ -69,7 +69,7 @@ class EntriesTableModel(QAbstractTableModel):
 
     # Safe default before the view supplies the real resolved token color
     # (set_star_color()); never the sole source of truth for it.
-    DEFAULT_STAR_COLOR = QColor("#8A6D00")
+    DEFAULT_STAR_COLOR = QColor("#2C4C6C")
     FOCUSED_ROW_TINT = QColor(62, 102, 144, 40)
 
     checkbox_toggled = Signal(int, bool)

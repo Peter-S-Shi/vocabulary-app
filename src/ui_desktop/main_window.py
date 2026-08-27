@@ -187,7 +187,7 @@ class MainWindow(QMainWindow):
         # M17 Theme Completion: everything QSS/QPalette-driven re-themes
         # itself automatically the instant ThemeManager.apply() re-runs
         # (ThemeManager docstring) -- only the Star column's custom
-        # QAbstractItemModel-painted gold needs an explicit push, both now
+        # QAbstractItemModel-painted Star color needs an explicit push, both now
         # (using whatever ThemeManager already applied at bootstrap) and
         # on every future live theme change.
         if self.theme_manager is not None:

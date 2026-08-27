@@ -598,6 +598,7 @@ class _CollectionsListPane(QWidget):
             text = f"{name}    {count}\n{learned_cards}/{total_cards} Cards · {learning_percent}%"
         button = QPushButton(text, self)
         button.setObjectName("collections-list-item")
+        button.setProperty("normalCollection", not is_system)
         button.setCheckable(True)
         button.setFlat(True)
         button.setChecked(collection_id == active_id)
