@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QRadioButton,
     QScrollArea,
@@ -16,6 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.collections import CROSS_CARD_CONFIRMATION_MESSAGE, CrossCardMoveConfirmationRequired
 from src.ui_desktop.controllers.quiz_controller import MATCHING_FAMILY, MCQ_FAMILY, QuizController
 from src.ui_desktop.state.handoff import QUIZ_TYPE_LABELS
 from src.ui_desktop.state.preferences import (
@@ -214,6 +216,7 @@ class QuizView(QWidget):
         self._presentation = DEFAULT_QUIZ_PRESENTATION
         controller.state_changed.connect(self._render)
         controller.matching_selection_changed.connect(self._on_matching_selection_changed)
+        controller.starred_changed.connect(self._on_starred_changed)
 
     def set_presentation(self, quiz_presentation: str) -> None:
         """Resolve this Quiz session's presentation once, at launch time
@@ -401,6 +404,16 @@ class QuizView(QWidget):
             layout.addWidget(_message_label("This Quiz has no items.", "quiz-empty-state"))
             return False
 
+        layout.addWidget(
+            self._build_star_button(
+                int(item["entry_id"]),
+                parent,
+                object_name="quiz-current-entry-star-button",
+            ),
+            0,
+            Qt.AlignmentFlag.AlignHCenter,
+        )
+
         term = _WrappingLabel(str(item.get("prompt") or ""), parent)
         term.setObjectName("quiz-term-label")
         term.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -465,6 +478,16 @@ class QuizView(QWidget):
         if item is None:
             layout.addWidget(_message_label("This Quiz has no items.", "quiz-empty-state"))
             return False
+
+        layout.addWidget(
+            self._build_star_button(
+                int(item["entry_id"]),
+                parent,
+                object_name="quiz-current-entry-star-button",
+            ),
+            0,
+            Qt.AlignmentFlag.AlignHCenter,
+        )
 
         term = _WrappingLabel(str(item.get("prompt") or ""), parent)
         term.setObjectName("quiz-term-label")
@@ -644,6 +667,15 @@ class QuizView(QWidget):
         layout = QHBoxLayout(row)
         layout.setSpacing(SPACING.sm)
 
+        layout.addWidget(
+            self._build_star_button(
+                int(item["entry_id"]),
+                row,
+                object_name=f"quiz-matching-star-button-{int(item['entry_id'])}",
+            ),
+            0,
+        )
+
         term_label = QLabel(str(item.get("term") or ""), row)
         term_label.setObjectName("quiz-matching-term-label")
         layout.addWidget(term_label, 1)
@@ -661,6 +693,32 @@ class QuizView(QWidget):
         layout.addWidget(combo, 1)
 
         return row
+
+    def _build_star_button(self, entry_id: int, parent: QWidget, *, object_name: str) -> QPushButton:
+        button = QPushButton(parent)
+        button.setObjectName(object_name)
+        button.setProperty("entryId", entry_id)
+        button.setFlat(True)
+        self._set_star_button_state(button, self._controller.is_entry_starred(entry_id))
+        button.clicked.connect(lambda: self._toggle_entry_star(entry_id, confirm_cross_card=False))
+        return button
+
+    @staticmethod
+    def _set_star_button_state(button: QPushButton, starred: bool) -> None:
+        button.setText("★ Starred" if starred else "☆ Star")
+        button.setAccessibleName("Unstar Entry" if starred else "Star Entry")
+
+    def _on_starred_changed(self, entry_id: int, starred: bool) -> None:
+        for button in self.findChildren(QPushButton):
+            if button.property("entryId") == entry_id:
+                self._set_star_button_state(button, starred)
+
+    def _toggle_entry_star(self, entry_id: int, *, confirm_cross_card: bool) -> None:
+        try:
+            self._controller.toggle_entry_star(entry_id, confirm_cross_card=confirm_cross_card)
+        except CrossCardMoveConfirmationRequired:
+            if _confirm_cross_card_reorganization(self):
+                self._toggle_entry_star(entry_id, confirm_cross_card=True)
 
     # -- completion ------------------------------------------------------
 
@@ -1023,3 +1081,13 @@ def _clear_layout(layout) -> None:
         widget = item.widget()
         if widget is not None:
             widget.deleteLater()
+
+
+def _confirm_cross_card_reorganization(parent: QWidget) -> bool:
+    result = QMessageBox.question(
+        parent,
+        "Confirm Card Reorganization",
+        CROSS_CARD_CONFIRMATION_MESSAGE,
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+    )
+    return result == QMessageBox.StandardButton.Yes

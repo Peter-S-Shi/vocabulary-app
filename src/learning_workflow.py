@@ -72,6 +72,7 @@ def get_study_cards(conn) -> list[dict]:
         SELECT
             c.id AS collection_id,
             c.name AS collection_name,
+            c.is_system,
             c.card_size,
             CAST(((ec.position - 1) / c.card_size) AS INTEGER) + 1 AS card_number,
             {card_identity_select},
@@ -84,6 +85,7 @@ def get_study_cards(conn) -> list[dict]:
         GROUP BY
             c.id,
             c.name,
+            c.is_system,
             c.card_size,
             CAST(((ec.position - 1) / c.card_size) AS INTEGER) + 1,
             card_id
@@ -94,6 +96,7 @@ def get_study_cards(conn) -> list[dict]:
         {
             "collection_id": int(row["collection_id"]),
             "collection_name": row["collection_name"],
+            "is_system": bool(row["is_system"]),
             "card_number": int(row["card_number"]),
             "card_id": None if row["card_id"] is None else int(row["card_id"]),
             "card_size": int(row["card_size"]),
@@ -104,6 +107,43 @@ def get_study_cards(conn) -> list[dict]:
         }
         for row in rows
     ]
+
+
+def get_collection_learning_progress(conn=None) -> dict[int, dict]:
+    """Aggregate current stable-Card learning truth for normal Collections.
+
+    ``get_study_cards`` remains the single definition of active Card identity
+    and completed Card-scoped Quiz evidence. Legacy sessions with no stable
+    ``card_id`` therefore cannot contribute, while a revision change leaves
+    the learned stable Card identity intact.
+    """
+    if conn is None:
+        from src.db import get_connection
+
+        with get_connection() as connection:
+            return get_collection_learning_progress(connection)
+
+    progress: dict[int, dict] = {}
+    for card in get_study_cards(conn):
+        if card["is_system"] or card["card_id"] is None:
+            continue
+        collection_id = int(card["collection_id"])
+        row = progress.setdefault(
+            collection_id,
+            {
+                "collection_id": collection_id,
+                "learned_cards": 0,
+                "total_cards": 0,
+                "percent": 0,
+            },
+        )
+        row["total_cards"] += 1
+        if int(card["completion_count"]) > 0:
+            row["learned_cards"] += 1
+
+    for row in progress.values():
+        row["percent"] = round(100 * row["learned_cards"] / row["total_cards"])
+    return progress
 
 
 def get_study_workload(conn, today=None) -> dict:

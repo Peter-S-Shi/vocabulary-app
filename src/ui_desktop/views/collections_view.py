@@ -333,6 +333,16 @@ class CollectionsView(QWidget):
         meta.setObjectName("collections-detail-meta")
         self._detail_layout.addWidget(meta)
 
+        learned_cards = int(collection.get("learned_cards") or 0)
+        total_cards = int(collection.get("total_cards") or 0)
+        learning_percent = int(collection.get("learning_percent") or 0)
+        progress = QLabel(
+            f"{learned_cards} of {total_cards} Cards learned ({learning_percent}%)",
+            self._detail_container,
+        )
+        progress.setObjectName("collections-learning-progress")
+        self._detail_layout.addWidget(progress)
+
         actions_row = QWidget(self._detail_container)
         actions_layout = QHBoxLayout(actions_row)
         actions_layout.setContentsMargins(0, 0, 0, 0)
@@ -536,7 +546,13 @@ class _CollectionsListPane(QWidget):
         collection_id = int(collection["id"])
         count = int(collection.get("entry_count") or 0)
         name = _pool_display_name(collection.get("name")) if is_system else str(collection.get("name") or "")
-        text = f"{name}    {count}"
+        if is_system:
+            text = f"{name}    {count}"
+        else:
+            learned_cards = int(collection.get("learned_cards") or 0)
+            total_cards = int(collection.get("total_cards") or 0)
+            learning_percent = int(collection.get("learning_percent") or 0)
+            text = f"{name}    {count}\n{learned_cards}/{total_cards} Cards · {learning_percent}%"
         button = QPushButton(text, self)
         button.setObjectName("collections-list-item")
         button.setCheckable(True)

@@ -3,7 +3,13 @@ from __future__ import annotations
 from PySide6.QtCore import QObject, Signal
 
 from src import db
-from src.collections import get_card_groups_for_collection, get_entries_in_collection
+from src.collections import (
+    add_entries_to_system_collection,
+    get_card_groups_for_collection,
+    get_entries_in_collection,
+    get_entry_ids_in_system_collection,
+    remove_entries_from_system_collection,
+)
 from src.learning_workflow import get_card_learning_history, get_study_cards
 from src.quiz import QUIZ_TYPES
 from src.template_quiz import get_available_template_quiz_sources_for_card, get_template_quiz_rules
@@ -46,6 +52,7 @@ MATCHING_ITEM_COUNT_OPTIONS: tuple[int, ...] = (4, 6, 8, 10)
 
 class ReviewController(QObject):
     state_changed = Signal()
+    starred_changed = Signal(int, bool)
 
     def __init__(self) -> None:
         super().__init__()
@@ -54,6 +61,7 @@ class ReviewController(QObject):
         self._entries: list[dict] = []
         self._entry_index: int = 0
         self._visited_entry_ids: set[int] = set()
+        self._starred_entry_ids: set[int] = set()
         self._history: list[dict] = []
 
     # -- loading -----------------------------------------------------------
@@ -78,6 +86,7 @@ class ReviewController(QObject):
             self._entries = []
             self._entry_index = 0
             self._visited_entry_ids = set()
+            self._starred_entry_ids = set()
             self._history = []
             self.state_changed.emit()
             return False
@@ -115,6 +124,12 @@ class ReviewController(QObject):
         self._entry_index = 0
         self._visited_entry_ids = set()
         self._mark_current_entry_visited()
+        self._starred_entry_ids = set(
+            get_entry_ids_in_system_collection(
+                [entry["id"] for entry in self._entries],
+                "starred",
+            )
+        )
         with db.get_connection() as connection:
             self._history = get_card_learning_history(connection, card["collection_id"], card["card_number"])
         self.state_changed.emit()
@@ -155,6 +170,31 @@ class ReviewController(QObject):
 
     def is_entry_visited(self, entry_id: int) -> bool:
         return entry_id in self._visited_entry_ids
+
+    def is_entry_starred(self, entry_id: int) -> bool:
+        return entry_id in self._starred_entry_ids
+
+    def toggle_current_entry_star(self, *, confirm_cross_card: bool = False) -> bool:
+        entry = self.current_entry()
+        if entry is None:
+            raise ValueError("No current Entry is available")
+
+        entry_id = int(entry["id"])
+        if self.is_entry_starred(entry_id):
+            remove_entries_from_system_collection(
+                [entry_id],
+                "starred",
+                confirm_cross_card=confirm_cross_card,
+            )
+            self._starred_entry_ids.remove(entry_id)
+            starred = False
+        else:
+            add_entries_to_system_collection([entry_id], "starred")
+            self._starred_entry_ids.add(entry_id)
+            starred = True
+
+        self.starred_changed.emit(entry_id, starred)
+        return starred
 
     # -- entry navigation ------------------------------------------------
 

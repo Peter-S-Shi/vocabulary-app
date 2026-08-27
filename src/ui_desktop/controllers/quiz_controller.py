@@ -6,6 +6,11 @@ from typing import Callable
 
 from PySide6.QtCore import QObject, Signal
 
+from src.collections import (
+    add_entries_to_system_collection,
+    get_entry_ids_in_system_collection,
+    remove_entries_from_system_collection,
+)
 from src.quiz import (
     create_quiz_items,
     create_quiz_session,
@@ -83,6 +88,7 @@ _STALE_SESSION_CLEANUP_LIMIT = 50
 
 class QuizController(QObject):
     state_changed = Signal()
+    starred_changed = Signal(int, bool)
     # A Matching answer pick is transient item state, not a reason to
     # rebuild the whole task surface (VR-STUDY-001 corrective pass § 2B) --
     # QuizView listens for this separately from state_changed so it can
@@ -118,6 +124,7 @@ class QuizController(QObject):
         # rebuilt on every ``start()``, never written to vocab.db, never a
         # second source of grading truth.
         self.item_results: list[bool | None] = []
+        self._starred_entry_ids: set[int] = set()
 
     # -- family classification --------------------------------------------
 
@@ -190,6 +197,12 @@ class QuizController(QObject):
         self.session_id = create_quiz_session(intent.collection_id, intent.card_number, intent.quiz_type, len(items))
         self.intent = intent
         self.items = items
+        self._starred_entry_ids = set(
+            get_entry_ids_in_system_collection(
+                [int(item["entry_id"]) for item in items],
+                "starred",
+            )
+        )
         self.meaning_choices = generation.get("meaning_choices")
         self.generation_warning = str(generation.get("warning") or "")
         self.current_index = 0
@@ -273,6 +286,27 @@ class QuizController(QObject):
         if 0 <= index < len(self.item_results):
             return self.item_results[index]
         return None
+
+    def is_entry_starred(self, entry_id: int) -> bool:
+        return entry_id in self._starred_entry_ids
+
+    def toggle_entry_star(self, entry_id: int, *, confirm_cross_card: bool = False) -> bool:
+        entry_id = int(entry_id)
+        if self.is_entry_starred(entry_id):
+            remove_entries_from_system_collection(
+                [entry_id],
+                "starred",
+                confirm_cross_card=confirm_cross_card,
+            )
+            self._starred_entry_ids.remove(entry_id)
+            starred = False
+        else:
+            add_entries_to_system_collection([entry_id], "starred")
+            self._starred_entry_ids.add(entry_id)
+            starred = True
+
+        self.starred_changed.emit(entry_id, starred)
+        return starred
 
     # -- self-graded ---------------------------------------------------------
 
@@ -550,5 +584,6 @@ class QuizController(QObject):
         self.reviewing_mistakes = False
         self.mistake_index = 0
         self.item_results = []
+        self._starred_entry_ids = set()
         if not silent:
             self.state_changed.emit()

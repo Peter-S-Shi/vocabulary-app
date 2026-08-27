@@ -18,6 +18,7 @@ from src.collections import (
     set_card_name,
     update_collection,
 )
+from src.learning_workflow import get_collection_learning_progress
 
 """
 CollectionsController owns the Collections workspace's transient
@@ -63,7 +64,23 @@ class CollectionsController(QObject):
 
     def refresh(self) -> None:
         all_collections = get_collections()
-        self.collections = [c for c in all_collections if not c["is_system"]]
+        progress_by_collection = get_collection_learning_progress()
+        self.collections = []
+        for collection in all_collections:
+            if collection["is_system"]:
+                continue
+            progress = progress_by_collection.get(
+                int(collection["id"]),
+                {"learned_cards": 0, "total_cards": 0, "percent": 0},
+            )
+            self.collections.append(
+                {
+                    **collection,
+                    "learned_cards": int(progress["learned_cards"]),
+                    "total_cards": int(progress["total_cards"]),
+                    "learning_percent": int(progress["percent"]),
+                }
+            )
         self.system_pools = [c for c in all_collections if c["is_system"]]
         if self.selected_id is not None and not any(
             c["id"] == self.selected_id for c in (*self.collections, *self.system_pools)
@@ -88,7 +105,14 @@ class CollectionsController(QObject):
     def selected_collection(self) -> dict | None:
         if self.selected_id is None:
             return None
-        return get_collection_by_id(self.selected_id)
+        collection = get_collection_by_id(self.selected_id)
+        if collection is None or self.selected_is_system:
+            return collection
+        projected = next(
+            (row for row in self.collections if int(row["id"]) == int(self.selected_id)),
+            None,
+        )
+        return projected or collection
 
     # -- Card pagination (§ 2/§ 3/§ 4) --------------------------------------
 
