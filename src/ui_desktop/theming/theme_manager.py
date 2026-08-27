@@ -125,7 +125,7 @@ def resolve_tokens(
     customization: ModeCustomization | None = None,
 ) -> ThemeTokens:
     effective_appearance = resolve_effective_appearance(appearance)
-    if customization is not None and customization.is_customized():
+    if customization is not None:
         return build_resolved_theme_tokens(effective_appearance.value, customization)
 
     key = (effective_appearance, accent)
