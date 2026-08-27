@@ -5,6 +5,7 @@ from datetime import date
 from PySide6.QtCore import QDate, QLocale, Qt, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QCheckBox,
     QComboBox,
     QDialog,
     QDateEdit,
@@ -768,6 +769,70 @@ class QuizView(QWidget):
         mistakes_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         mistakes_label.setWordWrap(True)
         layout.addWidget(mistakes_label)
+
+        candidates = controller.completion_proficient_candidates()
+        if candidates:
+            layout.addWidget(_section_divider(block))
+            proficient_heading = QLabel("Ready for Proficient Pool", block)
+            proficient_heading.setObjectName("quiz-completion-proficient-heading")
+            proficient_heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(proficient_heading)
+
+            added_ids = set(controller.completion_proficient_additions())
+            candidate_rows: list[QCheckBox] = []
+            for candidate in candidates:
+                entry_id = int(candidate["entry_id"])
+                term = str(candidate.get("term") or f"Entry #{entry_id}")
+                meaning = str(candidate.get("meaning") or "")
+                label = f"{term} — {meaning}" if meaning else term
+                checkbox = QCheckBox(label, block)
+                checkbox.setObjectName(f"quiz-completion-proficient-entry-{entry_id}")
+                checkbox.setProperty("entryId", entry_id)
+                checkbox.setChecked(
+                    controller.is_completion_proficient_candidate_selected(entry_id)
+                )
+                checkbox.setEnabled(entry_id not in added_ids)
+                candidate_rows.append(checkbox)
+                layout.addWidget(checkbox, 0, Qt.AlignmentFlag.AlignLeft)
+
+            added_terms = [
+                str(candidate.get("term") or f"Entry #{candidate['entry_id']}")
+                for candidate in candidates
+                if int(candidate["entry_id"]) in added_ids
+            ]
+            if added_terms:
+                added_status = QLabel(
+                    f"Added to Proficient Pool: {', '.join(added_terms)}",
+                    block,
+                )
+                added_status.setObjectName("quiz-completion-proficient-added-status")
+                added_status.setWordWrap(True)
+                layout.addWidget(added_status)
+
+            add_button = QPushButton("Add Selected to Proficient Pool", block)
+            add_button.setObjectName("quiz-completion-proficient-add-button")
+
+            def _sync_proficient_selection() -> None:
+                for candidate_checkbox in candidate_rows:
+                    candidate_entry_id = int(candidate_checkbox.property("entryId"))
+                    controller.set_completion_proficient_candidate_selected(
+                        candidate_entry_id,
+                        candidate_checkbox.isChecked(),
+                    )
+                add_button.setEnabled(
+                    any(
+                        candidate_checkbox.isEnabled() and candidate_checkbox.isChecked()
+                        for candidate_checkbox in candidate_rows
+                    )
+                )
+
+            for checkbox in candidate_rows:
+                checkbox.toggled.connect(_sync_proficient_selection)
+            add_button.clicked.connect(
+                controller.add_selected_completion_entries_to_proficient_pool
+            )
+            _sync_proficient_selection()
+            layout.addWidget(add_button, 0, Qt.AlignmentFlag.AlignHCenter)
 
         if controller.completion_schedule() is not None:
             layout.addWidget(_section_divider(block))

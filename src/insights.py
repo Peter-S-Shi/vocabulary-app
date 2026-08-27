@@ -191,6 +191,61 @@ def get_entry_findings(
     return [_entry_finding(profile) for profile in profiles]
 
 
+def get_completed_quiz_strength_candidates(
+    conn: Connection,
+    session_id: int,
+    *,
+    as_of_date: str | date | datetime | None = None,
+) -> list[dict]:
+    """Return current M14 Strength findings evidenced by one completed Quiz.
+
+    This is a read-only recommendation projection. It neither changes M14's
+    ``suggested_action`` contract nor mutates Proficient Pool membership.
+    """
+    session = conn.execute(
+        "SELECT status FROM quiz_sessions WHERE id = ?",
+        (int(session_id),),
+    ).fetchone()
+    if session is None or session["status"] != "completed":
+        return []
+
+    evidence_rows = conn.execute(
+        """
+        SELECT
+            logs.entry_id,
+            MIN(logs.id) AS first_log_id,
+            entries.term,
+            entries.meaning,
+            entries.entry_type
+        FROM quiz_item_logs AS logs
+        JOIN entries ON entries.id = logs.entry_id
+        WHERE logs.session_id = ?
+          AND logs.is_correct IN (0, 1)
+        GROUP BY logs.entry_id, entries.term, entries.meaning, entries.entry_type
+        ORDER BY first_log_id, logs.entry_id
+        """,
+        (int(session_id),),
+    ).fetchall()
+    if not evidence_rows:
+        return []
+
+    evidence_by_entry_id = {int(row["entry_id"]): dict(row) for row in evidence_rows}
+    findings = get_entry_findings(conn, as_of_date=as_of_date)
+    return [
+        {
+            "entry_id": int(finding["scope_id"]),
+            "term": evidence_by_entry_id[int(finding["scope_id"])]["term"],
+            "meaning": evidence_by_entry_id[int(finding["scope_id"])]["meaning"],
+            "entry_type": evidence_by_entry_id[int(finding["scope_id"])]["entry_type"],
+            "primary_finding": "strength",
+        }
+        for finding in findings
+        if int(finding["scope_id"]) in evidence_by_entry_id
+        and finding["primary_finding"] == "strength"
+        and not bool(finding["context"]["in_proficient_pool"])
+    ]
+
+
 def _coverage_finding(profile: dict) -> dict | None:
     touched = profile["touched_ratio"]
     interpretable = profile["interpretable_ratio"]

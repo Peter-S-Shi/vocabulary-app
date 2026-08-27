@@ -6,12 +6,14 @@ from typing import Callable
 
 from PySide6.QtCore import QObject, Signal
 
+from src import db
 from src.collections import (
     add_entries_to_system_collection,
     get_card_entries_for_study,
     get_entry_ids_in_system_collection,
     remove_entries_from_system_collection,
 )
+from src.insights import get_completed_quiz_strength_candidates
 from src.quiz import (
     create_quiz_items,
     create_quiz_session,
@@ -133,6 +135,9 @@ class QuizController(QObject):
         # second source of grading truth.
         self.item_results: list[bool | None] = []
         self._starred_entry_ids: set[int] = set()
+        self._completion_proficient_candidates: list[dict] = []
+        self._selected_completion_proficient_entry_ids: set[int] = set()
+        self._added_completion_proficient_entry_ids: set[int] = set()
 
     @property
     def include_proficient_in_study(self) -> bool:
@@ -242,6 +247,9 @@ class QuizController(QObject):
         self.matching_selection = {}
         self.completed_session = None
         self.mistakes = []
+        self._completion_proficient_candidates = []
+        self._selected_completion_proficient_entry_ids = set()
+        self._added_completion_proficient_entry_ids = set()
         self.pending_intent = None
         self.item_results = [None] * len(items)
         self.state_changed.emit()
@@ -456,6 +464,17 @@ class QuizController(QObject):
         session = complete_quiz_session(self.session_id)
         self.completed_session = session
         self.mistakes = get_quiz_item_log_view(session_id=self.session_id, show_wrong_only=True)
+        with db.get_connection() as connection:
+            self._completion_proficient_candidates = get_completed_quiz_strength_candidates(
+                connection,
+                self.session_id,
+                as_of_date=self._today_provider(),
+            )
+        self._selected_completion_proficient_entry_ids = {
+            int(candidate["entry_id"])
+            for candidate in self._completion_proficient_candidates
+        }
+        self._added_completion_proficient_entry_ids = set()
         self.items = []
         self.current_index = 0
         self.feedback = None
@@ -463,6 +482,49 @@ class QuizController(QObject):
         self.reviewing_mistakes = False
         self.mistake_index = 0
         self.state_changed.emit()
+
+    def completion_proficient_candidates(self) -> list[dict]:
+        if self.completed_session is None:
+            return []
+        return [dict(candidate) for candidate in self._completion_proficient_candidates]
+
+    def is_completion_proficient_candidate_selected(self, entry_id: int) -> bool:
+        return int(entry_id) in self._selected_completion_proficient_entry_ids
+
+    def set_completion_proficient_candidate_selected(self, entry_id: int, selected: bool) -> None:
+        entry_id = int(entry_id)
+        candidate_ids = {
+            int(candidate["entry_id"])
+            for candidate in self._completion_proficient_candidates
+        }
+        if entry_id not in candidate_ids or entry_id in self._added_completion_proficient_entry_ids:
+            return
+        if selected:
+            self._selected_completion_proficient_entry_ids.add(entry_id)
+        else:
+            self._selected_completion_proficient_entry_ids.discard(entry_id)
+
+    def completion_proficient_additions(self) -> list[int]:
+        return sorted(self._added_completion_proficient_entry_ids)
+
+    def add_selected_completion_entries_to_proficient_pool(self) -> list[int]:
+        if self.completed_session is None:
+            return []
+        candidate_ids = {
+            int(candidate["entry_id"])
+            for candidate in self._completion_proficient_candidates
+        }
+        selected_ids = sorted(
+            (self._selected_completion_proficient_entry_ids & candidate_ids)
+            - self._added_completion_proficient_entry_ids
+        )
+        if not selected_ids:
+            return []
+        add_entries_to_system_collection(selected_ids, "proficient_pool")
+        self._added_completion_proficient_entry_ids.update(selected_ids)
+        self._selected_completion_proficient_entry_ids.difference_update(selected_ids)
+        self.state_changed.emit()
+        return selected_ids
 
     def completion_schedule(self, *, today: str | None = None) -> dict | None:
         session = self.completed_session
@@ -625,5 +687,8 @@ class QuizController(QObject):
         self.mistake_index = 0
         self.item_results = []
         self._starred_entry_ids = set()
+        self._completion_proficient_candidates = []
+        self._selected_completion_proficient_entry_ids = set()
+        self._added_completion_proficient_entry_ids = set()
         if not silent:
             self.state_changed.emit()
