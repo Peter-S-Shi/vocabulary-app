@@ -126,44 +126,53 @@ class SettingsView(QWidget):
         self._theme_tabs.currentChanged.connect(self._on_theme_tab_switched)
         root.addWidget(self._theme_tabs)
 
-        # Theme Action Bar
+        # Theme Action Bar & Feedback
         action_bar = QWidget(body)
         action_bar.setObjectName("settings-theme-action-bar")
-        action_layout = QHBoxLayout(action_bar)
-        action_layout.setContentsMargins(0, SPACING.xs, 0, SPACING.sm)
-        action_layout.setSpacing(SPACING.sm)
+        action_bar_layout = QVBoxLayout(action_bar)
+        action_bar_layout.setContentsMargins(0, SPACING.xs, 0, SPACING.sm)
+        action_bar_layout.setSpacing(SPACING.xs)
+
+        action_buttons_row = QHBoxLayout()
+        action_buttons_row.setSpacing(SPACING.sm)
 
         self._theme_reset_mode_btn = QPushButton("Reset to Preset", action_bar)
         self._theme_reset_mode_btn.setObjectName("settings-theme-reset-btn")
         self._theme_reset_mode_btn.setToolTip("Clear custom colors for the currently active tab mode")
         self._theme_reset_mode_btn.clicked.connect(self._on_reset_mode)
-        action_layout.addWidget(self._theme_reset_mode_btn)
+        action_buttons_row.addWidget(self._theme_reset_mode_btn)
 
         self._theme_reset_all_btn = QPushButton("Reset All to Default", action_bar)
         self._theme_reset_all_btn.setObjectName("settings-theme-reset-btn")
         self._theme_reset_all_btn.setToolTip("Restore default Calm Blue preset for both Light and Dark modes")
         self._theme_reset_all_btn.clicked.connect(self._on_reset_all)
-        action_layout.addWidget(self._theme_reset_all_btn)
+        action_buttons_row.addWidget(self._theme_reset_all_btn)
 
-        action_layout.addStretch(1)
+        action_buttons_row.addStretch(1)
 
         self._theme_undo_btn = QPushButton("Undo", action_bar)
         self._theme_undo_btn.setObjectName("settings-theme-undo-btn")
-        self._theme_undo_btn.setToolTip("Undo the last applied theme changes")
+        self._theme_undo_btn.setToolTip("Undo the last applied or reset theme snapshot")
         self._theme_undo_btn.clicked.connect(self._on_undo)
-        action_layout.addWidget(self._theme_undo_btn)
+        action_buttons_row.addWidget(self._theme_undo_btn)
 
         self._theme_cancel_btn = QPushButton("Cancel", action_bar)
         self._theme_cancel_btn.setObjectName("settings-theme-cancel-btn")
         self._theme_cancel_btn.setToolTip("Discard unstaged changes and exit live preview")
         self._theme_cancel_btn.clicked.connect(self._on_cancel)
-        action_layout.addWidget(self._theme_cancel_btn)
+        action_buttons_row.addWidget(self._theme_cancel_btn)
 
         self._theme_apply_btn = QPushButton("Apply", action_bar)
         self._theme_apply_btn.setObjectName("settings-theme-apply-btn")
         self._theme_apply_btn.setToolTip("Save theme changes to preferences")
         self._theme_apply_btn.clicked.connect(self._on_apply)
-        action_layout.addWidget(self._theme_apply_btn)
+        action_buttons_row.addWidget(self._theme_apply_btn)
+
+        action_bar_layout.addLayout(action_buttons_row)
+
+        self._theme_feedback_label = QLabel("", action_bar)
+        self._theme_feedback_label.setObjectName("settings-theme-feedback-label")
+        action_bar_layout.addWidget(self._theme_feedback_label)
 
         root.addWidget(action_bar)
 
@@ -477,25 +486,46 @@ class SettingsView(QWidget):
             self._controller.stage_mode_customization(mode, new_custom)
 
     def _on_pick_color(self, mode: str, field_name: str) -> None:
+        import copy
         staged = self._controller.staged_custom_theme()
         custom = staged.dark if mode.lower() == "dark" else staged.light
         current_hex = getattr(custom, field_name) or "#3E6690"
         initial_qcolor = QColor(current_hex)
+        pre_pick_custom = copy.deepcopy(custom)
 
         dialog = QColorDialog(initial_qcolor, self)
         dialog.setOption(QColorDialog.ColorDialogOption.ShowAlphaChannel, False)
+
+        def _on_live_picker_color_changed(color: QColor) -> None:
+            if color.isValid():
+                hex_val = color.name().upper()
+                preview_custom = ModeCustomization(
+                    preset=pre_pick_custom.preset,
+                    accent_color=hex_val if field_name == "accent_color" else pre_pick_custom.accent_color,
+                    background_color=hex_val if field_name == "background_color" else pre_pick_custom.background_color,
+                    surface_color=hex_val if field_name == "surface_color" else pre_pick_custom.surface_color,
+                    text_color=hex_val if field_name == "text_color" else pre_pick_custom.text_color,
+                )
+                self._controller.stage_mode_customization(mode, preview_custom)
+
+        dialog.currentColorChanged.connect(_on_live_picker_color_changed)
+
         if dialog.exec():
             selected = dialog.selectedColor()
             if selected.isValid():
                 hex_val = selected.name().upper()
-                new_custom = ModeCustomization(
-                    preset=custom.preset,
-                    accent_color=hex_val if field_name == "accent_color" else custom.accent_color,
-                    background_color=hex_val if field_name == "background_color" else custom.background_color,
-                    surface_color=hex_val if field_name == "surface_color" else custom.surface_color,
-                    text_color=hex_val if field_name == "text_color" else custom.text_color,
+                final_custom = ModeCustomization(
+                    preset=pre_pick_custom.preset,
+                    accent_color=hex_val if field_name == "accent_color" else pre_pick_custom.accent_color,
+                    background_color=hex_val if field_name == "background_color" else pre_pick_custom.background_color,
+                    surface_color=hex_val if field_name == "surface_color" else pre_pick_custom.surface_color,
+                    text_color=hex_val if field_name == "text_color" else pre_pick_custom.text_color,
                 )
-                self._controller.stage_mode_customization(mode, new_custom)
+                self._controller.stage_mode_customization(mode, final_custom)
+                self._set_theme_feedback(f"Selected {field_name.replace('_', ' ')}: {hex_val}")
+        else:
+            # Revert preview back to pre-picker state
+            self._controller.stage_mode_customization(mode, pre_pick_custom)
 
     def _on_clear_color(self, mode: str, field_name: str) -> None:
         staged = self._controller.staged_custom_theme()
@@ -508,25 +538,34 @@ class SettingsView(QWidget):
             text_color=None if field_name == "text_color" else custom.text_color,
         )
         self._controller.stage_mode_customization(mode, new_custom)
+        self._set_theme_feedback(f"Reset {field_name.replace('_', ' ')} to preset default.")
 
     def _on_reset_mode(self) -> None:
         mode = self._get_active_tab_mode()
         combo = self._preset_combos[mode]
         current_preset = combo.currentData() or PRESET_CALM_BLUE
         self._controller.reset_staged_mode_to_preset(mode, current_preset)
+        self._set_theme_feedback(f"Reset {mode} Mode to {current_preset} preset. Click Undo to revert.")
 
     def _on_reset_all(self) -> None:
         active_mode = self._get_active_tab_mode()
         self._controller.reset_staged_all_to_default(active_mode)
+        self._set_theme_feedback("Reset all modes to default Calm Blue. Click Undo to revert.")
 
     def _on_undo(self) -> None:
         self._controller.undo()
+        self._set_theme_feedback("Restored previous theme snapshot.")
 
     def _on_cancel(self) -> None:
         self._controller.cancel_staged_custom_theme()
+        self._set_theme_feedback("Cancelled unstaged changes.")
 
     def _on_apply(self) -> None:
         self._controller.apply_staged_custom_theme()
+        self._set_theme_feedback("Theme changes applied. Click Undo to revert.")
+
+    def _set_theme_feedback(self, message: str) -> None:
+        self._theme_feedback_label.setText(message)
 
     # -- General Helpers & Sync ---------------------------------------------
 

@@ -26,10 +26,16 @@ class SettingsController(QObject):
     state_changed = Signal()
     collection_progress_bars_changed = Signal(bool)
 
-    def __init__(self, preferences: Preferences | None = None, theme_manager: ThemeManager | None = None) -> None:
+    def __init__(
+        self,
+        preferences: Preferences | None = None,
+        theme_manager: ThemeManager | None = None,
+        preferences_path: Path | None = None,
+    ) -> None:
         super().__init__()
         self.preferences = preferences or Preferences()
         self._theme_manager = theme_manager
+        self.preferences_path = preferences_path
         self._staged_custom_theme: CustomThemeConfig = copy.deepcopy(self.preferences.custom_theme)
         self._undo_stack: list[CustomThemeConfig] = []
 
@@ -41,7 +47,7 @@ class SettingsController(QObject):
         if normalized == self.preferences.quiz_presentation:
             return
         self.preferences.quiz_presentation = normalized
-        save_preferences(self.preferences)
+        save_preferences(self.preferences, self.preferences_path)
         self.state_changed.emit()
 
     def appearance(self) -> str:
@@ -52,7 +58,7 @@ class SettingsController(QObject):
         if normalized.value == self.preferences.appearance:
             return
         self.preferences.appearance = normalized.value
-        save_preferences(self.preferences)
+        save_preferences(self.preferences, self.preferences_path)
         self._apply_theme_to_manager()
         self.state_changed.emit()
 
@@ -84,9 +90,9 @@ class SettingsController(QObject):
         if not self._undo_stack:
             return
         previous = self._undo_stack.pop()
-        self.preferences.custom_theme = copy.deepcopy(previous)
         self._staged_custom_theme = copy.deepcopy(previous)
-        save_preferences(self.preferences)
+        self.preferences.custom_theme = copy.deepcopy(previous)
+        save_preferences(self.preferences, self.preferences_path)
         self._apply_theme_to_manager()
         self.state_changed.emit()
 
@@ -117,7 +123,7 @@ class SettingsController(QObject):
     def apply_staged_custom_theme(self) -> None:
         self._undo_stack.append(copy.deepcopy(self.preferences.custom_theme))
         self.preferences.custom_theme = copy.deepcopy(self._staged_custom_theme)
-        save_preferences(self.preferences)
+        save_preferences(self.preferences, self.preferences_path)
         self._apply_theme_to_manager()
         self.state_changed.emit()
 
@@ -127,15 +133,20 @@ class SettingsController(QObject):
         self.state_changed.emit()
 
     def reset_staged_mode_to_preset(self, mode: str, preset_name: str) -> None:
+        self._undo_stack.append(copy.deepcopy(self._staged_custom_theme))
         clean = ModeCustomization(preset=preset_name)
         self.stage_mode_customization(mode, clean)
 
     def reset_staged_all_to_default(self, active_mode: str = "Light") -> None:
+        self._undo_stack.append(copy.deepcopy(self._staged_custom_theme))
         self._staged_custom_theme = CustomThemeConfig()
         if self._theme_manager is not None:
             eff = Appearance.DARK if active_mode.lower() == "dark" else Appearance.LIGHT
             custom = self._staged_custom_theme.dark if eff is Appearance.DARK else self._staged_custom_theme.light
-            self._theme_manager.preview_customization(eff, custom)
+            if hasattr(self._theme_manager, "preview_customization"):
+                self._theme_manager.preview_customization(eff, custom)
+            elif hasattr(self._theme_manager, "apply"):
+                self._theme_manager.apply(eff, parse_accent(custom.preset))
         self.state_changed.emit()
 
     def collection_progress_bars_visible(self) -> bool:
@@ -146,7 +157,7 @@ class SettingsController(QObject):
         if normalized == self.preferences.show_collection_progress_bars:
             return
         self.preferences.show_collection_progress_bars = normalized
-        save_preferences(self.preferences)
+        save_preferences(self.preferences, self.preferences_path)
         self.collection_progress_bars_changed.emit(normalized)
         self.state_changed.emit()
 
@@ -180,7 +191,7 @@ class SettingsController(QObject):
             self.preferences.voice_bindings[language] = normalized
         else:
             self.preferences.voice_bindings.pop(language, None)
-        save_preferences(self.preferences)
+        save_preferences(self.preferences, self.preferences_path)
         self.state_changed.emit()
 
     def clear_voice_binding(self, language: str) -> None:

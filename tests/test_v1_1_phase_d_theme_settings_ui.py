@@ -7,7 +7,8 @@ from unittest.mock import MagicMock, patch
 
 try:
     from PySide6.QtCore import Qt
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtGui import QColor
+    from PySide6.QtWidgets import QApplication, QColorDialog
     PYSIDE6_AVAILABLE = True
 except ImportError:
     PYSIDE6_AVAILABLE = False
@@ -45,11 +46,24 @@ class ThemeSettingsUITests(unittest.TestCase):
         )
         save_preferences(self.prefs, self.pref_file)
 
+        # Patch get_app_preferences_path to strictly guarantee no test touches real user files
+        self._patcher = patch(
+            "src.ui_desktop.state.preferences.get_app_preferences_path",
+            return_value=self.pref_file,
+        )
+        self._patcher.start()
+
         self.theme_manager = ThemeManager(self.app)
-        self.controller = SettingsController(self.prefs, self.theme_manager)
+        self.theme_manager.apply_preferences(self.prefs)
+        self.controller = SettingsController(
+            self.prefs,
+            self.theme_manager,
+            preferences_path=self.pref_file,
+        )
         self.view = SettingsView(self.controller)
 
     def tearDown(self) -> None:
+        self._patcher.stop()
         self.tmp_dir.cleanup()
 
     def test_settings_view_structure_and_tabs(self) -> None:
@@ -109,6 +123,7 @@ class ThemeSettingsUITests(unittest.TestCase):
         self.assertFalse(self.controller.is_staged_dirty())
         self.assertFalse(self.view._theme_apply_btn.isEnabled())
         self.assertIsNone(self.controller.custom_theme().light.accent_color)
+        self.assertIn("Cancelled", self.view._theme_feedback_label.text())
 
     def test_apply_commits_changes_and_records_undo_snapshot(self) -> None:
         # Stage Warm Neutral with custom background
@@ -123,6 +138,7 @@ class ThemeSettingsUITests(unittest.TestCase):
         self.assertFalse(self.controller.is_staged_dirty())
         self.assertTrue(self.controller.can_undo())
         self.assertTrue(self.view._theme_undo_btn.isEnabled())
+        self.assertIn("applied", self.view._theme_feedback_label.text().lower())
 
         # Persisted in controller preferences
         self.assertEqual(self.controller.custom_theme().light.preset, PRESET_WARM_NEUTRAL)
@@ -152,6 +168,7 @@ class ThemeSettingsUITests(unittest.TestCase):
         self.view._theme_undo_btn.click()
         self.assertEqual(self.controller.custom_theme().light.preset, PRESET_SAGE_TEAL)
         self.assertEqual(self.controller.custom_theme().light.accent_color, "#2E7D32")
+        self.assertIn("Restored", self.view._theme_feedback_label.text())
 
         # 5. Click Undo again -> restores initial baseline (Calm Blue)
         self.view._theme_undo_btn.click()
@@ -159,8 +176,8 @@ class ThemeSettingsUITests(unittest.TestCase):
         self.assertIsNone(self.controller.custom_theme().light.accent_color)
         self.assertFalse(self.controller.can_undo())
 
-    def test_reset_to_preset_clears_active_mode_custom_colors(self) -> None:
-        # Set Light Mode to Sage / Teal with custom accent and surface
+    def test_reset_to_preset_is_immediately_undoable(self) -> None:
+        # 1. Stage custom color on Sage / Teal
         self.controller.stage_mode_customization(
             "Light",
             ModeCustomization(
@@ -171,14 +188,23 @@ class ThemeSettingsUITests(unittest.TestCase):
         )
         self.view._theme_tabs.setCurrentIndex(0)
 
-        # Click Reset to Preset
+        # 2. Click Reset to Preset
         self.view._theme_reset_mode_btn.click()
         staged = self.controller.staged_custom_theme()
         self.assertEqual(staged.light.preset, PRESET_SAGE_TEAL)
         self.assertIsNone(staged.light.accent_color)
         self.assertIsNone(staged.light.surface_color)
+        self.assertTrue(self.controller.can_undo())
+        self.assertIn("Reset", self.view._theme_feedback_label.text())
 
-    def test_reset_all_to_default_clears_both_modes(self) -> None:
+        # 3. Undo immediately restores custom color!
+        self.view._theme_undo_btn.click()
+        restored = self.controller.staged_custom_theme()
+        self.assertEqual(restored.light.preset, PRESET_SAGE_TEAL)
+        self.assertEqual(restored.light.accent_color, "#FF0000")
+        self.assertEqual(restored.light.surface_color, "#EEEEEE")
+
+    def test_reset_all_to_default_is_immediately_undoable(self) -> None:
         self.controller.stage_mode_customization(
             "Light",
             ModeCustomization(preset=PRESET_WARM_NEUTRAL, accent_color="#111111"),
@@ -188,13 +214,50 @@ class ThemeSettingsUITests(unittest.TestCase):
             ModeCustomization(preset=PRESET_INDIGO_VIOLET, accent_color="#222222"),
         )
 
-        # Click Reset All to Default
+        # 1. Click Reset All to Default
         self.view._theme_reset_all_btn.click()
         staged = self.controller.staged_custom_theme()
         self.assertEqual(staged.light.preset, PRESET_CALM_BLUE)
         self.assertEqual(staged.dark.preset, PRESET_CALM_BLUE)
         self.assertIsNone(staged.light.accent_color)
         self.assertIsNone(staged.dark.accent_color)
+        self.assertTrue(self.controller.can_undo())
+
+        # 2. Undo immediately restores both Light and Dark custom configurations!
+        self.view._theme_undo_btn.click()
+        restored = self.controller.staged_custom_theme()
+        self.assertEqual(restored.light.preset, PRESET_WARM_NEUTRAL)
+        self.assertEqual(restored.light.accent_color, "#111111")
+        self.assertEqual(restored.dark.preset, PRESET_INDIGO_VIOLET)
+        self.assertEqual(restored.dark.accent_color, "#222222")
+
+    def test_in_picker_live_preview_and_cancellation_rollback(self) -> None:
+        self.controller.preview_tab_mode("Light")
+        initial_tokens = self.theme_manager.current_tokens
+        self.assertEqual(initial_tokens.accent.primary.background, "#3E6690")
+
+        # Mock QColorDialog behavior
+        with patch.object(QColorDialog, "exec", return_value=False):
+            # When user opens picker and cancels without accepting
+            self.view._on_pick_color("Light", "accent_color")
+            # Must remain at initial tokens
+            self.assertEqual(
+                self.theme_manager.current_tokens.accent.primary.background,
+                "#3E6690",
+            )
+
+        # When user accepts dialog with green color
+        with patch.object(QColorDialog, "exec", return_value=True), \
+             patch.object(QColorDialog, "selectedColor", return_value=QColor("#00AA55")):
+            self.view._on_pick_color("Light", "accent_color")
+            self.assertEqual(
+                self.controller.staged_custom_theme().light.accent_color,
+                "#00AA55",
+            )
+            self.assertEqual(
+                self.theme_manager.current_tokens.accent.primary.background,
+                "#00AA55",
+            )
 
 
 if __name__ == "__main__":

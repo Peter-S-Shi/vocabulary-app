@@ -1274,6 +1274,12 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         font-size: 11px;
         font-weight: 600;
     }}
+    QLabel#settings-theme-feedback-label {{
+        color: {neutral.text_secondary};
+        font-size: 12px;
+        font-style: italic;
+        padding-top: 4px;
+    }}
     /* Final Human Acceptance Gate corrective: the Data Tools hub's
     Audio Export preflight status text beside its progress ring. (The
     ring itself paints an arc, which QSS cannot express -- it takes its
