@@ -6,11 +6,12 @@ from io import BytesIO
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QDate
-from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QWidget
+from PySide6.QtWidgets import QApplication, QLabel, QMessageBox, QPushButton, QWidget
 from openpyxl import load_workbook
 
 from src import db, quiz
@@ -621,7 +622,8 @@ class ReviewCalendarScheduleTests(ReviewScheduleTestCase):
         self.assertEqual(controller.current_schedule["next_due_at"], "2026-08-30")
         self.assertEqual(view._history_table.rowCount(), 0)
 
-        view._schedule_clear_button.click()
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
+            view._schedule_clear_button.click()
 
         self.assertEqual(controller.current_schedule["state"], "unscheduled")
         self.assertEqual(

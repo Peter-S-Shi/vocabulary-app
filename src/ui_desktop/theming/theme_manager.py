@@ -2148,35 +2148,128 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         padding: 3px 8px;
         font-size: 12px;
     }}
-    QCalendarWidget#review-calendar-widget QWidget,
-    QCalendarWidget#review-calendar-widget QToolButton,
-    QCalendarWidget#review-calendar-widget QSpinBox,
-    QCalendarWidget#review-calendar-widget QAbstractItemView {{
+    QComboBox#review-calendar-range-combo:hover {{
+        border: 1px solid {accent.border};
+    }}
+    QComboBox#review-calendar-range-combo QAbstractItemView {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        selection-background-color: {accent.primary.background};
+        selection-color: {accent.primary.foreground};
+        outline: none;
+        padding: 4px;
+    }}
+    QComboBox#review-calendar-range-combo QAbstractItemView::item:selected {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+    }}
+
+    /* QCalendarWidget (both workspace widget and date picker popup) */
+    QCalendarWidget#review-calendar-widget,
+    QCalendarWidget#review-calendar-popup {{
         background-color: {neutral.surface_primary};
         color: {neutral.text_primary};
     }}
-    QCalendarWidget#review-calendar-widget QAbstractItemView:enabled {{
+    QCalendarWidget#review-calendar-widget QWidget,
+    QCalendarWidget#review-calendar-popup QWidget {{
+        background-color: {neutral.surface_primary};
         color: {neutral.text_primary};
-        selection-background-color: {accent.primary.background};
-        selection-color: {accent.primary.foreground};
     }}
-    QCalendarWidget#review-calendar-widget QToolButton {{
-        color: {neutral.text_primary};
+    QCalendarWidget#review-calendar-widget QWidget#qt_calendar_navigationbar,
+    QCalendarWidget#review-calendar-popup QWidget#qt_calendar_navigationbar {{
         background-color: {neutral.surface_secondary};
-        border: 1px solid {neutral.border_subtle};
+        border-bottom: 1px solid {neutral.border_default};
+    }}
+    QCalendarWidget#review-calendar-widget QToolButton,
+    QCalendarWidget#review-calendar-popup QToolButton {{
+        color: {neutral.text_primary};
+        background-color: {neutral.surface_primary};
+        border: 1px solid {neutral.border_default};
         border-radius: {radius}px;
         padding: 3px 8px;
         font-size: 12px;
         font-weight: 600;
+        margin: 2px;
     }}
-    QCalendarWidget#review-calendar-widget QToolButton:hover {{
+    QCalendarWidget#review-calendar-widget QToolButton:hover,
+    QCalendarWidget#review-calendar-popup QToolButton:hover {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QCalendarWidget#review-calendar-widget QToolButton::menu-indicator,
+    QCalendarWidget#review-calendar-popup QToolButton::menu-indicator {{
+        image: none;
+        width: 0px;
+    }}
+    QCalendarWidget#review-calendar-widget QSpinBox,
+    QCalendarWidget#review-calendar-popup QSpinBox {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 2px 4px;
+        font-size: 12px;
+        selection-background-color: {accent.primary.background};
+        selection-color: {accent.primary.foreground};
+    }}
+    QCalendarWidget#review-calendar-widget QMenu,
+    QCalendarWidget#review-calendar-popup QMenu {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 4px;
+    }}
+    QCalendarWidget#review-calendar-widget QMenu::item,
+    QCalendarWidget#review-calendar-popup QMenu::item {{
+        padding: 4px 16px;
+        border-radius: {radius}px;
+        color: {neutral.text_primary};
+    }}
+    QCalendarWidget#review-calendar-widget QMenu::item:selected,
+    QCalendarWidget#review-calendar-popup QMenu::item:selected {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+    }}
+    QCalendarWidget#review-calendar-widget QTableView,
+    QCalendarWidget#review-calendar-popup QTableView,
+    QCalendarWidget#review-calendar-widget QAbstractItemView,
+    QCalendarWidget#review-calendar-popup QAbstractItemView {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        selection-background-color: {accent.primary.background};
+        selection-color: {accent.primary.foreground};
+        alternate-background-color: {neutral.surface_secondary};
+        outline: none;
+    }}
+    QCalendarWidget#review-calendar-widget QTableView::item:selected,
+    QCalendarWidget#review-calendar-popup QTableView::item:selected,
+    QCalendarWidget#review-calendar-widget QAbstractItemView::item:selected,
+    QCalendarWidget#review-calendar-popup QAbstractItemView::item:selected {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        font-weight: 700;
+    }}
+    QCalendarWidget#review-calendar-widget QTableView::item:hover,
+    QCalendarWidget#review-calendar-popup QTableView::item:hover,
+    QCalendarWidget#review-calendar-widget QAbstractItemView::item:hover,
+    QCalendarWidget#review-calendar-popup QAbstractItemView::item:hover {{
         background-color: {accent.soft.background};
         color: {accent.soft.foreground};
     }}
-    QCalendarWidget#review-calendar-widget QMenu {{
-        background-color: {neutral.surface_primary};
-        color: {neutral.text_primary};
+    QCalendarWidget#review-calendar-widget QHeaderView::section,
+    QCalendarWidget#review-calendar-popup QHeaderView::section {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_muted};
+        border: none;
+        padding: 2px;
+        font-size: 11px;
+        font-weight: 600;
     }}
+
     QLabel#review-calendar-schedule-heading {{
         color: {neutral.text_secondary};
         font-size: 13px;
@@ -2204,6 +2297,12 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         padding: 3px 8px;
         font-size: 12px;
         min-width: 125px;
+    }}
+    QDateEdit#review-calendar-schedule-date:hover {{
+        border: 1px solid {accent.border};
+    }}
+    QDateEdit#review-calendar-schedule-date:focus {{
+        border: 1px solid {accent.primary.background};
     }}
     QPushButton#review-calendar-schedule-save-button {{
         background-color: {accent.primary.background};
@@ -2249,17 +2348,6 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_primary};
         font-size: 13px;
         font-weight: 600;
-    }}
-    QCalendarWidget#review-calendar-popup QWidget,
-    QCalendarWidget#review-calendar-popup QToolButton,
-    QCalendarWidget#review-calendar-popup QSpinBox,
-    QCalendarWidget#review-calendar-popup QAbstractItemView {{
-        background-color: {neutral.surface_primary};
-        color: {neutral.text_primary};
-    }}
-    QCalendarWidget#review-calendar-popup QAbstractItemView {{
-        selection-background-color: {accent.soft.background};
-        selection-color: {accent.soft.foreground};
     }}
 
     /* M18 Phase C3 -- Data Tools hub (P6 Utility Workflow). Title/

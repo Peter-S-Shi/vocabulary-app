@@ -5,6 +5,7 @@ from datetime import date
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -14,13 +15,14 @@ from PySide6.QtWidgets import (
     QApplication,
     QCalendarWidget,
     QLabel,
+    QMessageBox,
     QPushButton,
     QTableWidget,
 )
 
 from src import db, quiz
 from src.card_history import reconcile_collection_card_history
-from src.review_schedule import set_card_next_review
+from src.review_schedule import get_card_schedule, set_card_next_review
 from src.ui_desktop.controllers.review_calendar_controller import ReviewCalendarController
 from src.ui_desktop.theming.color_math import contrast_ratio
 from src.ui_desktop.theming.theme_manager import (
@@ -171,18 +173,16 @@ class PatchA2ReviewCalendarCoherenceTests(unittest.TestCase):
         self.assertEqual(view._schedule_table.item(0, 0).text(), "Reschedule Col")
         self.assertEqual(view._schedule_table.item(0, 3).text(), "2026-08-30")
 
-        # Clear schedule
+        # Clear schedule with confirmation Yes
         view._schedule_table.selectRow(0)
-        view._schedule_clear_button.click()
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
+            view._schedule_clear_button.click()
         # Table on 2026-08-30 is now empty
         self.assertEqual(view._schedule_table.rowCount(), 0)
 
-    def test_review_count_displayed_for_selected_card(self) -> None:
-        """Selecting a card displays its completed review count in the schedule editing target header."""
-        card_id, col_id, card_num = self._create_card(name="Count Collection")
-        self._record_completion(col_id, card_num, card_id, "2026-08-20T10:00:00+00:00")
-        self._record_completion(col_id, card_num, card_id, "2026-08-22T10:00:00+00:00")
-        self._record_completion(col_id, card_num, card_id, "2026-08-25T10:00:00+00:00")
+    def test_clear_schedule_confirmation_behavior(self) -> None:
+        """Clear schedule requires explicit confirmation; Cancel produces 0 mutations."""
+        card_id, col_id, card_num = self._create_card(name="Confirmation Col")
         set_card_next_review(card_id, "2026-08-28")
 
         controller = ReviewCalendarController()
@@ -192,19 +192,37 @@ class PatchA2ReviewCalendarCoherenceTests(unittest.TestCase):
         view.refresh()
 
         view._schedule_table.selectRow(0)
-        self.assertEqual(controller.card_review_count(), 3)
-        target_label = view.findChild(QLabel, "review-calendar-editing-target-label")
-        self.assertIsNotNone(target_label)
-        self.assertIn("Editing schedule for: Count Collection — Card #1", target_label.text())
-        self.assertIn("Reviews completed: 3", target_label.text())
 
-    def test_schedule_target_isolation_from_quiz_history(self) -> None:
-        """Clicking Completion History rows inspects evidence without hijacking or changing the schedule editing target."""
-        card1, col1, num1 = self._create_card(name="Target Card")
-        card2, col2, num2 = self._create_card(name="History Card")
+        # 1. User clicks Cancel in dialog: NO changes made
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Cancel) as mock_msg:
+            view._schedule_clear_button.click()
+            mock_msg.assert_called_once()
+            # Dialog message explicitly mentions card and that action cannot be undone
+            prompt_text = mock_msg.call_args[0][2]
+            self.assertIn("Confirmation Col — Card #1", prompt_text)
+            self.assertIn("cannot be undone", prompt_text)
 
-        set_card_next_review(card1, "2026-08-28")
-        self._record_completion(col2, num2, card2, f"{date.today().isoformat()}T10:00:00+00:00")
+        # Card is still scheduled on 2026-08-28 in DB and controller
+        self.assertEqual(get_card_schedule(card_id)["next_due_at"], "2026-08-28")
+        self.assertEqual(controller.current_schedule["next_due_at"], "2026-08-28")
+        self.assertEqual(view._schedule_table.rowCount(), 1)
+
+        # 2. User clicks Yes in dialog: schedule is cleared
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes) as mock_msg:
+            view._schedule_clear_button.click()
+            mock_msg.assert_called_once()
+
+        self.assertIsNone(get_card_schedule(card_id)["next_due_at"])
+        self.assertEqual(controller.current_schedule["state"], "unscheduled")
+        self.assertEqual(view._schedule_table.rowCount(), 0)
+
+    def test_card_history_detail_header_format_from_schedule_and_from_history(self) -> None:
+        """Card History detail header displays completed reviews and selected session timestamp cleanly."""
+        card_id, col_id, card_num = self._create_card(name="Text collections")
+        self._record_completion(col_id, card_num, card_id, "2026-08-10T09:48:00+00:00")
+        self._record_completion(col_id, card_num, card_id, "2026-08-12T14:20:00+00:00")
+        self._record_completion(col_id, card_num, card_id, "2026-08-15T18:00:00+00:00")
+        set_card_next_review(card_id, "2026-08-28")
 
         controller = ReviewCalendarController()
         controller.set_selected_date("2026-08-28")
@@ -212,29 +230,23 @@ class PatchA2ReviewCalendarCoherenceTests(unittest.TestCase):
         self.addCleanup(view.deleteLater)
         view.refresh()
 
-        # Step 1: Select Target Card from the Schedule table (2026-08-28)
-        self.assertEqual(view._schedule_table.rowCount(), 1)
+        # 1. Selected from Schedule Table
         view._schedule_table.selectRow(0)
-        self.assertEqual(controller.current_schedule["card_id"], card1)
-        self.assertEqual(controller.current_schedule["next_due_at"], "2026-08-28")
-        self.assertTrue(view._schedule_save_button.isEnabled())
-        self.assertTrue(view._schedule_clear_button.isEnabled())
-        self.assertIn("Target Card", view._editing_target_label.text())
+        self.assertEqual(
+            view._detail_summary.text(),
+            "Text collections — Card #1 · Reviews completed: 3",
+        )
+        self.assertNotIn("Session Evidence", view._detail_summary.text())
 
-        # Step 2: Select History Card from the completion history table
+        # 2. Selected from Quiz Completion History Table
+        self.assertEqual(view._table.rowCount(), 3)
         view._table.selectRow(0)
-        # History table loads card2 history evidence
-        self.assertEqual(view._history_table.rowCount(), 1)
-        # BUT current_schedule is STILL card1 -- NOT hijacked!
-        self.assertEqual(controller.current_schedule["card_id"], card1)
-        self.assertEqual(controller.current_schedule["next_due_at"], "2026-08-28")
-        self.assertIn("Target Card", view._editing_target_label.text())
-
-        # Saving schedule mutates Card1, not Card2
-        view._schedule_date.setDate(QDate(2026, 9, 5))
-        view._schedule_save_button.click()
-        self.assertEqual(controller.current_schedule["card_id"], card1)
-        self.assertEqual(controller.current_schedule["next_due_at"], "2026-09-05")
+        session_text = view._table.item(0, 0).text()
+        expected_history_header = (
+            f"Text collections — Card #1 · Reviews completed: 3 · Selected session: {session_text}"
+        )
+        self.assertEqual(view._detail_summary.text(), expected_history_header)
+        self.assertNotIn("Session Evidence", view._detail_summary.text())
 
     def test_legacy_ui_retired_from_native_view(self) -> None:
         """Legacy Review History table is completely removed from native view while backend remains intact."""
@@ -248,6 +260,34 @@ class PatchA2ReviewCalendarCoherenceTests(unittest.TestCase):
         self.assertIsNone(view.findChild(QTableWidget, "review-calendar-legacy-table"))
         self.assertTrue(hasattr(controller, "legacy_logs"))
         self.assertEqual(controller.legacy_logs, [])
+
+    def test_calendar_workspace_popups_and_dropdowns_theming(self) -> None:
+        """Theme stylesheet includes semantic tokens for Calendar grid selected cells, dropdowns, and popups."""
+        for tokens in [
+            THEME_CALM_BLUE_LIGHT, THEME_CALM_BLUE_DARK,
+            THEME_INDIGO_VIOLET_LIGHT, THEME_INDIGO_VIOLET_DARK,
+            THEME_SAGE_TEAL_LIGHT, THEME_SAGE_TEAL_DARK,
+            THEME_WARM_NEUTRAL_LIGHT, THEME_WARM_NEUTRAL_DARK,
+        ]:
+            stylesheet = build_stylesheet(tokens)
+
+            # Selected Date cell in QCalendarWidget
+            self.assertIn("QCalendarWidget#review-calendar-widget QTableView::item:selected", stylesheet)
+            self.assertIn(f"background-color: {tokens.accent.primary.background};", stylesheet)
+            self.assertIn(f"color: {tokens.accent.primary.foreground};", stylesheet)
+
+            # Dropdown popup view
+            self.assertIn("QComboBox#review-calendar-range-combo QAbstractItemView", stylesheet)
+            self.assertIn("QComboBox#review-calendar-range-combo QAbstractItemView::item:selected", stylesheet)
+
+            # Date picker popup calendar
+            self.assertIn("QCalendarWidget#review-calendar-popup QTableView::item:selected", stylesheet)
+            self.assertIn("QCalendarWidget#review-calendar-popup QToolButton", stylesheet)
+            self.assertIn("QCalendarWidget#review-calendar-popup QMenu", stylesheet)
+
+            # Contrast guarantee
+            ratio = contrast_ratio(tokens.accent.primary.foreground, tokens.accent.primary.background)
+            self.assertGreaterEqual(ratio, 4.5)
 
     def test_dynamic_theme_switching_updates_calendar_weekend_format(self) -> None:
         """Dynamic palette/theme change updates calendar weekend text format without hardcoded colors."""
@@ -271,26 +311,6 @@ class PatchA2ReviewCalendarCoherenceTests(unittest.TestCase):
         self.assertTrue(sat_color_dark.isValid())
         self.assertEqual(sat_color_dark.name(), THEME_CALM_BLUE_DARK.neutral.text_primary.lower())
         self.assertNotEqual(sat_color.name(), sat_color_dark.name())
-
-    def test_selected_card_row_and_calendar_theming(self) -> None:
-        """Theme stylesheet includes paired contrast tokens for schedule selection and calendar widget."""
-        for tokens in [
-            THEME_CALM_BLUE_LIGHT, THEME_CALM_BLUE_DARK,
-            THEME_INDIGO_VIOLET_LIGHT, THEME_INDIGO_VIOLET_DARK,
-            THEME_SAGE_TEAL_LIGHT, THEME_SAGE_TEAL_DARK,
-            THEME_WARM_NEUTRAL_LIGHT, THEME_WARM_NEUTRAL_DARK,
-        ]:
-            stylesheet = build_stylesheet(tokens)
-            self.assertIn("QTableWidget#review-calendar-schedule-table::item:selected", stylesheet)
-            self.assertIn(f"background-color: {tokens.accent.primary.background};", stylesheet)
-            self.assertIn(f"color: {tokens.accent.primary.foreground};", stylesheet)
-            self.assertIn("font-weight: 700;", stylesheet)
-            self.assertIn("QCalendarWidget#review-calendar-widget", stylesheet)
-            self.assertIn("QPushButton#review-calendar-today-button", stylesheet)
-            self.assertIn("QLabel#review-calendar-editing-target-label", stylesheet)
-
-            ratio = contrast_ratio(tokens.accent.primary.foreground, tokens.accent.primary.background)
-            self.assertGreaterEqual(ratio, 4.5)
 
 
 if __name__ == "__main__":

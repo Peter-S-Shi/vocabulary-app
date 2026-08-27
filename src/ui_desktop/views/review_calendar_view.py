@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QTableWidget,
@@ -266,6 +267,8 @@ class ReviewCalendarView(QWidget):
         self._history_table.setColumnWidth(2, 70)
         layout.addWidget(self._history_table, 1)
 
+        self._selected_session_timestamp: str | None = None
+
         controller.entries_changed.connect(self._render_table)
         controller.selection_changed.connect(self._render_detail)
 
@@ -284,6 +287,11 @@ class ReviewCalendarView(QWidget):
         fmt.setForeground(text_color)
         self._calendar.setWeekdayTextFormat(Qt.DayOfWeek.Saturday, fmt)
         self._calendar.setWeekdayTextFormat(Qt.DayOfWeek.Sunday, fmt)
+        if hasattr(self, "_schedule_date"):
+            popup_calendar = self._schedule_date.calendarWidget()
+            if popup_calendar is not None:
+                popup_calendar.setWeekdayTextFormat(Qt.DayOfWeek.Saturday, fmt)
+                popup_calendar.setWeekdayTextFormat(Qt.DayOfWeek.Sunday, fmt)
 
     def refresh(self) -> None:
         self._controller.refresh()
@@ -308,6 +316,7 @@ class ReviewCalendarView(QWidget):
         self._controller.set_selected_date(selected_date_str)
 
     def _render_table(self) -> None:
+        self._selected_session_timestamp = None
         self._table.blockSignals(True)
         try:
             self._table.clearSelection()
@@ -378,6 +387,7 @@ class ReviewCalendarView(QWidget):
             Qt.ItemDataRole.UserRole
         )
         collection_name = item.data(Qt.ItemDataRole.UserRole + 1)
+        self._selected_session_timestamp = item.text()
         self._controller.select_card_event(
             card_id=card_id,
             collection_id=collection_id,
@@ -392,6 +402,7 @@ class ReviewCalendarView(QWidget):
         if item is None:
             return
         card_id, collection_id, card_number = item.data(Qt.ItemDataRole.UserRole)
+        self._selected_session_timestamp = None
         self._controller.select_current_card(
             card_id=card_id,
             collection_id=collection_id,
@@ -407,7 +418,20 @@ class ReviewCalendarView(QWidget):
         )
 
     def _clear_schedule(self) -> None:
-        if self._controller.current_schedule is not None:
+        if self._controller.current_schedule is None:
+            return
+        col_name = self._controller.selected_collection_name or "this Card"
+        card_num = self._controller.selected_card_number
+        card_label = f"{col_name} — Card #{card_num}" if card_num is not None else col_name
+
+        reply = QMessageBox.question(
+            self,
+            "Clear Review Schedule",
+            f"This will remove the scheduled review date for {card_label}.\n\nThis action cannot be undone. Are you sure you want to proceed?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
             self._controller.clear_selected_schedule()
 
     def _render_detail(self) -> None:
@@ -442,13 +466,16 @@ class ReviewCalendarView(QWidget):
             self._history_table.setRowCount(0)
             return
 
-        if controller.selected_from_history:
+        review_count = len(controller.card_history)
+        if controller.selected_from_history and self._selected_session_timestamp:
             self._detail_summary.setText(
-                f"{controller.selected_collection_name} — Card #{controller.selected_card_number} (Session Evidence)"
+                f"{controller.selected_collection_name} — Card #{controller.selected_card_number} · "
+                f"Reviews completed: {review_count} · Selected session: {self._selected_session_timestamp}"
             )
         else:
             self._detail_summary.setText(
-                f"{controller.selected_collection_name} — Card #{controller.selected_card_number}"
+                f"{controller.selected_collection_name} — Card #{controller.selected_card_number} · "
+                f"Reviews completed: {review_count}"
             )
 
         history = controller.card_history
