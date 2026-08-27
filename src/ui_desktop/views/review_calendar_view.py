@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QDate, Qt
+from PySide6.QtCore import QDate, QLocale, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -152,6 +152,9 @@ class ReviewCalendarView(QWidget):
         self._schedule_date = QDateEdit(self)
         self._schedule_date.setObjectName("review-calendar-schedule-date")
         self._schedule_date.setCalendarPopup(True)
+        english_locale = QLocale(QLocale.Language.English, QLocale.Country.UnitedStates)
+        self._schedule_date.setLocale(english_locale)
+        self._schedule_date.calendarWidget().setLocale(english_locale)
         self._schedule_date.setDisplayFormat("yyyy-MM-dd")
         self._schedule_date.setDate(QDate.currentDate())
         schedule_editor.addWidget(self._schedule_date)

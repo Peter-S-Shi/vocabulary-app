@@ -165,10 +165,35 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     accent = tokens.accent
     semantic = tokens.semantic
     danger = tokens.semantic.danger
+    star = tokens.semantic.star
     radius = RADIUS_DEFAULT
     sp = SPACING
 
     return f"""
+    /* Phase B learning Star controls are deliberate learning actions, not
+    low-emphasis inline links. Both states receive an explicit foreground /
+    background pair so the global stylesheet cannot erase their contrast. */
+    QPushButton[learningStar="true"] {{
+        min-width: 112px;
+        min-height: 40px;
+        border: 2px solid {star.background};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+        font-size: 16px;
+        font-weight: 700;
+    }}
+    QPushButton[learningStar="true"][starred="false"] {{
+        background-color: {neutral.surface_primary};
+        color: {star.background};
+    }}
+    QPushButton[learningStar="true"][starred="true"] {{
+        background-color: {star.background};
+        color: {star.foreground};
+    }}
+    QPushButton[learningStar="true"]:hover {{
+        border-width: 3px;
+    }}
+
     QTableView {{
         background-color: {neutral.surface_primary};
         color: {neutral.text_primary};

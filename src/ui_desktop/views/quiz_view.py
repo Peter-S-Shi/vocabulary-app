@@ -698,15 +698,19 @@ class QuizView(QWidget):
         button = QPushButton(parent)
         button.setObjectName(object_name)
         button.setProperty("entryId", entry_id)
-        button.setFlat(True)
+        button.setProperty("learningStar", True)
+        button.setMinimumSize(112, 40)
         self._set_star_button_state(button, self._controller.is_entry_starred(entry_id))
         button.clicked.connect(lambda: self._toggle_entry_star(entry_id, confirm_cross_card=False))
         return button
 
     @staticmethod
     def _set_star_button_state(button: QPushButton, starred: bool) -> None:
+        button.setProperty("starred", starred)
         button.setText("★ Starred" if starred else "☆ Star")
         button.setAccessibleName("Unstar Entry" if starred else "Star Entry")
+        button.style().unpolish(button)
+        button.style().polish(button)
 
     def _on_starred_changed(self, entry_id: int, starred: bool) -> None:
         for button in self.findChildren(QPushButton):

@@ -26,6 +26,8 @@ from src.ui_desktop.controllers.collections_controller import CollectionsControl
 from src.ui_desktop.main_window import MainWindow
 from src.ui_desktop.state.handoff import QuizLaunchIntent
 from src.ui_desktop.state.preferences import load_preferences
+from src.ui_desktop.theming.theme_manager import build_stylesheet
+from src.ui_desktop.theming.tokens import THEME_CALM_BLUE_DARK, THEME_CALM_BLUE_LIGHT
 from src.ui_desktop.views.review_view import ReviewView
 from src.ui_desktop.views.quiz_view import QuizView
 from src.ui_desktop.views.collections_view import CollectionsView
@@ -151,6 +153,26 @@ class StudyStarActionTests(PhaseBTestCase):
         button.click()
 
         self.assertTrue(is_entry_in_system_collection(entry_ids[0], "starred"))
+
+    def test_learning_star_actions_are_prominent_and_theme_visible(self) -> None:
+        collection_id, _entry_ids = self._collection_with_entries()
+        controller = ReviewController()
+        view = ReviewView(controller)
+        self.addCleanup(view.deleteLater)
+        self.assertTrue(controller.open_card(collection_id, 1))
+
+        button = view.findChild(QPushButton, "review-current-entry-star-button")
+        self.assertIsNotNone(button)
+        self.assertTrue(button.property("learningStar"))
+        self.assertGreaterEqual(button.minimumWidth(), 112)
+        self.assertGreaterEqual(button.minimumHeight(), 40)
+
+        for tokens in (THEME_CALM_BLUE_LIGHT, THEME_CALM_BLUE_DARK):
+            stylesheet = build_stylesheet(tokens)
+            self.assertIn('QPushButton[learningStar="true"][starred="false"]', stylesheet)
+            self.assertIn('QPushButton[learningStar="true"][starred="true"]', stylesheet)
+            self.assertIn(f"color: {tokens.semantic.star.background};", stylesheet)
+            self.assertIn(f"background-color: {tokens.semantic.star.background};", stylesheet)
 
 
 class QuizStarMutationTests(PhaseBTestCase):

@@ -9,7 +9,7 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
-    from PySide6.QtCore import Qt
+    from PySide6.QtCore import QLocale, Qt
     from PySide6.QtWidgets import QApplication, QScrollArea
 
     PYSIDE6_AVAILABLE = True
@@ -289,6 +289,17 @@ class ReviewCalendarViewStructureTests(_SyntheticDatabaseTestCase):
                     Qt.ScrollBarPolicy.ScrollBarAsNeeded,
                 )
                 self.assertGreater(table.verticalScrollBar().maximum(), 0)
+
+    def test_schedule_calendar_uses_english_month_and_weekday_names(self) -> None:
+        controller = ReviewCalendarController()
+        view = ReviewCalendarView(controller)
+        self.addCleanup(view.deleteLater)
+
+        self.assertEqual(view._schedule_date.locale().language(), QLocale.Language.English)
+        self.assertEqual(
+            view._schedule_date.calendarWidget().locale().language(),
+            QLocale.Language.English,
+        )
 
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")

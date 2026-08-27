@@ -306,7 +306,8 @@ class ReviewView(QWidget):
 
         star_button = QPushButton(block)
         star_button.setObjectName("review-current-entry-star-button")
-        star_button.setFlat(True)
+        star_button.setProperty("learningStar", True)
+        star_button.setMinimumSize(112, 40)
         self._set_star_button_state(star_button, self._controller.is_entry_starred(int(entry["id"])))
         star_button.clicked.connect(lambda: self._toggle_current_entry_star(confirm_cross_card=False))
         layout.addWidget(star_button, 0, Qt.AlignmentFlag.AlignHCenter)
@@ -329,8 +330,11 @@ class ReviewView(QWidget):
 
     @staticmethod
     def _set_star_button_state(button: QPushButton, starred: bool) -> None:
+        button.setProperty("starred", starred)
         button.setText("★ Starred" if starred else "☆ Star")
         button.setAccessibleName("Unstar current Entry" if starred else "Star current Entry")
+        button.style().unpolish(button)
+        button.style().polish(button)
 
     def _on_starred_changed(self, entry_id: int, starred: bool) -> None:
         current = self._controller.current_entry()
