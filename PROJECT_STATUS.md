@@ -12,6 +12,7 @@ Phase B started from the accepted Phase A HEAD
 `5054fc221215c6e6c8c608cd246af7107fb74ade` on branch
 `milestone/v1.1-phase-b-study-star-progress`. The product implementation is
 recorded in commit `2ac8cde9767b5e3c31ea5c6e8b40569eec685237`.
+The Phase B branch is pushed to `origin`; no pull request has been created.
 
 Phase B contains exactly the approved changes:
 
