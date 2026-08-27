@@ -2113,7 +2113,7 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         font-size: 12px;
     }}
 
-    /* M18 Phase C1 -- Review Calendar / Card History (P7 Evidence
+    /* M18 Phase C1 / Patch A2 -- Review Calendar / Card History (P7 Evidence
     Browser). Every control below lives directly in the workspace, not a
     QDialog, so -- per the Human Gate 1 corrective lesson -- each needs
     its own explicit rule rather than relying on any generic fallback. */
@@ -2121,6 +2121,20 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_primary};
         font-size: 21px;
         font-weight: 700;
+    }}
+    QPushButton#review-calendar-today-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 4px 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }}
+    QPushButton#review-calendar-today-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
     }}
     QLabel#review-calendar-range-label {{
         color: {neutral.text_muted};
@@ -2134,8 +2148,51 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         padding: 3px 8px;
         font-size: 12px;
     }}
+    QCalendarWidget#review-calendar-widget QWidget,
+    QCalendarWidget#review-calendar-widget QToolButton,
+    QCalendarWidget#review-calendar-widget QSpinBox,
+    QCalendarWidget#review-calendar-widget QAbstractItemView {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+    }}
+    QCalendarWidget#review-calendar-widget QAbstractItemView:enabled {{
+        color: {neutral.text_primary};
+        selection-background-color: {accent.primary.background};
+        selection-color: {accent.primary.foreground};
+    }}
+    QCalendarWidget#review-calendar-widget QToolButton {{
+        color: {neutral.text_primary};
+        background-color: {neutral.surface_secondary};
+        border: 1px solid {neutral.border_subtle};
+        border-radius: {radius}px;
+        padding: 3px 8px;
+        font-size: 12px;
+        font-weight: 600;
+    }}
+    QCalendarWidget#review-calendar-widget QToolButton:hover {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+    }}
+    QCalendarWidget#review-calendar-widget QMenu {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+    }}
     QLabel#review-calendar-schedule-heading {{
         color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QTableWidget#review-calendar-schedule-table {{
+        selection-background-color: {accent.primary.background};
+        selection-color: {accent.primary.foreground};
+    }}
+    QTableWidget#review-calendar-schedule-table::item:selected {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        font-weight: 700;
+    }}
+    QLabel#review-calendar-editing-target-label {{
+        color: {neutral.text_primary};
         font-size: 13px;
         font-weight: 600;
     }}
@@ -2192,16 +2249,6 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_primary};
         font-size: 13px;
         font-weight: 600;
-    }}
-    QLabel#review-calendar-legacy-heading {{
-        color: {neutral.text_secondary};
-        font-size: 13px;
-        font-weight: 600;
-    }}
-    QLabel#review-calendar-legacy-caption {{
-        color: {neutral.text_muted};
-        font-style: italic;
-        font-size: 12px;
     }}
     QCalendarWidget#review-calendar-popup QWidget,
     QCalendarWidget#review-calendar-popup QToolButton,

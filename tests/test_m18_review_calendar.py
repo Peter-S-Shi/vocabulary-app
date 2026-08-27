@@ -267,7 +267,7 @@ class ReviewCalendarViewStructureTests(_SyntheticDatabaseTestCase):
         view = ReviewCalendarView(controller)
         self.addCleanup(view.deleteLater)
 
-        tables = (view._schedule_table, view._table, view._history_table, view._legacy_table)
+        tables = (view._schedule_table, view._table, view._history_table)
         for table in tables:
             table.setRowCount(40)
 
@@ -316,8 +316,8 @@ class ReviewCalendarViewStructureTests(_SyntheticDatabaseTestCase):
         view.show()
         self.app.processEvents()
 
-        # Verify all 4 tables have stretchLastSection and interactive columns enabled
-        for table in (view._schedule_table, view._table, view._history_table, view._legacy_table):
+        # Verify tables have stretchLastSection and interactive columns enabled
+        for table in (view._schedule_table, view._table, view._history_table):
             with self.subTest(table=table.objectName()):
                 self.assertTrue(table.horizontalHeader().stretchLastSection())
                 self.assertEqual(
@@ -370,12 +370,18 @@ class M18ReviewCalendarTokenQssStructuralCoverageTests(unittest.TestCase):
 
     REPRESENTATIVE_SELECTORS = (
         "#review-calendar-title",
+        "#review-calendar-today-button",
         "#review-calendar-range-label",
         "#review-calendar-range-combo",
+        "#review-calendar-widget",
+        "#review-calendar-schedule-heading",
+        "#review-calendar-schedule-table",
+        "#review-calendar-editing-target-label",
+        "#review-calendar-schedule-date",
+        "#review-calendar-schedule-save-button",
+        "#review-calendar-schedule-clear-button",
         "#review-calendar-detail-heading",
         "#review-calendar-detail-summary",
-        "#review-calendar-legacy-heading",
-        "#review-calendar-legacy-caption",
     )
 
     def _assert_all_selectors_present(self, tokens) -> None:

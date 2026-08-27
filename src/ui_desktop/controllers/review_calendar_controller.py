@@ -56,6 +56,7 @@ class ReviewCalendarController(QObject):
         self.range_days: int = DEFAULT_RANGE_DAYS
         self.entries: list[dict] = []
         self.schedules: list[dict] = []
+        self.selected_date: str = date.today().isoformat()
         self.selected_collection_id: int | None = None
         self.selected_card_number: int | None = None
         self.selected_card_id: int | None = None
@@ -65,6 +66,22 @@ class ReviewCalendarController(QObject):
         self.card_history: list[dict] = []
         self.legacy_logs: list[dict] = []
         self.current_schedule: dict | None = None
+
+    def set_selected_date(self, target_date: str) -> None:
+        if self.selected_date == target_date:
+            return
+        self.selected_date = target_date
+        self.selection_changed.emit()
+
+    def go_to_today(self) -> None:
+        self.set_selected_date(date.today().isoformat())
+
+    def scheduled_cards_for_date(self, target_date: str | None = None) -> list[dict]:
+        target = target_date or self.selected_date
+        return [s for s in self.schedules if s.get("next_due_at") == target]
+
+    def card_review_count(self) -> int:
+        return len(self.card_history)
 
     def refresh(self) -> None:
         end_date = date.today()
@@ -169,14 +186,17 @@ class ReviewCalendarController(QObject):
             if self.selected_from_history
             else get_card_review_logs(self.selected_collection_id, self.selected_card_number)
         )
-        schedule = (
-            None
-            if self.selected_card_id is None
-            else get_card_schedule(self.selected_card_id)
-        )
-        self.current_schedule = (
-            schedule if schedule is not None and int(schedule["is_active"]) else None
-        )
+        # Schedule target isolation: selecting a historical completion event
+        # must NEVER hijack or change the schedule editing target!
+        if not self.selected_from_history:
+            schedule = (
+                None
+                if self.selected_card_id is None
+                else get_card_schedule(self.selected_card_id)
+            )
+            self.current_schedule = (
+                schedule if schedule is not None and int(schedule["is_active"]) else None
+            )
         self.selection_changed.emit()
 
     def set_selected_next_review(
