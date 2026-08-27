@@ -241,7 +241,8 @@ class ReviewCalendarView(QWidget):
                 item.setData(
                     Qt.ItemDataRole.UserRole,
                     (
-                        int(entry["card_id"]),
+                        int(entry["session_id"]),
+                        None if entry["card_id"] is None else int(entry["card_id"]),
                         int(entry["collection_id"]),
                         int(entry["card_number"]),
                     ),
@@ -282,13 +283,16 @@ class ReviewCalendarView(QWidget):
         item = self._table.item(row, 0)
         if item is None:
             return
-        card_id, collection_id, card_number = item.data(Qt.ItemDataRole.UserRole)
+        session_id, card_id, collection_id, card_number = item.data(
+            Qt.ItemDataRole.UserRole
+        )
         collection_name = item.data(Qt.ItemDataRole.UserRole + 1)
         self._controller.select_card_event(
             card_id=card_id,
             collection_id=collection_id,
             card_number=card_number,
             collection_name=collection_name,
+            session_id=session_id,
         )
 
     def _on_schedule_selected(self) -> None:

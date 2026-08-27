@@ -59,6 +59,7 @@ class ReviewCalendarController(QObject):
         self.selected_collection_id: int | None = None
         self.selected_card_number: int | None = None
         self.selected_card_id: int | None = None
+        self.selected_session_id: int | None = None
         self.selected_collection_name: str = ""
         self.selected_from_history: bool = False
         self.card_history: list[dict] = []
@@ -109,6 +110,7 @@ class ReviewCalendarController(QObject):
         self.selected_collection_id = collection_id
         self.selected_card_number = card_number
         self.selected_card_id = card_id
+        self.selected_session_id = None
         self.selected_collection_name = collection_name
         self.selected_from_history = False
         self._reload_selection()
@@ -116,14 +118,16 @@ class ReviewCalendarController(QObject):
     def select_card_event(
         self,
         *,
-        card_id: int,
+        card_id: int | None,
         collection_id: int,
         card_number: int,
         collection_name: str = "",
+        session_id: int | None = None,
     ) -> None:
         self.selected_collection_id = collection_id
         self.selected_card_number = card_number
-        self.selected_card_id = int(card_id)
+        self.selected_card_id = None if card_id is None else int(card_id)
+        self.selected_session_id = None if session_id is None else int(session_id)
         self.selected_collection_name = collection_name
         self.selected_from_history = True
         self._reload_selection()
@@ -132,6 +136,7 @@ class ReviewCalendarController(QObject):
         self.selected_collection_id = None
         self.selected_card_number = None
         self.selected_card_id = None
+        self.selected_session_id = None
         self.selected_collection_name = ""
         self.selected_from_history = False
         self.card_history = []
@@ -143,15 +148,22 @@ class ReviewCalendarController(QObject):
         if self.selected_collection_id is None or self.selected_card_number is None:
             return
         with get_connection() as connection:
-            self.card_history = (
-                get_card_learning_history_by_id(connection, self.selected_card_id)
-                if self.selected_card_id is not None
-                else get_card_learning_history(
+            if self.selected_card_id is not None:
+                self.card_history = get_card_learning_history_by_id(
+                    connection, self.selected_card_id
+                )
+            elif self.selected_from_history:
+                self.card_history = [
+                    dict(entry)
+                    for entry in self.entries
+                    if int(entry["session_id"]) == self.selected_session_id
+                ]
+            else:
+                self.card_history = get_card_learning_history(
                     connection,
                     self.selected_collection_id,
                     self.selected_card_number,
                 )
-            )
         self.legacy_logs = (
             []
             if self.selected_from_history

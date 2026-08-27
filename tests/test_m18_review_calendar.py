@@ -196,6 +196,37 @@ class ReviewCalendarViewStructureTests(_SyntheticDatabaseTestCase):
 
         self.assertEqual(view._table.rowCount(), 1)
 
+    def test_pre_m11_3_completion_without_card_identity_remains_browseable(self) -> None:
+        self._make_completed_card("Legacy Evidence", "ancien", "old")
+        with db.get_connection() as conn:
+            session_id = int(
+                conn.execute(
+                    "SELECT id FROM quiz_sessions ORDER BY id DESC LIMIT 1"
+                ).fetchone()[0]
+            )
+            conn.execute(
+                """
+                UPDATE quiz_sessions
+                SET card_id = NULL, card_revision_id = NULL
+                WHERE id = ?
+                """,
+                (session_id,),
+            )
+        controller = ReviewCalendarController()
+        view = ReviewCalendarView(controller)
+        self.addCleanup(view.deleteLater)
+
+        view.refresh()
+        view._table.selectRow(0)
+
+        self.assertEqual(view._table.rowCount(), 1)
+        self.assertIsNone(controller.selected_card_id)
+        self.assertIsNone(controller.current_schedule)
+        self.assertEqual(
+            [entry["session_id"] for entry in controller.card_history],
+            [session_id],
+        )
+
     def test_selecting_a_row_populates_the_history_table(self) -> None:
         self._make_completed_card("Shapes", "carre", "square")
         controller = ReviewCalendarController()
