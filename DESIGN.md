@@ -1099,7 +1099,9 @@ Empty, neutral, warning, controlled error, success, and partial-success states m
 
 ## 13. Theme Architecture
 
-Theme configuration has two independent axes.
+Theme configuration is governed by two orthogonal axes: **Appearance Mode** and **Theme Customization** (authoritative baseline Presets + constrained semantic custom theme editing).
+
+All theme resolution and rendering flows through a single source of truth: `ThemeManager` + semantic `ThemeTokens` + `Preferences`. **No per-view styling or secondary styling systems are permitted.**
 
 ### 13.1 Appearance
 
@@ -1113,38 +1115,69 @@ Supported values:
 
 On desktop, `System` resolves through a live read of the OS's current Light/Dark appearance (Qt's `QStyleHints.colorScheme()`, not a hand-rolled per-platform poll) and re-resolves automatically if the OS appearance changes while the app is running and `System` remains selected; switching to an explicit Light/Dark choice is never silently overridden by a later OS change (M17 Theme Completion).
 
-Theme changes apply without restart and must not mutate vocabulary data, Quiz state, Review evidence, Analytics, or other learning state.
+Theme changes apply live without restart and must not mutate vocabulary data, Quiz state, Review evidence, Analytics, or other learning state.
 
-### 13.2 Accent families
+### 13.2 Presets & Constrained Semantic Theme Customization
 
-All four are first-class supported moods of the same product:
+The product provides four official authoritative Presets:
 
-1. **Calm Blue / Slate** — default;
+1. **Calm Blue / Slate** — default baseline;
 2. **Sage / Teal**;
 3. **Indigo / Violet**;
 4. **Warm Neutral**.
 
-Do not expose arbitrary RGB/hex theme editing unless a later product decision authorizes it.
+#### Authorized Custom Theme Model (v1.1.0 Phase D Contract)
+
+Rather than exposing unconstrained arbitrary RGB/hex modifications that could break UI contrast or pollute semantic states, the design authority authorizes **constrained semantic theme customization**:
+
+1. **Independent Per-Mode Customization**: Light Mode and Dark Mode can be customized and persisted independently (`preferences.custom_theme.light` and `preferences.custom_theme.dark`), each anchored to an official Preset.
+2. **Constrained Customization Dimensions**:
+   - **Preset**: Official starting baseline for the mode.
+   - **Accent Color**: Interactive emphasis color.
+   - **Background**: Application outermost window canvas color.
+   - **Surfaces**: Primary content surface and card container color.
+   - **Text**: Main typography color.
+3. **Automatic Interaction Token Family Derivation**: Customizing an Accent color does not merely replace a single hex; the theme engine automatically derives a complete, internally consistent semantic token family (`accent-primary`, `on-accent-primary`, `accent-hover`, `on-accent-hover`, `accent-pressed`, `on-accent-pressed`, `accent-soft`, `on-accent-soft`, `accent-selected`, `on-accent-selected`, `accent-border`, and `focus-ring`).
+4. **Mathematical Contrast Guard**: All custom Accent, Surface, and Text combinations are guarded to strictly achieve WCAG AA ($\ge 4.5:1$) contrast for readable text and text-bearing interactive components. The "Auto Guard" text option automatically resolves optimal readable typography against customized background and surface tones.
+5. **Semantic State Immutability**: Business, assessment, and feedback state colors (`success`, `warning`, `danger`, `info`, `quiz-correct`, `quiz-wrong`, and `star`) are immutable invariants. They are **strictly protected from pollution or alteration by custom themes or accents**.
 
 ---
 
-## 14. Theme Controls
+## 14. Theme Controls & Customization UX
 
-Two access levels:
+### 14.1 Quick Theme Control
 
-**Quick Theme Control** — compact popover reachable from the Management shell.
+Compact popover reachable from the Management shell for immediate switching between Appearance modes and baseline Presets:
 
 ```text
-Appearance          Accent
+Appearance          Preset
 ○ System             ● Calm Blue
 ○ Light              ○ Sage / Teal
 ○ Dark               ○ Indigo / Violet
                      ○ Warm Neutral
 ```
 
-Changes apply immediately. Theme controls do not permanently occupy prominent navigation space.
+Changes apply immediately. Quick theme controls do not permanently occupy prominent navigation space.
 
-**Settings → Appearance** — full authoritative configuration surface.
+### 14.2 Settings Theme Customization Studio (AG2.0 Experience)
+
+The authoritative configuration surface is located at **Settings → Theme Customization**:
+
+1. **`[Light Mode]` / `[Dark Mode]` Tabbed Workspace**: Two dedicated tabs allowing independent inspection and tuning of Light and Dark themes.
+2. **Tab Switch Real-Time Live Preview**: Switching tabs temporarily switches the entire running application into that mode for complete, real-time live preview, **without altering the user's stored `Appearance = System / Light / Dark` preference**.
+3. **In-Picker Real-Time Live Preview**: While selecting colors via the native color picker dialog (`QColorDialog`), interactive adjustments (dragging wheels or sliders) immediately preview live across the entire window. Rejecting or canceling the picker reverts the preview to the pre-picker staged state; accepting retains the selection in staged configuration.
+4. **Staging vs. Committed Apply**:
+   - Changes made in the editor are staged in memory with live visual feedback, but are **never written to disk (`preferences.json`) before `Apply` is clicked**.
+   - **Cancel**: Discards all unstaged edits and completely restores the pre-editing theme snapshot.
+   - **Apply**: Commits the staged theme to disk preferences, applies it permanently, and records an undo snapshot.
+5. **Separated Staged vs. Committed Undo Lifecycle**:
+   - **Staged Undo**: Undoing staged operations (e.g. `Reset to Preset` or `Reset All to Default` prior to Apply) restores the in-memory staged snapshot and active tab live preview, **without writing uncommitted changes to disk or modifying committed preferences**.
+   - **Committed Undo**: Undoing after an `Apply` restores and persists the previous committed snapshot.
+6. **Reset Lifecycle**:
+   - **Reset to Preset**: Clears custom color overrides for the active tab's mode, preserving its selected Preset.
+   - **Reset All to Default**: Resets both Light and Dark modes to factory default Calm Blue with custom colors cleared.
+   - Both Reset actions are immediately undoable via `Undo`.
+7. **Non-Modal Contextual Feedback**: Contextual status feedback provides clear, non-intrusive confirmation upon Apply, Reset, Undo, and Cancel actions without interrupting workflow.
 
 Study Mode does not keep a prominent theme selector visible during an active Immersive Focus session.
 
@@ -1508,7 +1541,7 @@ A composition substitution remains a DESIGN FAIL even if:
 
 **Analytics:** global mastery score; opaque learner grade; rainbow Findings; charts dominating interpretation.
 
-**Theme:** accent overriding semantic state; arbitrary foreground/background pairing; naïve Light/Dark inversion; theme changes modifying learning data.
+**Theme:** accent overriding semantic state; arbitrary foreground/background pairing; naïve Light/Dark inversion; theme changes modifying learning data; ad-hoc per-view styling; unconstrained hex replacements bypassing contrast guards.
 
 ---
 
@@ -1620,7 +1653,7 @@ FAIL when data mutates before confirmation, destructive actions are ambiguous/de
 
 ### 27.8 Theme/accessibility acceptance
 
-PASS only when all supported Accent × Appearance combinations preserve hierarchy, explicit foregrounds, contrast, and semantic-state independence.
+PASS only when all supported baseline Presets and custom theme configurations preserve hierarchy, explicit foregrounds, contrast ($\ge 4.5:1$), and semantic-state independence.
 
 Automated contrast checks are necessary but do not replace viewing representative real native surfaces in Light and Dark.
 
