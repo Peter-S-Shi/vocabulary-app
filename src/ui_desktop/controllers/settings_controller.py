@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import copy
+from pathlib import Path
 from PySide6.QtCore import QObject, Signal
 
 from src.app_config import get_app_storage_summary
@@ -37,7 +40,8 @@ class SettingsController(QObject):
         self._theme_manager = theme_manager
         self.preferences_path = preferences_path
         self._staged_custom_theme: CustomThemeConfig = copy.deepcopy(self.preferences.custom_theme)
-        self._undo_stack: list[CustomThemeConfig] = []
+        self._staged_undo_stack: list[CustomThemeConfig] = []
+        self._committed_undo_stack: list[CustomThemeConfig] = []
 
     def quiz_presentation(self) -> str:
         return self.preferences.quiz_presentation
@@ -84,17 +88,33 @@ class SettingsController(QObject):
         return self._staged_custom_theme != self.preferences.custom_theme
 
     def can_undo(self) -> bool:
-        return len(self._undo_stack) > 0
+        return len(self._staged_undo_stack) > 0 or len(self._committed_undo_stack) > 0
 
     def undo(self) -> None:
-        if not self._undo_stack:
+        # Case A: There are uncommitted staged undo actions (e.g. undoing a staged Reset)
+        if self._staged_undo_stack:
+            previous_staged = self._staged_undo_stack.pop()
+            self._staged_custom_theme = copy.deepcopy(previous_staged)
+            # Live-preview the restored staged theme without writing to committed preferences or disk!
+            if self._theme_manager is not None:
+                eff = Appearance.DARK if self.preferences.appearance == "Dark" else Appearance.LIGHT
+                mode_custom = self._staged_custom_theme.dark if eff is Appearance.DARK else self._staged_custom_theme.light
+                if hasattr(self._theme_manager, "preview_customization"):
+                    self._theme_manager.preview_customization(eff, mode_custom)
+                elif hasattr(self._theme_manager, "apply"):
+                    self._theme_manager.apply(eff, parse_accent(mode_custom.preset))
+            self.state_changed.emit()
             return
-        previous = self._undo_stack.pop()
-        self._staged_custom_theme = copy.deepcopy(previous)
-        self.preferences.custom_theme = copy.deepcopy(previous)
-        save_preferences(self.preferences, self.preferences_path)
-        self._apply_theme_to_manager()
-        self.state_changed.emit()
+
+        # Case B: Undoing a committed Apply
+        if self._committed_undo_stack:
+            previous_committed = self._committed_undo_stack.pop()
+            self.preferences.custom_theme = copy.deepcopy(previous_committed)
+            self._staged_custom_theme = copy.deepcopy(previous_committed)
+            save_preferences(self.preferences, self.preferences_path)
+            self._apply_theme_to_manager()
+            self.state_changed.emit()
+            return
 
     def stage_mode_customization(self, mode: str, customization: ModeCustomization) -> None:
         if mode.lower() == "dark":
@@ -121,7 +141,8 @@ class SettingsController(QObject):
                 self._theme_manager.apply(eff, parse_accent(custom.preset))
 
     def apply_staged_custom_theme(self) -> None:
-        self._undo_stack.append(copy.deepcopy(self.preferences.custom_theme))
+        self._committed_undo_stack.append(copy.deepcopy(self.preferences.custom_theme))
+        self._staged_undo_stack.clear()
         self.preferences.custom_theme = copy.deepcopy(self._staged_custom_theme)
         save_preferences(self.preferences, self.preferences_path)
         self._apply_theme_to_manager()
@@ -129,16 +150,17 @@ class SettingsController(QObject):
 
     def cancel_staged_custom_theme(self) -> None:
         self._staged_custom_theme = copy.deepcopy(self.preferences.custom_theme)
+        self._staged_undo_stack.clear()
         self._apply_theme_to_manager()
         self.state_changed.emit()
 
     def reset_staged_mode_to_preset(self, mode: str, preset_name: str) -> None:
-        self._undo_stack.append(copy.deepcopy(self._staged_custom_theme))
+        self._staged_undo_stack.append(copy.deepcopy(self._staged_custom_theme))
         clean = ModeCustomization(preset=preset_name)
         self.stage_mode_customization(mode, clean)
 
     def reset_staged_all_to_default(self, active_mode: str = "Light") -> None:
-        self._undo_stack.append(copy.deepcopy(self._staged_custom_theme))
+        self._staged_undo_stack.append(copy.deepcopy(self._staged_custom_theme))
         self._staged_custom_theme = CustomThemeConfig()
         if self._theme_manager is not None:
             eff = Appearance.DARK if active_mode.lower() == "dark" else Appearance.LIGHT

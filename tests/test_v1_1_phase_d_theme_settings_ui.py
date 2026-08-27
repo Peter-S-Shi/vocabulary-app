@@ -14,7 +14,7 @@ except ImportError:
     PYSIDE6_AVAILABLE = False
 
 from src.ui_desktop.controllers.settings_controller import SettingsController
-from src.ui_desktop.state.preferences import Preferences, save_preferences
+from src.ui_desktop.state.preferences import Preferences, load_preferences, save_preferences
 from src.ui_desktop.theming.theme_manager import Accent, Appearance, ThemeManager
 from src.ui_desktop.theming.tokens import (
     CustomThemeConfig,
@@ -65,6 +65,18 @@ class ThemeSettingsUITests(unittest.TestCase):
     def tearDown(self) -> None:
         self._patcher.stop()
         self.tmp_dir.cleanup()
+
+    def test_settings_controller_constructor_and_imports_compatibility(self) -> None:
+        ctrl_default = SettingsController()
+        self.assertIsInstance(ctrl_default.preferences, Preferences)
+        self.assertIsNone(ctrl_default.preferences_path)
+
+        ctrl_path = SettingsController(
+            preferences=self.prefs,
+            theme_manager=self.theme_manager,
+            preferences_path=self.pref_file,
+        )
+        self.assertEqual(ctrl_path.preferences_path, self.pref_file)
 
     def test_settings_view_structure_and_tabs(self) -> None:
         self.assertEqual(self.view._theme_tabs.count(), 2)
@@ -176,33 +188,44 @@ class ThemeSettingsUITests(unittest.TestCase):
         self.assertIsNone(self.controller.custom_theme().light.accent_color)
         self.assertFalse(self.controller.can_undo())
 
-    def test_reset_to_preset_is_immediately_undoable(self) -> None:
-        # 1. Stage custom color on Sage / Teal
+    def test_staged_reset_undo_does_not_mutate_committed_preferences_or_disk(self) -> None:
+        # Initial committed state: Calm Blue (no custom colors)
+        self.assertEqual(self.controller.custom_theme().light.preset, PRESET_CALM_BLUE)
+        self.assertIsNone(self.controller.custom_theme().light.accent_color)
+
+        # 1. Stage custom color on Light Mode (UNCOMMITTED)
         self.controller.stage_mode_customization(
             "Light",
-            ModeCustomization(
-                preset=PRESET_SAGE_TEAL,
-                accent_color="#FF0000",
-                surface_color="#EEEEEE",
-            ),
+            ModeCustomization(preset=PRESET_SAGE_TEAL, accent_color="#00FF00"),
         )
-        self.view._theme_tabs.setCurrentIndex(0)
+        self.assertEqual(self.controller.staged_custom_theme().light.accent_color, "#00FF00")
+        # Committed preferences & disk remain untouched!
+        self.assertIsNone(self.controller.custom_theme().light.accent_color)
+        loaded_disk = load_preferences(self.pref_file)
+        self.assertIsNone(loaded_disk.custom_theme.light.accent_color)
 
-        # 2. Click Reset to Preset
+        # 2. Click Reset to Preset (Staged Reset)
         self.view._theme_reset_mode_btn.click()
-        staged = self.controller.staged_custom_theme()
-        self.assertEqual(staged.light.preset, PRESET_SAGE_TEAL)
-        self.assertIsNone(staged.light.accent_color)
-        self.assertIsNone(staged.light.surface_color)
-        self.assertTrue(self.controller.can_undo())
-        self.assertIn("Reset", self.view._theme_feedback_label.text())
+        self.assertIsNone(self.controller.staged_custom_theme().light.accent_color)
+        self.assertIsNone(self.controller.custom_theme().light.accent_color)
+        loaded_disk = load_preferences(self.pref_file)
+        self.assertIsNone(loaded_disk.custom_theme.light.accent_color)
 
-        # 3. Undo immediately restores custom color!
+        # 3. Click Undo -> restores previously staged custom color in memory & preview ONLY
         self.view._theme_undo_btn.click()
-        restored = self.controller.staged_custom_theme()
-        self.assertEqual(restored.light.preset, PRESET_SAGE_TEAL)
-        self.assertEqual(restored.light.accent_color, "#FF0000")
-        self.assertEqual(restored.light.surface_color, "#EEEEEE")
+        self.assertEqual(self.controller.staged_custom_theme().light.accent_color, "#00FF00")
+        self.assertEqual(self.theme_manager.current_tokens.accent.primary.background, "#00FF00")
+
+        # INVARIANT: committed preferences and disk MUST still be the unmutated committed state!
+        self.assertIsNone(self.controller.custom_theme().light.accent_color)
+        loaded_disk = load_preferences(self.pref_file)
+        self.assertIsNone(loaded_disk.custom_theme.light.accent_color)
+
+        # 4. Now click Apply -> only now should preferences and disk receive the change!
+        self.view._theme_apply_btn.click()
+        self.assertEqual(self.controller.custom_theme().light.accent_color, "#00FF00")
+        loaded_disk_after_apply = load_preferences(self.pref_file)
+        self.assertEqual(loaded_disk_after_apply.custom_theme.light.accent_color, "#00FF00")
 
     def test_reset_all_to_default_is_immediately_undoable(self) -> None:
         self.controller.stage_mode_customization(
