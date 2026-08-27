@@ -141,6 +141,11 @@ class ReviewCalendarView(QWidget):
         self._schedule_save_button.setEnabled(False)
         self._schedule_save_button.clicked.connect(self._save_schedule)
         schedule_editor.addWidget(self._schedule_save_button)
+        self._schedule_clear_button = QPushButton("Clear schedule", self)
+        self._schedule_clear_button.setObjectName("review-calendar-schedule-clear-button")
+        self._schedule_clear_button.setEnabled(False)
+        self._schedule_clear_button.clicked.connect(self._clear_schedule)
+        schedule_editor.addWidget(self._schedule_clear_button)
         schedule_editor.addStretch(1)
         layout.addLayout(schedule_editor)
 
@@ -233,7 +238,14 @@ class ReviewCalendarView(QWidget):
                 self._table.setItem(row, 4, QTableWidgetItem(str(int(entry.get("correct_count") or 0))))
                 self._table.setItem(row, 5, QTableWidgetItem(str(int(entry.get("wrong_count") or 0))))
                 item = self._table.item(row, 0)
-                item.setData(Qt.ItemDataRole.UserRole, (int(entry["collection_id"]), int(entry["card_number"])))
+                item.setData(
+                    Qt.ItemDataRole.UserRole,
+                    (
+                        int(entry["card_id"]),
+                        int(entry["collection_id"]),
+                        int(entry["card_number"]),
+                    ),
+                )
                 item.setData(Qt.ItemDataRole.UserRole + 1, str(entry.get("collection_name") or ""))
         finally:
             self._table.blockSignals(False)
@@ -247,7 +259,11 @@ class ReviewCalendarView(QWidget):
             self._schedule_table.setItem(row, 3, QTableWidgetItem(str(schedule.get("next_due_at") or "Unscheduled")))
             self._schedule_table.item(row, 0).setData(
                 Qt.ItemDataRole.UserRole,
-                (int(schedule["collection_id"]), int(schedule["card_number"])),
+                (
+                    int(schedule["card_id"]),
+                    int(schedule["collection_id"]),
+                    int(schedule["card_number"]),
+                ),
             )
             self._schedule_table.item(row, 0).setData(
                 Qt.ItemDataRole.UserRole + 1,
@@ -266,20 +282,26 @@ class ReviewCalendarView(QWidget):
         item = self._table.item(row, 0)
         if item is None:
             return
-        collection_id, card_number = item.data(Qt.ItemDataRole.UserRole)
+        card_id, collection_id, card_number = item.data(Qt.ItemDataRole.UserRole)
         collection_name = item.data(Qt.ItemDataRole.UserRole + 1)
-        self._controller.select_card(collection_id, card_number, collection_name)
+        self._controller.select_card_event(
+            card_id=card_id,
+            collection_id=collection_id,
+            card_number=card_number,
+            collection_name=collection_name,
+        )
 
     def _on_schedule_selected(self) -> None:
         row = self._schedule_table.currentRow()
         item = self._schedule_table.item(row, 0) if row >= 0 else None
         if item is None:
             return
-        collection_id, card_number = item.data(Qt.ItemDataRole.UserRole)
-        self._controller.select_card(
-            collection_id,
-            card_number,
-            item.data(Qt.ItemDataRole.UserRole + 1),
+        card_id, collection_id, card_number = item.data(Qt.ItemDataRole.UserRole)
+        self._controller.select_current_card(
+            card_id=card_id,
+            collection_id=collection_id,
+            card_number=card_number,
+            collection_name=item.data(Qt.ItemDataRole.UserRole + 1),
         )
 
     def _save_schedule(self) -> None:
@@ -289,6 +311,10 @@ class ReviewCalendarView(QWidget):
             self._schedule_date.date().toString("yyyy-MM-dd")
         )
 
+    def _clear_schedule(self) -> None:
+        if self._controller.current_schedule is not None:
+            self._controller.clear_selected_schedule()
+
     def _render_detail(self) -> None:
         controller = self._controller
         if controller.selected_collection_id is None:
@@ -296,9 +322,13 @@ class ReviewCalendarView(QWidget):
             self._history_table.setRowCount(0)
             self._legacy_table.setRowCount(0)
             self._schedule_save_button.setEnabled(False)
+            self._schedule_clear_button.setEnabled(False)
             return
 
         self._schedule_save_button.setEnabled(controller.current_schedule is not None)
+        self._schedule_clear_button.setEnabled(
+            bool(controller.current_schedule and controller.current_schedule.get("next_due_at"))
+        )
         if controller.current_schedule and controller.current_schedule.get("next_due_at"):
             due = QDate.fromString(controller.current_schedule["next_due_at"], "yyyy-MM-dd")
             if due.isValid():

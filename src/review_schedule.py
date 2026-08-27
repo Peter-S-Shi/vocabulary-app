@@ -88,6 +88,21 @@ def set_card_next_review(
     return get_card_schedule(card_id, today=today)
 
 
+def clear_card_schedule(card_id: int, *, today: str | None = None) -> dict:
+    with get_connection() as conn:
+        card = conn.execute(
+            "SELECT id, is_active FROM cards WHERE id = ?",
+            (int(card_id),),
+        ).fetchone()
+        if card is None or not int(card["is_active"]):
+            raise ValueError("Active Card not found.")
+        conn.execute(
+            "DELETE FROM card_review_schedules WHERE card_id = ?",
+            (int(card_id),),
+        )
+    return get_card_schedule(card_id, today=today)
+
+
 def schedule_card_after_days(
     card_id: int,
     days: int,

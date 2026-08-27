@@ -44,6 +44,12 @@ class TodayController(QObject):
         due_items = [
             {
                 "recommendation_type": "scheduled_review",
+                "title": f"{schedule['collection_name']} — Card #{schedule['card_number']}",
+                "description": (
+                    f"Review was due on {schedule['next_due_at']}. Start a Card Quiz."
+                    if schedule["state"] == "overdue"
+                    else "Review is due today. Start a Card Quiz."
+                ),
                 "collection_id": schedule["collection_id"],
                 "collection_name": schedule["collection_name"],
                 "card_number": schedule["card_number"],

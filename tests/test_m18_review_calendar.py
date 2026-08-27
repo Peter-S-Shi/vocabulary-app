@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -67,6 +68,11 @@ class _SyntheticDatabaseTestCase(unittest.TestCase):
         session_id = quiz.create_quiz_session(collection_id, 1, "term_to_meaning", 1)
         quiz.record_quiz_answer(session_id, entry_id, term, meaning, meaning, True)
         quiz.mark_quiz_session_completed(session_id)
+        with db.get_connection() as conn:
+            conn.execute(
+                "UPDATE quiz_sessions SET completed_at = ? WHERE id = ?",
+                (f"{date.today().isoformat()}T12:00:00+00:00", session_id),
+            )
         return collection_id, entry_id
 
 

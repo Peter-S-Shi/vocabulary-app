@@ -143,14 +143,10 @@ def get_card_learning_history(
         ).fetchone()
         if card_row is None:
             return []
-        identity_clause = "card_id = ?"
-        identity_params = (int(card_row["id"]),)
-    else:
-        identity_clause = "collection_id = ? AND card_number = ?"
-        identity_params = (int(collection_id), int(card_number))
+        return get_card_learning_history_by_id(conn, int(card_row["id"]))
 
     rows = conn.execute(
-        f"""
+        """
         SELECT
             id AS session_id,
             completed_at,
@@ -162,13 +158,41 @@ def get_card_learning_history(
             card_id,
             card_revision_id
         FROM quiz_sessions
-        WHERE {identity_clause}
+        WHERE collection_id = ?
+          AND card_number = ?
           AND card_number > 0
           AND status = 'completed'
           AND completed_at IS NOT NULL
         ORDER BY completed_at DESC, id DESC
         """,
-        identity_params,
+        (int(collection_id), int(card_number)),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_card_learning_history_by_id(conn, card_id: int) -> list[dict]:
+    if not _table_exists(conn, "quiz_sessions"):
+        return []
+    rows = conn.execute(
+        """
+        SELECT
+            id AS session_id,
+            completed_at,
+            quiz_type,
+            total_items,
+            correct_count,
+            wrong_count,
+            card_number,
+            card_id,
+            card_revision_id
+        FROM quiz_sessions
+        WHERE card_id = ?
+          AND card_number > 0
+          AND status = 'completed'
+          AND completed_at IS NOT NULL
+        ORDER BY completed_at DESC, id DESC
+        """,
+        (int(card_id),),
     ).fetchall()
     return [dict(row) for row in rows]
 

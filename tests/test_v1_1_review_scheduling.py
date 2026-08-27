@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from datetime import date
+from io import BytesIO
 import os
 import tempfile
 import unittest
@@ -9,9 +10,11 @@ import unittest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QDate
-from PySide6.QtWidgets import QApplication, QPushButton
+from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QWidget
+from openpyxl import load_workbook
 
 from src import db, quiz
+from src.backup import BACKUP_TABLES, build_full_backup_workbook_bytes, preview_backup_workbook
 from src.card_history import reconcile_collection_card_history
 from src.learning_workflow import get_card_learning_history
 from src.migrations import (
@@ -25,6 +28,7 @@ from src.migrations import (
 )
 from src.review import get_card_review_state
 from src.review_schedule import (
+    clear_card_schedule,
     get_card_schedule,
     list_card_schedules,
     list_actionable_schedules,
@@ -36,6 +40,7 @@ from src.ui_desktop.controllers.today_controller import TodayController
 from src.ui_desktop.controllers.review_calendar_controller import ReviewCalendarController
 from src.ui_desktop.views.review_calendar_view import ReviewCalendarView
 from src.ui_desktop.views.quiz_view import QuizView
+from src.ui_desktop.views.today_view import TodayView
 
 
 class ReviewScheduleTestCase(unittest.TestCase):
@@ -97,6 +102,81 @@ class ReviewScheduleTestCase(unittest.TestCase):
 
 
 class StableCardScheduleTests(ReviewScheduleTestCase):
+    def test_structured_backup_includes_review_schedules_and_consistent_metadata(self) -> None:
+        card_id = self._card_id(name="Synthetic Schedule Backup")
+        set_card_next_review(card_id, "2026-09-04", today="2026-08-26")
+
+        backup_bytes = build_full_backup_workbook_bytes()
+        workbook = load_workbook(BytesIO(backup_bytes), read_only=True, data_only=True)
+        schedule_rows = list(
+            workbook["card_review_schedules"].iter_rows(values_only=True)
+        )
+        metadata = dict(
+            list(workbook["backup_metadata"].iter_rows(values_only=True))[1:]
+        )
+        preview = preview_backup_workbook(backup_bytes)
+        schedule_preview = next(
+            sheet
+            for sheet in preview["sheets"]
+            if sheet["sheet_name"] == "card_review_schedules"
+        )
+
+        headers = schedule_rows[0]
+        exported = dict(zip(headers, schedule_rows[1], strict=True))
+        self.assertEqual(exported["card_id"], card_id)
+        self.assertEqual(exported["next_due_at"], "2026-09-04")
+        self.assertEqual(metadata["table_count"], len(BACKUP_TABLES))
+        self.assertEqual(schedule_preview["row_count"], 1)
+
+    def test_clear_schedule_is_idempotent_and_preserves_quiz_history(self) -> None:
+        card_id = self._card_id(name="Synthetic Clear Schedule")
+        with db.get_connection() as conn:
+            card = conn.execute(
+                "SELECT collection_id, card_number FROM cards WHERE id = ?",
+                (card_id,),
+            ).fetchone()
+            entry_id = int(
+                conn.execute(
+                    """
+                    SELECT membership.entry_id
+                    FROM card_revisions AS revision
+                    JOIN card_revision_entries AS membership
+                      ON membership.revision_id = revision.id
+                    WHERE revision.card_id = ?
+                    ORDER BY revision.revision_number DESC
+                    LIMIT 1
+                    """,
+                    (card_id,),
+                ).fetchone()[0]
+            )
+        session_id = quiz.create_quiz_session(
+            int(card["collection_id"]),
+            int(card["card_number"]),
+            "term_to_meaning",
+            1,
+        )
+        quiz.record_quiz_answer(
+            session_id, entry_id, "term", "meaning", "meaning", True
+        )
+        quiz.complete_quiz_session(session_id)
+        with db.get_connection() as conn:
+            history_before = get_card_learning_history(
+                conn, int(card["collection_id"]), int(card["card_number"])
+            )
+
+        set_card_next_review(card_id, "2026-08-26", today="2026-08-26")
+        cleared = clear_card_schedule(card_id, today="2026-08-26")
+        cleared_again = clear_card_schedule(card_id, today="2026-08-26")
+
+        self.assertEqual(cleared["state"], "unscheduled")
+        self.assertEqual(cleared_again["state"], "unscheduled")
+        self.assertEqual(list_actionable_schedules(today="2026-08-26"), [])
+        with db.get_connection() as conn:
+            history_after = get_card_learning_history(
+                conn, int(card["collection_id"]), int(card["card_number"])
+            )
+        self.assertEqual(history_after, history_before)
+
     def test_direct_schedule_calculation_uses_explicit_base_date(self) -> None:
         card_id = self._card_id(name="Synthetic Direct Schedule")
 
@@ -343,19 +423,36 @@ class QuizCompletionScheduleTests(ReviewScheduleTestCase):
 
 
 class TodayScheduleRoutingTests(ReviewScheduleTestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = QApplication.instance() or QApplication([])
+
     def test_due_schedule_is_an_actionable_card_quiz_queue_item(self) -> None:
         card_id = self._card_id(name="Synthetic Today Due")
         set_card_next_review(card_id, "2026-08-26", today="2026-08-26")
         controller = TodayController()
+        view = TodayView(controller)
+        self.addCleanup(view.deleteLater)
+        launched = []
+        view.quiz_launch_requested.connect(launched.append)
 
         overview = controller.refresh(today="2026-08-26")
         queue_item = controller.queue_items()[0]
         intent = controller.build_learning_action_intent(queue_item)
+        queue_card = view.findChild(QWidget, "today-queue-card")
+        title = queue_card.findChild(QLabel, "today-action-title")
+        description = queue_card.findChild(QLabel, "today-action-subtitle")
+        action = queue_card.findChild(QPushButton, "today-action-button")
 
         self.assertEqual(overview["due_schedules"][0]["card_id"], card_id)
         self.assertEqual(queue_item["recommendation_type"], "scheduled_review")
+        self.assertTrue(title.text().strip())
+        self.assertTrue(description.text().strip())
+        self.assertTrue(action.isEnabled())
         self.assertEqual(intent.action, "quiz")
         self.assertEqual(intent.card_id, card_id)
+        action.click()
+        self.assertEqual(launched[0].card_id, card_id)
 
 
 class ReviewCalendarScheduleTests(ReviewScheduleTestCase):
@@ -371,6 +468,108 @@ class ReviewCalendarScheduleTests(ReviewScheduleTestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["card_id"], card_id)
         self.assertEqual(rows[0]["state"], "unscheduled")
+
+    def test_retired_historical_event_cannot_select_replacement_schedule(self) -> None:
+        old_card_id = self._card_id(name="Synthetic Historical Identity")
+        now = "2026-08-26T12:00:00+00:00"
+        with db.get_connection() as conn:
+            old_card = conn.execute(
+                "SELECT collection_id, card_number FROM cards WHERE id = ?",
+                (old_card_id,),
+            ).fetchone()
+            entry_id = int(
+                conn.execute(
+                    """
+                    SELECT membership.entry_id
+                    FROM card_revisions AS revision
+                    JOIN card_revision_entries AS membership
+                      ON membership.revision_id = revision.id
+                    WHERE revision.card_id = ?
+                    ORDER BY revision.revision_number DESC
+                    LIMIT 1
+                    """,
+                    (old_card_id,),
+                ).fetchone()[0]
+            )
+        session_id = quiz.create_quiz_session(
+            int(old_card["collection_id"]),
+            int(old_card["card_number"]),
+            "term_to_meaning",
+            1,
+        )
+        quiz.record_quiz_answer(
+            session_id,
+            entry_id,
+            "term",
+            "meaning",
+            "meaning",
+            True,
+        )
+        quiz.complete_quiz_session(session_id)
+
+        with db.get_connection() as conn:
+            collection_id = int(old_card["collection_id"])
+            conn.execute(
+                "DELETE FROM entry_collections WHERE collection_id = ?",
+                (collection_id,),
+            )
+            reconcile_collection_card_history(
+                conn,
+                collection_id,
+                change_reason="synthetic_historical_retire",
+            )
+            replacement_entry_id = int(
+                conn.execute(
+                    """
+                    INSERT INTO entries (
+                        language, explanation_language, entry_type, term, meaning,
+                        example, notes, tags, source, status, created_at, updated_at
+                    ) VALUES ('English', 'English', 'word', 'replacement', 'new meaning',
+                              '', '', '', '', 'new', ?, ?)
+                    """,
+                    (now, now),
+                ).lastrowid
+            )
+            conn.execute(
+                """
+                INSERT INTO entry_collections (entry_id, collection_id, position, added_at)
+                VALUES (?, ?, 1, ?)
+                """,
+                (replacement_entry_id, collection_id, now),
+            )
+            reconcile_collection_card_history(
+                conn,
+                collection_id,
+                change_reason="synthetic_historical_replacement",
+            )
+            replacement_card_id = int(
+                conn.execute(
+                    """
+                    SELECT id FROM cards
+                    WHERE collection_id = ? AND card_number = 1 AND is_active = 1
+                    """,
+                    (collection_id,),
+                ).fetchone()[0]
+            )
+
+        controller = ReviewCalendarController()
+        controller.select_card_event(
+            card_id=old_card_id,
+            collection_id=collection_id,
+            card_number=1,
+            collection_name="Synthetic Historical Identity",
+        )
+
+        self.assertEqual(controller.selected_card_id, old_card_id)
+        self.assertEqual(len(controller.card_history), 1)
+        self.assertEqual(controller.card_history[0]["card_id"], old_card_id)
+        self.assertIsNone(controller.current_schedule)
+        with self.assertRaises(ValueError):
+            controller.set_selected_next_review("2026-08-30", today="2026-08-26")
+        self.assertEqual(
+            get_card_schedule(replacement_card_id, today="2026-08-26")["state"],
+            "unscheduled",
+        )
 
     def test_selected_card_schedule_can_be_read_and_edited_separately(self) -> None:
         card_id = self._card_id(name="Synthetic Calendar Schedule")
@@ -409,6 +608,14 @@ class ReviewCalendarScheduleTests(ReviewScheduleTestCase):
         self.assertEqual(controller.current_schedule["card_id"], card_id)
         self.assertEqual(controller.current_schedule["next_due_at"], "2026-08-30")
         self.assertEqual(view._history_table.rowCount(), 0)
+
+        view._schedule_clear_button.click()
+
+        self.assertEqual(controller.current_schedule["state"], "unscheduled")
+        self.assertEqual(
+            list_actionable_schedules(today="2026-08-30"),
+            [],
+        )
 
 
 if __name__ == "__main__":

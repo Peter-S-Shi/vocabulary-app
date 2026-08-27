@@ -6,9 +6,14 @@ from PySide6.QtCore import QObject, Signal
 
 from src.db import get_connection
 from src.card_history import get_current_card_identity
-from src.learning_workflow import get_card_learning_history
+from src.learning_workflow import get_card_learning_history, get_card_learning_history_by_id
 from src.review import get_card_review_logs
-from src.review_schedule import get_card_schedule, list_card_schedules, set_card_next_review
+from src.review_schedule import (
+    clear_card_schedule,
+    get_card_schedule,
+    list_card_schedules,
+    set_card_next_review,
+)
 from src.statistics import get_card_learning_sessions_between_dates
 
 """
@@ -53,7 +58,9 @@ class ReviewCalendarController(QObject):
         self.schedules: list[dict] = []
         self.selected_collection_id: int | None = None
         self.selected_card_number: int | None = None
+        self.selected_card_id: int | None = None
         self.selected_collection_name: str = ""
+        self.selected_from_history: bool = False
         self.card_history: list[dict] = []
         self.legacy_logs: list[dict] = []
         self.current_schedule: dict | None = None
@@ -82,15 +89,51 @@ class ReviewCalendarController(QObject):
         self.refresh()
 
     def select_card(self, collection_id: int, card_number: int, collection_name: str = "") -> None:
+        with get_connection() as connection:
+            identity = get_current_card_identity(connection, collection_id, card_number)
+        self.select_current_card(
+            card_id=None if identity is None else int(identity["card_id"]),
+            collection_id=collection_id,
+            card_number=card_number,
+            collection_name=collection_name,
+        )
+
+    def select_current_card(
+        self,
+        *,
+        card_id: int | None,
+        collection_id: int,
+        card_number: int,
+        collection_name: str = "",
+    ) -> None:
         self.selected_collection_id = collection_id
         self.selected_card_number = card_number
+        self.selected_card_id = card_id
         self.selected_collection_name = collection_name
+        self.selected_from_history = False
+        self._reload_selection()
+
+    def select_card_event(
+        self,
+        *,
+        card_id: int,
+        collection_id: int,
+        card_number: int,
+        collection_name: str = "",
+    ) -> None:
+        self.selected_collection_id = collection_id
+        self.selected_card_number = card_number
+        self.selected_card_id = int(card_id)
+        self.selected_collection_name = collection_name
+        self.selected_from_history = True
         self._reload_selection()
 
     def clear_selection(self) -> None:
         self.selected_collection_id = None
         self.selected_card_number = None
+        self.selected_card_id = None
         self.selected_collection_name = ""
+        self.selected_from_history = False
         self.card_history = []
         self.legacy_logs = []
         self.current_schedule = None
@@ -100,19 +143,27 @@ class ReviewCalendarController(QObject):
         if self.selected_collection_id is None or self.selected_card_number is None:
             return
         with get_connection() as connection:
-            self.card_history = get_card_learning_history(
-                connection, self.selected_collection_id, self.selected_card_number
+            self.card_history = (
+                get_card_learning_history_by_id(connection, self.selected_card_id)
+                if self.selected_card_id is not None
+                else get_card_learning_history(
+                    connection,
+                    self.selected_collection_id,
+                    self.selected_card_number,
+                )
             )
-            identity = get_current_card_identity(
-                connection,
-                self.selected_collection_id,
-                self.selected_card_number,
-            )
-        self.legacy_logs = get_card_review_logs(self.selected_collection_id, self.selected_card_number)
-        self.current_schedule = (
+        self.legacy_logs = (
+            []
+            if self.selected_from_history
+            else get_card_review_logs(self.selected_collection_id, self.selected_card_number)
+        )
+        schedule = (
             None
-            if identity is None
-            else get_card_schedule(int(identity["card_id"]))
+            if self.selected_card_id is None
+            else get_card_schedule(self.selected_card_id)
+        )
+        self.current_schedule = (
+            schedule if schedule is not None and int(schedule["is_active"]) else None
         )
         self.selection_changed.emit()
 
@@ -127,6 +178,18 @@ class ReviewCalendarController(QObject):
         self.current_schedule = set_card_next_review(
             int(self.current_schedule["card_id"]),
             next_due_at,
+            today=today,
+        )
+        self.schedules = list_card_schedules(today=today)
+        self.entries_changed.emit()
+        self.selection_changed.emit()
+        return self.current_schedule
+
+    def clear_selected_schedule(self, *, today: str | None = None) -> dict:
+        if self.current_schedule is None:
+            raise ValueError("Select a current Card before clearing its schedule.")
+        self.current_schedule = clear_card_schedule(
+            int(self.current_schedule["card_id"]),
             today=today,
         )
         self.schedules = list_card_schedules(today=today)

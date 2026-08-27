@@ -159,7 +159,13 @@ class M151SpeechSemanticsTests(unittest.TestCase):
             set_schema_version(conn, LINKED_APPEND_SOURCE_SCHEMA_VERSION)
             set_metadata(conn, "app_data_version", "13.0")
             applied = run_migrations(conn)
-            self.assertEqual(applied, ["m15.1_template_speech_semantics"])
+            self.assertEqual(
+                applied,
+                [
+                    "m15.1_template_speech_semantics",
+                    "v1.1_stable_card_review_schedule",
+                ],
+            )
             blank = conn.execute(
                 "SELECT field_value FROM entry_field_values WHERE entry_id = ? AND field_id = ?", (entry_id, field_id)
             ).fetchone()[0]
@@ -174,7 +180,11 @@ class M151SpeechSemanticsTests(unittest.TestCase):
             field = conn.execute("SELECT id, speech_language_role FROM entry_template_fields ORDER BY id LIMIT 1").fetchone()
             set_schema_version(conn, LINKED_APPEND_SOURCE_SCHEMA_VERSION)
             set_metadata(conn, "app_data_version", "13.0")
-            migration = MIGRATIONS[-1]
+            migration = next(
+                item
+                for item in MIGRATIONS
+                if item["name"] == "m15.1_template_speech_semantics"
+            )
             original = migration["function"]
             def failing(connection):
                 connection.execute("UPDATE entry_template_fields SET speech_language_role = 'none' WHERE id = ?", (field["id"],))
@@ -269,7 +279,11 @@ class M151SpeechSemanticsTests(unittest.TestCase):
         before_values = [tuple(row) for row in conn.execute("SELECT * FROM entry_field_values ORDER BY id")]
         self.assertNotIn("speech_language_role", {row[1] for row in conn.execute("PRAGMA table_info(entry_template_fields)")})
 
-        migration = MIGRATIONS[-1]
+        migration = next(
+            item
+            for item in MIGRATIONS
+            if item["name"] == "m15.1_template_speech_semantics"
+        )
         original = migration["function"]
         def fail_after_real_migration(connection):
             original(connection)
@@ -284,7 +298,13 @@ class M151SpeechSemanticsTests(unittest.TestCase):
         self.assertEqual(get_schema_version(conn), LINKED_APPEND_SOURCE_SCHEMA_VERSION)
         self.assertEqual([tuple(row) for row in conn.execute("SELECT * FROM entry_template_fields ORDER BY id")], before_fields)
 
-        self.assertEqual(run_migrations(conn), ["m15.1_template_speech_semantics"])
+        self.assertEqual(
+            run_migrations(conn),
+            [
+                "m15.1_template_speech_semantics",
+                "v1.1_stable_card_review_schedule",
+            ],
+        )
         self.assertEqual(run_migrations(conn), [])
         fields = {row["id"]: dict(row) for row in conn.execute("SELECT * FROM entry_template_fields")}
         self.assertEqual(fields[101]["speech_language_role"], "unresolved")
