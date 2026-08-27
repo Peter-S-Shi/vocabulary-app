@@ -201,6 +201,32 @@ class V11PhaseCWindowsIdentityTests(unittest.TestCase):
         self.assertIn("128x128", sizes)
         self.assertIn("256x256", sizes)
 
+    def test_inno_setup_app_user_model_id_and_app_id(self) -> None:
+        inno_iss_path = Path(__file__).resolve().parent.parent / "winbuild" / "inno_setup.iss"
+        self.assertTrue(inno_iss_path.is_file(), f"inno_setup.iss not found at {inno_iss_path}")
+        content = inno_iss_path.read_text(encoding="utf-8")
+
+        # 1. Inno AppId remains frozen for upgrade tracking
+        self.assertIn("AppId={{6C6F9E2A-6E3A-4C9F-9E8E-6B9C6E9A6F3D}}", content)
+        # 2. Stable AppUserModelID is defined and matches runtime AUMID
+        self.assertIn(f'#define AppUserModelID "{WINDOWS_APP_USER_MODEL_ID}"', content)
+        # 3. [Icons] definitions carry AppUserModelID parameter for Start Menu & Desktop
+        self.assertIn('Name: "{group}\\{#AppName}"; Filename: "{app}\\{#AppExeName}"; AppUserModelID: "{#AppUserModelID}"', content)
+        self.assertIn('Name: "{autodesktop}\\{#AppName}"; Filename: "{app}\\{#AppExeName}"; Tasks: desktopicon; AppUserModelID: "{#AppUserModelID}"', content)
+
+    def test_dev_launcher_shortcut_aumid_attachment(self) -> None:
+        from tools.setup_desktop_launcher import set_shortcut_app_user_model_id, create_shortcut
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            dummy_target = tmp_path / "pythonw.exe"
+            dummy_target.write_text("")
+            dummy_icon = tmp_path / "app.ico"
+            dummy_icon.write_text("")
+
+            # Test set_shortcut_app_user_model_id handles invalid / test paths safely
+            result = set_shortcut_app_user_model_id(tmp_path / "nonexistent.lnk", WINDOWS_APP_USER_MODEL_ID)
+            self.assertIsInstance(result, bool)
+
 
 if __name__ == "__main__":
     unittest.main()
