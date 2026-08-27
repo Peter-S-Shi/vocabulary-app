@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.time_utils import format_local_timestamp
 from src.ui_desktop.controllers.review_calendar_controller import DATE_RANGE_PRESETS, ReviewCalendarController
 from src.ui_desktop.theming.metrics import SPACING
 
@@ -278,7 +279,7 @@ class ReviewCalendarView(QWidget):
             entries = self._controller.entries
             self._table.setRowCount(len(entries))
             for row, entry in enumerate(entries):
-                self._table.setItem(row, 0, QTableWidgetItem(str(entry.get("completed_at") or "")))
+                self._table.setItem(row, 0, QTableWidgetItem(format_local_timestamp(entry.get("completed_at"))))
                 self._table.setItem(row, 1, QTableWidgetItem(str(entry.get("collection_name") or "")))
                 self._table.setItem(row, 2, QTableWidgetItem(f"#{entry.get('card_number')}"))
                 self._table.setItem(row, 3, QTableWidgetItem(str(entry.get("quiz_type") or "")))
@@ -392,7 +393,7 @@ class ReviewCalendarView(QWidget):
         history = controller.card_history
         self._history_table.setRowCount(len(history))
         for row, entry in enumerate(history):
-            self._history_table.setItem(row, 0, QTableWidgetItem(str(entry.get("completed_at") or "")))
+            self._history_table.setItem(row, 0, QTableWidgetItem(format_local_timestamp(entry.get("completed_at"))))
             self._history_table.setItem(row, 1, QTableWidgetItem(str(entry.get("quiz_type") or "")))
             self._history_table.setItem(row, 2, QTableWidgetItem(str(int(entry.get("correct_count") or 0))))
             self._history_table.setItem(row, 3, QTableWidgetItem(str(int(entry.get("wrong_count") or 0))))
@@ -400,6 +401,6 @@ class ReviewCalendarView(QWidget):
         legacy_logs = controller.legacy_logs
         self._legacy_table.setRowCount(len(legacy_logs))
         for row, log in enumerate(legacy_logs):
-            self._legacy_table.setItem(row, 0, QTableWidgetItem(str(log.get("reviewed_at") or "")))
+            self._legacy_table.setItem(row, 0, QTableWidgetItem(format_local_timestamp(log.get("reviewed_at"))))
             self._legacy_table.setItem(row, 1, QTableWidgetItem(str(log.get("rating") or "")))
             self._legacy_table.setItem(row, 2, QTableWidgetItem(str(log.get("entry_count") or "")))

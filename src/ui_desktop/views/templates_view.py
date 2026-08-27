@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.text_parser import VALID_LANGUAGES
+from src.time_utils import format_local_timestamp
 from src.ui_desktop.controllers.templates_controller import FIELD_TYPES, TemplatesController
 from src.ui_desktop.theming.metrics import SPACING
 
@@ -176,7 +177,7 @@ class TemplatesView(QWidget):
             self._table.setItem(row, 2, QTableWidgetItem(str(template.get("language") or "")))
             self._table.setItem(row, 3, QTableWidgetItem("System" if template.get("is_system") else "Custom"))
             self._table.setItem(row, 4, QTableWidgetItem(str(int(template.get("field_count") or 0))))
-            self._table.setItem(row, 5, QTableWidgetItem(str(template.get("updated_at") or "")))
+            self._table.setItem(row, 5, QTableWidgetItem(format_local_timestamp(template.get("updated_at"))))
             template_id = int(template["id"])
             self._table.item(row, 0).setData(Qt.ItemDataRole.UserRole, template_id)
             if previously_selected_id is not None and template_id == previously_selected_id:

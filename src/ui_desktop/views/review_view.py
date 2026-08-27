@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 
 from src.collections import CROSS_CARD_CONFIRMATION_MESSAGE, CrossCardMoveConfirmationRequired
 from src.template_quiz import TEMPLATE_FIELD_MATCHING, TEMPLATE_FIELD_MCQ, TEMPLATE_FIELD_SELF_GRADED
+from src.time_utils import format_local_timestamp
 from src.ui_desktop.controllers.review_controller import QUIZ_TYPE_LABELS, QUICK_QUIZ_DEFAULT_TYPE, ReviewController
 from src.ui_desktop.theming.metrics import SPACING
 
@@ -532,7 +533,7 @@ class _CardContentsDrawer(QWidget):
         return button
 
     def _build_history_row(self, session: dict) -> QWidget:
-        completed_at = str(session.get("completed_at") or "")
+        completed_at = format_local_timestamp(session.get("completed_at"))
         correct = session.get("correct_count", 0)
         total = session.get("total_items", 0)
         label = QLabel(f"{completed_at} · {correct}/{total} correct", self)

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import struct
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QImage, QImageWriter, QPainter, QPainterPath
+from PySide6.QtCore import QBuffer, QIODevice, QRectF, Qt
+from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPainterPath
 from PySide6.QtWidgets import QApplication
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -16,64 +17,77 @@ from src.ui_desktop.theming.tokens import ACCENT_CALM_BLUE_LIGHT  # noqa: E402
 One-time/regenerable repository asset generator: draws a small, calm,
 desktop-native "V" monogram badge using the frozen default Calm Blue
 accent-primary/on-accent-primary token pair (DESIGN.md § 11.2), and saves
-it as a single 256x256 ICO -- no external image-editing dependency, no
-Pillow. This is a local development/build tool, not a runtime dependency:
-the PySide6 application does not import this module.
+it as a multi-resolution ICO (16x16, 24x24, 32x32, 48x48, 64x64, 128x128, 256x256)
+so Windows title bar, taskbar, Alt+Tab, and desktop shortcuts render crisp
+native icons without downscaling artifacts.
 
 Run to (re)generate the tracked asset:
     python tools/generate_app_icon.py
-
-The output, assets/icons/vocabulary_app.ico, is committed to the
-repository like any other project asset; contributors do not need to
-re-run this unless the icon design changes.
 """
 
 OUTPUT_PATH = PROJECT_ROOT / "assets" / "icons" / "vocabulary_app.ico"
-SIZE = 256
+ICON_SIZES = (16, 24, 32, 48, 64, 128, 256)
 
 
-def build_icon_image(size: int = SIZE) -> QImage:
+def render_icon_png_bytes(size: int) -> bytes:
     image = QImage(size, size, QImage.Format.Format_ARGB32)
     image.fill(QColor(0, 0, 0, 0))
 
     painter = QPainter(image)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
 
     background = QColor(ACCENT_CALM_BLUE_LIGHT.primary.background)
     foreground = QColor(ACCENT_CALM_BLUE_LIGHT.primary.foreground)
 
-    margin = size * 0.06
+    margin = max(1.0, size * 0.06)
     rect = QRectF(margin, margin, size - 2 * margin, size - 2 * margin)
-    radius = size * 0.22
+    radius = max(2.0, size * 0.22)
 
     path = QPainterPath()
     path.addRoundedRect(rect, radius, radius)
     painter.fillPath(path, background)
 
     font = QFont("Segoe UI", 0, QFont.Weight.Bold)
-    font.setPixelSize(int(size * 0.52))
+    font.setPixelSize(max(8, int(size * 0.54)))
     painter.setFont(font)
     painter.setPen(foreground)
     painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "V")
-
     painter.end()
-    return image
+
+    buf = QBuffer()
+    buf.open(QIODevice.OpenModeFlag.WriteOnly)
+    image.save(buf, "PNG")
+    return bytes(buf.data())
+
+
+def build_multi_size_ico(sizes: tuple[int, ...] = ICON_SIZES) -> bytes:
+    frames = [(s, render_icon_png_bytes(s)) for s in sizes]
+
+    header = struct.pack("<HHH", 0, 1, len(frames))
+    offset = 6 + 16 * len(frames)
+    entries = bytearray()
+    payloads = bytearray()
+
+    for s, data in frames:
+        w_byte = 0 if s == 256 else s
+        h_byte = 0 if s == 256 else s
+        entry = struct.pack("<BBBBHHII", w_byte, h_byte, 0, 0, 1, 32, len(data), offset)
+        entries.extend(entry)
+        payloads.extend(data)
+        offset += len(data)
+
+    return header + entries + payloads
 
 
 def main() -> int:
-    # QFont/QPainter text rendering needs an initialized font database,
-    # which requires a constructed QGuiApplication/QApplication instance.
-    application = QApplication.instance() or QApplication([])
+    _app = QApplication.instance() or QApplication([])
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    ico_bytes = build_multi_size_ico()
+    OUTPUT_PATH.write_bytes(ico_bytes)
 
-    image = build_icon_image()
-    writer = QImageWriter(str(OUTPUT_PATH), b"ico")
-    if not writer.write(image):
-        print(f"Failed to write icon: {writer.errorString()}")
-        return 1
-
-    print(f"Wrote {OUTPUT_PATH} ({OUTPUT_PATH.stat().st_size} bytes)")
+    print(f"Wrote {OUTPUT_PATH} ({len(ico_bytes)} bytes across {len(ICON_SIZES)} resolutions)")
     return 0
 
 

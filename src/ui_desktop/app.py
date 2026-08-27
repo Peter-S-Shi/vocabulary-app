@@ -23,6 +23,28 @@ independently during the migration.
 """
 
 
+WINDOWS_APP_USER_MODEL_ID = "PeterShi.VocabularyApp.Desktop.1.1.0"
+
+
+def configure_windows_identity(app_id: str = WINDOWS_APP_USER_MODEL_ID) -> bool:
+    """Explicitly set the Windows Application User Model ID (AUMID).
+
+    On Windows, processes running under python.exe / pythonw.exe share the generic
+    Python host identity by default, which causes taskbar grouping collisions and
+    icon confusion with other Python desktop applications (e.g. ListenTrace).
+    Setting an explicit AUMID isolates the Vocab App into its own dedicated taskbar
+    and Alt+Tab group with its own window icon and pinning lifecycle.
+    """
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            return ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id) == 0
+        except Exception:
+            return False
+    return False
+
+
 def _load_app_icon() -> QIcon | None:
     """The repository-owned icon (assets/icons/vocabulary_app.ico), used
     for both the application/window icon and the desktop launcher
@@ -35,7 +57,14 @@ def _load_app_icon() -> QIcon | None:
 
 
 def build_application(argv: list[str] | None = None) -> tuple[QApplication, MainWindow, ThemeManager]:
+    configure_windows_identity()
+
     application = QApplication.instance() or QApplication(argv if argv is not None else sys.argv)
+    application.setApplicationName("Vocabulary App")
+    application.setApplicationDisplayName("Vocabulary App")
+    application.setDesktopFileName(WINDOWS_APP_USER_MODEL_ID)
+    application.setOrganizationName("PeterShi")
+    application.setOrganizationDomain("github.com/Peter-S-Shi")
 
     icon = _load_app_icon()
     if icon is not None:

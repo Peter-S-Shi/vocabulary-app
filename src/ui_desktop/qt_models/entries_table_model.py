@@ -3,6 +3,8 @@ from __future__ import annotations
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
 from PySide6.QtGui import QColor
 
+from src.time_utils import format_local_timestamp
+
 """
 QAbstractTableModel adapter wrapping the plain dict rows returned by
 src.entries.search_entries()/get_entries_in_collection() (each row
@@ -178,6 +180,8 @@ class EntriesTableModel(QAbstractTableModel):
         if key == "collections":
             names = row.get("collection_names") or []
             return ", ".join(names)
+        if key == "updated_at":
+            return format_local_timestamp(row.get(key, ""))
         return str(row.get(key, "") or "")
 
     def setData(self, index: QModelIndex, value, role: int = Qt.ItemDataRole.EditRole) -> bool:  # noqa: N802 (Qt API)
