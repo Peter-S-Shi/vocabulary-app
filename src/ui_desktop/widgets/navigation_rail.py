@@ -200,3 +200,17 @@ class NavigationRail(QWidget):
 
     def destination_keys(self) -> list[str]:
         return list(self._buttons.keys())
+
+    def set_update_available(self, available: bool) -> None:
+        """Sets a subtle, non-modal update indicator on the Settings rail item."""
+        button = self._buttons.get("settings")
+        if button is not None:
+            if available:
+                button.setToolTip("Settings (Update Available)")
+            else:
+                button.setToolTip("")
+        mark = self._marks.get("settings")
+        if mark is not None:
+            mark.setProperty("hasUpdate", available)
+            mark.style().unpolish(mark)
+            mark.style().polish(mark)

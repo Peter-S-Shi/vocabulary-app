@@ -319,6 +319,9 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         background-color: {accent.primary.background};
         border-color: {accent.primary.background};
     }}
+    QLabel#nav-rail-mark[hasUpdate="true"] {{
+        border: 2px solid {accent.primary.background};
+    }}
     QLabel#nav-rail-mark-disabled {{
         background-color: transparent;
         border: 1.5px solid {neutral.border_subtle};
@@ -1279,6 +1282,72 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         font-size: 12px;
         font-style: italic;
         padding-top: 4px;
+    }}
+    /* Software Update Section (Phase E Level 1 Update Awareness) */
+    QPushButton#settings-update-check-btn {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+        font-size: 13px;
+        font-weight: 500;
+    }}
+    QPushButton#settings-update-check-btn:hover:enabled {{
+        background-color: {neutral.border_subtle};
+        border-color: {neutral.border_strong};
+    }}
+    QPushButton#settings-update-check-btn:disabled {{
+        color: {neutral.text_disabled};
+        background-color: {neutral.surface_primary};
+        border-color: {neutral.border_subtle};
+    }}
+    QPushButton#settings-update-release-btn {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 16px;
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#settings-update-release-btn:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QLabel#settings-update-version-label {{
+        color: {neutral.text_primary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#settings-update-status-label {{
+        color: {neutral.text_secondary};
+        font-size: 12px;
+    }}
+    QLabel#settings-update-badge-available {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+        border-radius: 4px;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 600;
+    }}
+    QLabel#settings-update-badge-uptodate {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_muted};
+        border: 1px solid {neutral.border_subtle};
+        border-radius: 4px;
+        padding: 2px 8px;
+        font-size: 11px;
+    }}
+    QLabel#settings-update-badge-failed {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_muted};
+        border: 1px solid {neutral.border_subtle};
+        border-radius: 4px;
+        padding: 2px 8px;
+        font-size: 11px;
     }}
     /* Final Human Acceptance Gate corrective: the Data Tools hub's
     Audio Export preflight status text beside its progress ring. (The

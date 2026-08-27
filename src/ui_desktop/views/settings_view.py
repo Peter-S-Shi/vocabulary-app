@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.app_config import APP_VERSION
 from src.ui_desktop.controllers.settings_controller import SettingsController
 from src.ui_desktop.state.preferences import QUIZ_PRESENTATION_LABELS
 from src.ui_desktop.theming.color_math import contrast_ratio, is_valid_hex, normalize_hex
@@ -26,6 +27,7 @@ from src.ui_desktop.theming.tokens import (
     ModeCustomization,
     build_resolved_theme_tokens,
 )
+from src.update_checker import UpdateCheckResult, UpdateCheckState
 
 # M20 Local Windows Speech Provider / Installed Voice Binding (Release
 # Contract § 7.3): the frozen v1.0 language scope, in the fixed display
@@ -283,6 +285,70 @@ class SettingsView(QWidget):
                 lambda _index, lang=language: self._on_voice_binding_changed(lang)
             )
 
+        # -- Software Update Section (Phase E) ------------------------------
+        update_heading = QLabel("Software Update", body)
+        update_heading.setObjectName("settings-section-heading")
+        root.addWidget(update_heading)
+
+        update_note = QLabel(
+            "Check for official application updates and release notes from GitHub.",
+            body,
+        )
+        update_note.setObjectName("settings-section-note")
+        update_note.setWordWrap(True)
+        root.addWidget(update_note)
+
+        update_row = QWidget(body)
+        update_row.setObjectName("settings-row")
+        update_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        update_row_layout = QHBoxLayout(update_row)
+        update_row_layout.setContentsMargins(SPACING.md, SPACING.md, SPACING.md, SPACING.md)
+        update_row_layout.setSpacing(SPACING.md)
+
+        update_info_col = QVBoxLayout()
+        update_info_col.setContentsMargins(0, 0, 0, 0)
+        update_info_col.setSpacing(4)
+
+        version_header_row = QHBoxLayout()
+        version_header_row.setSpacing(SPACING.sm)
+
+        self._update_version_label = QLabel(f"Installed Version: v{APP_VERSION}", update_row)
+        self._update_version_label.setObjectName("settings-update-version-label")
+        version_header_row.addWidget(self._update_version_label, 0)
+
+        self._update_state_badge = QLabel("", update_row)
+        self._update_state_badge.setObjectName("settings-update-badge-uptodate")
+        self._update_state_badge.setVisible(False)
+        version_header_row.addWidget(self._update_state_badge, 0)
+        version_header_row.addStretch(1)
+
+        update_info_col.addLayout(version_header_row)
+
+        self._update_status_label = QLabel("Update status has not been checked yet.", update_row)
+        self._update_status_label.setObjectName("settings-update-status-label")
+        self._update_status_label.setWordWrap(True)
+        update_info_col.addWidget(self._update_status_label)
+
+        update_row_layout.addLayout(update_info_col, 1)
+
+        update_actions_row = QHBoxLayout()
+        update_actions_row.setSpacing(SPACING.sm)
+
+        self._update_release_btn = QPushButton("View Release", update_row)
+        self._update_release_btn.setObjectName("settings-update-release-btn")
+        self._update_release_btn.setToolTip("Open the release notes on GitHub in your default browser")
+        self._update_release_btn.setVisible(False)
+        self._update_release_btn.clicked.connect(self._on_view_release_clicked)
+        update_actions_row.addWidget(self._update_release_btn)
+
+        self._update_check_btn = QPushButton("Check for Updates", update_row)
+        self._update_check_btn.setObjectName("settings-update-check-btn")
+        self._update_check_btn.clicked.connect(self._on_check_updates_clicked)
+        update_actions_row.addWidget(self._update_check_btn)
+
+        update_row_layout.addLayout(update_actions_row, 0)
+        root.addWidget(update_row)
+
         # -- Storage Section ------------------------------------------------
         storage_heading = QLabel("Storage", body)
         storage_heading.setObjectName("settings-section-heading")
@@ -303,6 +369,7 @@ class SettingsView(QWidget):
         root.addStretch(1)
 
         controller.state_changed.connect(self._sync_from_controller)
+        controller.update_status_changed.connect(lambda _res: self._sync_update_ui())
         self._sync_from_controller()
 
     # -- Theme Mode Tab Builder ---------------------------------------------
@@ -723,6 +790,71 @@ class SettingsView(QWidget):
         self._theme_apply_btn.setEnabled(is_dirty)
         self._theme_cancel_btn.setEnabled(is_dirty)
         self._theme_undo_btn.setEnabled(self._controller.can_undo())
+
+        # Sync Software Update Section (Phase E)
+        self._sync_update_ui()
+
+    def _sync_update_ui(self) -> None:
+        result = self._controller.update_result()
+        is_checking = self._controller.is_checking_updates()
+
+        self._update_version_label.setText(f"Installed Version: v{result.current_version}")
+
+        if is_checking or result.state == UpdateCheckState.CHECKING:
+            self._update_check_btn.setEnabled(False)
+            self._update_check_btn.setText("Checking...")
+            self._update_status_label.setText("Checking GitHub for official releases...")
+            self._update_state_badge.setVisible(False)
+            self._update_release_btn.setVisible(False)
+        elif result.state == UpdateCheckState.UP_TO_DATE:
+            self._update_check_btn.setEnabled(True)
+            self._update_check_btn.setText("Check Again")
+            self._update_status_label.setText(f"Vocabulary App is up to date (v{result.current_version}).")
+            self._update_state_badge.setText("Up to Date")
+            self._update_state_badge.setObjectName("settings-update-badge-uptodate")
+            self._update_state_badge.setVisible(True)
+            self._update_release_btn.setVisible(False)
+        elif result.state == UpdateCheckState.UPDATE_AVAILABLE:
+            self._update_check_btn.setEnabled(True)
+            self._update_check_btn.setText("Check Again")
+            latest_tag = result.latest_version or "latest"
+            pub_date = f" ({result.published_at[:10]})" if result.published_at else ""
+            self._update_status_label.setText(
+                f"A new version is available: v{latest_tag}{pub_date}. Click View Release to open release notes."
+            )
+            self._update_state_badge.setText(f"Update Available: v{latest_tag}")
+            self._update_state_badge.setObjectName("settings-update-badge-available")
+            self._update_state_badge.setVisible(True)
+            self._update_release_btn.setVisible(True)
+            self._update_release_btn.setEnabled(bool(result.release_url))
+        elif result.state == UpdateCheckState.CHECK_FAILED:
+            self._update_check_btn.setEnabled(True)
+            self._update_check_btn.setText("Check Again")
+            err_msg = result.error_message or "Network error"
+            self._update_status_label.setText(
+                f"Unable to check for updates ({err_msg}). Offline study and all local features continue to work normally."
+            )
+            self._update_state_badge.setText("Check Failed")
+            self._update_state_badge.setObjectName("settings-update-badge-failed")
+            self._update_state_badge.setVisible(True)
+            self._update_release_btn.setVisible(False)
+        else:  # NOT_CHECKED
+            self._update_check_btn.setEnabled(True)
+            self._update_check_btn.setText("Check for Updates")
+            self._update_status_label.setText("Update status has not been checked yet.")
+            self._update_state_badge.setVisible(False)
+            self._update_release_btn.setVisible(False)
+
+        # Force Qt stylesheet re-evaluation on badge
+        self._update_state_badge.style().unpolish(self._update_state_badge)
+        self._update_state_badge.style().polish(self._update_state_badge)
+
+    def _on_check_updates_clicked(self) -> None:
+        self._controller.check_for_updates()
+        self._sync_update_ui()
+
+    def _on_view_release_clicked(self) -> None:
+        self._controller.open_latest_release_page()
 
     def _on_appearance_changed(self, index: int) -> None:
         value = self._appearance_combo.itemData(index)

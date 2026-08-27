@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QHBoxLayout, QMainWindow, QMessageBox, QStackedWidget, QToolBar, QWidget
 
+from src.update_checker import UpdateCheckResult, UpdateCheckState
 from src.ui_desktop.controllers.collections_controller import CollectionsController
 from src.ui_desktop.controllers.entries_controller import EntriesController
 from src.ui_desktop.controllers.quiz_controller import QuizController
@@ -194,6 +196,15 @@ class MainWindow(QMainWindow):
             self.theme_manager.theme_applied.connect(self._on_theme_applied)
             if self.theme_manager.current_tokens is not None:
                 self._on_theme_applied(self.theme_manager.current_tokens)
+
+        # Level 1 Update Awareness (Phase E): non-blocking background check
+        # Never blocks startup or modalizes UI; updates the navigation rail indicator on detection.
+        self.settings_controller.update_status_changed.connect(self._on_update_status_changed)
+        QTimer.singleShot(200, self.settings_controller.check_for_updates)
+
+    def _on_update_status_changed(self, result: UpdateCheckResult) -> None:
+        """Updates shell chrome with a restrained, non-modal update indicator when an update is available."""
+        self._navigation_rail.set_update_available(result.state == UpdateCheckState.UPDATE_AVAILABLE)
 
     def _on_theme_applied(self, tokens) -> None:
         """The live-theme seam MainWindow brokers (module docstring's
@@ -441,4 +452,6 @@ class MainWindow(QMainWindow):
         # Audio Export voice preflight (Final Human Acceptance Gate
         # corrective): never let the app tear down while it is running.
         self.data_tools_view._audio_preflight_controller.shutdown_voice_preflight()
+        # Phase E update awareness: ensure background update check workers are safely stopped/detached
+        self.settings_controller.shutdown()
         super().closeEvent(event)

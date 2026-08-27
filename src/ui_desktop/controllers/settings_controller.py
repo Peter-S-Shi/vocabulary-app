@@ -2,14 +2,21 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, QUrl, Signal
+from PySide6.QtGui import QDesktopServices
 
-from src.app_config import get_app_storage_summary
+from src.app_config import APP_VERSION, get_app_storage_summary
 from src.tts_providers import InstalledVoice, list_installed_voices, list_installed_voices_for_language
 from src.ui_desktop.state.preferences import Preferences, parse_quiz_presentation, save_preferences
 from src.ui_desktop.state.tts_runtime import SOURCE_LABELS, resolve_voice_binding
 from src.ui_desktop.theming.theme_manager import ThemeManager, parse_accent, parse_appearance, Appearance
 from src.ui_desktop.theming.tokens import CustomThemeConfig, ModeCustomization, PRESET_CALM_BLUE, PRESET_NAMES
+from src.update_checker import (
+    PYSIDE6_AVAILABLE,
+    UpdateAwarenessService,
+    UpdateCheckResult,
+    UpdateCheckState,
+)
 
 """
 SettingsController owns the durable, user-facing preferences Settings exposes:
@@ -18,6 +25,7 @@ SettingsController owns the durable, user-facing preferences Settings exposes:
 - Quiz presentation (Immersive Focus, Flip Card + Filmstrip)
 - Collections progress bars
 - Local Windows Voice Bindings
+- Software Update awareness (Level 1 GitHub Release check & view)
 - Read-only storage inspection
 
 All theme staging, real-time live preview, cancel, apply, undo, and reset
@@ -28,12 +36,14 @@ are managed through this controller and live-applied via ThemeManager.
 class SettingsController(QObject):
     state_changed = Signal()
     collection_progress_bars_changed = Signal(bool)
+    update_status_changed = Signal(object)  # Emits UpdateCheckResult
 
     def __init__(
         self,
         preferences: Preferences | None = None,
         theme_manager: ThemeManager | None = None,
         preferences_path: Path | None = None,
+        update_service: UpdateAwarenessService | None = None,
     ) -> None:
         super().__init__()
         self.preferences = preferences or Preferences()
@@ -42,6 +52,16 @@ class SettingsController(QObject):
         self._staged_custom_theme: CustomThemeConfig = copy.deepcopy(self.preferences.custom_theme)
         self._staged_undo_stack: list[tuple[CustomThemeConfig, str]] = []
         self._committed_undo_stack: list[CustomThemeConfig] = []
+
+        if update_service is not None:
+            self._update_service: UpdateAwarenessService | None = update_service
+        elif PYSIDE6_AVAILABLE:
+            self._update_service = UpdateAwarenessService(current_version=APP_VERSION)
+        else:
+            self._update_service = None
+
+        if self._update_service is not None:
+            self._update_service.state_changed.connect(self._on_update_service_state_changed)
 
     def quiz_presentation(self) -> str:
         return self.preferences.quiz_presentation
@@ -227,3 +247,43 @@ class SettingsController(QObject):
         Streamlit Settings/Data page already reads -- no second path-
         resolution implementation, no mutation."""
         return get_app_storage_summary()
+
+    # -- Software Update (Phase E Level 1 Update Awareness) ------------------
+
+    def update_result(self) -> UpdateCheckResult:
+        if self._update_service is not None:
+            return self._update_service.current_result()
+        return UpdateCheckResult(
+            state=UpdateCheckState.NOT_CHECKED,
+            current_version=APP_VERSION,
+        )
+
+    def is_checking_updates(self) -> bool:
+        if self._update_service is not None:
+            return self._update_service.is_checking()
+        return False
+
+    def check_for_updates(self) -> None:
+        """Triggers an asynchronous background check for updates."""
+        if self._update_service is not None:
+            self._update_service.check_for_updates()
+
+    def open_latest_release_page(self) -> bool:
+        """Opens the official GitHub release page in the user's default system browser.
+
+        Strictly opens the URL without downloading or executing binaries.
+        """
+        result = self.update_result()
+        if not result.release_url:
+            return False
+        return QDesktopServices.openUrl(QUrl(result.release_url))
+
+    def _on_update_service_state_changed(self, result: UpdateCheckResult) -> None:
+        self.update_status_changed.emit(result)
+        self.state_changed.emit()
+
+    def shutdown(self, wait_ms: int = 2000) -> bool:
+        """Gracefully waits for background worker threads during application teardown."""
+        if self._update_service is not None:
+            return self._update_service.shutdown(wait_ms)
+        return True
