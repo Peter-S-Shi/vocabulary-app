@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QDate, Qt, Signal
+from datetime import date
+
+from PySide6.QtCore import QDate, QLocale, Qt, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
@@ -775,18 +777,82 @@ class QuizView(QWidget):
             layout.addWidget(schedule_heading)
 
             schedule = controller.completion_schedule()
-            schedule_status = QLabel(
-                str(schedule.get("next_due_at") or "Unscheduled"),
-                block,
-            )
+            current_next_due = schedule.get("next_due_at")
+            initial_status = f"Scheduled · {current_next_due}" if current_next_due else "Unscheduled"
+            schedule_status = QLabel(initial_status, block)
             schedule_status.setObjectName("quiz-completion-schedule-status")
             schedule_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.addWidget(schedule_status)
+
+            today_date = (
+                controller._today_provider()
+                if hasattr(controller, "_today_provider") and callable(controller._today_provider)
+                else date.today()
+            )
+            base_qdate = QDate(today_date.year, today_date.month, today_date.day)
+
+            staged_due: dict[str, str | None] = {"date": None}
 
             preset_row = QWidget(block)
             preset_layout = QHBoxLayout(preset_row)
             preset_layout.setSpacing(SPACING.sm)
             preset_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+
+            preset_buttons: list[tuple[QPushButton, int, str]] = []
+
+            custom_row = QWidget(block)
+            custom_layout = QHBoxLayout(custom_row)
+            custom_layout.setSpacing(SPACING.sm)
+            custom_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+
+            custom_date = QDateEdit(custom_row)
+            custom_date.setObjectName("quiz-completion-schedule-custom-date")
+            custom_date.setCalendarPopup(True)
+            english_locale = QLocale(QLocale.Language.English, QLocale.Country.UnitedStates)
+            custom_date.setLocale(english_locale)
+            calendar_popup = custom_date.calendarWidget()
+            if calendar_popup:
+                calendar_popup.setObjectName("quiz-completion-schedule-popup")
+                calendar_popup.setLocale(english_locale)
+            custom_date.setDisplayFormat("yyyy-MM-dd")
+            custom_date.setMinimumDate(base_qdate)
+            custom_date.setDate(base_qdate.addDays(1))
+            custom_layout.addWidget(custom_date)
+
+            save_button = QPushButton("Schedule Review", custom_row)
+            save_button.setObjectName("quiz-completion-schedule-save-button")
+            save_button.setEnabled(False)
+            custom_layout.addWidget(save_button)
+
+            def _update_preset_styles(selected_date_str: str | None) -> None:
+                for btn, days, _ in preset_buttons:
+                    target_str = base_qdate.addDays(days).toString("yyyy-MM-dd")
+                    is_selected = (selected_date_str == target_str)
+                    btn.setProperty("staged", "true" if is_selected else "false")
+                    btn.setChecked(is_selected)
+                    btn.style().unpolish(btn)
+                    btn.style().polish(btn)
+
+            def _stage_preset(days: int) -> None:
+                target_qdate = base_qdate.addDays(days)
+                target_str = target_qdate.toString("yyyy-MM-dd")
+                staged_due["date"] = target_str
+                custom_date.blockSignals(True)
+                custom_date.setDate(target_qdate)
+                custom_date.blockSignals(False)
+                _update_preset_styles(target_str)
+                save_button.setEnabled(True)
+
+            def _on_custom_date_changed(new_date: QDate) -> None:
+                target_str = new_date.toString("yyyy-MM-dd")
+                staged_due["date"] = target_str
+                _update_preset_styles(target_str)
+                save_button.setEnabled(True)
+
+            def _on_save_clicked() -> None:
+                target = staged_due["date"] or custom_date.date().toString("yyyy-MM-dd")
+                controller.schedule_next_review(target)
+
             for label, days, suffix in (
                 ("Again Today", 0, "today"),
                 ("+1 day", 1, "1-day"),
@@ -795,30 +861,15 @@ class QuizView(QWidget):
             ):
                 button = QPushButton(label, preset_row)
                 button.setObjectName(f"quiz-completion-schedule-{suffix}")
-                button.clicked.connect(
-                    lambda _checked=False, days=days: controller.schedule_next_review_after_days(days)
-                )
+                button.setCheckable(True)
+                button.clicked.connect(lambda _checked=False, d=days: _stage_preset(d))
                 preset_layout.addWidget(button)
-            layout.addWidget(preset_row)
+                preset_buttons.append((button, days, suffix))
 
-            custom_row = QWidget(block)
-            custom_layout = QHBoxLayout(custom_row)
-            custom_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-            custom_date = QDateEdit(custom_row)
-            custom_date.setObjectName("quiz-completion-schedule-custom-date")
-            custom_date.setCalendarPopup(True)
-            custom_date.setDisplayFormat("yyyy-MM-dd")
-            custom_date.setMinimumDate(QDate.currentDate())
-            custom_date.setDate(QDate.currentDate().addDays(1))
-            custom_layout.addWidget(custom_date)
-            custom_button = QPushButton("Set custom date", custom_row)
-            custom_button.setObjectName("quiz-completion-schedule-custom-button")
-            custom_button.clicked.connect(
-                lambda: controller.schedule_next_review(
-                    custom_date.date().toString("yyyy-MM-dd")
-                )
-            )
-            custom_layout.addWidget(custom_button)
+            custom_date.dateChanged.connect(_on_custom_date_changed)
+            save_button.clicked.connect(_on_save_clicked)
+
+            layout.addWidget(preset_row)
             layout.addWidget(custom_row)
 
         actions_row = QWidget(block)
@@ -1086,6 +1137,7 @@ def _clear_layout(layout) -> None:
         item = layout.takeAt(0)
         widget = item.widget()
         if widget is not None:
+            widget.setParent(None)
             widget.deleteLater()
 
 

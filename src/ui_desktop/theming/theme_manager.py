@@ -979,6 +979,89 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         background-color: {accent.hover.background};
         color: {accent.hover.foreground};
     }}
+    QLabel#quiz-completion-schedule-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#quiz-completion-schedule-status {{
+        color: {neutral.text_primary};
+        font-size: 14px;
+        font-weight: 600;
+    }}
+    QPushButton#quiz-completion-schedule-today,
+    QPushButton#quiz-completion-schedule-1-day,
+    QPushButton#quiz-completion-schedule-2-days,
+    QPushButton#quiz-completion-schedule-7-days {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 12px;
+        font-size: 13px;
+    }}
+    QPushButton#quiz-completion-schedule-today:hover:enabled,
+    QPushButton#quiz-completion-schedule-1-day:hover:enabled,
+    QPushButton#quiz-completion-schedule-2-days:hover:enabled,
+    QPushButton#quiz-completion-schedule-7-days:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QPushButton#quiz-completion-schedule-today:checked,
+    QPushButton#quiz-completion-schedule-1-day:checked,
+    QPushButton#quiz-completion-schedule-2-days:checked,
+    QPushButton#quiz-completion-schedule-7-days:checked,
+    QPushButton#quiz-completion-schedule-today[staged="true"],
+    QPushButton#quiz-completion-schedule-1-day[staged="true"],
+    QPushButton#quiz-completion-schedule-2-days[staged="true"],
+    QPushButton#quiz-completion-schedule-7-days[staged="true"] {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 2px solid {accent.primary.background};
+        font-weight: 600;
+    }}
+    QDateEdit#quiz-completion-schedule-custom-date {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 10px;
+        font-size: 13px;
+        min-width: 125px;
+    }}
+    QCalendarWidget#quiz-completion-schedule-popup QWidget,
+    QCalendarWidget#quiz-completion-schedule-popup QToolButton,
+    QCalendarWidget#quiz-completion-schedule-popup QSpinBox,
+    QCalendarWidget#quiz-completion-schedule-popup QAbstractItemView {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+    }}
+    QCalendarWidget#quiz-completion-schedule-popup QAbstractItemView {{
+        selection-background-color: {accent.soft.background};
+        selection-color: {accent.soft.foreground};
+    }}
+    QPushButton#quiz-completion-schedule-save-button,
+    QPushButton#quiz-completion-schedule-custom-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 16px;
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#quiz-completion-schedule-save-button:hover:enabled,
+    QPushButton#quiz-completion-schedule-custom-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#quiz-completion-schedule-save-button:disabled,
+    QPushButton#quiz-completion-schedule-custom-button:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
     QLabel#quiz-mistake-position-label {{
         color: {neutral.text_secondary};
         font-size: 13px;

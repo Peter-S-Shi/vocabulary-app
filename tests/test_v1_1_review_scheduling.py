@@ -401,7 +401,18 @@ class QuizCompletionScheduleTests(ReviewScheduleTestCase):
         self.assertIsNotNone(preset)
         preset.click()
 
+        # Selection is staged, not immediately persisted to DB
+        self.assertIsNone(controller.completion_schedule()["next_due_at"])
+
+        # Clicking confirmation button persists the schedule
+        save_button = view.findChild(QPushButton, "quiz-completion-schedule-save-button")
+        self.assertIsNotNone(save_button)
+        save_button.click()
+
         self.assertEqual(controller.completion_schedule()["next_due_at"], "2026-09-02")
+        status_label = view.findChild(QLabel, "quiz-completion-schedule-status")
+        self.assertIsNotNone(status_label)
+        self.assertEqual(status_label.text(), "Scheduled · 2026-09-02")
 
     def test_non_card_completion_has_no_schedule_controls(self) -> None:
         controller = QuizController()
