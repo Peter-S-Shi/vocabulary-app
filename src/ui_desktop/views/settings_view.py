@@ -553,7 +553,8 @@ class SettingsView(QWidget):
         self._set_theme_feedback("Reset all modes to default Calm Blue. Click Undo to revert.")
 
     def _on_undo(self) -> None:
-        self._controller.undo()
+        active_mode = self._get_active_tab_mode()
+        self._controller.undo(active_mode=active_mode)
         self._set_theme_feedback("Restored previous theme snapshot.")
 
     def _on_cancel(self) -> None:

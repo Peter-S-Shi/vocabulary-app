@@ -227,6 +227,48 @@ class ThemeSettingsUITests(unittest.TestCase):
         loaded_disk_after_apply = load_preferences(self.pref_file)
         self.assertEqual(loaded_disk_after_apply.custom_theme.light.accent_color, "#00FF00")
 
+    def test_appearance_system_dark_tab_staged_reset_undo_preserves_dark_preview_and_isolation(self) -> None:
+        # Appearance is set to System
+        self.assertEqual(self.controller.appearance(), "System")
+        self.assertEqual(self.controller.custom_theme().dark.preset, PRESET_CALM_BLUE)
+        self.assertIsNone(self.controller.custom_theme().dark.accent_color)
+
+        # 1. Switch to Dark Mode Tab
+        self.view._theme_tabs.setCurrentIndex(1)
+        self.assertEqual(self.view._get_active_tab_mode(), "Dark")
+
+        # 2. Stage custom color on Dark Mode (UNCOMMITTED)
+        self.controller.stage_mode_customization(
+            "Dark",
+            ModeCustomization(preset=PRESET_INDIGO_VIOLET, accent_color="#7B68EE"),
+        )
+        self.assertEqual(self.controller.staged_custom_theme().dark.accent_color, "#7B68EE")
+        # In Dark tab live preview, tokens must reflect the staged dark accent
+        self.assertEqual(self.theme_manager.current_tokens.accent.primary.background, "#7B68EE")
+        # Committed preferences & disk remain untouched
+        self.assertIsNone(self.controller.custom_theme().dark.accent_color)
+        loaded_disk = load_preferences(self.pref_file)
+        self.assertIsNone(loaded_disk.custom_theme.dark.accent_color)
+
+        # 3. Click Reset to Preset in Dark Tab
+        self.view._theme_reset_mode_btn.click()
+        self.assertIsNone(self.controller.staged_custom_theme().dark.accent_color)
+        self.assertIsNone(self.controller.custom_theme().dark.accent_color)
+        loaded_disk = load_preferences(self.pref_file)
+        self.assertIsNone(loaded_disk.custom_theme.dark.accent_color)
+
+        # 4. Click Undo in Dark Tab -> must restore Dark staged state AND Dark live tokens!
+        self.view._theme_undo_btn.click()
+        self.assertEqual(self.controller.staged_custom_theme().dark.accent_color, "#7B68EE")
+        self.assertEqual(self.controller.staged_custom_theme().dark.preset, PRESET_INDIGO_VIOLET)
+        self.assertEqual(self.theme_manager.current_tokens.accent.primary.background, "#7B68EE")
+
+        # Invariant: committed preferences & disk remain unchanged
+        self.assertIsNone(self.controller.custom_theme().dark.accent_color)
+        loaded_disk = load_preferences(self.pref_file)
+        self.assertIsNone(loaded_disk.custom_theme.dark.accent_color)
+        self.assertEqual(self.controller.appearance(), "System")
+
     def test_reset_all_to_default_is_immediately_undoable(self) -> None:
         self.controller.stage_mode_customization(
             "Light",

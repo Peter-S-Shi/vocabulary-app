@@ -40,7 +40,7 @@ class SettingsController(QObject):
         self._theme_manager = theme_manager
         self.preferences_path = preferences_path
         self._staged_custom_theme: CustomThemeConfig = copy.deepcopy(self.preferences.custom_theme)
-        self._staged_undo_stack: list[CustomThemeConfig] = []
+        self._staged_undo_stack: list[tuple[CustomThemeConfig, str]] = []
         self._committed_undo_stack: list[CustomThemeConfig] = []
 
     def quiz_presentation(self) -> str:
@@ -90,19 +90,14 @@ class SettingsController(QObject):
     def can_undo(self) -> bool:
         return len(self._staged_undo_stack) > 0 or len(self._committed_undo_stack) > 0
 
-    def undo(self) -> None:
+    def undo(self, active_mode: str | None = None) -> None:
         # Case A: There are uncommitted staged undo actions (e.g. undoing a staged Reset)
         if self._staged_undo_stack:
-            previous_staged = self._staged_undo_stack.pop()
+            previous_staged, recorded_mode = self._staged_undo_stack.pop()
             self._staged_custom_theme = copy.deepcopy(previous_staged)
-            # Live-preview the restored staged theme without writing to committed preferences or disk!
-            if self._theme_manager is not None:
-                eff = Appearance.DARK if self.preferences.appearance == "Dark" else Appearance.LIGHT
-                mode_custom = self._staged_custom_theme.dark if eff is Appearance.DARK else self._staged_custom_theme.light
-                if hasattr(self._theme_manager, "preview_customization"):
-                    self._theme_manager.preview_customization(eff, mode_custom)
-                elif hasattr(self._theme_manager, "apply"):
-                    self._theme_manager.apply(eff, parse_accent(mode_custom.preset))
+            # Live-preview the restored staged theme in the target tab mode without writing to disk
+            target_mode = active_mode or recorded_mode
+            self.preview_tab_mode(target_mode)
             self.state_changed.emit()
             return
 
@@ -155,20 +150,14 @@ class SettingsController(QObject):
         self.state_changed.emit()
 
     def reset_staged_mode_to_preset(self, mode: str, preset_name: str) -> None:
-        self._staged_undo_stack.append(copy.deepcopy(self._staged_custom_theme))
+        self._staged_undo_stack.append((copy.deepcopy(self._staged_custom_theme), mode))
         clean = ModeCustomization(preset=preset_name)
         self.stage_mode_customization(mode, clean)
 
     def reset_staged_all_to_default(self, active_mode: str = "Light") -> None:
-        self._staged_undo_stack.append(copy.deepcopy(self._staged_custom_theme))
+        self._staged_undo_stack.append((copy.deepcopy(self._staged_custom_theme), active_mode))
         self._staged_custom_theme = CustomThemeConfig()
-        if self._theme_manager is not None:
-            eff = Appearance.DARK if active_mode.lower() == "dark" else Appearance.LIGHT
-            custom = self._staged_custom_theme.dark if eff is Appearance.DARK else self._staged_custom_theme.light
-            if hasattr(self._theme_manager, "preview_customization"):
-                self._theme_manager.preview_customization(eff, custom)
-            elif hasattr(self._theme_manager, "apply"):
-                self._theme_manager.apply(eff, parse_accent(custom.preset))
+        self.preview_tab_mode(active_mode)
         self.state_changed.emit()
 
     def collection_progress_bars_visible(self) -> bool:
