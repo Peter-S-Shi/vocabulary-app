@@ -18,7 +18,10 @@ from src.collections import (
 )
 from src import db
 from src.entries import add_entry, create_entry_with_template
-from src.entry_templates import ensure_french_verb_present_template
+from src.entry_templates import (
+    ensure_french_noun_gender_plural_template,
+    ensure_french_verb_present_template,
+)
 from src.quiz import (
     generate_mcq_items,
     get_entries_for_quiz,
@@ -250,6 +253,87 @@ class TestProficientPoolSemanticsAndFilter(unittest.TestCase):
         self.assertIsNotNone(controller.start_error)
         self.assertIn("marked as proficient", controller.start_error)
         self.assertIsNone(controller.session_id)
+
+    def test_non_proficient_template_rule_mismatch_does_not_report_all_proficient(self) -> None:
+        tpl_col_id = create_collection("Verb Mismatch Col", "")
+        verb_template_id = ensure_french_verb_present_template()
+        noun_template_id = ensure_french_noun_gender_plural_template()
+
+        # eid1 is a verb template entry
+        eid1 = create_entry_with_template(
+            entry_data={
+                "template_id": verb_template_id,
+                "language": "French",
+                "explanation_language": "English",
+                "entry_type": "word",
+                "status": "new",
+            },
+            template_values={
+                "term": "parler",
+                "meaning": "to speak",
+                "infinitive": "parler",
+                "je": "parle",
+                "tu": "parles",
+                "il_elle_on": "parle",
+                "nous": "parlons",
+                "vous": "parlez",
+                "ils_elles": "parlent",
+            },
+        )
+        # eid2 is a noun template entry (does NOT match verb template rules)
+        eid2 = create_entry_with_template(
+            entry_data={
+                "template_id": noun_template_id,
+                "language": "French",
+                "explanation_language": "English",
+                "entry_type": "word",
+                "status": "new",
+            },
+            template_values={
+                "term": "livre",
+                "meaning": "book",
+                "singular": "livre",
+                "gender": "m",
+                "plural": "livres",
+                "article": "le",
+            },
+        )
+        add_entries_to_collection([eid1, eid2], tpl_col_id)
+
+        # Mark only eid1 as proficient. eid2 remains non-proficient in Card 1.
+        add_entries_to_system_collection([eid1], "proficient_pool")
+
+        prefs_false = Preferences(include_proficient_in_study=False)
+        controller = QuizController(preferences=prefs_false)
+
+        intent = QuizLaunchIntent(
+            source="review_choose_quiz_type",
+            collection_id=tpl_col_id,
+            collection_name="Verb Mismatch Col",
+            card_number=1,
+            card_id=None,
+            quiz_type="template_field_self_graded",
+            item_count=2,
+            reason="Test",
+            template_id=verb_template_id,
+            template_type="french_verb_present",
+            template_rule_ids=("infinitive_to_je",),
+        )
+
+        # eid2 is non-proficient in Card 1, but cannot generate items for verb_template_id -> 0 items generated
+        started = controller.start(intent)
+        self.assertFalse(started)
+        self.assertIsNotNone(controller.start_error)
+        # Must NOT be misattributed to all-proficient because eid2 is still non-proficient!
+        self.assertNotIn("marked as proficient", controller.start_error)
+        self.assertEqual(controller.start_error, "Not enough entries to build this quiz.")
+
+        # Now mark eid2 as proficient as well -> truly all proficient in this Card
+        add_entries_to_system_collection([eid2], "proficient_pool")
+        started2 = controller.start(intent)
+        self.assertFalse(started2)
+        self.assertIsNotNone(controller.start_error)
+        self.assertIn("marked as proficient", controller.start_error)
 
     # -- 6. Settings Controller and View -----------------------------------
 

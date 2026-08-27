@@ -195,7 +195,12 @@ class QuizController(QObject):
                     intent.card_number,
                     include_proficient=True,
                 )
-                if raw_entries:
+                filtered_entries = get_card_entries_for_study(
+                    intent.collection_id,
+                    intent.card_number,
+                    include_proficient=False,
+                )
+                if raw_entries and not filtered_entries:
                     self.start_error = "All entries in this Card are marked as proficient. No regular Quiz items available."
                 else:
                     self.start_error = NOT_ENOUGH_ENTRIES_ERROR
