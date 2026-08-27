@@ -1181,6 +1181,99 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_muted};
         font-size: 12px;
     }}
+    /* Phase D Theme Customization (Settings Theme Editor) */
+    QTabWidget#settings-theme-tabs::pane {{
+        border: 1px solid {neutral.border_default};
+        background-color: {neutral.surface_primary};
+        border-radius: {radius}px;
+        top: -1px;
+    }}
+    QTabBar#settings-theme-tabbar::tab {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_secondary};
+        padding: 8px 24px;
+        margin-right: 4px;
+        border-top-left-radius: {radius}px;
+        border-top-right-radius: {radius}px;
+        border: 1px solid {neutral.border_default};
+        border-bottom: none;
+        font-weight: 600;
+        font-size: 13px;
+    }}
+    QTabBar#settings-theme-tabbar::tab:selected {{
+        background-color: {neutral.surface_primary};
+        color: {accent.primary.background};
+        border-bottom: 2px solid {accent.primary.background};
+    }}
+    QTabBar#settings-theme-tabbar::tab:hover:!selected {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+    }}
+    QComboBox#settings-preset-combo {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 10px;
+        font-size: 13px;
+        min-width: 180px;
+    }}
+    QPushButton#settings-theme-apply-btn {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 18px;
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#settings-theme-apply-btn:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#settings-theme-apply-btn:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QPushButton#settings-theme-cancel-btn, QPushButton#settings-theme-reset-btn, QPushButton#settings-theme-undo-btn {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+        font-size: 13px;
+        font-weight: 500;
+    }}
+    QPushButton#settings-theme-cancel-btn:hover:enabled, QPushButton#settings-theme-reset-btn:hover:enabled, QPushButton#settings-theme-undo-btn:hover:enabled {{
+        background-color: {neutral.border_subtle};
+        border-color: {neutral.border_strong};
+    }}
+    QPushButton#settings-theme-cancel-btn:disabled, QPushButton#settings-theme-reset-btn:disabled, QPushButton#settings-theme-undo-btn:disabled {{
+        color: {neutral.text_disabled};
+        background-color: {neutral.surface_primary};
+        border-color: {neutral.border_subtle};
+    }}
+    QPushButton#settings-color-pick-btn, QPushButton#settings-color-reset-btn {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 4px 12px;
+        font-size: 12px;
+        font-weight: 500;
+    }}
+    QPushButton#settings-color-pick-btn:hover:enabled, QPushButton#settings-color-reset-btn:hover:enabled {{
+        background-color: {neutral.border_subtle};
+        border-color: {neutral.border_strong};
+    }}
+    QLabel#settings-contrast-badge {{
+        border: 1px solid {neutral.border_default};
+        border-radius: 10px;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 600;
+    }}
     /* Final Human Acceptance Gate corrective: the Data Tools hub's
     Audio Export preflight status text beside its progress ring. (The
     ring itself paints an arc, which QSS cannot express -- it takes its
