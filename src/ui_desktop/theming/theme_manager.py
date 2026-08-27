@@ -1518,6 +1518,26 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_primary};
         font-weight: 600;
     }}
+    QProgressBar#collections-list-learning-progress,
+    QProgressBar#collections-detail-learning-progress {{
+        background-color: {neutral.surface_sunken};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+    }}
+    QProgressBar#collections-list-learning-progress {{
+        min-height: 6px;
+        max-height: 6px;
+        margin: 0px 8px 4px 8px;
+    }}
+    QProgressBar#collections-detail-learning-progress {{
+        min-height: 12px;
+        max-height: 12px;
+    }}
+    QProgressBar#collections-list-learning-progress::chunk,
+    QProgressBar#collections-detail-learning-progress::chunk {{
+        background-color: {accent.primary.background};
+        border-radius: {radius}px;
+    }}
     QLabel#collections-title {{
         color: {neutral.text_primary};
         font-size: 21px;

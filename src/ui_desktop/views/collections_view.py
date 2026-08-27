@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPlainTextEdit,
+    QProgressBar,
     QPushButton,
     QScrollArea,
     QSpinBox,
@@ -343,6 +344,13 @@ class CollectionsView(QWidget):
         progress.setObjectName("collections-learning-progress")
         self._detail_layout.addWidget(progress)
 
+        progress_bar = QProgressBar(self._detail_container)
+        progress_bar.setObjectName("collections-detail-learning-progress")
+        progress_bar.setRange(0, 100)
+        progress_bar.setValue(learning_percent)
+        progress_bar.setTextVisible(False)
+        self._detail_layout.addWidget(progress_bar)
+
         actions_row = QWidget(self._detail_container)
         actions_layout = QHBoxLayout(actions_row)
         actions_layout.setContentsMargins(0, 0, 0, 0)
@@ -564,6 +572,13 @@ class _CollectionsListPane(QWidget):
         self._group.addButton(button)
         self._buttons[collection_id] = button
         self._layout.addWidget(button)
+        if not is_system:
+            progress_bar = QProgressBar(self)
+            progress_bar.setObjectName("collections-list-learning-progress")
+            progress_bar.setRange(0, 100)
+            progress_bar.setValue(learning_percent)
+            progress_bar.setTextVisible(False)
+            self._layout.addWidget(progress_bar)
 
 
 class _CollectionEditorDialog(QDialog):

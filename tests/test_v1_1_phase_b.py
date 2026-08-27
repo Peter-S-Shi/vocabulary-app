@@ -7,7 +7,7 @@ import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication, QLabel, QPushButton
+from PySide6.QtWidgets import QApplication, QLabel, QProgressBar, QPushButton
 
 from src import db, learning_workflow, quiz
 from src.collections import (
@@ -497,11 +497,48 @@ class CollectionProgressVisibilityTests(PhaseBTestCase):
         self.assertIn("1/1", normal_button.text())
         self.assertIn("100%", normal_button.text())
         self.assertNotIn("%", starred_button.text())
+        list_progress_bars = view.findChildren(QProgressBar, "collections-list-learning-progress")
+        self.assertEqual(len(list_progress_bars), 1)
+        self.assertEqual(list_progress_bars[0].minimum(), 0)
+        self.assertEqual(list_progress_bars[0].maximum(), 100)
+        self.assertEqual(list_progress_bars[0].value(), 100)
 
         controller.select_collection(collection_id, is_system=False)
         progress_label = view.findChild(QLabel, "collections-learning-progress")
         self.assertIsNotNone(progress_label)
         self.assertIn("1 of 1 Cards learned (100%)", progress_label.text())
+        detail_progress_bar = view.findChild(QProgressBar, "collections-detail-learning-progress")
+        self.assertIsNotNone(detail_progress_bar)
+        self.assertEqual(detail_progress_bar.minimum(), 0)
+        self.assertEqual(detail_progress_bar.maximum(), 100)
+        self.assertEqual(detail_progress_bar.value(), 100)
+
+    def test_empty_collection_progress_bars_are_zero_and_text_remains_honest(self) -> None:
+        collection_id = create_collection("Synthetic Empty Collection", "", card_size=8)
+        controller = CollectionsController()
+        view = CollectionsView(controller)
+        self.addCleanup(view.deleteLater)
+
+        view.refresh()
+
+        empty_button = next(
+            button
+            for button in view.findChildren(QPushButton, "collections-list-item")
+            if button.text().startswith("Synthetic Empty Collection")
+        )
+        self.assertIn("0/0", empty_button.text())
+        self.assertIn("0%", empty_button.text())
+        list_progress_bars = view.findChildren(QProgressBar, "collections-list-learning-progress")
+        self.assertEqual(len(list_progress_bars), 1)
+        self.assertEqual(list_progress_bars[0].value(), 0)
+
+        controller.select_collection(collection_id, is_system=False)
+        progress_label = view.findChild(QLabel, "collections-learning-progress")
+        self.assertIsNotNone(progress_label)
+        self.assertIn("0 of 0 Cards learned (0%)", progress_label.text())
+        detail_progress_bar = view.findChild(QProgressBar, "collections-detail-learning-progress")
+        self.assertIsNotNone(detail_progress_bar)
+        self.assertEqual(detail_progress_bar.value(), 0)
 
 
 if __name__ == "__main__":
