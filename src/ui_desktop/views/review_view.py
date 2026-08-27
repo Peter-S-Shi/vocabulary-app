@@ -176,6 +176,7 @@ class ReviewView(QWidget):
 
         controller.state_changed.connect(self._render)
         controller.starred_changed.connect(self._on_starred_changed)
+        controller.proficient_changed.connect(self._on_proficient_changed)
 
     def set_motion(self, motion) -> None:
         """Injected by MainWindow (shared ``TransitionManager``, DESIGN.md
@@ -314,13 +315,34 @@ class ReviewView(QWidget):
         layout.setSpacing(SPACING.md)
         layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
 
-        star_button = QPushButton(block)
+        actions = QWidget(block)
+        actions_layout = QHBoxLayout(actions)
+        actions_layout.setContentsMargins(0, 0, 0, 0)
+        actions_layout.setSpacing(SPACING.sm)
+
+        star_button = QPushButton(actions)
         star_button.setObjectName("review-current-entry-star-button")
         star_button.setProperty("learningStar", True)
-        star_button.setMinimumSize(112, 40)
+        star_button.setProperty("learningEntryAction", True)
+        star_button.setMinimumSize(96, 32)
         self._set_star_button_state(star_button, self._controller.is_entry_starred(int(entry["id"])))
         star_button.clicked.connect(lambda: self._toggle_current_entry_star(confirm_cross_card=False))
-        layout.addWidget(star_button, 0, Qt.AlignmentFlag.AlignHCenter)
+        actions_layout.addWidget(star_button)
+
+        proficient_button = QPushButton(actions)
+        proficient_button.setObjectName("review-current-entry-proficient-button")
+        proficient_button.setProperty("learningProficient", True)
+        proficient_button.setProperty("learningEntryAction", True)
+        proficient_button.setMinimumSize(96, 32)
+        self._set_proficient_button_state(
+            proficient_button,
+            self._controller.is_entry_proficient(int(entry["id"])),
+        )
+        proficient_button.clicked.connect(
+            lambda: self._toggle_current_entry_proficient(confirm_cross_card=False)
+        )
+        actions_layout.addWidget(proficient_button)
+        layout.addWidget(actions, 0, Qt.AlignmentFlag.AlignHCenter)
 
         term = _WrappingLabel(str(entry.get("term") or ""), block)
         term.setObjectName("review-term-label")
@@ -354,12 +376,39 @@ class ReviewView(QWidget):
         if button is not None:
             self._set_star_button_state(button, starred)
 
+    @staticmethod
+    def _set_proficient_button_state(button: QPushButton, proficient: bool) -> None:
+        button.setProperty("proficient", proficient)
+        button.setText("✓ Proficient" if proficient else "→ Proficient")
+        button.setAccessibleName(
+            "Remove current Entry from Proficient Pool"
+            if proficient
+            else "Add current Entry to Proficient Pool"
+        )
+        button.style().unpolish(button)
+        button.style().polish(button)
+
+    def _on_proficient_changed(self, entry_id: int, proficient: bool) -> None:
+        current = self._controller.current_entry()
+        if current is None or int(current["id"]) != entry_id:
+            return
+        button = self.findChild(QPushButton, "review-current-entry-proficient-button")
+        if button is not None:
+            self._set_proficient_button_state(button, proficient)
+
     def _toggle_current_entry_star(self, *, confirm_cross_card: bool) -> None:
         try:
             self._controller.toggle_current_entry_star(confirm_cross_card=confirm_cross_card)
         except CrossCardMoveConfirmationRequired:
             if _confirm_cross_card_reorganization(self):
                 self._toggle_current_entry_star(confirm_cross_card=True)
+
+    def _toggle_current_entry_proficient(self, *, confirm_cross_card: bool) -> None:
+        try:
+            self._controller.toggle_current_entry_proficient(confirm_cross_card=confirm_cross_card)
+        except CrossCardMoveConfirmationRequired:
+            if _confirm_cross_card_reorganization(self):
+                self._toggle_current_entry_proficient(confirm_cross_card=True)
 
     def _build_nav_row(self) -> QWidget:
         row = QWidget()

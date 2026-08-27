@@ -155,7 +155,7 @@ class StudyStarActionTests(PhaseBTestCase):
 
         self.assertTrue(is_entry_in_system_collection(entry_ids[0], "starred"))
 
-    def test_learning_star_actions_are_prominent_and_theme_visible(self) -> None:
+    def test_learning_star_action_is_compact_and_theme_visible(self) -> None:
         collection_id, _entry_ids = self._collection_with_entries()
         controller = ReviewController()
         view = ReviewView(controller)
@@ -165,8 +165,9 @@ class StudyStarActionTests(PhaseBTestCase):
         button = view.findChild(QPushButton, "review-current-entry-star-button")
         self.assertIsNotNone(button)
         self.assertTrue(button.property("learningStar"))
-        self.assertGreaterEqual(button.minimumWidth(), 112)
-        self.assertGreaterEqual(button.minimumHeight(), 40)
+        self.assertTrue(button.property("learningEntryAction"))
+        self.assertLess(button.minimumWidth(), 112)
+        self.assertLess(button.minimumHeight(), 40)
 
         original_palette = self.app.palette()
         original_stylesheet = self.app.styleSheet()

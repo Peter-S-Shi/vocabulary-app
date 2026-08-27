@@ -222,6 +222,28 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     QPushButton[learningStar="true"]:hover {{
         border-width: 3px;
     }}
+    QPushButton[learningEntryAction="true"] {{
+        min-width: 96px;
+        min-height: 32px;
+        padding: 4px 10px;
+        font-size: 14px;
+    }}
+    QPushButton[learningProficient="true"] {{
+        border: 2px solid {accent.primary.background};
+        border-radius: {radius}px;
+        font-weight: 700;
+    }}
+    QPushButton[learningProficient="true"][proficient="false"] {{
+        background-color: {neutral.surface_primary};
+        color: {accent.primary.background};
+    }}
+    QPushButton[learningProficient="true"][proficient="true"] {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+    }}
+    QPushButton[learningProficient="true"]:hover {{
+        border-width: 3px;
+    }}
 
     QTableView {{
         background-color: {neutral.surface_primary};
