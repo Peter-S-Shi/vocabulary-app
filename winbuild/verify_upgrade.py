@@ -242,9 +242,9 @@ def verify_v1_0_uninstall_registration(
             f"Expected exactly 1 uninstall registration for v1.0.0, found {len(registrations)}: {registrations}"
         )
     reg = registrations[0]
-    if INNO_UNINSTALL_KEY_NAME.lower() not in reg["key_name"].lower():
+    if INNO_APP_ID.lower() not in reg["key_name"].lower() or not reg["key_name"].endswith("_is1"):
         raise UpgradeVerificationError(
-            f"Uninstall key name '{reg['key_name']}' does not match expected Inno AppId '{INNO_UNINSTALL_KEY_NAME}'"
+            f"Uninstall key name '{reg['key_name']}' does not match expected Inno AppId '{INNO_APP_ID}'"
         )
     if not reg["display_version"].startswith("1.0.0"):
         raise UpgradeVerificationError(
