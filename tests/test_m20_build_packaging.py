@@ -188,5 +188,55 @@ class InnoCompilerDiscoveryTests(unittest.TestCase):
             self.assertIsNone(find_inno_compiler())
 
 
+class PackagedSmokeTestAndDependencyContractTests(unittest.TestCase):
+    def test_requirements_desktop_contains_all_runtime_dependencies(self) -> None:
+        """Lock down requirements-desktop.txt to include openpyxl and PySide6."""
+        req_desktop_path = Path(__file__).resolve().parent.parent / "requirements-desktop.txt"
+        self.assertTrue(req_desktop_path.is_file())
+        content = req_desktop_path.read_text(encoding="utf-8")
+        self.assertIn("PySide6", content)
+        self.assertIn("openpyxl", content)
+
+    def test_desktop_entry_smoke_test_function(self) -> None:
+        """Verify that desktop_entry._run_smoke_test() executes and passes."""
+        from winbuild.desktop_entry import _run_smoke_test
+
+        result = _run_smoke_test()
+        self.assertEqual(result, 0)
+
+    def test_verify_packaged_smoke_helper_success(self) -> None:
+        from winbuild.build import verify_packaged_smoke
+
+        with tempfile.TemporaryDirectory() as tmp:
+            app_dir = Path(tmp) / "Vocabulary App"
+            app_dir.mkdir()
+            exe_path = app_dir / "Vocabulary App.exe"
+            exe_path.write_bytes(b"dummy")
+
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value.returncode = 0
+                mock_run.return_value.stdout = "PACKAGED_SMOKE_TEST_PASSED\n"
+                mock_run.return_value.stderr = ""
+                verify_packaged_smoke(app_dir)
+
+    def test_verify_packaged_smoke_helper_failure_raises(self) -> None:
+        from winbuild.build import BuildError, verify_packaged_smoke
+
+        with tempfile.TemporaryDirectory() as tmp:
+            app_dir = Path(tmp) / "Vocabulary App"
+            app_dir.mkdir()
+            exe_path = app_dir / "Vocabulary App.exe"
+            exe_path.write_bytes(b"dummy")
+
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value.returncode = 1
+                mock_run.return_value.stdout = ""
+                mock_run.return_value.stderr = "ModuleNotFoundError: No module named 'openpyxl'"
+                with self.assertRaises(BuildError) as ctx:
+                    verify_packaged_smoke(app_dir)
+                self.assertIn("Packaged app smoke test failed", str(ctx.exception))
+
+
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()
+

@@ -784,6 +784,24 @@ def verify_v1_1_migrated_state(
     }
 
 
+def verify_installed_smoke(installed_exe: Path) -> None:
+    """Run startup/import smoke test against installed executable."""
+    print(f"Running startup smoke test on installed executable: {installed_exe} ...")
+    proc_smoke = subprocess.run(
+        [str(installed_exe), "--smoke-test"],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    if proc_smoke.returncode != 0 or "PACKAGED_SMOKE_TEST_PASSED" not in proc_smoke.stdout:
+        raise UpgradeVerificationError(
+            f"Installed v1.1.0 executable failed startup smoke test (exit {proc_smoke.returncode})!\n"
+            f"Stdout: {proc_smoke.stdout}\nStderr: {proc_smoke.stderr}"
+        )
+    print("Installed v1.1.0 startup smoke test: PASSED (all runtime modules loaded cleanly)")
+
+
 def run_full_upgrade_verification(
     v1_installer_path: Path,
     v1_1_installer_path: Path,
@@ -858,6 +876,9 @@ def run_full_upgrade_verification(
                 f"Upgraded v1.1.0 EXE FileVersion is '{v1_1_meta['FileVersion']}', expected '{V1_1_EXPECTED_FILE_VERSION}'"
             )
         report["v1_1_installed_metadata"] = v1_1_meta
+
+        # Verify installed v1.1.0 executable runs startup import smoke test
+        verify_installed_smoke(installed_exe)
 
         # Verify v1.1 Inno uninstall registration is updated in-place (overlay, not parallel)
         v1_1_regs = get_inno_uninstall_registrations(INNO_APP_ID)

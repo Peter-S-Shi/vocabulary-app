@@ -1,11 +1,10 @@
-# Desktop-only dependencies for the M16 native desktop UI (src/ui_desktop/).
+# Desktop runtime dependencies for the native desktop UI (src/ui_desktop/)
+# and desktop core services (backup, data tools import/export).
 #
-# This file is additive to requirements.txt, not a replacement for it: the
-# reusable core under src/ remains framework-independent, and the Streamlit
-# compatibility UI (app.py, src/ui_streamlit/) does not require anything in
-# this file. Install it only when working on the desktop UI or running the
-# M16.1 architecture-spike tests (tests/test_m16_1_architecture_spike.py).
+# Contains all third-party dependencies required to run the native desktop
+# application without Streamlit.
 #
 # Selected per docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md.
 
 PySide6>=6.11,<7
+openpyxl>=3.1

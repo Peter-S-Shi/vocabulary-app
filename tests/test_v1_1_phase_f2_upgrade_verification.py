@@ -356,6 +356,7 @@ class UpgradeVerificationHarnessTests(unittest.TestCase):
             with patch("winbuild.verify_upgrade.verify_v1_installer_sha256", return_value=V1_0_KNOWN_SHA256), \
                     patch("winbuild.verify_upgrade.run_silent_installer"), \
                     patch("winbuild.verify_upgrade.get_windows_exe_version", side_effect=mock_get_exe_version), \
+                    patch("winbuild.verify_upgrade.verify_installed_smoke"), \
                     patch("winbuild.verify_upgrade.get_inno_uninstall_registrations", side_effect=mock_get_registrations):
                 report = run_full_upgrade_verification(
                     v1_installer_path=v1_installer,

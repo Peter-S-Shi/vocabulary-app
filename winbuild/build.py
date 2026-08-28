@@ -133,6 +133,33 @@ def run_pyinstaller() -> Path:
     return app_dir
 
 
+def verify_packaged_smoke(app_dir: Path) -> None:
+    """Run packaged startup/import smoke test on the built onedir executable."""
+    exe_path = app_dir / "Vocabulary App.exe"
+    if not exe_path.is_file():
+        raise BuildError(f"Executable missing for smoke test: {exe_path}")
+
+    print(f"Running packaged app smoke test: {exe_path} --smoke-test ...")
+    proc = subprocess.run(
+        [str(exe_path), "--smoke-test"],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    if proc.returncode != 0:
+        raise BuildError(
+            f"Packaged app smoke test failed (exit {proc.returncode})!\n"
+            f"Stdout: {proc.stdout}\n"
+            f"Stderr: {proc.stderr}"
+        )
+    if "PACKAGED_SMOKE_TEST_PASSED" not in proc.stdout:
+        raise BuildError(
+            f"Packaged app smoke test did not output expected token.\nOutput: {proc.stdout}"
+        )
+    print("Packaged app startup/import smoke test: PASSED (all runtime modules loaded cleanly)")
+
+
 def find_inno_compiler() -> Path | None:
     candidates = [
         Path(r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe"),
@@ -270,6 +297,9 @@ def main() -> int:
     app_dir = run_pyinstaller()
     app_dir_size = dir_size_bytes(app_dir)
     print(f"PyInstaller onedir output: {app_dir} ({app_dir_size / (1024 * 1024):.1f} MiB)")
+
+    # Verify packaged executable startup/import smoke test before packaging installer
+    verify_packaged_smoke(app_dir)
 
     # Sign the payload .exe before Inno Setup packages it, so the
     # installer wraps an already-signed executable; the installer .exe
