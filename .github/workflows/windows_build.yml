@@ -106,7 +106,8 @@ jobs:
 
       - name: Run automated v1.0.0 to v1.1.0 upgrade & data-preservation proof
         run: |
-          python winbuild/verify_upgrade.py
+          $upgrade_data_dir = Join-Path $env:RUNNER_TEMP "vocabulary-app-upgrade-proof"
+          python winbuild/verify_upgrade.py --data-dir $upgrade_data_dir
 
       - name: Upload Windows Installer and Manifest Artifacts
         uses: actions/upload-artifact@v4

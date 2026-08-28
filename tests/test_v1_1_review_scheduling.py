@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QApplication, QLabel, QMessageBox, QPushButton, QW
 from openpyxl import load_workbook
 
 from src import db, quiz
+from src.app_config import get_default_db_path
 from src.backup import BACKUP_TABLES, build_full_backup_workbook_bytes, preview_backup_workbook
 from src.card_history import reconcile_collection_card_history
 from src.learning_workflow import get_card_learning_history
@@ -56,6 +57,10 @@ class ReviewScheduleTestCase(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def _card_id(self, *, name: str = "Synthetic Review") -> int:
+        if db.DB_PATH.expanduser().resolve() == get_default_db_path().resolve():
+            raise AssertionError(
+                "Synthetic review-scheduling fixtures require an isolated test database."
+            )
         now = "2026-08-26T12:00:00+00:00"
         with db.get_connection() as conn:
             collection_id = int(
@@ -100,6 +105,15 @@ class ReviewScheduleTestCase(unittest.TestCase):
                     (collection_id,),
                 ).fetchone()[0]
             )
+
+    def test_synthetic_fixture_rejects_production_database_path(self) -> None:
+        production_db_path = get_default_db_path()
+        with patch.object(db, "DB_PATH", production_db_path), \
+                patch.object(db, "get_connection") as get_connection:
+            with self.assertRaisesRegex(AssertionError, "isolated test database"):
+                self._card_id(name="Synthetic Must Not Reach Production")
+
+        get_connection.assert_not_called()
 
 
 class StableCardScheduleTests(ReviewScheduleTestCase):
@@ -302,7 +316,10 @@ class StableCardScheduleTests(ReviewScheduleTestCase):
         self.assertEqual(scheduled["card_id"], card_id)
         self.assertEqual(scheduled["next_due_at"], "2026-08-28")
         self.assertEqual(scheduled["state"], "upcoming")
-        self.assertEqual(get_card_schedule(card_id), scheduled)
+        self.assertEqual(
+            get_card_schedule(card_id, today="2026-08-26"),
+            scheduled,
+        )
 
     def test_actionable_schedules_exclude_unscheduled_and_include_due_states(self) -> None:
         overdue_id = self._card_id(name="Synthetic Overdue")

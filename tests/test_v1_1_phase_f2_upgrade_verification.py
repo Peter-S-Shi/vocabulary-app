@@ -33,6 +33,8 @@ from winbuild.verify_upgrade import (
     calculate_sha256,
     create_authentic_v1_0_user_state,
     get_inno_uninstall_registrations,
+    main,
+    require_isolated_verification_data_dir,
     run_full_upgrade_verification,
     verify_pre_migration_backup,
     verify_v1_0_tag_provenance,
@@ -57,6 +59,58 @@ class UpgradeVerificationHarnessTests(unittest.TestCase):
         default_dir = get_default_data_dir()
         self.assertEqual(default_dir.name, "vocabulary_app")
         self.assertEqual(default_db.parent, default_dir)
+
+    def test_cli_requires_explicit_isolated_data_dir_before_any_preparation(self) -> None:
+        with patch("sys.argv", ["verify_upgrade.py", "--skip-installer-execution"]), \
+                patch("winbuild.verify_upgrade.ensure_v1_installer") as prepare_installer:
+            with self.assertRaises(SystemExit) as raised:
+                main()
+
+        self.assertEqual(raised.exception.code, 2)
+        prepare_installer.assert_not_called()
+
+    def test_explicit_production_data_root_is_rejected_before_any_preparation(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            local_app_data = Path(tmp)
+            production_data_dir = local_app_data / "vocabulary_app"
+            production_data_dir.mkdir()
+            production_db = production_data_dir / "vocab.db"
+            production_db.write_bytes(b"production-sentinel")
+
+            with patch.dict(os.environ, {"LOCALAPPDATA": str(local_app_data)}), \
+                    patch(
+                        "sys.argv",
+                        [
+                            "verify_upgrade.py",
+                            "--skip-installer-execution",
+                            "--data-dir",
+                            str(production_data_dir),
+                        ],
+                    ), \
+                    patch("winbuild.verify_upgrade.ensure_v1_installer") as prepare_installer:
+                self.assertEqual(main(), 1)
+
+            self.assertEqual(production_db.read_bytes(), b"production-sentinel")
+            prepare_installer.assert_not_called()
+
+    def test_isolated_data_dir_guard_accepts_temp_and_rejects_production_descendants(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            root = Path(tmp)
+            local_app_data = root / "local-app-data"
+            isolated_data_dir = root / "upgrade-proof"
+            production_data_dir = local_app_data / "vocabulary_app"
+
+            with patch.dict(os.environ, {"LOCALAPPDATA": str(local_app_data)}):
+                self.assertEqual(
+                    require_isolated_verification_data_dir(isolated_data_dir),
+                    isolated_data_dir.resolve(),
+                )
+                with self.assertRaises(UpgradeVerificationError):
+                    require_isolated_verification_data_dir(production_data_dir)
+                with self.assertRaises(UpgradeVerificationError):
+                    require_isolated_verification_data_dir(
+                        production_data_dir / "upgrade-proof"
+                    )
 
     def test_v1_0_tag_provenance_verification(self) -> None:
         """Verify that tag provenance distinctly captures tag object SHA and source commit SHA."""

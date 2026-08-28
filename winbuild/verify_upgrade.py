@@ -8,7 +8,7 @@ Automates and proves:
      FileVersion="1.0.0.0") and Inno Uninstall Registry entry.
   4. Construction of authentic v1.0.0 user state from the repository's v1.0.0 tag/source:
      - Verified git tag provenance: annotated tag object SHA vs peeled source commit SHA.
-     - Real default database path: %LOCALAPPDATA%\\vocabulary_app\\vocab.db
+     - Isolated harness database path supplied explicitly with --data-dir
      - Genuine v1.0 schema (schema_version="15.1.0-speech-semantics", app_data_version="15.1")
      - Sentinel Collection and Sentinel Entry created via v1.0.0 domain APIs
      - Sentinel Preferences (preferences.json)
@@ -197,6 +197,21 @@ def get_default_user_data_dir() -> Path:
     if local_app_data:
         return Path(local_app_data) / "vocabulary_app"
     return Path.home() / "AppData" / "Local" / "vocabulary_app"
+
+
+def require_isolated_verification_data_dir(data_dir: Path) -> Path:
+    """Resolve and reject production user-data targets for destructive verification."""
+    resolved_data_dir = data_dir.expanduser().resolve()
+    production_data_dir = get_default_user_data_dir().expanduser().resolve()
+    if (
+        resolved_data_dir == production_data_dir
+        or production_data_dir in resolved_data_dir.parents
+    ):
+        raise UpgradeVerificationError(
+            "Upgrade verification requires an isolated --data-dir outside the "
+            "production Vocabulary App user-data directory."
+        )
+    return resolved_data_dir
 
 
 def get_windows_exe_version(exe_path: Path) -> dict[str, str]:
@@ -450,9 +465,11 @@ def create_authentic_v1_0_user_state(
 
     Creates an isolated git worktree at tag `v1.0.0`, executes v1.0.0's native
     init_db() and domain APIs to create a sentinel collection and entry in the
-    real default database (`vocab.db`), writes authentic v1.0 preferences, and
+    isolated harness database (`vocab.db`), writes authentic v1.0 preferences, and
     cleans up the worktree.
     """
+    data_dir = require_isolated_verification_data_dir(data_dir)
+
     # 0. Verify git tag provenance before proceeding
     tag_provenance = verify_v1_0_tag_provenance(repo_root)
 
@@ -691,6 +708,7 @@ def verify_v1_1_migrated_state(
     sentinel_info: dict[str, Any],
 ) -> dict[str, Any]:
     """Execute v1.1.0 migration and verify all schema and data preservation invariants."""
+    data_dir = require_isolated_verification_data_dir(data_dir)
     db_path = data_dir / EXPECTED_DEFAULT_DB_FILENAME
     pref_path = data_dir / "preferences.json"
     backup_dir = data_dir / "backups"
@@ -812,6 +830,7 @@ def run_full_upgrade_verification(
     repo_root: Path = PROJECT_ROOT,
 ) -> dict[str, Any]:
     """Execute full automated v1.0.0 -> v1.1.0 upgrade & data-safety verification pipeline."""
+    data_dir = require_isolated_verification_data_dir(data_dir)
     report: dict[str, Any] = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "v1_0_release_tag": V1_0_RELEASE_TAG,
@@ -926,8 +945,8 @@ def main() -> int:
     parser.add_argument(
         "--data-dir",
         type=Path,
-        default=None,
-        help="User data directory (defaults to %%LOCALAPPDATA%%\\vocabulary_app).",
+        required=True,
+        help="Explicit isolated user-data directory outside %%LOCALAPPDATA%%\\vocabulary_app.",
     )
     parser.add_argument(
         "--install-dir",
@@ -948,6 +967,12 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    try:
+        data_dir = require_isolated_verification_data_dir(args.data_dir)
+    except UpgradeVerificationError as exc:
+        print(f"[FAILED] Unsafe upgrade verification target: {exc}", file=sys.stderr)
+        return 1
+
     # Resolve v1.0 installer
     download_dir = PROJECT_ROOT / "dist" / "v1_0_installer"
     try:
@@ -961,7 +986,6 @@ def main() -> int:
         print(f"[FAILED] v1.1.0 installer not found: {v1_1_installer}", file=sys.stderr)
         return 1
 
-    data_dir = args.data_dir or get_default_user_data_dir()
     install_dir = args.install_dir or get_default_programs_install_dir()
 
     try:
