@@ -1,51 +1,48 @@
 # Vocabulary App Project Status
 
-Last reviewed: 2026-08-27
+Last reviewed: 2026-08-28
 
 This file is the authoritative evidence-based snapshot of the current project state. Detailed milestone history remains in `ROADMAP.md`, milestone QA/design/packaging documents, and the frozen pre-release snapshot archived at `docs/history/PROJECT_STATUS_PRE_V1_RELEASE_2026-08-19.md`.
 
 ## Current Phase
 
-**Vocabulary App v1.1.0 development — Phase B implementation complete; independent exit review is next.**
+**Milestone 21 / Vocabulary App v1.1.0 implementation and release verification are complete on merged `main`. The next authorized lifecycle step is to publish v1.1.0 from that merged source.**
 
-Phase B started from the accepted Phase A HEAD
-`5054fc221215c6e6c8c608cd246af7107fb74ade` on branch
-`milestone/v1.1-phase-b-study-star-progress`. The product implementation is
-recorded in commit `2ac8cde9767b5e3c31ea5c6e8b40569eec685237`.
-The Phase B branch is pushed to `origin`; no pull request has been created.
+This is intentionally one step ahead of the merge-ready PR branch. It does not
+claim that a `v1.1.0` tag or GitHub Release already exists.
 
-Phase B contains exactly the approved changes:
+## M21 / v1.1.0 Closure
 
-- Study/Review, self-graded Quiz, MCQ, template-aware Quiz, and Matching now
-  reuse the existing Starred system Collection and collection APIs for direct
-  Star/Unstar actions. The mutation path does not submit, grade, advance,
-  clear drafts/selections, or recreate the active Quiz session, and existing
-  cross-Card removal confirmation remains authoritative.
-- Normal Collections expose learned/total current stable Cards and a percentage.
-  Learning truth is aggregated from the existing `get_study_cards` projection:
-  distinct active stable `card_id` values with at least one completed
-  Card-scoped Quiz count as learned. Legacy `card_id = NULL` sessions do not
-  count, Card revision changes do not reset learning, and system practice pools
-  receive no normal Collection progress.
+M21 closed the approved v1.1 scope without reopening product development:
 
-Phase B validation evidence:
+- **Implementation Phases A-E:** stable Card review scheduling; direct Star
+  actions and Collection progress; local-time presentation and one durable
+  Windows product identity; constrained per-mode theme customization; and
+  release update awareness without automatic download or installation.
+- **Phase Patch:** coherent Quiz-to-schedule and Review Calendar behavior;
+  consistent Proficient Pool, manual-proficient, strength-recommendation, and
+  random-practice contracts; and one normalized duplicate definition shared by
+  import preview and write paths.
+- **Phase F verification:** v1.1.0 version/provenance authority, reproducible
+  Windows packaging, packaged-launch smoke coverage, and a real isolated
+  v1.0.0 → v1.1.0 overlay proof preserving user data, preferences, version
+  identity, and the established Windows product identity.
+- **Data safety corrective:** upgrade verification requires an explicit
+  isolated data root and rejects the production data root (including its
+  descendants); synthetic scheduling fixtures fail closed before opening the
+  production database.
 
-- New scoped TDD module: **16 tests, 0 failures, 0 errors**.
-- Related Review/Quiz/Collections regression: **182 tests, 0 failures, 0 errors**.
-- Current repository suite size: **944 tests**. Complete module coverage was
-  exercised in two complementary batches: the later batch reported
-  **391 tests, OK**; the earlier batch ran through its final test with no
-  failure output, and that final Qt system-appearance listener was rerun
-  independently as **1 test, OK** after its aggregate summary was lost during
-  an interactive status interruption.
-- Architecture audit: **91 Python files, 0 serious violations, 0 warnings**.
-- Privacy review: staged Phase B diff contained no credentials, local absolute
-  paths, personal data, real emails, or user databases; required local/cache/
-  database/export ignore rules remain active.
+Human overlay acceptance on a real Windows installation passed for launch,
+legacy data, preferences, displayed version, representative v1.1 behavior, and
+single-product identity. The final GitHub workflow owns two independent release
+gates: timeout-bounded full unittest discovery, and Windows installer build plus
+real isolated upgrade proof. A local full-suite attempt on 2026-08-28 was
+interrupted for execution-cost reasons while progressing normally through the
+existing slow Qt/theme tests; it is neither a PASS nor a FAIL and is not used as
+release evidence.
 
-No Phase C work, merge, tag, release, packaging, or version-publication work was
-started. Native human visual/interaction acceptance and independent Phase B
-exit review remain required before Phase B is formally accepted.
+No v1.1.0 tag or GitHub Release has been created. Publication must use the
+verified merged `main` commit and requires separate operator authorization.
 
 ## Released Baseline
 
@@ -125,7 +122,7 @@ The PySide6 native desktop application is the primary product surface. It includ
 - Analytics (Learning Brief + Full Findings)
 - Card Audio Export using compatible speech voices already installed on Windows
 
-Streamlit remains in the repository as a compatibility/reference UI; it is not the v1.0 packaged release target.
+Streamlit remains in the repository as a compatibility/reference UI; it is not the packaged release target.
 
 The release remains local-first: no account, telemetry, cloud sync, or mandatory external service is required.
 

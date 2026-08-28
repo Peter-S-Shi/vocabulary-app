@@ -237,6 +237,19 @@ class PackagedSmokeTestAndDependencyContractTests(unittest.TestCase):
                 self.assertIn("Packaged app smoke test failed", str(ctx.exception))
 
 
+class ReleaseWorkflowContractTests(unittest.TestCase):
+    def test_full_regression_release_gate_is_complete_and_timeout_bounded(self) -> None:
+        workflow_path = (
+            Path(__file__).resolve().parent.parent
+            / ".github"
+            / "workflows"
+            / "windows_build.yml"
+        )
+        workflow = workflow_path.read_text(encoding="utf-8")
+        self.assertIn("name: Full Regression / Release Gate", workflow)
+        self.assertIn("timeout-minutes: 45", workflow)
+        self.assertIn("python -m unittest discover -v", workflow)
+
+
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()
-

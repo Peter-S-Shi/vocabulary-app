@@ -16,6 +16,31 @@ permissions:
   contents: read
 
 jobs:
+  full-regression:
+    name: Full Regression / Release Gate
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install test and runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-desktop.txt -r requirements-build.txt
+
+      - name: Run complete unittest discovery
+        run: |
+          python -m unittest discover -v
+
   build-windows:
     name: Build Windows Installer (v1.1.0)
     runs-on: windows-latest
