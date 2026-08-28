@@ -36,6 +36,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 # Official published v1.0.0 release evidence
 V1_0_RELEASE_TAG = "v1.0.0"
 V1_0_INSTALLER_NAME = "VocabularyApp-Setup-1.0.0.exe"
@@ -134,7 +138,7 @@ def download_v1_installer(dest_dir: Path) -> Path:
 
 
 def get_default_programs_install_dir() -> Path:
-    """Return default Inno Setup per-user install directory ({autopf}\Vocabulary App)."""
+    r"""Return default Inno Setup per-user install directory ({autopf}\Vocabulary App)."""
     local_app_data = os.environ.get("LOCALAPPDATA")
     if local_app_data:
         return Path(local_app_data) / "Programs" / "Vocabulary App"
@@ -142,7 +146,7 @@ def get_default_programs_install_dir() -> Path:
 
 
 def get_default_user_data_dir() -> Path:
-    """Return default user data directory (%LOCALAPPDATA%\vocabulary_app)."""
+    r"""Return default user data directory (%LOCALAPPDATA%\vocabulary_app)."""
     local_app_data = os.environ.get("LOCALAPPDATA")
     if local_app_data:
         return Path(local_app_data) / "vocabulary_app"
@@ -552,13 +556,13 @@ def main() -> int:
         "--data-dir",
         type=Path,
         default=None,
-        help="User data directory (defaults to %LOCALAPPDATA%\\vocabulary_app).",
+        help="User data directory (defaults to %%LOCALAPPDATA%%\\vocabulary_app).",
     )
     parser.add_argument(
         "--install-dir",
         type=Path,
         default=None,
-        help="Install directory (defaults to %LOCALAPPDATA%\\Programs\\Vocabulary App).",
+        help="Install directory (defaults to %%LOCALAPPDATA%%\\Programs\\Vocabulary App).",
     )
     parser.add_argument(
         "--report-path",
