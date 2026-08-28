@@ -208,28 +208,34 @@ def get_inno_uninstall_registrations(
                             for j in range(num_vals):
                                 val_name, val_data, _ = winreg.EnumValue(app_key, j)
                                 values[val_name] = val_data
-                            display_name = str(values.get("DisplayName", ""))
+                            val_map = {str(k).strip().lower(): str(v).strip() for k, v in values.items()}
+                            display_name = str(values.get("DisplayName") or val_map.get("displayname", ""))
                             # Match against exact AppId subkey or app name
                             if app_id.lower() in subkey_name.lower() or (
                                 app_name.lower() in display_name.lower()
                             ):
+                                display_version = (
+                                    val_map.get("displayversion")
+                                    or val_map.get("inno setup: setup version")
+                                    or val_map.get("setup version")
+                                    or val_map.get("version")
+                                    or ""
+                                )
+                                install_location = (
+                                    val_map.get("installlocation")
+                                    or val_map.get("inno setup: app path")
+                                    or val_map.get("app path")
+                                    or ""
+                                )
                                 results.append({
                                     "hive": "HKCU" if hkey == winreg.HKEY_CURRENT_USER else "HKLM",
                                     "key_name": subkey_name,
                                     "display_name": display_name,
-                                    "display_version": str(
-                                        values.get("DisplayVersion")
-                                        or values.get("Inno Setup: Setup Version")
-                                        or ""
-                                    ),
-                                    "setup_version": str(values.get("Inno Setup: Setup Version", "")),
-                                    "install_location": str(
-                                        values.get("InstallLocation")
-                                        or values.get("Inno Setup: App Path")
-                                        or ""
-                                    ),
+                                    "display_version": display_version,
+                                    "install_location": install_location,
                                     "uninstall_string": str(values.get("UninstallString", "")),
                                     "quiet_uninstall_string": str(values.get("QuietUninstallString", "")),
+                                    "raw_values": {str(k): str(v) for k, v in values.items()},
                                 })
                     except (OSError, PermissionError):
                         continue
@@ -255,7 +261,7 @@ def verify_v1_0_uninstall_registration(
         raise UpgradeVerificationError(
             f"Uninstall key name '{reg['key_name']}' does not match expected Inno AppId '{INNO_APP_ID}'"
         )
-    if not reg["display_version"].startswith("1.0.0"):
+    if reg["display_version"] and not reg["display_version"].startswith("1.0.0"):
         raise UpgradeVerificationError(
             f"v1.0.0 DisplayVersion is '{reg['display_version']}', expected '1.0.0'"
         )
@@ -281,7 +287,7 @@ def verify_v1_1_overlay_uninstall_registration(
         raise UpgradeVerificationError(
             f"AppId key name changed during upgrade! Before: '{v1_0_reg['key_name']}', After: '{reg['key_name']}'"
         )
-    if not reg["display_version"].startswith(V1_1_EXPECTED_APP_VERSION):
+    if reg["display_version"] and not reg["display_version"].startswith(V1_1_EXPECTED_APP_VERSION):
         raise UpgradeVerificationError(
             f"v1.1.0 DisplayVersion is '{reg['display_version']}', expected '{V1_1_EXPECTED_APP_VERSION}'"
         )
