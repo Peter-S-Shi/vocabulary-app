@@ -112,11 +112,11 @@ class SettingsViewUpdateSectionUITests(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
 
     def test_settings_view_ui_state_not_checked(self) -> None:
-        service = UpdateAwarenessService(current_version="1.0.0")
+        service = UpdateAwarenessService()
         controller = SettingsController(update_service=service)
         view = SettingsView(controller)
 
-        self.assertIn("v1.0.0", view._update_version_label.text())
+        self.assertIn(f"v{APP_VERSION}", view._update_version_label.text())
         self.assertEqual(view._update_check_btn.text(), "Check for Updates")
         self.assertTrue(view._update_check_btn.isEnabled())
         self.assertTrue(view._update_state_badge.isHidden())

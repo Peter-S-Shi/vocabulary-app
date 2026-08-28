@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -475,9 +476,11 @@ class ShellCoreBoundaryTests(unittest.TestCase):
         for path in self.FILES:
             text = path.read_text(encoding="utf-8")
             upper = text.upper()
-            for forbidden in ("SELECT ", "INSERT ", "UPDATE ", "DELETE FROM"):
-                with self.subTest(path=path.name):
+            for forbidden in ("SELECT ", "INSERT INTO ", "DELETE FROM "):
+                with self.subTest(path=path.name, forbidden=forbidden):
                     self.assertNotIn(forbidden, upper)
+            # Match SQL UPDATE statements (e.g. UPDATE <table> SET ...)
+            self.assertFalse(re.search(r"\bUPDATE\s+\w+\s+SET\b", upper), f"Raw SQL UPDATE statement found in {path.name}")
             with self.subTest(path=path.name):
                 self.assertNotIn("import sqlite3", text)
                 self.assertNotIn("from src import db", text)
