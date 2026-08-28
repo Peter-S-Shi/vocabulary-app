@@ -26,6 +26,7 @@ from src.ui_desktop.theming.tokens import (
     CustomThemeConfig, ModeCustomization, build_resolved_theme_tokens,
 )
 from src.ui_desktop.views.quiz_view import QuizView
+from tests.db_isolation import require_isolated_test_database
 
 class PatchA1QuizReviewSchedulingTests(unittest.TestCase):
     @classmethod
@@ -43,6 +44,7 @@ class PatchA1QuizReviewSchedulingTests(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def _create_card(self, *, name: str = "Test Card Collection") -> int:
+        require_isolated_test_database(db.DB_PATH)
         now = "2026-08-27T12:00:00+00:00"
         with db.get_connection() as conn:
             col_id = int(conn.execute(

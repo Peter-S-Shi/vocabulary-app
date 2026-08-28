@@ -43,6 +43,7 @@ from src.ui_desktop.controllers.review_calendar_controller import ReviewCalendar
 from src.ui_desktop.views.review_calendar_view import ReviewCalendarView
 from src.ui_desktop.views.quiz_view import QuizView
 from src.ui_desktop.views.today_view import TodayView
+from tests.db_isolation import require_isolated_test_database
 
 
 class ReviewScheduleTestCase(unittest.TestCase):
@@ -57,10 +58,7 @@ class ReviewScheduleTestCase(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def _card_id(self, *, name: str = "Synthetic Review") -> int:
-        if db.DB_PATH.expanduser().resolve() == get_default_db_path().resolve():
-            raise AssertionError(
-                "Synthetic review-scheduling fixtures require an isolated test database."
-            )
+        require_isolated_test_database(db.DB_PATH)
         now = "2026-08-26T12:00:00+00:00"
         with db.get_connection() as conn:
             collection_id = int(

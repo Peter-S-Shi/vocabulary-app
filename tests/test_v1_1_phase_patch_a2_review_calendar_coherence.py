@@ -45,6 +45,7 @@ from src.ui_desktop.theming.tokens import (
     build_resolved_theme_tokens,
 )
 from src.ui_desktop.views.review_calendar_view import ReviewCalendarView
+from tests.db_isolation import require_isolated_test_database
 
 
 class PatchA2ReviewCalendarCoherenceTests(unittest.TestCase):
@@ -63,6 +64,7 @@ class PatchA2ReviewCalendarCoherenceTests(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def _create_card(self, *, name: str = "Test Collection") -> tuple[int, int, int]:
+        require_isolated_test_database(db.DB_PATH)
         now = "2026-08-27T12:00:00+00:00"
         with db.get_connection() as conn:
             col_id = int(conn.execute(
