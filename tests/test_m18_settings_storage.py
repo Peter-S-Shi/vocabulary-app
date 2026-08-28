@@ -81,23 +81,53 @@ class SettingsViewStorageStructureTests(unittest.TestCase):
         view = SettingsView(controller)
         self.addCleanup(view.deleteLater)
 
+        # "settings-row-value" is a shared read-only-value label class; the
+        # Theme Customization editor (Phase D) also stamps its per-mode
+        # Accent/Background/Surfaces/Text color swatches with this same
+        # objectName, so counting the whole view's occurrences is no longer
+        # Storage-specific. Exclude those known swatch labels (each tracked
+        # by the view for live theme-preview updates) to isolate the
+        # Storage section's own read-only value labels.
+        theme_swatch_labels = (
+            set(view._accent_swatches.values())
+            | set(view._bg_swatches.values())
+            | set(view._surf_swatches.values())
+            | set(view._text_swatches.values())
+        )
         value_labels = view.findChildren(QLabel, "settings-row-value")
+        storage_value_labels = [
+            label for label in value_labels if label not in theme_swatch_labels
+        ]
+
         # 7 read-only Storage rows. The M20 Audio section's per-language
         # Installed Voice Binding rows use a QComboBox + a
         # "settings-section-note" status label instead of a
         # "settings-row-value" label -- there is no fixed value to show
         # read-only, the binding is the editable control itself.
-        self.assertEqual(len(value_labels), 7)
-        rendered_values = {label.text() for label in value_labels}
+        self.assertEqual(len(storage_value_labels), 7)
+        rendered_values = {label.text() for label in storage_value_labels}
         summary = controller.storage_summary()
-        self.assertIn(str(summary["database_path"]), rendered_values)
-        self.assertIn(str(summary["app_version"]), rendered_values)
+        for key in (
+            "app_version",
+            "database_path",
+            "data_directory",
+            "backup_directory",
+            "audio_cache_directory",
+            "path_source",
+        ):
+            self.assertIn(str(summary[key]), rendered_values)
+        self.assertIn(
+            "Yes" if summary["database_exists"] else "No", rendered_values
+        )
 
         # Storage rows are informational only -- no editable combo exists
-        # for any of them (unlike Appearance/Quiz presentation/the M20
-        # per-language voice bindings).
-        combos = view.findChildren(QComboBox)
-        self.assertEqual(len(combos), 5)
+        # for any of them. Scoped to each Storage row's own widget (not a
+        # whole-view combo count, which also includes the Appearance/Quiz
+        # presentation combos, the M20 per-language voice bindings, and the
+        # Theme Customization editor's per-mode preset combos).
+        for label in storage_value_labels:
+            storage_row = label.parentWidget()
+            self.assertEqual(storage_row.findChildren(QComboBox), [])
 
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")

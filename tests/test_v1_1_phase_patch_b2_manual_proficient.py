@@ -122,6 +122,19 @@ class ManualProficientMutationTests(PatchB2TestCase):
 
 class ManualProficientControlTests(PatchB2TestCase):
     def test_compact_paired_controls_and_theme_tokens(self) -> None:
+        # The real app only ever renders this view through the single
+        # ThemeManager-applied QApplication stylesheet (see main_window.py);
+        # a bare QApplication with no stylesheet -- or, worse, one left
+        # over from an unrelated test class that ran earlier in this same
+        # process -- makes Qt's style-sheet box-model computation diverge
+        # from the explicit setMinimumSize(96, 32) in review_view.py.
+        # Apply the same stylesheet the product applies at startup so this
+        # assertion reflects real rendering, independent of process-wide
+        # test run order/leakage.
+        original_stylesheet = self.app.styleSheet()
+        self.addCleanup(self.app.setStyleSheet, original_stylesheet)
+        self.app.setStyleSheet(build_stylesheet(THEME_CALM_BLUE_LIGHT))
+
         collection_id, _entry_ids = self.collection_with_entries(1)
         controller = ReviewController()
         view = ReviewView(controller)

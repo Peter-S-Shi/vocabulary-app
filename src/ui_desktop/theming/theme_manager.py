@@ -224,7 +224,13 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     }}
     QPushButton[learningEntryAction="true"] {{
         min-width: 96px;
-        min-height: 32px;
+        /* 28px, not the round 32px it shipped with: the paired
+        learningStar/learningProficient border below still contributes to
+        this button's total rendered height (see the border-width override
+        after those rules), so the content min-height has to leave room for
+        that border + this rule's own padding while keeping the pair under
+        the compact-control 40px contract (Patch B2). */
+        min-height: 28px;
         padding: 4px 10px;
         font-size: 14px;
     }}
@@ -243,6 +249,17 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     }}
     QPushButton[learningProficient="true"]:hover {{
         border-width: 3px;
+    }}
+    /* Patch B2's compact Star/Proficient action pair carries both the
+    full-size learningStar/learningProficient property (for the semantic
+    state border color) and learningEntryAction (for compact sizing). This
+    rule must come after both base rules so its thinner border-width wins
+    the QSS cascade regardless of declaration order above -- otherwise the
+    paired button's rendered height (min-height + padding + border) grows
+    past the intended compact size. */
+    QPushButton[learningStar="true"][learningEntryAction="true"],
+    QPushButton[learningProficient="true"][learningEntryAction="true"] {{
+        border-width: 1px;
     }}
 
     QTableView {{

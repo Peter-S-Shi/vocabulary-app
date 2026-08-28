@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -8,6 +9,7 @@ from unittest.mock import MagicMock, patch
 from PySide6.QtCore import QObject, QUrl, Signal
 from PySide6.QtWidgets import QApplication
 
+from src import db
 from src.app_config import APP_VERSION
 from src.ui_desktop.controllers.settings_controller import SettingsController
 from src.ui_desktop.main_window import MainWindow
@@ -228,6 +230,16 @@ class NavigationRailAndMainWindowUpdateTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.app = QApplication.instance() or QApplication([])
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        self.original_db_path = db.DB_PATH
+        db.DB_PATH = Path(self.temp_dir.name) / "phase_e_update_settings_ui.sqlite3"
+        db.init_db()
+
+    def tearDown(self) -> None:
+        db.DB_PATH = self.original_db_path
+        self.temp_dir.cleanup()
 
     def test_navigation_rail_update_indicator(self) -> None:
         rail = NavigationRail()
