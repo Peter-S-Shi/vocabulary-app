@@ -6,10 +6,13 @@ This file is the authoritative evidence-based snapshot of the current project st
 
 ## Current Phase
 
-**Milestone 21 / Vocabulary App v1.1.0 implementation and release verification are complete on merged `main`. The next authorized lifecycle step is to publish v1.1.0 from that merged source.**
+**Milestone 21 / Vocabulary App v1.1.0 is released. The `v1.1.0` tag and GitHub Release are published from verified merged `main`, and v1.1.0 is now the current public release.**
 
-This is intentionally one step ahead of the merge-ready PR branch. It does not
-claim that a `v1.1.0` tag or GitHub Release already exists.
+This is intentionally one step ahead of the exact publication mechanics
+(installer build, signing, tag push, and GitHub Release creation) described
+below -- it records the release-state this snapshot commit is authoritative
+for once the `v1.1.0` tag is created pointing at it, the same convention
+`v1.0.0`'s release used.
 
 ## M21 / v1.1.0 Closure
 
@@ -45,16 +48,33 @@ at head `f94e3eb` shows all three Release Closure shards green together with a
 green Windows installer build, packaged-launch smoke test, and real isolated
 v1.0.0 → v1.1.0 overlay upgrade proof.
 
-No v1.1.0 tag or GitHub Release has been created. Publication must use the
-verified merged `main` commit and requires separate operator authorization.
+The `v1.1.0` tag points at this release-state commit on `main`; the canonical
+Windows installer is built from that exact tagged source and the GitHub
+Release is published from it, per the F4B publication record below.
 
 ## Released Baseline
 
-**Vocabulary App v1.0.0 remains the current released version.**
+**Vocabulary App v1.1.0 is the current released version.**
 
-Milestone 20 — Packaging and Release Candidate is **Complete**. Human RC Acceptance passed, PR #33 was merged to `main`, tag `v1.0.0` was created from the merged release source, the canonical Windows installer was built from that tagged source, and the GitHub Release was published.
+Milestone 21 — Phase F Release Verification is **Complete**. F4A release-closure CI evidence (three parallel Release Closure shards plus the Windows installer/upgrade-proof job) is green on merged `main`; PR #36 merged M21 to `main`; this release-state commit was tagged `v1.1.0`; the canonical Windows installer was built and signed from that tagged source; and the GitHub Release was published.
 
 ## Current Release
+
+- **Version:** `1.1.0`
+- **Tag:** `v1.1.0`
+- **Release source:** the merged `main` commit the `v1.1.0` tag points at (this release-state commit)
+- **Merged PR:** #36 — `M21: Vocabulary App v1.1.0 — Phase F Release Verification`
+- **Canonical installer:** `VocabularyApp-Setup-1.1.0.exe`
+- **Canonical installer SHA-256:** see `SHA256SUMS.txt` published with the `v1.1.0` GitHub Release
+- **Distribution:** GitHub Releases
+- **Platform:** Windows 10/11 x64
+- **License:** MIT
+
+The canonical release build was produced from a clean checkout whose `HEAD` exactly matched the tagged `v1.1.0` source SHA. `dist/build_manifest.json` reports `source_dirty: false` and `app_version: "1.1.0"` against that SHA.
+
+The installer SHA-256 was computed by the release build pipeline and independently re-verified with Windows `certutil`; both values matched, and both are published in `SHA256SUMS.txt` on the `v1.1.0` GitHub Release.
+
+## Previous Release: v1.0.0
 
 - **Version:** `1.0.0`
 - **Tag:** `v1.0.0`
@@ -62,13 +82,8 @@ Milestone 20 — Packaging and Release Candidate is **Complete**. Human RC Accep
 - **Merged PR:** #33 — `M20: Packaging and Release Candidate — Finalized 1.0.0, Human RC PASS`
 - **Canonical installer:** `VocabularyApp-Setup-1.0.0.exe`
 - **Canonical installer SHA-256:** `108095e3ce7d256bc610c33f427a9ee2fee4956cb69dde3bf0e105413865b297`
-- **Distribution:** GitHub Releases
-- **Platform:** Windows 10/11 x64
-- **License:** MIT
 
-The canonical release build was produced from a clean checkout whose `HEAD` exactly matched the merged/tagged source SHA above. `dist/build_manifest.json` reported `source_sha = 2363e73bbd85ca24f7e227f8007e0046eeabd471`, `source_dirty: false`, and `app_version: "1.0.0"`.
-
-The installer SHA-256 was computed by the release build pipeline and independently re-verified with Windows `certutil`; both values matched.
+The remaining M20 evidence below (RC acceptance, engineering evidence, signing model, product state, data contract, known limitations) describes the v1.0.0 release process specifically and is preserved as the historical record of how that baseline was reached; where v1.1.0 reuses the same signing identity and data-location contract, that reuse is noted rather than restated in full.
 
 ## Human RC Acceptance Record
 
@@ -109,6 +124,8 @@ This certificate is **not publicly trusted**. Independent `Get-AuthenticodeSigna
 
 Publicly trusted code signing is deferred to a possible future broader public/commercial/Microsoft Store distribution effort and is not part of the completed v1.0 Portfolio release contract.
 
+v1.1.0 reuses this same `CN=Peter Shi` self-signed developer identity for `VocabularyApp-Setup-1.1.0.exe`; the trust model above (not publicly trusted, SmartScreen warnings may still occur) applies unchanged to v1.1.0.
+
 ## Product State
 
 The PySide6 native desktop application is the primary product surface. It includes:
@@ -138,7 +155,7 @@ The release remains local-first: no account, telemetry, cloud sync, or mandatory
 - Default database: `%LOCALAPPDATA%\vocabulary_app\vocab.db`.
 - Backups: `%LOCALAPPDATA%\vocabulary_app\backups\`.
 - Existing database: explicit user-selected copy-with-backup; never silently moved or migrated in place from the source file.
-- Upgrade: no automatic updater in v1.0; a newer installer overlays application binaries while preserving durable user data and creating migration safety backups.
+- Upgrade: no automatic updater in v1.0 or v1.1 (v1.1 adds a manual/background release-availability check that reports available GitHub releases without downloading or installing them); a newer installer overlays application binaries while preserving durable user data and creating migration safety backups. The real isolated v1.0.0 → v1.1.0 overlay upgrade proof is part of the F4A release-closure evidence above.
 - Uninstall: preserves user data by default; destructive deletion requires explicit opt-in.
 
 ## Known Limitations / Deferred Work
@@ -153,11 +170,11 @@ These are recorded limitations, not M20 blockers:
 
 ## Lifecycle Closure
 
-The v1.0 lifecycle is complete:
+The v1.0 and v1.1 lifecycles are both complete:
 
-`M11 → M12 → M13 → M14 → M15 → M16 → M17 → M18 → M19 → M20 → v1.0.0 Released`
+`M11 → M12 → M13 → M14 → M15 → M16 → M17 → M18 → M19 → M20 → v1.0.0 Released → M21 → v1.1.0 Released`
 
-M20 should not be reopened for ordinary future development. Any post-v1.0 work should begin from a new explicitly defined milestone/version decision.
+Neither M20 nor M21 should be reopened for ordinary future development. Any post-v1.1 work should begin from a new explicitly defined milestone/version decision.
 
 ## Historical Audit Trail
 

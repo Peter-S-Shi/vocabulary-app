@@ -104,14 +104,13 @@ target.
 
 ## Current Phase
 
-**Milestones 19 and 20 are complete and v1.0.0 is released. Milestone 21 /
+**Milestones 19 and 20 are complete and v1.0.0 was released. Milestone 21 /
 v1.1.0 implementation, Phase Patch, and Phase F release verification are
-complete on merged `main`. The next lifecycle action is publication of
-v1.1.0 from that merged source, subject to separate operator authorization.**
+complete, and v1.1.0 is published from verified merged `main` as the current
+public release.**
 
-This one-step-ahead merge state does not claim that the `v1.1.0` tag or GitHub
-Release already exists. See § Milestone 21 and `PROJECT_STATUS.md` for the
-current release gate and evidence summary; older milestone sections remain the
+See § Milestone 21 and `PROJECT_STATUS.md` for the release gate, F4B
+publication record, and evidence summary; older milestone sections remain the
 historical record of how the v1.0 baseline was reached.
 
 The trustworthy data/business-logic baseline, repository restructure, Import
@@ -2142,9 +2141,9 @@ Record the exact verified remote commit associated with the release.
 
 ## Milestone 21: Vocabulary App v1.1.0
 
-**Status: Implementation and release verification complete on merged `main`;
-publication from merged `main` is next. No v1.1.0 tag or GitHub Release is
-claimed by this state.**
+**Status: Released. Implementation and release verification completed on
+merged `main`, and v1.1.0 is published from that source as the current
+public GitHub Release under the `v1.1.0` tag.**
 
 M21 is the bounded post-v1.0 product increment:
 
@@ -2173,19 +2172,20 @@ M21 is the bounded post-v1.0 product increment:
   isolated overlay upgrade proof remain green on the release source;
 - repository-wide release review has no hard standards violation, release
   blocker, data-safety regression, or packaging regression;
-- active governance documentation describes the post-merge, pre-publication
-  state without rewriting historical evidence; and
-- tag and GitHub Release creation remain separate operator-authorized actions
-  performed only from verified merged `main`.
+- active governance documentation is updated to the released state (this
+  section) without rewriting the historical pre-publication evidence trail
+  above it; and
+- tag and GitHub Release creation are separate operator-authorized actions,
+  performed only from verified merged `main` -- satisfied for `v1.1.0` by the
+  F4B publication record in `PROJECT_STATUS.md`.
 
 ---
 
 ## Current Version Complete
 
 The v1.0.0 product generation is complete and released. The v1.1.0 increment
-has completed implementation and release verification; its remaining lifecycle
-transition is publication from verified merged `main`. Publication, not this
-merge-ready branch, establishes the new public release.
+has completed implementation, release verification, and publication from
+verified merged `main`; v1.1.0 is the new current public release.
 
 ## Maintenance / Next Version
 

@@ -9,7 +9,7 @@ Your core learning data (entries, Collections, Quiz history) lives in a local SQ
 [![Platform: Windows](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-informational.svg)](#download-windows-desktop-app)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-informational.svg)](requirements.txt)
 
-**v1.1.0 is complete in the merged source and is the next release to publish from `main`; v1.0.0 remains the current public GitHub Release until that publication step occurs.** The native Windows desktop app (PySide6 + SQLite) is the primary product surface; the earlier Streamlit UI remains as a compatibility/reference surface. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the merge-ready v1.1 evidence and the [v1.0.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.0.0) for the currently published installer and checksum.
+**v1.1.0 is the current public release, published from verified merged `main`.** The native Windows desktop app (PySide6 + SQLite) is the primary product surface; the earlier Streamlit UI remains as a compatibility/reference surface. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the v1.1 release evidence and the [v1.1.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.1.0) for the currently published installer and checksum.
 
 ## See it
 
@@ -57,7 +57,7 @@ Schema changes are additive-only: an explicit schema/app-metadata version chain 
 
 ## Download (Windows desktop app)
 
-Download `VocabularyApp-Setup-1.0.0.exe` from the [v1.0.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.0.0), verify it if you like (`SHA-256 108095e3ce7d256bc610c33f427a9ee2fee4956cb69dde3bf0e105413865b297`, also published as `SHA256SUMS.txt`), then run it and launch **Vocabulary App** from the Start Menu.
+Download `VocabularyApp-Setup-1.1.0.exe` from the [v1.1.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.1.0), verify it if you like against the SHA-256 published as `SHA256SUMS.txt` on that release, then run it and launch **Vocabulary App** from the Start Menu. Upgrading from v1.0.0 preserves your existing data; see [PROJECT_STATUS.md](PROJECT_STATUS.md) for the upgrade contract.
 
 The installer is per-user and requires no admin rights. The certificate is a **self-signed developer certificate**, not a publicly trusted one — Windows SmartScreen may show an "unrecognized app" warning on first run; choose "More info" → "Run anyway" if you trust the source. See [M20 Code Signing Setup](docs/packaging/M20_CODE_SIGNING_SETUP.md) for the full rationale.
 
