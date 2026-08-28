@@ -104,16 +104,15 @@ target.
 
 ## Current Phase
 
-**Milestone 19 — Desktop Product Hardening Complete on `main` (Human
-Accepted 2026-08-18, merged via PR #30 at
-`2ad211711d96583b6fffdb65de912fa672502bc8`); Milestone 20 — Packaging
-and Release Candidate has reached RC Engineering Exit Candidate with
-Human RC PASS granted (2026-08-19) for SHA
-`89263a4f0f477fe5455ed22bedffd1968218bb1e` on branch
-`agent/m20-packaging-release-candidate` (Draft PR #33). Not yet merged
-to `main` — merge, tag, and GitHub Release publication all require the
-operator's separate, explicit authorization. See § Milestone 20 below
-for the full evidence record.**
+**Milestones 19 and 20 are complete and v1.0.0 is released. Milestone 21 /
+v1.1.0 implementation, Phase Patch, and Phase F release verification are
+complete on merged `main`. The next lifecycle action is publication of
+v1.1.0 from that merged source, subject to separate operator authorization.**
+
+This one-step-ahead merge state does not claim that the `v1.1.0` tag or GitHub
+Release already exists. See § Milestone 21 and `PROJECT_STATUS.md` for the
+current release gate and evidence summary; older milestone sections remain the
+historical record of how the v1.0 baseline was reached.
 
 The trustworthy data/business-logic baseline, repository restructure, Import
 and Template Evolution foundation, and Learning Analytics and Insight Core are
@@ -291,8 +290,8 @@ through M17/M18. **Milestone 19 — Desktop Product Hardening is Complete
 on `main`**, Human Accepted 2026-08-18 and merged via PR #30 at
 `2ad211711d96583b6fffdb65de912fa672502bc8` from the single long-lived
 branch `agent/m19-desktop-product-hardening` (baseline `9dae05c`); see
-§ Milestone 19 below for the full record. **Milestone 20 — Packaging
-and Release Candidate is the current/next lifecycle objective.**
+§ Milestone 19 below for the full record. Milestone 20 subsequently completed
+with the v1.0.0 release; Milestone 21 is the current post-v1.0 increment.
 
 ---
 
@@ -1953,9 +1952,9 @@ Acceptance Gate attempt records, plus
 [Milestone 19 Hardening QA](docs/qa/MILESTONE19_HARDENING_QA.md), for
 the complete evidence record.
 
-Desktop Product Hardening is complete and merged to `main`. Milestone
-20 — Packaging and Release Candidate is the current/next lifecycle
-objective.
+Desktop Product Hardening is complete and merged to `main`. Milestone 20 later
+completed through the accepted v1.0.0 release; its criteria remain below as the
+historical packaging and release contract.
 
 Milestone 19 is the formal system-wide hardening phase for the desktop product.
 
@@ -2079,6 +2078,9 @@ The desktop application becomes the primary manual acceptance target.
 
 ## Milestone 20: Packaging and Release Candidate
 
+**Status: Complete. v1.0.0 was merged, tagged, built from the tagged source,
+and published after Human RC acceptance.**
+
 Milestone 20 prepares the desktop application for credible distribution.
 
 ### 20.1 Packaging
@@ -2138,19 +2140,52 @@ Record the exact verified remote commit associated with the release.
 
 ---
 
+## Milestone 21: Vocabulary App v1.1.0
+
+**Status: Implementation and release verification complete on merged `main`;
+publication from merged `main` is next. No v1.1.0 tag or GitHub Release is
+claimed by this state.**
+
+M21 is the bounded post-v1.0 product increment:
+
+- **Phases A-E:** stable Card review scheduling; Star actions and honest
+  Collection progress; local-time presentation and stable Windows identity;
+  constrained Light/Dark theme customization; and release update awareness
+  without automatic download or installation.
+- **Phase Patch:** Quiz/Review Calendar scheduling coherence; consistent
+  Proficient Pool, manual-proficient, strength-recommendation, and random
+  practice behavior; and a shared normalized duplicate definition across
+  preview and write paths.
+- **Phase F:** v1.1.0 version and provenance authority, Windows build and
+  packaged-launch proof, real isolated v1.0.0 → v1.1.0 overlay verification,
+  real-Windows human acceptance, and fail-closed production-path guards for
+  upgrade tooling and synthetic scheduling fixtures.
+
+### Milestone 21 Release Gate
+
+- three parallel Release Closure shards (Theme & Update Surface; M18
+  remainder + full M19; M20 + timezone + v1.1 Phase/Patch/Review Scheduling)
+  run as the GitHub Actions release-closure evidence gate, after the original
+  single timeout-bounded `unittest discover` job could not complete within
+  the CI time limit; `unittest discover` remains available as a manual-only
+  job, not the active gate;
+- Windows installer build, provenance checks, packaged launch, and the real
+  isolated overlay upgrade proof remain green on the release source;
+- repository-wide release review has no hard standards violation, release
+  blocker, data-safety regression, or packaging regression;
+- active governance documentation describes the post-merge, pre-publication
+  state without rewriting historical evidence; and
+- tag and GitHub Release creation remain separate operator-authorized actions
+  performed only from verified merged `main`.
+
+---
+
 ## Current Version Complete
 
-The current product generation may be declared complete only after:
-
-- Milestone 19 exit criteria pass;
-- Milestone 20 exit criteria pass;
-- desktop Feature Freeze and Release Candidate acceptance are explicitly
-  recorded;
-- release documentation and known limitations are accurate; and
-- the intended release commit is verified remotely.
-
-Completion transitions the project to maintenance or the next product version.
-It does not mean the project is permanently finished.
+The v1.0.0 product generation is complete and released. The v1.1.0 increment
+has completed implementation and release verification; its remaining lifecycle
+transition is publication from verified merged `main`. Publication, not this
+merge-ready branch, establishes the new public release.
 
 ## Maintenance / Next Version
 
@@ -2194,6 +2229,9 @@ Pre-Desktop Stabilization
 -> Desktop Management and Major Feature Completion
 -> Desktop Product Hardening
 -> Packaging / Release Candidate
+-> v1.0.0 Release
+-> v1.1.0 Increment and Release Verification
+-> v1.1.0 Publication
 ```
 
 The governing migration principle remains:

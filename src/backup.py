@@ -31,6 +31,7 @@ BACKUP_TABLES = (
     "entry_change_events",
     "card_review_states",
     "card_review_logs",
+    "card_review_schedules",
     "quiz_sessions",
     "quiz_item_logs",
 )

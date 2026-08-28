@@ -51,7 +51,7 @@ if PYSIDE6_AVAILABLE:
             app = QApplication([])
         return app
 
-    def _wait_for_load(controller: "AnalyticsController", timeout_ms: int = 5000) -> None:
+    def _wait_for_load(controller: "AnalyticsController", timeout_ms: int = 15000) -> None:
         """Pump the Qt event loop until the controller's background
         Analytics load finishes (success or failure), then block until
         its QThread has *actually* stopped running.

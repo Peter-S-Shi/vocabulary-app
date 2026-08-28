@@ -41,6 +41,14 @@ COLLECTION_COLUMNS = [
     "card_number",
 ]
 TIMESTAMP_COLUMNS = ["created_at", "updated_at"]
+DUPLICATE_DEFINITION_SAME_LANGUAGE_TERM_MEANING = "same_language_term_meaning"
+DUPLICATE_DEFINITION_SAME_LANGUAGE_TERM = "same_language_term"
+DEFAULT_DUPLICATE_DEFINITION = DUPLICATE_DEFINITION_SAME_LANGUAGE_TERM_MEANING
+SUPPORTED_DUPLICATE_DEFINITIONS = {
+    DUPLICATE_DEFINITION_SAME_LANGUAGE_TERM_MEANING,
+    DUPLICATE_DEFINITION_SAME_LANGUAGE_TERM,
+}
+
 
 
 @contextmanager
@@ -576,13 +584,55 @@ def _comparison_value(value) -> str:
     return " ".join(str(value or "").strip().casefold().split())
 
 
-def get_existing_entry_keys(connection: Connection | None = None) -> set[tuple[str, str, str]]:
+def validate_duplicate_definition(duplicate_definition: str | None = None) -> str:
+    definition = str(duplicate_definition or DEFAULT_DUPLICATE_DEFINITION).strip().casefold()
+    if definition not in SUPPORTED_DUPLICATE_DEFINITIONS:
+        raise ValueError(
+            f"Unsupported duplicate definition: {duplicate_definition}. "
+            f"Must be one of {sorted(SUPPORTED_DUPLICATE_DEFINITIONS)}."
+        )
+    return definition
+
+
+def build_entry_duplicate_key(
+    language: str | None,
+    term: str | None,
+    meaning: str | None = None,
+    duplicate_definition: str = DEFAULT_DUPLICATE_DEFINITION,
+) -> tuple[str, ...]:
+    definition = validate_duplicate_definition(duplicate_definition)
+    clean_language = _comparison_value(language)
+    clean_term = _comparison_value(term)
+    if not clean_language or not clean_term:
+        return ()
+    if definition == DUPLICATE_DEFINITION_SAME_LANGUAGE_TERM:
+        return (clean_language, clean_term)
+    clean_meaning = _comparison_value(meaning)
+    if not clean_meaning:
+        return ()
+    return (clean_language, clean_term, clean_meaning)
+
+
+def get_existing_entry_keys(
+    connection: Connection | None = None,
+    duplicate_definition: str = DEFAULT_DUPLICATE_DEFINITION,
+) -> set[tuple[str, ...]]:
+    definition = validate_duplicate_definition(duplicate_definition)
     with _connection(connection) as conn:
+        if definition == DUPLICATE_DEFINITION_SAME_LANGUAGE_TERM:
+            rows = _dict_rows(conn, "SELECT language, term FROM entries")
+            return {
+                key
+                for row in rows
+                if (key := build_entry_duplicate_key(row.get("language"), row.get("term"), None, definition))
+            }
         rows = _dict_rows(conn, "SELECT language, term, meaning FROM entries")
-    return {
-        (_comparison_value(row.get("language")), _comparison_value(row.get("term")), _comparison_value(row.get("meaning")))
-        for row in rows
-    }
+        return {
+            key
+            for row in rows
+            if (key := build_entry_duplicate_key(row.get("language"), row.get("term"), row.get("meaning"), definition))
+        }
+
 
 
 def _resolve_template(data: dict, template_lookup: dict, mode: str) -> tuple[dict | None, list[str]]:
@@ -664,19 +714,22 @@ def _split_collection_names(value) -> list[str]:
 
 def detect_duplicate_candidates(
     rows: list[dict],
-    existing_keys: set[tuple[str, str, str]] | None = None,
+    existing_keys: set[tuple[str, ...]] | None = None,
+    duplicate_definition: str = DEFAULT_DUPLICATE_DEFINITION,
 ) -> set[int]:
+    definition = validate_duplicate_definition(duplicate_definition)
     known = set(existing_keys or set())
     duplicates = set()
     seen_import_keys = set()
     for row in rows:
         data = row.get("data", row)
+        language = data.get("language")
         term = data.get("resolved_term", data.get("term"))
         meaning = data.get("resolved_meaning", data.get("meaning"))
-        key = (_comparison_value(data.get("language")), _comparison_value(term), _comparison_value(meaning))
-        if all(key) and (key in known or key in seen_import_keys):
+        key = build_entry_duplicate_key(language, term, meaning, definition)
+        if key and (key in known or key in seen_import_keys):
             duplicates.add(int(row.get("row_number", 0)))
-        if all(key):
+        if key:
             seen_import_keys.add(key)
     return duplicates
 
@@ -686,16 +739,20 @@ def validate_import_rows(
     mode: str = "auto",
     options: dict | None = None,
     connection: Connection | None = None,
+    duplicate_definition: str = DEFAULT_DUPLICATE_DEFINITION,
 ) -> dict:
     if mode not in SUPPORTED_IMPORT_MODES:
         raise ImportPreviewError(f"Unsupported validation mode: {mode}")
     options = options or {}
     strict_template_fields = bool(options.get("strict_template_fields", True))
+    effective_duplicate_definition = validate_duplicate_definition(
+        options.get("duplicate_definition") or duplicate_definition
+    )
 
     with _connection(connection) as conn:
         template_lookup = get_template_lookup(conn)
         collection_lookup = get_collection_lookup(conn)
-        existing_keys = get_existing_entry_keys(conn)
+        existing_keys = get_existing_entry_keys(conn, duplicate_definition=effective_duplicate_definition)
         field_lookup_cache: dict[int, dict[str, dict]] = {}
         prepared_rows = []
 
@@ -822,7 +879,11 @@ def validate_import_rows(
                 for prepared in prepared_rows:
                     prepared["warnings"].append("This file contains multiple collection names; one selected destination will be used.")
 
-        duplicate_rows = detect_duplicate_candidates(prepared_rows, existing_keys)
+        duplicate_rows = detect_duplicate_candidates(
+            prepared_rows,
+            existing_keys,
+            duplicate_definition=effective_duplicate_definition,
+        )
         valid_rows = []
         invalid_rows = []
         warning_items = []
@@ -857,6 +918,7 @@ def build_import_preview(
     mode: str = "auto",
     options: dict | None = None,
     connection: Connection | None = None,
+    duplicate_definition: str = DEFAULT_DUPLICATE_DEFINITION,
 ) -> dict:
     file_type = detect_file_type(filename)
     if file_type == "csv":
@@ -867,7 +929,16 @@ def build_import_preview(
     normalized_rows = normalize_import_rows(raw_rows)
     if not normalized_rows:
         raise ImportPreviewError("File contains no rows.")
-    result = validate_import_rows(normalized_rows, mode=mode, options=options, connection=connection)
+    effective_duplicate_definition = validate_duplicate_definition(
+        (options or {}).get("duplicate_definition") or duplicate_definition
+    )
+    result = validate_import_rows(
+        normalized_rows,
+        mode=mode,
+        options=options,
+        connection=connection,
+        duplicate_definition=effective_duplicate_definition,
+    )
     result["file_type"] = file_type
     result["filename"] = filename
     return result
@@ -889,10 +960,12 @@ def import_general_entry_rows(
     target_collection_id: int | None = None,
     connection: Connection | None = None,
     reconcile_card_history: bool = True,
+    duplicate_definition: str = DEFAULT_DUPLICATE_DEFINITION,
 ) -> dict:
     if duplicate_handling not in DUPLICATE_HANDLING_OPTIONS:
         raise ValueError("Duplicate handling must be 'skip' or 'import_anyway'.")
 
+    definition = validate_duplicate_definition(duplicate_definition)
     owns_connection = connection is None
     conn = connection or get_connection()
     if not conn.in_transaction:
@@ -932,8 +1005,8 @@ def import_general_entry_rows(
                 ).fetchone()[0]
             )
 
-        existing_keys = get_existing_entry_keys(conn)
-        batch_keys: set[tuple[str, str, str]] = set()
+        existing_keys = get_existing_entry_keys(conn, duplicate_definition=definition)
+        batch_keys: set[tuple[str, ...]] = set()
         for index, row in enumerate(valid_rows):
             row_number = int(row.get("row_number") or index + 2)
             savepoint = f"import_row_{index}"
@@ -962,8 +1035,8 @@ def import_general_entry_rows(
                 if not meaning:
                     raise ValueError("Canonical meaning cannot be resolved.")
 
-                duplicate_key = (_comparison_value(language), _comparison_value(term), _comparison_value(meaning))
-                is_duplicate = duplicate_key in existing_keys or duplicate_key in batch_keys
+                duplicate_key = build_entry_duplicate_key(language, term, meaning, definition)
+                is_duplicate = bool(duplicate_key) and (duplicate_key in existing_keys or duplicate_key in batch_keys)
                 if is_duplicate and duplicate_handling == "skip":
                     result["skipped_duplicate_count"] += 1
                     result["warnings"].append({"row_number": row_number, "message": "Skipped duplicate entry"})
@@ -1042,8 +1115,9 @@ def import_general_entry_rows(
                     )
                 result["imported_entry_ids"].append(entry_id)
                 result["imported_count"] += 1
-                existing_keys.add(duplicate_key)
-                batch_keys.add(duplicate_key)
+                if duplicate_key:
+                    existing_keys.add(duplicate_key)
+                    batch_keys.add(duplicate_key)
                 conn.execute(f"RELEASE SAVEPOINT {savepoint}")
             except Exception as error:
                 conn.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
@@ -1142,10 +1216,12 @@ def import_template_entry_rows(
     target_collection_id: int | None = None,
     connection: Connection | None = None,
     reconcile_card_history: bool = True,
+    duplicate_definition: str = DEFAULT_DUPLICATE_DEFINITION,
 ) -> dict:
     if duplicate_handling not in DUPLICATE_HANDLING_OPTIONS:
         raise ValueError("Duplicate handling must be 'skip' or 'import_anyway'.")
 
+    definition = validate_duplicate_definition(duplicate_definition)
     owns_connection = connection is None
     conn = connection or get_connection()
     if not conn.in_transaction:
@@ -1171,8 +1247,8 @@ def import_template_entry_rows(
                 raise ValueError("Target collection does not exist.")
             next_position = int(conn.execute("SELECT COALESCE(MAX(position), 0) + 1 FROM entry_collections WHERE collection_id = ?", (int(target_collection_id),)).fetchone()[0])
 
-        existing_keys = get_existing_entry_keys(conn)
-        batch_keys: set[tuple[str, str, str]] = set()
+        existing_keys = get_existing_entry_keys(conn, duplicate_definition=definition)
+        batch_keys: set[tuple[str, ...]] = set()
         field_cache: dict[int, dict[str, dict]] = {}
         for index, row in enumerate(valid_rows):
             row_number = int(row.get("row_number") or index + 2)
@@ -1208,8 +1284,8 @@ def import_template_entry_rows(
                     raise ValueError("Canonical term cannot be resolved.")
                 if not meaning:
                     raise ValueError("Canonical meaning cannot be resolved.")
-                duplicate_key = (_comparison_value(language), _comparison_value(term), _comparison_value(meaning))
-                is_duplicate = duplicate_key in existing_keys or duplicate_key in batch_keys
+                duplicate_key = build_entry_duplicate_key(language, term, meaning, definition)
+                is_duplicate = bool(duplicate_key) and (duplicate_key in existing_keys or duplicate_key in batch_keys)
                 if is_duplicate and duplicate_handling == "skip":
                     result["skipped_duplicate_count"] += 1
                     result["warnings"].append({"row_number": row_number, "message": "Skipped duplicate entry"})
@@ -1268,8 +1344,9 @@ def import_template_entry_rows(
                 result["imported_entry_ids"].append(entry_id)
                 result["imported_count"] += 1
                 result["field_value_count"] += row_field_count
-                existing_keys.add(duplicate_key)
-                batch_keys.add(duplicate_key)
+                if duplicate_key:
+                    existing_keys.add(duplicate_key)
+                    batch_keys.add(duplicate_key)
                 conn.execute(f"RELEASE SAVEPOINT {savepoint}")
             except Exception as error:
                 conn.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
@@ -1347,11 +1424,13 @@ def import_collection_rows(
     create_collection_options: dict | None = None,
     preserve_file_order: bool = True,
     connection: Connection | None = None,
+    duplicate_definition: str = DEFAULT_DUPLICATE_DEFINITION,
 ) -> dict:
     if import_mode not in {"append_to_existing", "create_new_collection"}:
         raise ValueError("Unsupported collection import mode.")
     if duplicate_handling not in DUPLICATE_HANDLING_OPTIONS:
         raise ValueError("Duplicate handling must be 'skip' or 'import_anyway'.")
+    definition = validate_duplicate_definition(duplicate_definition)
     owns_connection = connection is None
     conn = connection or get_connection()
     result = {
@@ -1406,6 +1485,7 @@ def import_collection_rows(
                 target_collection_id=collection_id,
                 connection=conn,
                 reconcile_card_history=False,
+                duplicate_definition=definition,
             )
             result["imported_entry_count"] += row_result["imported_count"]
             result["skipped_duplicate_count"] += row_result["skipped_duplicate_count"]

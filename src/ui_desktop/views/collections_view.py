@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPlainTextEdit,
+    QProgressBar,
     QPushButton,
     QScrollArea,
     QSpinBox,
@@ -29,7 +30,7 @@ from src.collections import (
 )
 from src.ui_desktop.controllers.collections_controller import CollectionsController
 from src.ui_desktop.controllers.linked_source_controller import LinkedSourceController
-from src.ui_desktop.state.handoff import EntriesScopeIntent, StudyTargetIntent
+from src.ui_desktop.state.handoff import EntriesScopeIntent, QUIZ_TYPE_LABELS, QuizLaunchIntent, StudyTargetIntent
 from src.ui_desktop.theming.metrics import SPACING
 from src.ui_desktop.views.linked_source_view import LinkedSourceDialog
 
@@ -73,10 +74,11 @@ DESIGN.md § 6.8):
                              is supplied, and never a silent fallback if
                              the Card is gone by the time the handoff is
                              consumed.
-  no Quiz launcher here    -> Quiz is only ever reached through Review's
-                             existing Quick Quiz / Choose Quiz Type
-                             affordances after "Open in Study" -- this
-                             surface never talks to src.quiz directly.
+  Quiz launcher boundary   -> Starred and Proficient Pool alone expose a
+                             lightweight whole-pool Random Quiz setup. It
+                             emits the shared ``QuizLaunchIntent`` and never
+                             talks to ``src.quiz`` directly; normal
+                             Collections and Mistake Book remain unchanged.
 
 Corrective pass (M17_Minimum_Collection_Integration_Corrective_Pass.md
 § 2-4): a Collection's Card list is no longer rendered in full. A compact
@@ -174,11 +176,13 @@ _SORT_LABELS: tuple[tuple[str, str], ...] = (
 class CollectionsView(QWidget):
     open_entries_requested = Signal(object)  # EntriesScopeIntent
     open_in_study_requested = Signal(object)  # StudyTargetIntent
+    quiz_launch_requested = Signal(object)  # QuizLaunchIntent
 
     def __init__(self, controller: CollectionsController, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("collections-root")
         self._controller = controller
+        self._learning_progress_bars_visible = True
 
         root = QHBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -227,10 +231,24 @@ class CollectionsView(QWidget):
     def refresh(self) -> None:
         self._controller.refresh()
 
+    def set_learning_progress_bars_visible(self, visible: bool) -> None:
+        self._learning_progress_bars_visible = bool(visible)
+        for object_name in (
+            "collections-list-learning-progress",
+            "collections-detail-learning-progress",
+        ):
+            for progress_bar in self.findChildren(QProgressBar, object_name):
+                progress_bar.setVisible(self._learning_progress_bars_visible)
+
     # -- reactions ------------------------------------------------------
 
     def _on_collections_changed(self) -> None:
-        self._list_pane.render(self._controller.collections, self._controller.system_pools, self._controller.selected_id)
+        self._list_pane.render(
+            self._controller.collections,
+            self._controller.system_pools,
+            self._controller.selected_id,
+            show_progress_bars=self._learning_progress_bars_visible,
+        )
 
     def _on_item_selected(self, collection_id: int, is_system: bool) -> None:
         self._controller.select_collection(collection_id, is_system=is_system)
@@ -255,6 +273,11 @@ class CollectionsView(QWidget):
         linked_source_controller = LinkedSourceController()
         linked_source_controller.open_for_collection(int(collection["id"]), str(collection.get("name") or ""))
         dialog = LinkedSourceDialog(linked_source_controller, parent=self)
+        dialog.exec()
+
+    def _on_system_pool_random_quiz(self) -> None:
+        dialog = _SystemPoolRandomQuizDialog(self._controller, parent=self)
+        dialog.launch_requested.connect(self.quiz_launch_requested.emit)
         dialog.exec()
 
     def _on_rename_card(self, card_number: int, current_name: str) -> None:
@@ -307,8 +330,23 @@ class CollectionsView(QWidget):
             open_button.setEnabled(False)
         self._detail_layout.addWidget(open_button, 0)
 
+        if system_type in ("starred", "proficient_pool"):
+            random_quiz_button = QPushButton("Random Quiz", self._detail_container)
+            random_quiz_button.setObjectName("collections-system-pool-random-quiz-button")
+            random_quiz_button.setEnabled(bool(self._controller.random_quiz_type_options()))
+            random_quiz_button.clicked.connect(self._on_system_pool_random_quiz)
+            self._detail_layout.addWidget(random_quiz_button, 0)
+
+            if not random_quiz_button.isEnabled():
+                self._detail_layout.addWidget(
+                    _message_label("Add Entries to this pool before starting a Random Quiz.")
+                )
+
         self._detail_layout.addWidget(
-            _message_label("Practice pools are managed automatically and browsed here as a factual, read-only context.")
+            _message_label(
+                "Practice pools reflect saved learning memberships and quiz evidence. "
+                "Available practice actions depend on the pool."
+            )
         )
         self._detail_layout.addStretch(1)
 
@@ -332,6 +370,24 @@ class CollectionsView(QWidget):
         )
         meta.setObjectName("collections-detail-meta")
         self._detail_layout.addWidget(meta)
+
+        learned_cards = int(collection.get("learned_cards") or 0)
+        total_cards = int(collection.get("total_cards") or 0)
+        learning_percent = int(collection.get("learning_percent") or 0)
+        progress = QLabel(
+            f"{learned_cards} of {total_cards} Cards learned ({learning_percent}%)",
+            self._detail_container,
+        )
+        progress.setObjectName("collections-learning-progress")
+        self._detail_layout.addWidget(progress)
+
+        progress_bar = QProgressBar(self._detail_container)
+        progress_bar.setObjectName("collections-detail-learning-progress")
+        progress_bar.setRange(0, 100)
+        progress_bar.setValue(learning_percent)
+        progress_bar.setTextVisible(False)
+        progress_bar.setVisible(self._learning_progress_bars_visible)
+        self._detail_layout.addWidget(progress_bar)
 
         actions_row = QWidget(self._detail_container)
         actions_layout = QHBoxLayout(actions_row)
@@ -491,6 +547,71 @@ class CollectionsView(QWidget):
         return row
 
 
+class _SystemPoolRandomQuizDialog(QDialog):
+    """Lightweight whole-pool setup; QuizController remains the engine."""
+
+    launch_requested = Signal(object)  # QuizLaunchIntent
+
+    def __init__(self, controller: CollectionsController, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("collections-system-pool-random-quiz-dialog")
+        self.setWindowTitle("Random Quiz")
+        self._controller = controller
+
+        layout = QVBoxLayout(self)
+        collection = controller.selected_collection() or {}
+        layout.addWidget(QLabel(str(collection.get("name") or "Practice Pool"), self))
+
+        form = QFormLayout()
+        self._type_combo = QComboBox(self)
+        self._type_combo.setObjectName("collections-system-pool-random-quiz-type")
+        for quiz_type in controller.random_quiz_type_options():
+            self._type_combo.addItem(QUIZ_TYPE_LABELS.get(quiz_type, quiz_type), quiz_type)
+        self._type_combo.currentIndexChanged.connect(self._sync_count_range)
+        form.addRow("Quiz Type", self._type_combo)
+
+        self._count_spin = QSpinBox(self)
+        self._count_spin.setObjectName("collections-system-pool-random-quiz-count")
+        form.addRow("Item Count", self._count_spin)
+        layout.addLayout(form)
+
+        self._warning = QLabel("", self)
+        self._warning.setObjectName("collections-system-pool-random-quiz-warning")
+        self._warning.setWordWrap(True)
+        layout.addWidget(self._warning)
+
+        buttons = QHBoxLayout()
+        cancel = QPushButton("Cancel", self)
+        cancel.clicked.connect(self.reject)
+        buttons.addWidget(cancel)
+        buttons.addStretch(1)
+        self._start = QPushButton("Start Quiz", self)
+        self._start.setObjectName("collections-system-pool-random-quiz-start")
+        self._start.clicked.connect(self._launch)
+        buttons.addWidget(self._start)
+        layout.addLayout(buttons)
+        self._sync_count_range()
+
+    def _sync_count_range(self) -> None:
+        quiz_type = self._type_combo.currentData()
+        minimum, maximum = self._controller.random_quiz_item_count_range(quiz_type or "")
+        self._count_spin.setRange(max(minimum, 1), max(maximum, 1))
+        self._count_spin.setValue(min(maximum, 5) if maximum else 1)
+        self._start.setEnabled(minimum > 0 and maximum >= minimum)
+
+    def _launch(self) -> None:
+        try:
+            intent = self._controller.build_system_pool_random_quiz_intent(
+                str(self._type_combo.currentData() or ""),
+                self._count_spin.value(),
+            )
+        except ValueError as error:
+            self._warning.setText(str(error))
+            return
+        self.launch_requested.emit(intent)
+        self.accept()
+
+
 class _CollectionsListPane(QWidget):
     """Left selector pane: explicit "Collections" and "Practice Pools"
     sections (M17 Minimum Collection Integration prompt § 6), mirroring
@@ -513,7 +634,14 @@ class _CollectionsListPane(QWidget):
         self._group.setExclusive(True)
         self._buttons: dict[int, QPushButton] = {}
 
-    def render(self, collections: list[dict], system_pools: list[dict], active_id: int | None) -> None:
+    def render(
+        self,
+        collections: list[dict],
+        system_pools: list[dict],
+        active_id: int | None,
+        *,
+        show_progress_bars: bool = True,
+    ) -> None:
         _clear_layout(self._layout)
         for button in list(self._group.buttons()):
             self._group.removeButton(button)
@@ -523,22 +651,41 @@ class _CollectionsListPane(QWidget):
         if not collections:
             self._layout.addWidget(_message_label("No Collections yet."))
         for collection in collections:
-            self._add_item(collection, active_id, is_system=False)
+            self._add_item(
+                collection,
+                active_id,
+                is_system=False,
+                show_progress_bars=show_progress_bars,
+            )
 
         self._layout.addWidget(_list_divider())
         self._layout.addWidget(_list_heading("Practice Pools"))
         if not system_pools:
             self._layout.addWidget(_message_label("No practice pools yet."))
         for pool in system_pools:
-            self._add_item(pool, active_id, is_system=True)
+            self._add_item(pool, active_id, is_system=True, show_progress_bars=False)
 
-    def _add_item(self, collection: dict, active_id: int | None, *, is_system: bool) -> None:
+    def _add_item(
+        self,
+        collection: dict,
+        active_id: int | None,
+        *,
+        is_system: bool,
+        show_progress_bars: bool,
+    ) -> None:
         collection_id = int(collection["id"])
         count = int(collection.get("entry_count") or 0)
         name = _pool_display_name(collection.get("name")) if is_system else str(collection.get("name") or "")
-        text = f"{name}    {count}"
+        if is_system:
+            text = f"{name}    {count}"
+        else:
+            learned_cards = int(collection.get("learned_cards") or 0)
+            total_cards = int(collection.get("total_cards") or 0)
+            learning_percent = int(collection.get("learning_percent") or 0)
+            text = f"{name}    {count}\n{learned_cards}/{total_cards} Cards · {learning_percent}%"
         button = QPushButton(text, self)
         button.setObjectName("collections-list-item")
+        button.setProperty("normalCollection", not is_system)
         button.setCheckable(True)
         button.setFlat(True)
         button.setChecked(collection_id == active_id)
@@ -548,6 +695,14 @@ class _CollectionsListPane(QWidget):
         self._group.addButton(button)
         self._buttons[collection_id] = button
         self._layout.addWidget(button)
+        if not is_system:
+            progress_bar = QProgressBar(self)
+            progress_bar.setObjectName("collections-list-learning-progress")
+            progress_bar.setRange(0, 100)
+            progress_bar.setValue(learning_percent)
+            progress_bar.setTextVisible(False)
+            progress_bar.setVisible(show_progress_bars)
+            self._layout.addWidget(progress_bar)
 
 
 class _CollectionEditorDialog(QDialog):

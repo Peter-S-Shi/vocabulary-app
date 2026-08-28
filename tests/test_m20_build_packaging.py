@@ -47,11 +47,27 @@ class VersionInfoDriftGuardTests(unittest.TestCase):
         src.app_config.APP_VERSION -- this is the regression this
         function exists to catch before a release ships an installer
         with a stale embedded Windows file-properties version."""
+        self.assertEqual(APP_VERSION, "1.1.0")
         verify_version_info_matches(APP_VERSION)
 
     def test_mismatched_version_raises(self) -> None:
         with self.assertRaises(BuildError):
             verify_version_info_matches("9.9.9-does-not-exist")
+
+    def test_partial_field_drifts_each_raise_build_error(self) -> None:
+        valid_text = VERSION_INFO_PATH.read_text(encoding="utf-8")
+        corrupted_cases = [
+            ("ProductVersion drift", valid_text.replace(f"ProductVersion', u'{APP_VERSION}'", "ProductVersion', u'0.9.0'")),
+            ("FileVersion string drift", valid_text.replace("FileVersion', u'1.1.0.0'", "FileVersion', u'1.0.0.0'")),
+            ("filevers tuple drift", valid_text.replace("filevers=(1, 1, 0, 0)", "filevers=(1, 0, 0, 0)")),
+            ("prodvers tuple drift", valid_text.replace("prodvers=(1, 1, 0, 0)", "prodvers=(1, 0, 0, 0)")),
+        ]
+        for name, bad_content in corrupted_cases:
+            with self.subTest(drift_case=name):
+                with patch("pathlib.Path.read_text", return_value=bad_content):
+                    with self.assertRaises(BuildError) as ctx:
+                        verify_version_info_matches(APP_VERSION)
+                    self.assertIn("does not match", str(ctx.exception))
 
     def test_get_app_version_returns_the_real_app_config_value(self) -> None:
         self.assertEqual(get_app_version(), APP_VERSION)
@@ -142,6 +158,12 @@ class SigningHookTests(unittest.TestCase):
 
 
 class InnoCompilerDiscoveryTests(unittest.TestCase):
+    def test_finds_program_files_install_location(self) -> None:
+        prog_path = Path(r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe")
+        with patch.object(Path, "is_file", autospec=True, side_effect=lambda p: str(p) == str(prog_path)):
+            found = find_inno_compiler()
+        self.assertEqual(found, prog_path)
+
     def test_finds_per_user_install_location(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             local_app_data = Path(tmp)
@@ -149,15 +171,84 @@ class InnoCompilerDiscoveryTests(unittest.TestCase):
             iscc_dir.mkdir(parents=True)
             iscc_path = iscc_dir / "ISCC.exe"
             iscc_path.write_bytes(b"")
-            with patch.dict("os.environ", {"LOCALAPPDATA": str(local_app_data)}):
+
+            def mock_is_file(p: Path) -> bool:
+                return str(p) == str(iscc_path)
+
+            with patch.dict("os.environ", {"LOCALAPPDATA": str(local_app_data)}), \
+                    patch.object(Path, "is_file", autospec=True, side_effect=mock_is_file):
                 found = find_inno_compiler()
             self.assertEqual(found, iscc_path)
 
     def test_returns_none_when_not_found_anywhere(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, \
                 patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
+                patch.object(Path, "is_file", return_value=False), \
                 patch("shutil.which", return_value=None):
             self.assertIsNone(find_inno_compiler())
+
+
+class PackagedSmokeTestAndDependencyContractTests(unittest.TestCase):
+    def test_requirements_desktop_contains_all_runtime_dependencies(self) -> None:
+        """Lock down requirements-desktop.txt to include openpyxl and PySide6."""
+        req_desktop_path = Path(__file__).resolve().parent.parent / "requirements-desktop.txt"
+        self.assertTrue(req_desktop_path.is_file())
+        content = req_desktop_path.read_text(encoding="utf-8")
+        self.assertIn("PySide6", content)
+        self.assertIn("openpyxl", content)
+
+    def test_desktop_entry_smoke_test_function(self) -> None:
+        """Verify that desktop_entry._run_smoke_test() executes and passes."""
+        from winbuild.desktop_entry import _run_smoke_test
+
+        result = _run_smoke_test()
+        self.assertEqual(result, 0)
+
+    def test_verify_packaged_smoke_helper_success(self) -> None:
+        from winbuild.build import verify_packaged_smoke
+
+        with tempfile.TemporaryDirectory() as tmp:
+            app_dir = Path(tmp) / "Vocabulary App"
+            app_dir.mkdir()
+            exe_path = app_dir / "Vocabulary App.exe"
+            exe_path.write_bytes(b"dummy")
+
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value.returncode = 0
+                mock_run.return_value.stdout = "PACKAGED_SMOKE_TEST_PASSED\n"
+                mock_run.return_value.stderr = ""
+                verify_packaged_smoke(app_dir)
+
+    def test_verify_packaged_smoke_helper_failure_raises(self) -> None:
+        from winbuild.build import BuildError, verify_packaged_smoke
+
+        with tempfile.TemporaryDirectory() as tmp:
+            app_dir = Path(tmp) / "Vocabulary App"
+            app_dir.mkdir()
+            exe_path = app_dir / "Vocabulary App.exe"
+            exe_path.write_bytes(b"dummy")
+
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value.returncode = 1
+                mock_run.return_value.stdout = ""
+                mock_run.return_value.stderr = "ModuleNotFoundError: No module named 'openpyxl'"
+                with self.assertRaises(BuildError) as ctx:
+                    verify_packaged_smoke(app_dir)
+                self.assertIn("Packaged app smoke test failed", str(ctx.exception))
+
+
+class ReleaseWorkflowContractTests(unittest.TestCase):
+    def test_full_regression_release_gate_is_complete_and_timeout_bounded(self) -> None:
+        workflow_path = (
+            Path(__file__).resolve().parent.parent
+            / ".github"
+            / "workflows"
+            / "windows_build.yml"
+        )
+        workflow = workflow_path.read_text(encoding="utf-8")
+        self.assertIn("name: Full Regression / Release Gate", workflow)
+        self.assertIn("timeout-minutes: 45", workflow)
+        self.assertIn("python -m unittest discover -v", workflow)
 
 
 if __name__ == "__main__":  # pragma: no cover

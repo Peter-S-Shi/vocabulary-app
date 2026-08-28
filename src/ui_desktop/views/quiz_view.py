@@ -1,13 +1,18 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from datetime import date
+
+from PySide6.QtCore import QDate, QLocale, Qt, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QCheckBox,
     QComboBox,
     QDialog,
+    QDateEdit,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QRadioButton,
     QScrollArea,
@@ -15,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from src.collections import CROSS_CARD_CONFIRMATION_MESSAGE, CrossCardMoveConfirmationRequired
 from src.ui_desktop.controllers.quiz_controller import MATCHING_FAMILY, MCQ_FAMILY, QuizController
 from src.ui_desktop.state.handoff import QUIZ_TYPE_LABELS
 from src.ui_desktop.state.preferences import (
@@ -138,9 +144,11 @@ class _WrappingLabel(QLabel):
 
     def resizeEvent(self, event) -> None:  # noqa: N802 (Qt override)
         super().resizeEvent(event)
-        needed = self.heightForWidth(self.width())
-        if needed >= 0 and self.minimumHeight() != needed:
-            self.setMinimumHeight(needed)
+        w = self.width()
+        if w > 0:
+            needed = self.heightForWidth(w)
+            if needed >= 0 and self.minimumHeight() != needed:
+                self.setMinimumHeight(needed)
 
 
 class _MatchingComboBox(QComboBox):
@@ -213,6 +221,7 @@ class QuizView(QWidget):
         self._presentation = DEFAULT_QUIZ_PRESENTATION
         controller.state_changed.connect(self._render)
         controller.matching_selection_changed.connect(self._on_matching_selection_changed)
+        controller.starred_changed.connect(self._on_starred_changed)
 
     def set_presentation(self, quiz_presentation: str) -> None:
         """Resolve this Quiz session's presentation once, at launch time
@@ -400,6 +409,16 @@ class QuizView(QWidget):
             layout.addWidget(_message_label("This Quiz has no items.", "quiz-empty-state"))
             return False
 
+        layout.addWidget(
+            self._build_star_button(
+                int(item["entry_id"]),
+                parent,
+                object_name="quiz-current-entry-star-button",
+            ),
+            0,
+            Qt.AlignmentFlag.AlignHCenter,
+        )
+
         term = _WrappingLabel(str(item.get("prompt") or ""), parent)
         term.setObjectName("quiz-term-label")
         term.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -464,6 +483,16 @@ class QuizView(QWidget):
         if item is None:
             layout.addWidget(_message_label("This Quiz has no items.", "quiz-empty-state"))
             return False
+
+        layout.addWidget(
+            self._build_star_button(
+                int(item["entry_id"]),
+                parent,
+                object_name="quiz-current-entry-star-button",
+            ),
+            0,
+            Qt.AlignmentFlag.AlignHCenter,
+        )
 
         term = _WrappingLabel(str(item.get("prompt") or ""), parent)
         term.setObjectName("quiz-term-label")
@@ -643,6 +672,15 @@ class QuizView(QWidget):
         layout = QHBoxLayout(row)
         layout.setSpacing(SPACING.sm)
 
+        layout.addWidget(
+            self._build_star_button(
+                int(item["entry_id"]),
+                row,
+                object_name=f"quiz-matching-star-button-{int(item['entry_id'])}",
+            ),
+            0,
+        )
+
         term_label = QLabel(str(item.get("term") or ""), row)
         term_label.setObjectName("quiz-matching-term-label")
         layout.addWidget(term_label, 1)
@@ -660,6 +698,36 @@ class QuizView(QWidget):
         layout.addWidget(combo, 1)
 
         return row
+
+    def _build_star_button(self, entry_id: int, parent: QWidget, *, object_name: str) -> QPushButton:
+        button = QPushButton(parent)
+        button.setObjectName(object_name)
+        button.setProperty("entryId", entry_id)
+        button.setProperty("learningStar", True)
+        button.setMinimumSize(112, 40)
+        self._set_star_button_state(button, self._controller.is_entry_starred(entry_id))
+        button.clicked.connect(lambda: self._toggle_entry_star(entry_id, confirm_cross_card=False))
+        return button
+
+    @staticmethod
+    def _set_star_button_state(button: QPushButton, starred: bool) -> None:
+        button.setProperty("starred", starred)
+        button.setText("★ Starred" if starred else "☆ Star")
+        button.setAccessibleName("Unstar Entry" if starred else "Star Entry")
+        button.style().unpolish(button)
+        button.style().polish(button)
+
+    def _on_starred_changed(self, entry_id: int, starred: bool) -> None:
+        for button in self.findChildren(QPushButton):
+            if button.property("entryId") == entry_id:
+                self._set_star_button_state(button, starred)
+
+    def _toggle_entry_star(self, entry_id: int, *, confirm_cross_card: bool) -> None:
+        try:
+            self._controller.toggle_entry_star(entry_id, confirm_cross_card=confirm_cross_card)
+        except CrossCardMoveConfirmationRequired:
+            if _confirm_cross_card_reorganization(self):
+                self._toggle_entry_star(entry_id, confirm_cross_card=True)
 
     # -- completion ------------------------------------------------------
 
@@ -701,6 +769,248 @@ class QuizView(QWidget):
         mistakes_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         mistakes_label.setWordWrap(True)
         layout.addWidget(mistakes_label)
+
+        audit_candidates = controller.completion_proficient_audit_candidates()
+        if audit_candidates:
+            layout.addWidget(_section_divider(block))
+            audit_heading = QLabel("Review Proficient Status", block)
+            audit_heading.setObjectName("quiz-completion-proficient-audit-heading")
+            audit_heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(audit_heading)
+
+            removed_audit_ids = set(controller.completion_proficient_audit_removals())
+            audit_checks: list[QCheckBox] = []
+            for candidate in audit_candidates:
+                entry_id = int(candidate["entry_id"])
+                term = str(candidate.get("term") or f"Entry #{entry_id}")
+                meaning = str(candidate.get("meaning") or "")
+                checkbox = QCheckBox(f"{term} — {meaning}" if meaning else term, block)
+                checkbox.setObjectName(f"quiz-completion-proficient-audit-entry-{entry_id}")
+                checkbox.setProperty("entryId", entry_id)
+                checkbox.setChecked(
+                    controller.is_completion_proficient_audit_candidate_selected(entry_id)
+                )
+                checkbox.setEnabled(entry_id not in removed_audit_ids)
+                audit_checks.append(checkbox)
+                layout.addWidget(checkbox, 0, Qt.AlignmentFlag.AlignLeft)
+
+            if removed_audit_ids:
+                removed_terms = [
+                    str(candidate.get("term") or f"Entry #{candidate['entry_id']}")
+                    for candidate in audit_candidates
+                    if int(candidate["entry_id"]) in removed_audit_ids
+                ]
+                removed_status = QLabel(
+                    f"Removed from Proficient Pool: {', '.join(removed_terms)}",
+                    block,
+                )
+                removed_status.setObjectName("quiz-completion-proficient-audit-removed-status")
+                removed_status.setWordWrap(True)
+                layout.addWidget(removed_status)
+
+            audit_actions = QWidget(block)
+            audit_actions_layout = QHBoxLayout(audit_actions)
+            audit_actions_layout.setContentsMargins(0, 0, 0, 0)
+            keep_button = QPushButton("Keep All in Proficient Pool", audit_actions)
+            keep_button.setObjectName("quiz-completion-proficient-audit-keep-button")
+            keep_button.clicked.connect(controller.keep_all_completion_proficient_audit_entries)
+            audit_actions_layout.addWidget(keep_button)
+            remove_button = QPushButton("Remove Selected from Proficient Pool", audit_actions)
+            remove_button.setObjectName("quiz-completion-proficient-audit-remove-button")
+            audit_actions_layout.addWidget(remove_button)
+
+            def _sync_audit_selection() -> None:
+                for candidate_checkbox in audit_checks:
+                    controller.set_completion_proficient_audit_candidate_selected(
+                        int(candidate_checkbox.property("entryId")),
+                        candidate_checkbox.isChecked(),
+                    )
+                remove_button.setEnabled(
+                    any(checkbox.isEnabled() and checkbox.isChecked() for checkbox in audit_checks)
+                )
+
+            def _remove_selected_audit_entries(*, confirm_cross_card: bool = False) -> None:
+                _sync_audit_selection()
+                try:
+                    controller.remove_selected_completion_proficient_audit_entries(
+                        confirm_cross_card=confirm_cross_card
+                    )
+                except CrossCardMoveConfirmationRequired:
+                    if _confirm_cross_card_reorganization(self):
+                        _remove_selected_audit_entries(confirm_cross_card=True)
+
+            for checkbox in audit_checks:
+                checkbox.toggled.connect(_sync_audit_selection)
+            remove_button.clicked.connect(_remove_selected_audit_entries)
+            _sync_audit_selection()
+            layout.addWidget(audit_actions, 0, Qt.AlignmentFlag.AlignHCenter)
+
+        candidates = controller.completion_proficient_candidates()
+        if candidates:
+            layout.addWidget(_section_divider(block))
+            proficient_heading = QLabel("Ready for Proficient Pool", block)
+            proficient_heading.setObjectName("quiz-completion-proficient-heading")
+            proficient_heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(proficient_heading)
+
+            added_ids = set(controller.completion_proficient_additions())
+            candidate_rows: list[QCheckBox] = []
+            for candidate in candidates:
+                entry_id = int(candidate["entry_id"])
+                term = str(candidate.get("term") or f"Entry #{entry_id}")
+                meaning = str(candidate.get("meaning") or "")
+                label = f"{term} — {meaning}" if meaning else term
+                checkbox = QCheckBox(label, block)
+                checkbox.setObjectName(f"quiz-completion-proficient-entry-{entry_id}")
+                checkbox.setProperty("entryId", entry_id)
+                checkbox.setChecked(
+                    controller.is_completion_proficient_candidate_selected(entry_id)
+                )
+                checkbox.setEnabled(entry_id not in added_ids)
+                candidate_rows.append(checkbox)
+                layout.addWidget(checkbox, 0, Qt.AlignmentFlag.AlignLeft)
+
+            added_terms = [
+                str(candidate.get("term") or f"Entry #{candidate['entry_id']}")
+                for candidate in candidates
+                if int(candidate["entry_id"]) in added_ids
+            ]
+            if added_terms:
+                added_status = QLabel(
+                    f"Added to Proficient Pool: {', '.join(added_terms)}",
+                    block,
+                )
+                added_status.setObjectName("quiz-completion-proficient-added-status")
+                added_status.setWordWrap(True)
+                layout.addWidget(added_status)
+
+            add_button = QPushButton("Add Selected to Proficient Pool", block)
+            add_button.setObjectName("quiz-completion-proficient-add-button")
+
+            def _sync_proficient_selection() -> None:
+                for candidate_checkbox in candidate_rows:
+                    candidate_entry_id = int(candidate_checkbox.property("entryId"))
+                    controller.set_completion_proficient_candidate_selected(
+                        candidate_entry_id,
+                        candidate_checkbox.isChecked(),
+                    )
+                add_button.setEnabled(
+                    any(
+                        candidate_checkbox.isEnabled() and candidate_checkbox.isChecked()
+                        for candidate_checkbox in candidate_rows
+                    )
+                )
+
+            for checkbox in candidate_rows:
+                checkbox.toggled.connect(_sync_proficient_selection)
+            add_button.clicked.connect(
+                controller.add_selected_completion_entries_to_proficient_pool
+            )
+            _sync_proficient_selection()
+            layout.addWidget(add_button, 0, Qt.AlignmentFlag.AlignHCenter)
+
+        if controller.completion_schedule() is not None:
+            layout.addWidget(_section_divider(block))
+            schedule_heading = QLabel("Next Review", block)
+            schedule_heading.setObjectName("quiz-completion-schedule-heading")
+            schedule_heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(schedule_heading)
+
+            schedule = controller.completion_schedule()
+            current_next_due = schedule.get("next_due_at")
+            initial_status = f"Scheduled · {current_next_due}" if current_next_due else "Unscheduled"
+            schedule_status = QLabel(initial_status, block)
+            schedule_status.setObjectName("quiz-completion-schedule-status")
+            schedule_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(schedule_status)
+
+            today_date = (
+                controller._today_provider()
+                if hasattr(controller, "_today_provider") and callable(controller._today_provider)
+                else date.today()
+            )
+            base_qdate = QDate(today_date.year, today_date.month, today_date.day)
+
+            staged_due: dict[str, str | None] = {"date": None}
+
+            preset_row = QWidget(block)
+            preset_layout = QHBoxLayout(preset_row)
+            preset_layout.setSpacing(SPACING.sm)
+            preset_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+
+            preset_buttons: list[tuple[QPushButton, int, str]] = []
+
+            custom_row = QWidget(block)
+            custom_layout = QHBoxLayout(custom_row)
+            custom_layout.setSpacing(SPACING.sm)
+            custom_layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+
+            custom_date = QDateEdit(custom_row)
+            custom_date.setObjectName("quiz-completion-schedule-custom-date")
+            custom_date.setCalendarPopup(True)
+            english_locale = QLocale(QLocale.Language.English, QLocale.Country.UnitedStates)
+            custom_date.setLocale(english_locale)
+            calendar_popup = custom_date.calendarWidget()
+            if calendar_popup:
+                calendar_popup.setObjectName("quiz-completion-schedule-popup")
+                calendar_popup.setLocale(english_locale)
+            custom_date.setDisplayFormat("yyyy-MM-dd")
+            custom_date.setMinimumDate(base_qdate)
+            custom_date.setDate(base_qdate.addDays(1))
+            custom_layout.addWidget(custom_date)
+
+            save_button = QPushButton("Schedule Review", custom_row)
+            save_button.setObjectName("quiz-completion-schedule-save-button")
+            save_button.setEnabled(False)
+            custom_layout.addWidget(save_button)
+
+            def _update_preset_styles(selected_date_str: str | None) -> None:
+                for btn, days, _ in preset_buttons:
+                    target_str = base_qdate.addDays(days).toString("yyyy-MM-dd")
+                    is_selected = (selected_date_str == target_str)
+                    btn.setProperty("staged", "true" if is_selected else "false")
+                    btn.setChecked(is_selected)
+                    btn.style().unpolish(btn)
+                    btn.style().polish(btn)
+
+            def _stage_preset(days: int) -> None:
+                target_qdate = base_qdate.addDays(days)
+                target_str = target_qdate.toString("yyyy-MM-dd")
+                staged_due["date"] = target_str
+                custom_date.blockSignals(True)
+                custom_date.setDate(target_qdate)
+                custom_date.blockSignals(False)
+                _update_preset_styles(target_str)
+                save_button.setEnabled(True)
+
+            def _on_custom_date_changed(new_date: QDate) -> None:
+                target_str = new_date.toString("yyyy-MM-dd")
+                staged_due["date"] = target_str
+                _update_preset_styles(target_str)
+                save_button.setEnabled(True)
+
+            def _on_save_clicked() -> None:
+                target = staged_due["date"] or custom_date.date().toString("yyyy-MM-dd")
+                controller.schedule_next_review(target)
+
+            for label, days, suffix in (
+                ("Again Today", 0, "today"),
+                ("+1 day", 1, "1-day"),
+                ("+2 days", 2, "2-days"),
+                ("+7 days", 7, "7-days"),
+            ):
+                button = QPushButton(label, preset_row)
+                button.setObjectName(f"quiz-completion-schedule-{suffix}")
+                button.setCheckable(True)
+                button.clicked.connect(lambda _checked=False, d=days: _stage_preset(d))
+                preset_layout.addWidget(button)
+                preset_buttons.append((button, days, suffix))
+
+            custom_date.dateChanged.connect(_on_custom_date_changed)
+            save_button.clicked.connect(_on_save_clicked)
+
+            layout.addWidget(preset_row)
+            layout.addWidget(custom_row)
 
         actions_row = QWidget(block)
         actions_layout = QHBoxLayout(actions_row)
@@ -967,4 +1277,15 @@ def _clear_layout(layout) -> None:
         item = layout.takeAt(0)
         widget = item.widget()
         if widget is not None:
+            widget.setParent(None)
             widget.deleteLater()
+
+
+def _confirm_cross_card_reorganization(parent: QWidget) -> bool:
+    result = QMessageBox.question(
+        parent,
+        "Confirm Card Reorganization",
+        CROSS_CARD_CONFIRMATION_MESSAGE,
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+    )
+    return result == QMessageBox.StandardButton.Yes

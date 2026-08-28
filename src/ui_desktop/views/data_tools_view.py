@@ -27,6 +27,7 @@ from src.backup import BackupError
 from src.db_import import DatabaseImportError
 from src.template_definitions import TemplateDefinitionError
 from src.ui_desktop.controllers.data_tools_controller import (
+    DUPLICATE_DEFINITION_LABELS,
     EXPORT_SCOPE_LABELS,
     IMPORT_MODE_LABELS,
     DataToolsController,
@@ -310,7 +311,8 @@ class _ImportDialog(QDialog):
         super().__init__(parent)
         self.setObjectName("data-tools-import-dialog")
         self.setWindowTitle("Import")
-        self.setMinimumSize(640, 620)
+        self.setMinimumSize(640, 560)
+        self.resize(780, 720)
         self._controller = controller
 
         outer = QVBoxLayout(self)
@@ -364,9 +366,9 @@ class _ImportDialog(QDialog):
         self._summary_label.setObjectName("data-tools-summary-label")
         layout.addWidget(self._summary_label)
 
-        valid_heading = QLabel("Valid Rows", self)
-        valid_heading.setObjectName("data-tools-section-heading")
-        layout.addWidget(valid_heading)
+        self._valid_heading = QLabel("Valid Rows", self)
+        self._valid_heading.setObjectName("data-tools-section-heading")
+        layout.addWidget(self._valid_heading)
         self._valid_table = QTableWidget(self)
         self._valid_table.setObjectName("data-tools-valid-table")
         self._valid_table.setColumnCount(4)
@@ -375,12 +377,13 @@ class _ImportDialog(QDialog):
         self._valid_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self._valid_table.verticalHeader().setVisible(False)
         self._valid_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        self._valid_table.setMaximumHeight(160)
+        self._valid_table.setMinimumHeight(220)
         layout.addWidget(self._valid_table)
 
-        invalid_heading = QLabel("Invalid Rows", self)
-        invalid_heading.setObjectName("data-tools-section-heading")
-        layout.addWidget(invalid_heading)
+        self._invalid_heading = QLabel("Invalid Rows", self)
+        self._invalid_heading.setObjectName("data-tools-section-heading")
+        self._invalid_heading.setVisible(False)
+        layout.addWidget(self._invalid_heading)
         self._invalid_table = QTableWidget(self)
         self._invalid_table.setObjectName("data-tools-invalid-table")
         self._invalid_table.setColumnCount(2)
@@ -389,12 +392,22 @@ class _ImportDialog(QDialog):
         self._invalid_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self._invalid_table.verticalHeader().setVisible(False)
         self._invalid_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        self._invalid_table.setMaximumHeight(140)
+        self._invalid_table.setMinimumHeight(100)
+        self._invalid_table.setMaximumHeight(160)
+        self._invalid_table.setVisible(False)
         layout.addWidget(self._invalid_table)
 
         # -- Duplicate handling + destination --------------------------
         options_form = QFormLayout()
+        self._duplicate_definition_combo = QComboBox(self)
+        self._duplicate_definition_combo.setObjectName("data-tools-duplicate-definition-combo")
+        for value, label in DUPLICATE_DEFINITION_LABELS:
+            self._duplicate_definition_combo.addItem(label, value)
+        self._duplicate_definition_combo.currentIndexChanged.connect(self._on_duplicate_definition_changed)
+        options_form.addRow("Duplicate definition", self._duplicate_definition_combo)
+
         self._duplicate_combo = QComboBox(self)
+        self._duplicate_combo.setObjectName("data-tools-duplicate-handling-combo")
         self._duplicate_combo.addItem("Skip duplicates", "skip")
         self._duplicate_combo.addItem("Import anyway", "import_anyway")
         self._duplicate_combo.currentIndexChanged.connect(self._on_duplicate_changed)
@@ -489,6 +502,11 @@ class _ImportDialog(QDialog):
         value = self._sheet_combo.itemData(index)
         if value is not None:
             self._controller.set_sheet(value)
+
+    def _on_duplicate_definition_changed(self, index: int) -> None:
+        value = self._duplicate_definition_combo.itemData(index)
+        if value is not None:
+            self._controller.set_duplicate_definition(value)
 
     def _on_duplicate_changed(self, index: int) -> None:
         value = self._duplicate_combo.itemData(index)
@@ -605,6 +623,18 @@ class _ImportDialog(QDialog):
 
         self._update_destination_visibility()
 
+        self._duplicate_definition_combo.blockSignals(True)
+        def_idx = self._duplicate_definition_combo.findData(controller.duplicate_definition)
+        if def_idx >= 0:
+            self._duplicate_definition_combo.setCurrentIndex(def_idx)
+        self._duplicate_definition_combo.blockSignals(False)
+
+        self._duplicate_combo.blockSignals(True)
+        hand_idx = self._duplicate_combo.findData(controller.duplicate_handling)
+        if hand_idx >= 0:
+            self._duplicate_combo.setCurrentIndex(hand_idx)
+        self._duplicate_combo.blockSignals(False)
+
         if controller.preview_error:
             self._preview_error_label.setText(controller.preview_error)
         else:
@@ -615,6 +645,8 @@ class _ImportDialog(QDialog):
             self._summary_label.setText("")
             self._valid_table.setRowCount(0)
             self._invalid_table.setRowCount(0)
+            self._invalid_heading.setVisible(False)
+            self._invalid_table.setVisible(False)
         else:
             summary = preview["summary"]
             self._summary_label.setText(
@@ -632,6 +664,9 @@ class _ImportDialog(QDialog):
                 self._valid_table.setItem(row, 3, QTableWidgetItem(str(data.get("language") or "")))
 
             invalid_rows = preview["invalid_rows"]
+            has_invalid = len(invalid_rows) > 0
+            self._invalid_heading.setVisible(has_invalid)
+            self._invalid_table.setVisible(has_invalid)
             self._invalid_table.setRowCount(len(invalid_rows))
             for row, entry in enumerate(invalid_rows):
                 self._invalid_table.setItem(row, 0, QTableWidgetItem(str(entry.get("row_number"))))

@@ -1,14 +1,24 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import date
+from typing import Callable
 
 from PySide6.QtCore import QObject, Signal
 
+from src.collections import (
+    add_entries_to_system_collection,
+    get_card_entries_for_study,
+    get_entry_ids_in_system_collection,
+    remove_entries_from_system_collection,
+)
+from src.insights import get_completed_quiz_strength_candidates_for_session
 from src.quiz import (
     create_quiz_items,
     create_quiz_session,
     generate_mcq_items,
     generate_random_quiz_items,
+    get_failed_proficient_pool_entries_for_session,
     get_active_quiz_session,
     get_entries_for_quiz,
     get_quiz_item_log_view,
@@ -17,8 +27,10 @@ from src.quiz import (
     complete_quiz_session,
     record_quiz_answer,
 )
+from src.review_schedule import get_card_schedule, schedule_card_after_days, set_card_next_review
 from src.template_quiz import generate_template_multi_rule_quiz_items, get_template_quiz_rule
 from src.ui_desktop.state.handoff import QuizLaunchIntent
+from src.ui_desktop.state.preferences import Preferences
 
 """
 QuizController owns the active-quiz presentation/session-interaction state
@@ -80,6 +92,7 @@ _STALE_SESSION_CLEANUP_LIMIT = 50
 
 class QuizController(QObject):
     state_changed = Signal()
+    starred_changed = Signal(int, bool)
     # A Matching answer pick is transient item state, not a reason to
     # rebuild the whole task surface (VR-STUDY-001 corrective pass § 2B) --
     # QuizView listens for this separately from state_changed so it can
@@ -87,8 +100,15 @@ class QuizController(QObject):
     # user's scroll position and already-selected answers on every pick.
     matching_selection_changed = Signal()
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        today_provider: Callable[[], date] = date.today,
+        preferences: Preferences | None = None,
+    ) -> None:
         super().__init__()
+        self._today_provider = today_provider
+        self.preferences = preferences
         self.session_id: int | None = None
         self.intent: QuizLaunchIntent | None = None
         self.items: list[dict] = []
@@ -114,6 +134,19 @@ class QuizController(QObject):
         # rebuilt on every ``start()``, never written to vocab.db, never a
         # second source of grading truth.
         self.item_results: list[bool | None] = []
+        self._starred_entry_ids: set[int] = set()
+        self._completion_proficient_candidates: list[dict] = []
+        self._selected_completion_proficient_entry_ids: set[int] = set()
+        self._added_completion_proficient_entry_ids: set[int] = set()
+        self._completion_proficient_audit_candidates: list[dict] = []
+        self._selected_completion_proficient_audit_entry_ids: set[int] = set()
+        self._removed_completion_proficient_audit_entry_ids: set[int] = set()
+
+    @property
+    def include_proficient_in_study(self) -> bool:
+        if self.preferences is not None:
+            return bool(self.preferences.include_proficient_in_study)
+        return True
 
     # -- family classification --------------------------------------------
 
@@ -164,7 +197,23 @@ class QuizController(QObject):
 
         items = list(generation.get("quiz_items") or [])
         if not items:
-            self.start_error = NOT_ENOUGH_ENTRIES_ERROR
+            if intent.card_number > 0 and not self.include_proficient_in_study:
+                raw_entries = get_card_entries_for_study(
+                    intent.collection_id,
+                    intent.card_number,
+                    include_proficient=True,
+                )
+                filtered_entries = get_card_entries_for_study(
+                    intent.collection_id,
+                    intent.card_number,
+                    include_proficient=False,
+                )
+                if raw_entries and not filtered_entries:
+                    self.start_error = "All entries in this Card are marked as proficient. No regular Quiz items available."
+                else:
+                    self.start_error = NOT_ENOUGH_ENTRIES_ERROR
+            else:
+                self.start_error = NOT_ENOUGH_ENTRIES_ERROR
             self.state_changed.emit()
             return False
 
@@ -186,6 +235,12 @@ class QuizController(QObject):
         self.session_id = create_quiz_session(intent.collection_id, intent.card_number, intent.quiz_type, len(items))
         self.intent = intent
         self.items = items
+        self._starred_entry_ids = set(
+            get_entry_ids_in_system_collection(
+                [int(item["entry_id"]) for item in items],
+                "starred",
+            )
+        )
         self.meaning_choices = generation.get("meaning_choices")
         self.generation_warning = str(generation.get("warning") or "")
         self.current_index = 0
@@ -195,6 +250,12 @@ class QuizController(QObject):
         self.matching_selection = {}
         self.completed_session = None
         self.mistakes = []
+        self._completion_proficient_candidates = []
+        self._selected_completion_proficient_entry_ids = set()
+        self._added_completion_proficient_entry_ids = set()
+        self._completion_proficient_audit_candidates = []
+        self._selected_completion_proficient_audit_entry_ids = set()
+        self._removed_completion_proficient_audit_entry_ids = set()
         self.pending_intent = None
         self.item_results = [None] * len(items)
         self.state_changed.emit()
@@ -220,6 +281,7 @@ class QuizController(QObject):
                 rules,
                 quiz_type,
                 intent.template_difficulty,
+                include_proficient=self.include_proficient_in_study,
             )
 
         if quiz_type == "matching":
@@ -233,11 +295,20 @@ class QuizController(QObject):
             return generate_random_quiz_items(intent.collection_id, quiz_type, intent.item_count)
 
         if quiz_type in PLAIN_SELF_GRADED_TYPES:
-            entries = get_entries_for_quiz(intent.collection_id, intent.card_number)
+            entries = get_entries_for_quiz(
+                intent.collection_id,
+                intent.card_number,
+                include_proficient=self.include_proficient_in_study,
+            )
             return {"quiz_items": create_quiz_items(entries, quiz_type), "meaning_choices": None, "warning": ""}
 
         if quiz_type in PLAIN_MCQ_TYPES:
-            items = generate_mcq_items(intent.collection_id, intent.card_number, quiz_type)
+            items = generate_mcq_items(
+                intent.collection_id,
+                intent.card_number,
+                quiz_type,
+                include_proficient=self.include_proficient_in_study,
+            )
             return {"quiz_items": items, "meaning_choices": None, "warning": ""}
 
         raise ValueError(f"Unsupported quiz type: {quiz_type}")
@@ -269,6 +340,27 @@ class QuizController(QObject):
         if 0 <= index < len(self.item_results):
             return self.item_results[index]
         return None
+
+    def is_entry_starred(self, entry_id: int) -> bool:
+        return entry_id in self._starred_entry_ids
+
+    def toggle_entry_star(self, entry_id: int, *, confirm_cross_card: bool = False) -> bool:
+        entry_id = int(entry_id)
+        if self.is_entry_starred(entry_id):
+            remove_entries_from_system_collection(
+                [entry_id],
+                "starred",
+                confirm_cross_card=confirm_cross_card,
+            )
+            self._starred_entry_ids.remove(entry_id)
+            starred = False
+        else:
+            add_entries_to_system_collection([entry_id], "starred")
+            self._starred_entry_ids.add(entry_id)
+            starred = True
+
+        self.starred_changed.emit(entry_id, starred)
+        return starred
 
     # -- self-graded ---------------------------------------------------------
 
@@ -378,6 +470,22 @@ class QuizController(QObject):
         session = complete_quiz_session(self.session_id)
         self.completed_session = session
         self.mistakes = get_quiz_item_log_view(session_id=self.session_id, show_wrong_only=True)
+        self._completion_proficient_candidates = get_completed_quiz_strength_candidates_for_session(
+            self.session_id,
+            as_of_date=self._today_provider(),
+        )
+        self._selected_completion_proficient_entry_ids = {
+            int(candidate["entry_id"])
+            for candidate in self._completion_proficient_candidates
+        }
+        self._added_completion_proficient_entry_ids = set()
+        self._completion_proficient_audit_candidates = [
+            row
+            for row in get_failed_proficient_pool_entries_for_session(self.session_id)
+            if row.get("currently_in_proficient_pool")
+        ]
+        self._selected_completion_proficient_audit_entry_ids = set()
+        self._removed_completion_proficient_audit_entry_ids = set()
         self.items = []
         self.current_index = 0
         self.feedback = None
@@ -385,6 +493,145 @@ class QuizController(QObject):
         self.reviewing_mistakes = False
         self.mistake_index = 0
         self.state_changed.emit()
+
+    def completion_proficient_candidates(self) -> list[dict]:
+        if self.completed_session is None:
+            return []
+        return [dict(candidate) for candidate in self._completion_proficient_candidates]
+
+    def is_completion_proficient_candidate_selected(self, entry_id: int) -> bool:
+        return int(entry_id) in self._selected_completion_proficient_entry_ids
+
+    def set_completion_proficient_candidate_selected(self, entry_id: int, selected: bool) -> None:
+        entry_id = int(entry_id)
+        candidate_ids = {
+            int(candidate["entry_id"])
+            for candidate in self._completion_proficient_candidates
+        }
+        if entry_id not in candidate_ids or entry_id in self._added_completion_proficient_entry_ids:
+            return
+        if selected:
+            self._selected_completion_proficient_entry_ids.add(entry_id)
+        else:
+            self._selected_completion_proficient_entry_ids.discard(entry_id)
+
+    def completion_proficient_additions(self) -> list[int]:
+        return sorted(self._added_completion_proficient_entry_ids)
+
+    def add_selected_completion_entries_to_proficient_pool(self) -> list[int]:
+        if self.completed_session is None:
+            return []
+        candidate_ids = {
+            int(candidate["entry_id"])
+            for candidate in self._completion_proficient_candidates
+        }
+        selected_ids = sorted(
+            (self._selected_completion_proficient_entry_ids & candidate_ids)
+            - self._added_completion_proficient_entry_ids
+        )
+        if not selected_ids:
+            return []
+        add_entries_to_system_collection(selected_ids, "proficient_pool")
+        self._added_completion_proficient_entry_ids.update(selected_ids)
+        self._selected_completion_proficient_entry_ids.difference_update(selected_ids)
+        self.state_changed.emit()
+        return selected_ids
+
+    def completion_proficient_audit_candidates(self) -> list[dict]:
+        if self.completed_session is None:
+            return []
+        return [dict(candidate) for candidate in self._completion_proficient_audit_candidates]
+
+    def is_completion_proficient_audit_candidate_selected(self, entry_id: int) -> bool:
+        return int(entry_id) in self._selected_completion_proficient_audit_entry_ids
+
+    def set_completion_proficient_audit_candidate_selected(self, entry_id: int, selected: bool) -> None:
+        entry_id = int(entry_id)
+        candidate_ids = {
+            int(candidate["entry_id"])
+            for candidate in self._completion_proficient_audit_candidates
+        }
+        if entry_id not in candidate_ids or entry_id in self._removed_completion_proficient_audit_entry_ids:
+            return
+        if selected:
+            self._selected_completion_proficient_audit_entry_ids.add(entry_id)
+        else:
+            self._selected_completion_proficient_audit_entry_ids.discard(entry_id)
+
+    def keep_all_completion_proficient_audit_entries(self) -> None:
+        self._selected_completion_proficient_audit_entry_ids.clear()
+        self.state_changed.emit()
+
+    def completion_proficient_audit_removals(self) -> list[int]:
+        return sorted(self._removed_completion_proficient_audit_entry_ids)
+
+    def remove_selected_completion_proficient_audit_entries(
+        self,
+        *,
+        confirm_cross_card: bool = False,
+    ) -> list[int]:
+        if self.completed_session is None or self.session_id is None:
+            return []
+        currently_removable_ids = {
+            int(row["entry_id"])
+            for row in get_failed_proficient_pool_entries_for_session(self.session_id)
+            if row.get("currently_in_proficient_pool")
+        }
+        selected_ids = sorted(
+            (self._selected_completion_proficient_audit_entry_ids & currently_removable_ids)
+            - self._removed_completion_proficient_audit_entry_ids
+        )
+        if not selected_ids:
+            return []
+        remove_entries_from_system_collection(
+            selected_ids,
+            "proficient_pool",
+            confirm_cross_card=confirm_cross_card,
+        )
+        self._removed_completion_proficient_audit_entry_ids.update(selected_ids)
+        self._selected_completion_proficient_audit_entry_ids.difference_update(selected_ids)
+        self.state_changed.emit()
+        return selected_ids
+
+    def completion_schedule(self, *, today: str | None = None) -> dict | None:
+        session = self.completed_session
+        if not session or not session.get("card_id") or int(session.get("card_number") or 0) <= 0:
+            return None
+        return get_card_schedule(int(session["card_id"]), today=today)
+
+    def schedule_next_review(
+        self,
+        next_due_at: str,
+        *,
+        today: str | None = None,
+    ) -> dict:
+        session = self.completed_session
+        if not session or not session.get("card_id") or int(session.get("card_number") or 0) <= 0:
+            raise ValueError("Only a completed Card-scoped Quiz can be scheduled.")
+        schedule = set_card_next_review(
+            int(session["card_id"]),
+            next_due_at,
+            today=today,
+        )
+        self.state_changed.emit()
+        return schedule
+
+    def schedule_next_review_after_days(
+        self,
+        days: int,
+        *,
+        today: str | None = None,
+    ) -> dict:
+        session = self.completed_session
+        if not session or not session.get("card_id") or int(session.get("card_number") or 0) <= 0:
+            raise ValueError("Only a completed Card-scoped Quiz can be scheduled.")
+        schedule = schedule_card_after_days(
+            int(session["card_id"]),
+            days,
+            today=today or self._today_provider().isoformat(),
+        )
+        self.state_changed.emit()
+        return schedule
 
     # -- post-Quiz mistake review --------------------------------------------
 
@@ -506,5 +753,12 @@ class QuizController(QObject):
         self.reviewing_mistakes = False
         self.mistake_index = 0
         self.item_results = []
+        self._starred_entry_ids = set()
+        self._completion_proficient_candidates = []
+        self._selected_completion_proficient_entry_ids = set()
+        self._added_completion_proficient_entry_ids = set()
+        self._completion_proficient_audit_candidates = []
+        self._selected_completion_proficient_audit_entry_ids = set()
+        self._removed_completion_proficient_audit_entry_ids = set()
         if not silent:
             self.state_changed.emit()

@@ -3,6 +3,9 @@ from __future__ import annotations
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
 from PySide6.QtGui import QColor
 
+from src.time_utils import format_local_timestamp
+from src.ui_desktop.theming.tokens import THEME_CALM_BLUE_LIGHT
+
 """
 QAbstractTableModel adapter wrapping the plain dict rows returned by
 src.entries.search_entries()/get_entries_in_collection() (each row
@@ -69,7 +72,7 @@ class EntriesTableModel(QAbstractTableModel):
 
     # Safe default before the view supplies the real resolved token color
     # (set_star_color()); never the sole source of truth for it.
-    DEFAULT_STAR_COLOR = QColor("#8A6D00")
+    DEFAULT_STAR_COLOR = QColor(THEME_CALM_BLUE_LIGHT.accent.primary.background)
     FOCUSED_ROW_TINT = QColor(62, 102, 144, 40)
 
     checkbox_toggled = Signal(int, bool)
@@ -178,6 +181,8 @@ class EntriesTableModel(QAbstractTableModel):
         if key == "collections":
             names = row.get("collection_names") or []
             return ", ".join(names)
+        if key == "updated_at":
+            return format_local_timestamp(row.get(key, ""))
         return str(row.get(key, "") or "")
 
     def setData(self, index: QModelIndex, value, role: int = Qt.ItemDataRole.EditRole) -> bool:  # noqa: N802 (Qt API)

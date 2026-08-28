@@ -10,25 +10,35 @@ from PySide6.QtWidgets import QApplication
 from src.ui_desktop.theming.metrics import RADIUS_DEFAULT, SPACING
 from src.ui_desktop.theming.system_appearance import detect_system_color_scheme
 from src.ui_desktop.theming.tokens import (
+    PRESET_CALM_BLUE,
+    PRESET_INDIGO_VIOLET,
+    PRESET_NAMES,
+    PRESET_SAGE_TEAL,
+    PRESET_WARM_NEUTRAL,
     THEME_CALM_BLUE_DARK,
     THEME_CALM_BLUE_LIGHT,
+    THEME_INDIGO_VIOLET_DARK,
+    THEME_INDIGO_VIOLET_LIGHT,
+    THEME_SAGE_TEAL_DARK,
+    THEME_SAGE_TEAL_LIGHT,
+    THEME_WARM_NEUTRAL_DARK,
+    THEME_WARM_NEUTRAL_LIGHT,
+    CustomThemeConfig,
+    ModeCustomization,
     ThemeTokens,
+    build_resolved_theme_tokens,
 )
 
 """
-Resolves (Appearance, Accent) into a QPalette + QSS pair and applies both
-through one call site, per the M16.1 contract § 14 theme/token
-implementation boundary. This module decides only the PySide6 plumbing; it
-does not redesign any DESIGN.md token value.
+Resolves (Appearance, Accent, Customization) into a QPalette + QSS pair and applies both
+through one call site, per the M16.1 contract § 14 theme/token implementation boundary.
+This module decides only the PySide6 plumbing; it does not redesign any DESIGN.md token value.
 
-M17 Theme Completion & Cross-Screen Validation closes the Appearance axis:
-``System`` now resolves through a real, live OS Light/Dark read
-(``system_appearance.detect_system_color_scheme``) instead of the M16.2
-placeholder that always resolved to Light, and ``ThemeManager.apply()`` is
-now safely re-callable at any point during a running session -- Settings'
-Appearance control and a live OS appearance change (while ``System`` is
-selected) both drive re-application through this same single call site,
-never a second theme-switch mechanism.
+Phase D Theme Engine:
+- Four official presets (Calm Blue, Sage / Teal, Indigo / Violet, Warm Neutral) as safe starters.
+- Independent Light and Dark mode custom state with automatic WCAG contrast protection.
+- Live staging & real-time preview (Cancel / Apply / Undo / Reset lifecycle).
+- Dynamic re-application on OS light/dark scheme changes.
 """
 
 LOGGER = logging.getLogger("vocabulary_app.ui")
@@ -42,6 +52,9 @@ class Appearance(str, Enum):
 
 class Accent(str, Enum):
     CALM_BLUE = "Calm Blue"
+    SAGE_TEAL = "Sage / Teal"
+    INDIGO_VIOLET = "Indigo / Violet"
+    WARM_NEUTRAL = "Warm Neutral"
 
 
 DEFAULT_APPEARANCE = Appearance.SYSTEM
@@ -59,6 +72,14 @@ def parse_accent(value: str) -> Accent:
     try:
         return Accent(value)
     except ValueError:
+        # Fallback aliases
+        v_low = str(value).lower().strip()
+        if "sage" in v_low or "teal" in v_low:
+            return Accent.SAGE_TEAL
+        if "indigo" in v_low or "violet" in v_low:
+            return Accent.INDIGO_VIOLET
+        if "warm" in v_low or "neutral" in v_low:
+            return Accent.WARM_NEUTRAL
         return DEFAULT_ACCENT
 
 
@@ -70,8 +91,7 @@ def resolve_effective_appearance(appearance: Appearance) -> Appearance:
     If the platform cannot report an appearance (``Qt.ColorScheme.
     Unknown`` -- an unsupported platform/Qt build, not an error), this
     falls back to ``Light`` explicitly and logs the fallback rather than
-    silently pretending ``System`` detection succeeded (M17 Theme
-    Completion prompt § 7).
+    silently pretending ``System`` detection succeeded.
     """
     if appearance is not Appearance.SYSTEM:
         return appearance
@@ -90,17 +110,26 @@ def resolve_effective_appearance(appearance: Appearance) -> Appearance:
 _TOKENS_BY_THEME: dict[tuple[Appearance, Accent], ThemeTokens] = {
     (Appearance.LIGHT, Accent.CALM_BLUE): THEME_CALM_BLUE_LIGHT,
     (Appearance.DARK, Accent.CALM_BLUE): THEME_CALM_BLUE_DARK,
+    (Appearance.LIGHT, Accent.SAGE_TEAL): THEME_SAGE_TEAL_LIGHT,
+    (Appearance.DARK, Accent.SAGE_TEAL): THEME_SAGE_TEAL_DARK,
+    (Appearance.LIGHT, Accent.INDIGO_VIOLET): THEME_INDIGO_VIOLET_LIGHT,
+    (Appearance.DARK, Accent.INDIGO_VIOLET): THEME_INDIGO_VIOLET_DARK,
+    (Appearance.LIGHT, Accent.WARM_NEUTRAL): THEME_WARM_NEUTRAL_LIGHT,
+    (Appearance.DARK, Accent.WARM_NEUTRAL): THEME_WARM_NEUTRAL_DARK,
 }
 
 
-def resolve_tokens(appearance: Appearance, accent: Accent) -> ThemeTokens:
+def resolve_tokens(
+    appearance: Appearance,
+    accent: Accent = DEFAULT_ACCENT,
+    customization: ModeCustomization | None = None,
+) -> ThemeTokens:
     effective_appearance = resolve_effective_appearance(appearance)
+    if customization is not None:
+        return build_resolved_theme_tokens(effective_appearance.value, customization)
+
     key = (effective_appearance, accent)
     if key not in _TOKENS_BY_THEME:
-        # Only Calm Blue is transcribed in M16.2 (tokens.py docstring);
-        # fall back to the default accent rather than raising for an
-        # unimplemented family so a malformed/future preference value
-        # degrades safely instead of crashing the shell.
         key = (effective_appearance, DEFAULT_ACCENT)
     return _TOKENS_BY_THEME[key]
 
@@ -165,10 +194,74 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     accent = tokens.accent
     semantic = tokens.semantic
     danger = tokens.semantic.danger
+    star = tokens.semantic.star
     radius = RADIUS_DEFAULT
     sp = SPACING
 
     return f"""
+    /* Phase B learning Star controls are deliberate learning actions, not
+    low-emphasis inline links. Both states receive an explicit foreground /
+    background pair so the global stylesheet cannot erase their contrast. */
+    QPushButton[learningStar="true"] {{
+        min-width: 112px;
+        min-height: 40px;
+        border: 2px solid {star.background};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+        font-size: 16px;
+        font-weight: 700;
+    }}
+    QPushButton[learningStar="true"][starred="false"] {{
+        background-color: {neutral.surface_primary};
+        color: {star.background};
+    }}
+    QPushButton[learningStar="true"][starred="true"] {{
+        background-color: {star.background};
+        color: {star.foreground};
+    }}
+    QPushButton[learningStar="true"]:hover {{
+        border-width: 3px;
+    }}
+    QPushButton[learningEntryAction="true"] {{
+        min-width: 96px;
+        /* 28px, not the round 32px it shipped with: the paired
+        learningStar/learningProficient border below still contributes to
+        this button's total rendered height (see the border-width override
+        after those rules), so the content min-height has to leave room for
+        that border + this rule's own padding while keeping the pair under
+        the compact-control 40px contract (Patch B2). */
+        min-height: 28px;
+        padding: 4px 10px;
+        font-size: 14px;
+    }}
+    QPushButton[learningProficient="true"] {{
+        border: 2px solid {accent.primary.background};
+        border-radius: {radius}px;
+        font-weight: 700;
+    }}
+    QPushButton[learningProficient="true"][proficient="false"] {{
+        background-color: {neutral.surface_primary};
+        color: {accent.primary.background};
+    }}
+    QPushButton[learningProficient="true"][proficient="true"] {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+    }}
+    QPushButton[learningProficient="true"]:hover {{
+        border-width: 3px;
+    }}
+    /* Patch B2's compact Star/Proficient action pair carries both the
+    full-size learningStar/learningProficient property (for the semantic
+    state border color) and learningEntryAction (for compact sizing). This
+    rule must come after both base rules so its thinner border-width wins
+    the QSS cascade regardless of declaration order above -- otherwise the
+    paired button's rendered height (min-height + padding + border) grows
+    past the intended compact size. */
+    QPushButton[learningStar="true"][learningEntryAction="true"],
+    QPushButton[learningProficient="true"][learningEntryAction="true"] {{
+        border-width: 1px;
+    }}
+
     QTableView {{
         background-color: {neutral.surface_primary};
         color: {neutral.text_primary};
@@ -264,6 +357,9 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     QLabel#nav-rail-mark[navActive="true"] {{
         background-color: {accent.primary.background};
         border-color: {accent.primary.background};
+    }}
+    QLabel#nav-rail-mark[hasUpdate="true"] {{
+        border: 2px solid {accent.primary.background};
     }}
     QLabel#nav-rail-mark-disabled {{
         background-color: transparent;
@@ -922,6 +1018,89 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         background-color: {accent.hover.background};
         color: {accent.hover.foreground};
     }}
+    QLabel#quiz-completion-schedule-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#quiz-completion-schedule-status {{
+        color: {neutral.text_primary};
+        font-size: 14px;
+        font-weight: 600;
+    }}
+    QPushButton#quiz-completion-schedule-today,
+    QPushButton#quiz-completion-schedule-1-day,
+    QPushButton#quiz-completion-schedule-2-days,
+    QPushButton#quiz-completion-schedule-7-days {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 12px;
+        font-size: 13px;
+    }}
+    QPushButton#quiz-completion-schedule-today:hover:enabled,
+    QPushButton#quiz-completion-schedule-1-day:hover:enabled,
+    QPushButton#quiz-completion-schedule-2-days:hover:enabled,
+    QPushButton#quiz-completion-schedule-7-days:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QPushButton#quiz-completion-schedule-today:checked,
+    QPushButton#quiz-completion-schedule-1-day:checked,
+    QPushButton#quiz-completion-schedule-2-days:checked,
+    QPushButton#quiz-completion-schedule-7-days:checked,
+    QPushButton#quiz-completion-schedule-today[staged="true"],
+    QPushButton#quiz-completion-schedule-1-day[staged="true"],
+    QPushButton#quiz-completion-schedule-2-days[staged="true"],
+    QPushButton#quiz-completion-schedule-7-days[staged="true"] {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 2px solid {accent.primary.background};
+        font-weight: 600;
+    }}
+    QDateEdit#quiz-completion-schedule-custom-date {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 10px;
+        font-size: 13px;
+        min-width: 125px;
+    }}
+    QCalendarWidget#quiz-completion-schedule-popup QWidget,
+    QCalendarWidget#quiz-completion-schedule-popup QToolButton,
+    QCalendarWidget#quiz-completion-schedule-popup QSpinBox,
+    QCalendarWidget#quiz-completion-schedule-popup QAbstractItemView {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+    }}
+    QCalendarWidget#quiz-completion-schedule-popup QAbstractItemView {{
+        selection-background-color: {accent.soft.background};
+        selection-color: {accent.soft.foreground};
+    }}
+    QPushButton#quiz-completion-schedule-save-button,
+    QPushButton#quiz-completion-schedule-custom-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 16px;
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#quiz-completion-schedule-save-button:hover:enabled,
+    QPushButton#quiz-completion-schedule-custom-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#quiz-completion-schedule-save-button:disabled,
+    QPushButton#quiz-completion-schedule-custom-button:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
     QLabel#quiz-mistake-position-label {{
         color: {neutral.text_secondary};
         font-size: 13px;
@@ -1126,6 +1305,171 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     QLabel#settings-section-note {{
         color: {neutral.text_muted};
         font-size: 12px;
+    }}
+    /* Phase D Theme Customization (Settings Theme Editor) */
+    QTabWidget#settings-theme-tabs::pane {{
+        border: 1px solid {neutral.border_default};
+        background-color: {neutral.surface_primary};
+        border-radius: {radius}px;
+        top: -1px;
+    }}
+    QTabBar#settings-theme-tabbar::tab {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_secondary};
+        padding: 8px 24px;
+        margin-right: 4px;
+        border-top-left-radius: {radius}px;
+        border-top-right-radius: {radius}px;
+        border: 1px solid {neutral.border_default};
+        border-bottom: none;
+        font-weight: 600;
+        font-size: 13px;
+    }}
+    QTabBar#settings-theme-tabbar::tab:selected {{
+        background-color: {neutral.surface_primary};
+        color: {accent.primary.background};
+        border-bottom: 2px solid {accent.primary.background};
+    }}
+    QTabBar#settings-theme-tabbar::tab:hover:!selected {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+    }}
+    QComboBox#settings-preset-combo {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 10px;
+        font-size: 13px;
+        min-width: 180px;
+    }}
+    QPushButton#settings-theme-apply-btn {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 18px;
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#settings-theme-apply-btn:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#settings-theme-apply-btn:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QPushButton#settings-theme-cancel-btn, QPushButton#settings-theme-reset-btn, QPushButton#settings-theme-undo-btn {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+        font-size: 13px;
+        font-weight: 500;
+    }}
+    QPushButton#settings-theme-cancel-btn:hover:enabled, QPushButton#settings-theme-reset-btn:hover:enabled, QPushButton#settings-theme-undo-btn:hover:enabled {{
+        background-color: {neutral.border_subtle};
+        border-color: {neutral.border_strong};
+    }}
+    QPushButton#settings-theme-cancel-btn:disabled, QPushButton#settings-theme-reset-btn:disabled, QPushButton#settings-theme-undo-btn:disabled {{
+        color: {neutral.text_disabled};
+        background-color: {neutral.surface_primary};
+        border-color: {neutral.border_subtle};
+    }}
+    QPushButton#settings-color-pick-btn, QPushButton#settings-color-reset-btn {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 4px 12px;
+        font-size: 12px;
+        font-weight: 500;
+    }}
+    QPushButton#settings-color-pick-btn:hover:enabled, QPushButton#settings-color-reset-btn:hover:enabled {{
+        background-color: {neutral.border_subtle};
+        border-color: {neutral.border_strong};
+    }}
+    QLabel#settings-contrast-badge {{
+        border: 1px solid {neutral.border_default};
+        border-radius: 10px;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 600;
+    }}
+    QLabel#settings-theme-feedback-label {{
+        color: {neutral.text_secondary};
+        font-size: 12px;
+        font-style: italic;
+        padding-top: 4px;
+    }}
+    /* Software Update Section (Phase E Level 1 Update Awareness) */
+    QPushButton#settings-update-check-btn {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 6px 14px;
+        font-size: 13px;
+        font-weight: 500;
+    }}
+    QPushButton#settings-update-check-btn:hover:enabled {{
+        background-color: {neutral.border_subtle};
+        border-color: {neutral.border_strong};
+    }}
+    QPushButton#settings-update-check-btn:disabled {{
+        color: {neutral.text_disabled};
+        background-color: {neutral.surface_primary};
+        border-color: {neutral.border_subtle};
+    }}
+    QPushButton#settings-update-release-btn {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 6px 16px;
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#settings-update-release-btn:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QLabel#settings-update-version-label {{
+        color: {neutral.text_primary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QLabel#settings-update-status-label {{
+        color: {neutral.text_secondary};
+        font-size: 12px;
+    }}
+    QLabel#settings-update-badge-available {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+        border-radius: 4px;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 600;
+    }}
+    QLabel#settings-update-badge-uptodate {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_muted};
+        border: 1px solid {neutral.border_subtle};
+        border-radius: 4px;
+        padding: 2px 8px;
+        font-size: 11px;
+    }}
+    QLabel#settings-update-badge-failed {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_muted};
+        border: 1px solid {neutral.border_subtle};
+        border-radius: 4px;
+        padding: 2px 8px;
+        font-size: 11px;
     }}
     /* Final Human Acceptance Gate corrective: the Data Tools hub's
     Audio Export preflight status text beside its progress ring. (The
@@ -1518,6 +1862,30 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_primary};
         font-weight: 600;
     }}
+    QLabel#collections-learning-progress {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+    }}
+    QProgressBar#collections-list-learning-progress,
+    QProgressBar#collections-detail-learning-progress {{
+        background-color: {neutral.surface_sunken};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+    }}
+    QProgressBar#collections-list-learning-progress {{
+        min-height: 6px;
+        max-height: 6px;
+        margin: 0px 8px 4px 8px;
+    }}
+    QProgressBar#collections-detail-learning-progress {{
+        min-height: 12px;
+        max-height: 12px;
+    }}
+    QProgressBar#collections-list-learning-progress::chunk,
+    QProgressBar#collections-detail-learning-progress::chunk {{
+        background-color: {accent.primary.background};
+        border-radius: {radius}px;
+    }}
     QLabel#collections-title {{
         color: {neutral.text_primary};
         font-size: 21px;
@@ -1784,7 +2152,7 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         font-size: 12px;
     }}
 
-    /* M18 Phase C1 -- Review Calendar / Card History (P7 Evidence
+    /* M18 Phase C1 / Patch A2 -- Review Calendar / Card History (P7 Evidence
     Browser). Every control below lives directly in the workspace, not a
     QDialog, so -- per the Human Gate 1 corrective lesson -- each needs
     its own explicit rule rather than relying on any generic fallback. */
@@ -1792,6 +2160,20 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_primary};
         font-size: 21px;
         font-weight: 700;
+    }}
+    QPushButton#review-calendar-today-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 4px 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }}
+    QPushButton#review-calendar-today-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
     }}
     QLabel#review-calendar-range-label {{
         color: {neutral.text_muted};
@@ -1805,6 +2187,197 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         padding: 3px 8px;
         font-size: 12px;
     }}
+    QComboBox#review-calendar-range-combo:hover {{
+        border: 1px solid {accent.border};
+    }}
+    QComboBox#review-calendar-range-combo QAbstractItemView {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        selection-background-color: {accent.primary.background};
+        selection-color: {accent.primary.foreground};
+        outline: none;
+        padding: 4px;
+    }}
+    QComboBox#review-calendar-range-combo QAbstractItemView::item:selected {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+    }}
+
+    /* QCalendarWidget (both workspace widget and date picker popup) */
+    QCalendarWidget#review-calendar-widget,
+    QCalendarWidget#review-calendar-popup {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+    }}
+    QCalendarWidget#review-calendar-widget QWidget,
+    QCalendarWidget#review-calendar-popup QWidget {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+    }}
+    QCalendarWidget#review-calendar-widget QWidget#qt_calendar_navigationbar,
+    QCalendarWidget#review-calendar-popup QWidget#qt_calendar_navigationbar {{
+        background-color: {neutral.surface_secondary};
+        border-bottom: 1px solid {neutral.border_default};
+    }}
+    QCalendarWidget#review-calendar-widget QToolButton,
+    QCalendarWidget#review-calendar-popup QToolButton {{
+        color: {neutral.text_primary};
+        background-color: {neutral.surface_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 3px 8px;
+        font-size: 12px;
+        font-weight: 600;
+        margin: 2px;
+    }}
+    QCalendarWidget#review-calendar-widget QToolButton:hover,
+    QCalendarWidget#review-calendar-popup QToolButton:hover {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QCalendarWidget#review-calendar-widget QToolButton::menu-indicator,
+    QCalendarWidget#review-calendar-popup QToolButton::menu-indicator {{
+        image: none;
+        width: 0px;
+    }}
+    QCalendarWidget#review-calendar-widget QSpinBox,
+    QCalendarWidget#review-calendar-popup QSpinBox {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 2px 4px;
+        font-size: 12px;
+        selection-background-color: {accent.primary.background};
+        selection-color: {accent.primary.foreground};
+    }}
+    QCalendarWidget#review-calendar-widget QMenu,
+    QCalendarWidget#review-calendar-popup QMenu {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 4px;
+    }}
+    QCalendarWidget#review-calendar-widget QMenu::item,
+    QCalendarWidget#review-calendar-popup QMenu::item {{
+        padding: 4px 16px;
+        border-radius: {radius}px;
+        color: {neutral.text_primary};
+    }}
+    QCalendarWidget#review-calendar-widget QMenu::item:selected,
+    QCalendarWidget#review-calendar-popup QMenu::item:selected {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+    }}
+    QCalendarWidget#review-calendar-widget QTableView,
+    QCalendarWidget#review-calendar-popup QTableView,
+    QCalendarWidget#review-calendar-widget QAbstractItemView,
+    QCalendarWidget#review-calendar-popup QAbstractItemView {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        selection-background-color: {accent.primary.background};
+        selection-color: {accent.primary.foreground};
+        alternate-background-color: {neutral.surface_secondary};
+        outline: none;
+    }}
+    QCalendarWidget#review-calendar-widget QTableView::item:selected,
+    QCalendarWidget#review-calendar-popup QTableView::item:selected,
+    QCalendarWidget#review-calendar-widget QAbstractItemView::item:selected,
+    QCalendarWidget#review-calendar-popup QAbstractItemView::item:selected {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        font-weight: 700;
+    }}
+    QCalendarWidget#review-calendar-widget QTableView::item:hover,
+    QCalendarWidget#review-calendar-popup QTableView::item:hover,
+    QCalendarWidget#review-calendar-widget QAbstractItemView::item:hover,
+    QCalendarWidget#review-calendar-popup QAbstractItemView::item:hover {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+    }}
+    QCalendarWidget#review-calendar-widget QHeaderView::section,
+    QCalendarWidget#review-calendar-popup QHeaderView::section {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_muted};
+        border: none;
+        padding: 2px;
+        font-size: 11px;
+        font-weight: 600;
+    }}
+
+    QLabel#review-calendar-schedule-heading {{
+        color: {neutral.text_secondary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QTableWidget#review-calendar-schedule-table {{
+        selection-background-color: {accent.primary.background};
+        selection-color: {accent.primary.foreground};
+    }}
+    QTableWidget#review-calendar-schedule-table::item:selected {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        font-weight: 700;
+    }}
+    QLabel#review-calendar-editing-target-label {{
+        color: {neutral.text_primary};
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QDateEdit#review-calendar-schedule-date {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 3px 8px;
+        font-size: 12px;
+        min-width: 125px;
+    }}
+    QDateEdit#review-calendar-schedule-date:hover {{
+        border: 1px solid {accent.border};
+    }}
+    QDateEdit#review-calendar-schedule-date:focus {{
+        border: 1px solid {accent.primary.background};
+    }}
+    QPushButton#review-calendar-schedule-save-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: none;
+        border-radius: {radius}px;
+        padding: 4px 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }}
+    QPushButton#review-calendar-schedule-save-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#review-calendar-schedule-save-button:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
+    QPushButton#review-calendar-schedule-clear-button {{
+        background-color: {neutral.surface_primary};
+        color: {neutral.text_primary};
+        border: 1px solid {neutral.border_default};
+        border-radius: {radius}px;
+        padding: 4px 12px;
+        font-size: 12px;
+    }}
+    QPushButton#review-calendar-schedule-clear-button:hover:enabled {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border: 1px solid {accent.border};
+    }}
+    QPushButton#review-calendar-schedule-clear-button:disabled {{
+        color: {neutral.text_disabled};
+        border: 1px solid {neutral.border_subtle};
+    }}
     QLabel#review-calendar-detail-heading {{
         color: {neutral.text_secondary};
         font-size: 13px;
@@ -1814,16 +2387,6 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_primary};
         font-size: 13px;
         font-weight: 600;
-    }}
-    QLabel#review-calendar-legacy-heading {{
-        color: {neutral.text_secondary};
-        font-size: 13px;
-        font-weight: 600;
-    }}
-    QLabel#review-calendar-legacy-caption {{
-        color: {neutral.text_muted};
-        font-style: italic;
-        font-size: 12px;
     }}
 
     /* M18 Phase C3 -- Data Tools hub (P6 Utility Workflow). Title/
@@ -2226,23 +2789,14 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
 
 
 class ThemeManager(QObject):
-    """Single apply point for (Appearance, Accent) -> QPalette + QSS.
+    """Single apply point for (Appearance, Accent, Customization) -> QPalette + QSS.
 
-    ``apply()`` is safely re-callable at any point during a running
-    session -- both Settings' Appearance control (live explicit
-    Light/Dark/System switching) and ``watch_system_appearance()``'s live
-    OS-change reaction call back through this one method, never a second
-    theme-switch mechanism (M17 Theme Completion prompt § 6/§ 8). Because
-    every custom-drawn widget in this app is styled through the single
-    application-level QSS ``build_stylesheet()`` returns (module
-    docstring; every ``QToolButton``/dialog/menu/etc. rule lives there),
-    re-calling ``QApplication.setStyleSheet()``/``setPalette()`` re-themes
-    the entire already-rendered widget tree automatically, including
-    dialogs/menus opened afterward -- no per-view re-theme wiring is
-    needed for anything QSS/QPalette-driven. ``theme_applied`` exists only
-    for the one narrow exception: presentation baked into custom
-    ``QAbstractItemModel`` data roles (the Entries Star column's gold),
-    which Qt's style engine cannot re-paint on its own.
+    ``apply()`` is safely re-callable at any point during a running session.
+    Supports:
+    - 4 official presets as safe starters.
+    - Independent Light and Dark customization state.
+    - Live staging & real-time preview (Cancel / Apply / Undo / Reset lifecycle).
+    - Dynamic re-application on OS light/dark scheme changes while Appearance=System.
     """
 
     theme_applied = Signal(object)  # emits the just-applied ThemeTokens
@@ -2252,6 +2806,9 @@ class ThemeManager(QObject):
         self._application = application
         self._current: tuple[Appearance, Accent] | None = None
         self._current_tokens: ThemeTokens | None = None
+        self._current_custom_config: CustomThemeConfig | None = None
+        self._active_customization: ModeCustomization | None = None
+        self._staged_customization: ModeCustomization | None = None
         self._watching_system = False
 
     @property
@@ -2262,14 +2819,106 @@ class ThemeManager(QObject):
     def current_tokens(self) -> ThemeTokens | None:
         return self._current_tokens
 
-    def apply(self, appearance: Appearance, accent: Accent) -> ThemeTokens:
-        tokens = resolve_tokens(appearance, accent)
+    @property
+    def custom_config(self) -> CustomThemeConfig:
+        if self._current_custom_config is None:
+            self._current_custom_config = CustomThemeConfig()
+        return self._current_custom_config
+
+    def get_effective_appearance(self, appearance: Appearance | None = None) -> Appearance:
+        app = appearance or (self._current[0] if self._current else DEFAULT_APPEARANCE)
+        return resolve_effective_appearance(app)
+
+    def get_mode_customization(self, appearance: Appearance | None = None) -> ModeCustomization:
+        eff = self.get_effective_appearance(appearance)
+        cfg = self.custom_config
+        return cfg.dark if eff is Appearance.DARK else cfg.light
+
+    def apply(
+        self,
+        appearance: Appearance,
+        accent: Accent = DEFAULT_ACCENT,
+        customization: ModeCustomization | None = None,
+        custom_config: CustomThemeConfig | None = None,
+    ) -> ThemeTokens:
+        if custom_config is not None:
+            self._current_custom_config = custom_config
+
+        eff = resolve_effective_appearance(appearance)
+        if customization is None:
+            cfg = self.custom_config
+            mode_custom = cfg.dark if eff is Appearance.DARK else cfg.light
+            tokens = resolve_tokens(appearance, accent, mode_custom)
+            self._active_customization = mode_custom
+        else:
+            tokens = resolve_tokens(appearance, accent, customization)
+            self._active_customization = customization
+
         self._application.setPalette(build_palette(tokens))
         self._application.setStyleSheet(build_stylesheet(tokens))
         self._current = (appearance, accent)
         self._current_tokens = tokens
+        self._staged_customization = None
         self.theme_applied.emit(tokens)
         return tokens
+
+    def apply_preferences(self, preferences: object) -> ThemeTokens:
+        """Apply preferences object containing appearance, accent, and custom_theme."""
+        appearance = parse_appearance(getattr(preferences, "appearance", DEFAULT_APPEARANCE.value))
+        accent = parse_accent(getattr(preferences, "accent", DEFAULT_ACCENT.value))
+        custom_theme = getattr(preferences, "custom_theme", None)
+        if isinstance(custom_theme, CustomThemeConfig):
+            return self.apply(appearance, accent, custom_config=custom_theme)
+        return self.apply(appearance, accent)
+
+    def preview_customization(
+        self,
+        appearance: Appearance,
+        customization: ModeCustomization,
+    ) -> ThemeTokens:
+        """Stage and immediately apply live preview without committing to preferences."""
+        eff = resolve_effective_appearance(appearance)
+        tokens = build_resolved_theme_tokens(eff.value, customization)
+        self._application.setPalette(build_palette(tokens))
+        self._application.setStyleSheet(build_stylesheet(tokens))
+        self._staged_customization = customization
+        self._current_tokens = tokens
+        self.theme_applied.emit(tokens)
+        return tokens
+
+    def revert_preview(self) -> ThemeTokens:
+        """Cancel live preview and restore the committed active theme."""
+        if self._current is not None:
+            return self.apply(
+                self._current[0],
+                self._current[1],
+                customization=self._active_customization,
+                custom_config=self._current_custom_config,
+            )
+        return self.apply(DEFAULT_APPEARANCE, DEFAULT_ACCENT)
+
+    def reset_mode_to_preset(self, appearance: Appearance, preset_name: str) -> ThemeTokens:
+        """Reset the specified appearance mode to an official preset."""
+        eff = resolve_effective_appearance(appearance)
+        cfg = self.custom_config
+        clean_custom = ModeCustomization(preset=preset_name)
+        if eff is Appearance.DARK:
+            new_cfg = CustomThemeConfig(light=cfg.light, dark=clean_custom)
+        else:
+            new_cfg = CustomThemeConfig(light=clean_custom, dark=cfg.dark)
+        self._current_custom_config = new_cfg
+        return self.apply(
+            appearance,
+            parse_accent(preset_name),
+            customization=clean_custom,
+            custom_config=new_cfg,
+        )
+
+    def reset_all_to_default(self) -> ThemeTokens:
+        """Reset both Light and Dark modes to default Calm Blue preset."""
+        new_cfg = CustomThemeConfig()
+        self._current_custom_config = new_cfg
+        return self.apply(Appearance.SYSTEM, DEFAULT_ACCENT, custom_config=new_cfg)
 
     def watch_system_appearance(self) -> None:
         """Opt-in, idempotent: wires a live reaction to the OS Light/Dark
@@ -2302,4 +2951,8 @@ class ThemeManager(QObject):
         this stays correct even if multiple OS changes coalesce into one
         emission."""
         if self._current is not None and self._current[0] is Appearance.SYSTEM:
-            self.apply(*self._current)
+            self.apply(
+                self._current[0],
+                self._current[1],
+                custom_config=self._current_custom_config,
+            )

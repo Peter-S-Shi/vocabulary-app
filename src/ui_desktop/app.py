@@ -23,6 +23,33 @@ independently during the migration.
 """
 
 
+WINDOWS_APP_USER_MODEL_ID = "PeterShi.VocabularyApp.Desktop"
+
+
+def configure_windows_identity(app_id: str = WINDOWS_APP_USER_MODEL_ID) -> bool:
+    """Explicitly set the Windows Application User Model ID (AUMID).
+
+    On Windows, processes running under python.exe / pythonw.exe share the generic
+    Python host identity by default, which causes taskbar grouping collisions and
+    icon confusion with other Python desktop applications (e.g. ListenTrace).
+    Setting a static, version-agnostic AUMID ("PeterShi.VocabularyApp.Desktop")
+    ensures:
+    1. The app remains isolated in its own dedicated taskbar group with its own icon.
+    2. The application identity is stable across version upgrades (v1.1, v1.2, v1.3),
+       preserving pinned taskbar buttons, Start Menu entries, and jump lists without
+       splintering into separate per-version identities.
+    3. Both the dev launcher and packaged installer binaries share the identical AUMID.
+    """
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            return ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id) == 0
+        except Exception:
+            return False
+    return False
+
+
 def _load_app_icon() -> QIcon | None:
     """The repository-owned icon (assets/icons/vocabulary_app.ico), used
     for both the application/window icon and the desktop launcher
@@ -35,7 +62,14 @@ def _load_app_icon() -> QIcon | None:
 
 
 def build_application(argv: list[str] | None = None) -> tuple[QApplication, MainWindow, ThemeManager]:
+    configure_windows_identity()
+
     application = QApplication.instance() or QApplication(argv if argv is not None else sys.argv)
+    application.setApplicationName("Vocabulary App")
+    application.setApplicationDisplayName("Vocabulary App")
+    application.setDesktopFileName(WINDOWS_APP_USER_MODEL_ID)
+    application.setOrganizationName("PeterShi")
+    application.setOrganizationDomain("github.com/Peter-S-Shi")
 
     icon = _load_app_icon()
     if icon is not None:
@@ -45,7 +79,7 @@ def build_application(argv: list[str] | None = None) -> tuple[QApplication, Main
 
     theme_manager = ThemeManager(application)
     preferences = load_preferences()
-    theme_manager.apply(parse_appearance(preferences.appearance), parse_accent(preferences.accent))
+    theme_manager.apply_preferences(preferences)
     # Live OS Light/Dark reaction while Appearance=System (M17 Theme
     # Completion prompt § 7.3); the one production ThemeManager opts in
     # once, here -- tests constructing their own ThemeManager never do.

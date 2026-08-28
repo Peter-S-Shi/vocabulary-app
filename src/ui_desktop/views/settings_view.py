@@ -1,20 +1,35 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QColorDialog,
     QComboBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QScrollArea,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
+from src.app_config import APP_VERSION
 from src.ui_desktop.controllers.settings_controller import SettingsController
 from src.ui_desktop.state.preferences import QUIZ_PRESENTATION_LABELS
+from src.ui_desktop.theming.color_math import contrast_ratio, is_valid_hex, normalize_hex
 from src.ui_desktop.theming.metrics import SPACING
 from src.ui_desktop.theming.theme_manager import Appearance
+from src.ui_desktop.theming.tokens import (
+    PRESET_CALM_BLUE,
+    PRESET_NAMES,
+    THEME_CALM_BLUE_DARK,
+    THEME_CALM_BLUE_LIGHT,
+    ModeCustomization,
+    build_resolved_theme_tokens,
+)
+from src.update_checker import UpdateCheckResult, UpdateCheckState
 
 # M20 Local Windows Speech Provider / Installed Voice Binding (Release
 # Contract § 7.3): the frozen v1.0 language scope, in the fixed display
@@ -26,76 +41,6 @@ VOICE_BINDING_LANGUAGES: tuple[tuple[str, str], ...] = (
     ("zh-CN", "Mandarin (zh-CN)"),
 )
 NOT_BOUND_VOICE_ID = ""
-
-"""
-Settings -- Management Mode, P8 Settings Form (DESIGN.md § 8: "Management
-Rail + categorized settings structure + comfortable form density. Settings
-is not a dashboard..."). M17 Feature 3B built the minimum bounded vertical
-slice that checkpoint's real preference needed -- Quiz presentation. M17
-Theme Completion adds the second real preference this pattern was always
-meant to hold: Appearance (DESIGN.md § 14 "Settings -> Appearance -- full
-authoritative configuration surface"). Accent/Motion/language/storage/
-backup/audio/privacy/database settings remain explicitly out of scope
-(M17 Theme Completion prompt § 4's deferred-accent-family boundary) and
-continue working exactly as they do today.
-
-Design -> Implementation trace:
-
-  shell/chrome        -> ordinary Management Mode workspace, reached
-                          through the Management Rail like Today/Entries --
-                          no Study-mode chrome swap, no transient
-                          drawer/dialog.
-  page structure       -> page title + one category heading per preference
-                          group ("Appearance", "Quiz") + one settings row
-                          each, per P8's "categorized settings structure"
-                          formula.
-  Appearance row        -> label + native QComboBox of System/Light/Dark
-                          (DESIGN.md § 13.1); the ONE control this
-                          checkpoint adds -- no separate Quick Theme
-                          Control popover (DESIGN.md § 14's other access
-                          level) is in scope here (M17 Theme Completion
-                          prompt § 4/§ 21).
-  Quiz presentation row -> label + native QComboBox showing the current
-                          value; VR-STUDY-002 prompt § 6/§ 7: this is the
-                          ONE control location for this preference -- no
-                          second selector exists anywhere else (Review,
-                          Choose Quiz Type, Quiz session bar, completion).
-  persistence           -> SettingsController.set_appearance()/
-                          set_quiz_presentation() write straight through to
-                          the existing state/preferences.py file.
-                          set_appearance() additionally re-applies the
-                          live ThemeManager synchronously (M17 Theme
-                          Completion prompt § 5: no restart required); the
-                          next Quiz launched in this session (M17 Feature
-                          3B prompt § 7) or after a restart (§ 5) uses the
-                          saved presentation value.
-
-M18 Phase C2 adds the third category this pattern was always meant to
-hold: read-only "Storage" (DESIGN.md § 7.3 "Storage / data-location
-information: B, P8") -- database/backup/audio-cache paths and path
-source, read straight from `src.app_config.get_app_storage_summary()`
-(the same function the Streamlit Settings/Data page already reads) via
-`SettingsController.storage_summary()`. Each row reuses the existing
-`settings-row`/`settings-row-label` grammar with a plain value label
-instead of an editable control -- purely informational, never a second
-path-resolution/configuration surface.
-
-Human Gate 2 corrective (layout regression): native testing found the
-Appearance/Quiz presentation combos horizontally compressed/clipped at a
-normal desktop window size. A first corrective pass raised the two
-combos' QSS `min-width` (200px -> 300px), which measurably helped but
-was a per-control workaround: it protected two specific combos without
-addressing that the page as a whole has no vertical scroll area, so it
-cannot grow taller than the available window -- any future growth of
-the Settings/Storage content (M18 Phase C2 already added seven rows)
-just re-creates the same squeeze somewhere else. Reverted that min-width
-bump and wrapped the page's content in a native vertical `QScrollArea`
-(`setWidgetResizable(True)`, horizontal scrolling disabled) instead: the
-page can now grow taller through scrolling rather than by compressing
-its controls, the body's width still tracks the available desktop width
-responsively, and the Appearance/Quiz controls render at their natural,
-comfortable size.
-"""
 
 
 class SettingsView(QWidget):
@@ -128,6 +73,7 @@ class SettingsView(QWidget):
         title.setObjectName("settings-page-title")
         root.addWidget(title)
 
+        # -- Appearance & Global Mode ---------------------------------------
         appearance_heading = QLabel("Appearance", body)
         appearance_heading.setObjectName("settings-section-heading")
         root.addWidget(appearance_heading)
@@ -150,9 +96,91 @@ class SettingsView(QWidget):
             self._appearance_combo.addItem(appearance.value, appearance.value)
         self._appearance_combo.currentIndexChanged.connect(self._on_appearance_changed)
         appearance_row_layout.addWidget(self._appearance_combo, 0)
-
         root.addWidget(appearance_row)
 
+        # -- Theme Customization (Phase D) ----------------------------------
+        theme_heading = QLabel("Theme Customization", body)
+        theme_heading.setObjectName("settings-section-heading")
+        root.addWidget(theme_heading)
+
+        theme_note = QLabel(
+            "Select presets and customize colors for Light and Dark modes independently. "
+            "Switching tabs previews the mode in real time. Changes are only saved when you click Apply.",
+            body,
+        )
+        theme_note.setObjectName("settings-section-note")
+        theme_note.setWordWrap(True)
+        root.addWidget(theme_note)
+
+        self._theme_tabs = QTabWidget(body)
+        self._theme_tabs.setObjectName("settings-theme-tabs")
+        self._theme_tabs.tabBar().setObjectName("settings-theme-tabbar")
+
+        self._preset_combos: dict[str, QComboBox] = {}
+        self._accent_swatches: dict[str, QLabel] = {}
+        self._bg_swatches: dict[str, QLabel] = {}
+        self._surf_swatches: dict[str, QLabel] = {}
+        self._text_swatches: dict[str, QLabel] = {}
+        self._contrast_badges: dict[str, QLabel] = {}
+
+        for mode in ("Light", "Dark"):
+            tab_page = self._build_theme_mode_tab(mode)
+            self._theme_tabs.addTab(tab_page, f"{mode} Mode")
+
+        self._theme_tabs.currentChanged.connect(self._on_theme_tab_switched)
+        root.addWidget(self._theme_tabs)
+
+        # Theme Action Bar & Feedback
+        action_bar = QWidget(body)
+        action_bar.setObjectName("settings-theme-action-bar")
+        action_bar_layout = QVBoxLayout(action_bar)
+        action_bar_layout.setContentsMargins(0, SPACING.xs, 0, SPACING.sm)
+        action_bar_layout.setSpacing(SPACING.xs)
+
+        action_buttons_row = QHBoxLayout()
+        action_buttons_row.setSpacing(SPACING.sm)
+
+        self._theme_reset_mode_btn = QPushButton("Reset to Preset", action_bar)
+        self._theme_reset_mode_btn.setObjectName("settings-theme-reset-btn")
+        self._theme_reset_mode_btn.setToolTip("Clear custom colors for the currently active tab mode")
+        self._theme_reset_mode_btn.clicked.connect(self._on_reset_mode)
+        action_buttons_row.addWidget(self._theme_reset_mode_btn)
+
+        self._theme_reset_all_btn = QPushButton("Reset All to Default", action_bar)
+        self._theme_reset_all_btn.setObjectName("settings-theme-reset-btn")
+        self._theme_reset_all_btn.setToolTip("Restore default Calm Blue preset for both Light and Dark modes")
+        self._theme_reset_all_btn.clicked.connect(self._on_reset_all)
+        action_buttons_row.addWidget(self._theme_reset_all_btn)
+
+        action_buttons_row.addStretch(1)
+
+        self._theme_undo_btn = QPushButton("Undo", action_bar)
+        self._theme_undo_btn.setObjectName("settings-theme-undo-btn")
+        self._theme_undo_btn.setToolTip("Undo the last applied or reset theme snapshot")
+        self._theme_undo_btn.clicked.connect(self._on_undo)
+        action_buttons_row.addWidget(self._theme_undo_btn)
+
+        self._theme_cancel_btn = QPushButton("Cancel", action_bar)
+        self._theme_cancel_btn.setObjectName("settings-theme-cancel-btn")
+        self._theme_cancel_btn.setToolTip("Discard unstaged changes and exit live preview")
+        self._theme_cancel_btn.clicked.connect(self._on_cancel)
+        action_buttons_row.addWidget(self._theme_cancel_btn)
+
+        self._theme_apply_btn = QPushButton("Apply", action_bar)
+        self._theme_apply_btn.setObjectName("settings-theme-apply-btn")
+        self._theme_apply_btn.setToolTip("Save theme changes to preferences")
+        self._theme_apply_btn.clicked.connect(self._on_apply)
+        action_buttons_row.addWidget(self._theme_apply_btn)
+
+        action_bar_layout.addLayout(action_buttons_row)
+
+        self._theme_feedback_label = QLabel("", action_bar)
+        self._theme_feedback_label.setObjectName("settings-theme-feedback-label")
+        action_bar_layout.addWidget(self._theme_feedback_label)
+
+        root.addWidget(action_bar)
+
+        # -- Quiz Section ---------------------------------------------------
         quiz_heading = QLabel("Quiz", body)
         quiz_heading.setObjectName("settings-section-heading")
         root.addWidget(quiz_heading)
@@ -175,19 +203,71 @@ class SettingsView(QWidget):
             self._quiz_presentation_combo.addItem(label, value)
         self._quiz_presentation_combo.currentIndexChanged.connect(self._on_quiz_presentation_changed)
         row_layout.addWidget(self._quiz_presentation_combo, 0)
-
         root.addWidget(row)
 
+        # -- Study & Review Section (Patch B1) ------------------------------
+        study_heading = QLabel("Study & Review", body)
+        study_heading.setObjectName("settings-section-heading")
+        root.addWidget(study_heading)
+
+        study_note = QLabel(
+            "Configure how regular Card study and Card-scoped Quiz interact with practice pools.",
+            body,
+        )
+        study_note.setObjectName("settings-section-note")
+        study_note.setWordWrap(True)
+        root.addWidget(study_note)
+
+        proficient_row = QWidget(body)
+        proficient_row.setObjectName("settings-row")
+        proficient_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        proficient_row_layout = QHBoxLayout(proficient_row)
+        proficient_row_layout.setContentsMargins(SPACING.md, SPACING.md, SPACING.md, SPACING.md)
+        proficient_row_layout.setSpacing(SPACING.md)
+
+        proficient_row_label = QLabel("Proficient entries", proficient_row)
+        proficient_row_label.setObjectName("settings-row-label")
+        proficient_row_layout.addWidget(proficient_row_label, 0)
+        proficient_row_layout.addStretch(1)
+
+        self._include_proficient_checkbox = QCheckBox("Include proficient entries in regular study", proficient_row)
+        self._include_proficient_checkbox.setObjectName("settings-include-proficient-checkbox")
+        self._include_proficient_checkbox.toggled.connect(
+            self._controller.set_include_proficient_in_study
+        )
+        proficient_row_layout.addWidget(self._include_proficient_checkbox, 0)
+        root.addWidget(proficient_row)
+
+        # -- Collections Section --------------------------------------------
+        collections_heading = QLabel("Collections", body)
+        collections_heading.setObjectName("settings-section-heading")
+        root.addWidget(collections_heading)
+
+        progress_row = QWidget(body)
+        progress_row.setObjectName("settings-row")
+        progress_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        progress_row_layout = QHBoxLayout(progress_row)
+        progress_row_layout.setContentsMargins(SPACING.md, SPACING.md, SPACING.md, SPACING.md)
+        progress_row_layout.setSpacing(SPACING.md)
+
+        progress_row_label = QLabel("Learning progress", progress_row)
+        progress_row_label.setObjectName("settings-row-label")
+        progress_row_layout.addWidget(progress_row_label, 0)
+        progress_row_layout.addStretch(1)
+
+        self._collection_progress_bars_checkbox = QCheckBox("Show progress bars", progress_row)
+        self._collection_progress_bars_checkbox.setObjectName("settings-collection-progress-bars-checkbox")
+        self._collection_progress_bars_checkbox.toggled.connect(
+            self._controller.set_collection_progress_bars_visible
+        )
+        progress_row_layout.addWidget(self._collection_progress_bars_checkbox, 0)
+        root.addWidget(progress_row)
+
+        # -- Audio Section --------------------------------------------------
         audio_heading = QLabel("Audio", body)
         audio_heading.setObjectName("settings-section-heading")
         root.addWidget(audio_heading)
 
-        # M20 Local Windows Speech Provider / Installed Voice Binding
-        # (Release Contract § 2.3, § 7): Vocabulary App never bundles or
-        # downloads a voice. A normal user binds an already-installed
-        # Windows voice per language here; the environment variable
-        # remains an advanced per-process override surfaced honestly in
-        # each row's status text (state/tts_runtime.py resolution order).
         audio_note = QLabel(
             "Card Audio Export speaks using a voice already installed on this "
             "Windows system -- nothing is downloaded. Bind one per language below.",
@@ -234,21 +314,77 @@ class SettingsView(QWidget):
             root.addWidget(status_label)
             self._voice_status_labels[language] = status_label
 
-            # Connected after population below, so the initial
-            # population doesn't fire a spurious "user changed this"
-            # write.
-
         for language, _display_name in VOICE_BINDING_LANGUAGES:
-            # Static population only (no PowerShell/WinRT call) --
-            # opening Settings must never block the UI thread on a real
-            # enumeration, the exact freeze the M19 Audio Export
-            # corrective fixed for Card Audio Export. Real installed
-            # voices only load when the user clicks "Refresh Voices".
             self._populate_voice_combo_static(language)
             self._voice_combos[language].currentIndexChanged.connect(
                 lambda _index, lang=language: self._on_voice_binding_changed(lang)
             )
 
+        # -- Software Update Section (Phase E) ------------------------------
+        update_heading = QLabel("Software Update", body)
+        update_heading.setObjectName("settings-section-heading")
+        root.addWidget(update_heading)
+
+        update_note = QLabel(
+            "Check for official application updates and release notes from GitHub.",
+            body,
+        )
+        update_note.setObjectName("settings-section-note")
+        update_note.setWordWrap(True)
+        root.addWidget(update_note)
+
+        update_row = QWidget(body)
+        update_row.setObjectName("settings-row")
+        update_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        update_row_layout = QHBoxLayout(update_row)
+        update_row_layout.setContentsMargins(SPACING.md, SPACING.md, SPACING.md, SPACING.md)
+        update_row_layout.setSpacing(SPACING.md)
+
+        update_info_col = QVBoxLayout()
+        update_info_col.setContentsMargins(0, 0, 0, 0)
+        update_info_col.setSpacing(4)
+
+        version_header_row = QHBoxLayout()
+        version_header_row.setSpacing(SPACING.sm)
+
+        self._update_version_label = QLabel(f"Installed Version: v{APP_VERSION}", update_row)
+        self._update_version_label.setObjectName("settings-update-version-label")
+        version_header_row.addWidget(self._update_version_label, 0)
+
+        self._update_state_badge = QLabel("", update_row)
+        self._update_state_badge.setObjectName("settings-update-badge-uptodate")
+        self._update_state_badge.setVisible(False)
+        version_header_row.addWidget(self._update_state_badge, 0)
+        version_header_row.addStretch(1)
+
+        update_info_col.addLayout(version_header_row)
+
+        self._update_status_label = QLabel("Update status has not been checked yet.", update_row)
+        self._update_status_label.setObjectName("settings-update-status-label")
+        self._update_status_label.setWordWrap(True)
+        update_info_col.addWidget(self._update_status_label)
+
+        update_row_layout.addLayout(update_info_col, 1)
+
+        update_actions_row = QHBoxLayout()
+        update_actions_row.setSpacing(SPACING.sm)
+
+        self._update_release_btn = QPushButton("View Release", update_row)
+        self._update_release_btn.setObjectName("settings-update-release-btn")
+        self._update_release_btn.setToolTip("Open the release notes on GitHub in your default browser")
+        self._update_release_btn.setVisible(False)
+        self._update_release_btn.clicked.connect(self._on_view_release_clicked)
+        update_actions_row.addWidget(self._update_release_btn)
+
+        self._update_check_btn = QPushButton("Check for Updates", update_row)
+        self._update_check_btn.setObjectName("settings-update-check-btn")
+        self._update_check_btn.clicked.connect(self._on_check_updates_clicked)
+        update_actions_row.addWidget(self._update_check_btn)
+
+        update_row_layout.addLayout(update_actions_row, 0)
+        root.addWidget(update_row)
+
+        # -- Storage Section ------------------------------------------------
         storage_heading = QLabel("Storage", body)
         storage_heading.setObjectName("settings-section-heading")
         root.addWidget(storage_heading)
@@ -268,15 +404,280 @@ class SettingsView(QWidget):
         root.addStretch(1)
 
         controller.state_changed.connect(self._sync_from_controller)
+        controller.update_status_changed.connect(lambda _res: self._sync_update_ui())
         self._sync_from_controller()
 
+    # -- Theme Mode Tab Builder ---------------------------------------------
+
+    def _build_theme_mode_tab(self, mode: str) -> QWidget:
+        panel = QWidget(self)
+        panel.setObjectName("settings-theme-tab-panel")
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(SPACING.md, SPACING.md, SPACING.md, SPACING.md)
+        layout.setSpacing(SPACING.sm)
+
+        # Preset row
+        preset_row = QWidget(panel)
+        preset_row.setObjectName("settings-row")
+        preset_row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        preset_layout = QHBoxLayout(preset_row)
+        preset_layout.setContentsMargins(SPACING.md, SPACING.sm, SPACING.md, SPACING.sm)
+        preset_layout.setSpacing(SPACING.md)
+
+        preset_label = QLabel("Preset", preset_row)
+        preset_label.setObjectName("settings-row-label")
+        preset_layout.addWidget(preset_label, 0)
+        preset_layout.addStretch(1)
+
+        preset_combo = QComboBox(preset_row)
+        preset_combo.setObjectName("settings-preset-combo")
+        for preset_name in PRESET_NAMES:
+            preset_combo.addItem(preset_name, preset_name)
+        preset_combo.currentIndexChanged.connect(
+            lambda _idx, m=mode: self._on_preset_selected(m)
+        )
+        preset_layout.addWidget(preset_combo, 0)
+        self._preset_combos[mode] = preset_combo
+        layout.addWidget(preset_row)
+
+        # Accent Color row
+        accent_row, accent_swatch = self._build_color_row(
+            panel,
+            label="Accent Color",
+            mode=mode,
+            field_name="accent_color",
+            reset_text="Use Preset",
+        )
+        self._accent_swatches[mode] = accent_swatch
+        layout.addWidget(accent_row)
+
+        # App Background row
+        bg_row, bg_swatch = self._build_color_row(
+            panel,
+            label="Background",
+            mode=mode,
+            field_name="background_color",
+            reset_text="Use Preset",
+        )
+        self._bg_swatches[mode] = bg_swatch
+        layout.addWidget(bg_row)
+
+        # Surface Primary row
+        surf_row, surf_swatch = self._build_color_row(
+            panel,
+            label="Surfaces",
+            mode=mode,
+            field_name="surface_color",
+            reset_text="Use Preset",
+        )
+        self._surf_swatches[mode] = surf_swatch
+        layout.addWidget(surf_row)
+
+        # Text Color row
+        text_row, text_swatch, contrast_badge = self._build_text_color_row(
+            panel,
+            label="Text",
+            mode=mode,
+        )
+        self._text_swatches[mode] = text_swatch
+        self._contrast_badges[mode] = contrast_badge
+        layout.addWidget(text_row)
+
+        return panel
+
+    def _build_color_row(
+        self,
+        parent: QWidget,
+        label: str,
+        mode: str,
+        field_name: str,
+        reset_text: str,
+    ) -> tuple[QWidget, QLabel]:
+        row = QWidget(parent)
+        row.setObjectName("settings-row")
+        row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(SPACING.md, SPACING.xs, SPACING.md, SPACING.xs)
+        row_layout.setSpacing(SPACING.md)
+
+        row_label = QLabel(label, row)
+        row_label.setObjectName("settings-row-label")
+        row_layout.addWidget(row_label, 0)
+        row_layout.addStretch(1)
+
+        swatch = QLabel(row)
+        swatch.setObjectName("settings-row-value")
+        swatch.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        row_layout.addWidget(swatch, 0)
+
+        pick_btn = QPushButton("Pick...", row)
+        pick_btn.setObjectName("settings-color-pick-btn")
+        pick_btn.clicked.connect(lambda: self._on_pick_color(mode, field_name))
+        row_layout.addWidget(pick_btn, 0)
+
+        reset_btn = QPushButton(reset_text, row)
+        reset_btn.setObjectName("settings-color-reset-btn")
+        reset_btn.clicked.connect(lambda: self._on_clear_color(mode, field_name))
+        row_layout.addWidget(reset_btn, 0)
+
+        return row, swatch
+
+    def _build_text_color_row(
+        self,
+        parent: QWidget,
+        label: str,
+        mode: str,
+    ) -> tuple[QWidget, QLabel, QLabel]:
+        row = QWidget(parent)
+        row.setObjectName("settings-row")
+        row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(SPACING.md, SPACING.xs, SPACING.md, SPACING.xs)
+        row_layout.setSpacing(SPACING.md)
+
+        row_label = QLabel(label, row)
+        row_label.setObjectName("settings-row-label")
+        row_layout.addWidget(row_label, 0)
+
+        contrast_badge = QLabel("Contrast AA", row)
+        contrast_badge.setObjectName("settings-contrast-badge")
+        row_layout.addWidget(contrast_badge, 0)
+
+        row_layout.addStretch(1)
+
+        swatch = QLabel(row)
+        swatch.setObjectName("settings-row-value")
+        swatch.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        row_layout.addWidget(swatch, 0)
+
+        pick_btn = QPushButton("Pick...", row)
+        pick_btn.setObjectName("settings-color-pick-btn")
+        pick_btn.clicked.connect(lambda: self._on_pick_color(mode, "text_color"))
+        row_layout.addWidget(pick_btn, 0)
+
+        reset_btn = QPushButton("Auto Guard", row)
+        reset_btn.setObjectName("settings-color-reset-btn")
+        reset_btn.setToolTip("Automatically pick the highest-contrast readable text color")
+        reset_btn.clicked.connect(lambda: self._on_clear_color(mode, "text_color"))
+        row_layout.addWidget(reset_btn, 0)
+
+        return row, swatch, contrast_badge
+
+    # -- Theme Event Handlers -----------------------------------------------
+
+    def _get_active_tab_mode(self) -> str:
+        return "Dark" if self._theme_tabs.currentIndex() == 1 else "Light"
+
+    def _on_theme_tab_switched(self, index: int) -> None:
+        mode = "Dark" if index == 1 else "Light"
+        self._controller.preview_tab_mode(mode)
+
+    def _on_preset_selected(self, mode: str) -> None:
+        combo = self._preset_combos[mode]
+        preset_name = combo.currentData() or PRESET_CALM_BLUE
+        staged = self._controller.staged_custom_theme()
+        current_custom = staged.dark if mode.lower() == "dark" else staged.light
+        if current_custom.preset != preset_name:
+            new_custom = ModeCustomization(
+                preset=preset_name,
+                accent_color=current_custom.accent_color,
+                background_color=current_custom.background_color,
+                surface_color=current_custom.surface_color,
+                text_color=current_custom.text_color,
+            )
+            self._controller.stage_mode_customization(mode, new_custom)
+
+    def _on_pick_color(self, mode: str, field_name: str) -> None:
+        import copy
+        staged = self._controller.staged_custom_theme()
+        custom = staged.dark if mode.lower() == "dark" else staged.light
+        default_fallback = (
+            THEME_CALM_BLUE_DARK.accent.primary.background
+            if mode.lower() == "dark"
+            else THEME_CALM_BLUE_LIGHT.accent.primary.background
+        )
+        current_hex = getattr(custom, field_name) or default_fallback
+        initial_qcolor = QColor(current_hex)
+        pre_pick_custom = copy.deepcopy(custom)
+
+        dialog = QColorDialog(initial_qcolor, self)
+        dialog.setOption(QColorDialog.ColorDialogOption.ShowAlphaChannel, False)
+
+        def _on_live_picker_color_changed(color: QColor) -> None:
+            if color.isValid():
+                hex_val = color.name().upper()
+                preview_custom = ModeCustomization(
+                    preset=pre_pick_custom.preset,
+                    accent_color=hex_val if field_name == "accent_color" else pre_pick_custom.accent_color,
+                    background_color=hex_val if field_name == "background_color" else pre_pick_custom.background_color,
+                    surface_color=hex_val if field_name == "surface_color" else pre_pick_custom.surface_color,
+                    text_color=hex_val if field_name == "text_color" else pre_pick_custom.text_color,
+                )
+                self._controller.stage_mode_customization(mode, preview_custom)
+
+        dialog.currentColorChanged.connect(_on_live_picker_color_changed)
+
+        if dialog.exec():
+            selected = dialog.selectedColor()
+            if selected.isValid():
+                hex_val = selected.name().upper()
+                final_custom = ModeCustomization(
+                    preset=pre_pick_custom.preset,
+                    accent_color=hex_val if field_name == "accent_color" else pre_pick_custom.accent_color,
+                    background_color=hex_val if field_name == "background_color" else pre_pick_custom.background_color,
+                    surface_color=hex_val if field_name == "surface_color" else pre_pick_custom.surface_color,
+                    text_color=hex_val if field_name == "text_color" else pre_pick_custom.text_color,
+                )
+                self._controller.stage_mode_customization(mode, final_custom)
+                self._set_theme_feedback(f"Selected {field_name.replace('_', ' ')}: {hex_val}")
+        else:
+            # Revert preview back to pre-picker state
+            self._controller.stage_mode_customization(mode, pre_pick_custom)
+
+    def _on_clear_color(self, mode: str, field_name: str) -> None:
+        staged = self._controller.staged_custom_theme()
+        custom = staged.dark if mode.lower() == "dark" else staged.light
+        new_custom = ModeCustomization(
+            preset=custom.preset,
+            accent_color=None if field_name == "accent_color" else custom.accent_color,
+            background_color=None if field_name == "background_color" else custom.background_color,
+            surface_color=None if field_name == "surface_color" else custom.surface_color,
+            text_color=None if field_name == "text_color" else custom.text_color,
+        )
+        self._controller.stage_mode_customization(mode, new_custom)
+        self._set_theme_feedback(f"Reset {field_name.replace('_', ' ')} to preset default.")
+
+    def _on_reset_mode(self) -> None:
+        mode = self._get_active_tab_mode()
+        combo = self._preset_combos[mode]
+        current_preset = combo.currentData() or PRESET_CALM_BLUE
+        self._controller.reset_staged_mode_to_preset(mode, current_preset)
+        self._set_theme_feedback(f"Reset {mode} Mode to {current_preset} preset. Click Undo to revert.")
+
+    def _on_reset_all(self) -> None:
+        active_mode = self._get_active_tab_mode()
+        self._controller.reset_staged_all_to_default(active_mode)
+        self._set_theme_feedback("Reset all modes to default Calm Blue. Click Undo to revert.")
+
+    def _on_undo(self) -> None:
+        active_mode = self._get_active_tab_mode()
+        self._controller.undo(active_mode=active_mode)
+        self._set_theme_feedback("Restored previous theme snapshot.")
+
+    def _on_cancel(self) -> None:
+        self._controller.cancel_staged_custom_theme()
+        self._set_theme_feedback("Cancelled unstaged changes.")
+
+    def _on_apply(self) -> None:
+        self._controller.apply_staged_custom_theme()
+        self._set_theme_feedback("Theme changes applied. Click Undo to revert.")
+
+    def _set_theme_feedback(self, message: str) -> None:
+        self._theme_feedback_label.setText(message)
+
+    # -- General Helpers & Sync ---------------------------------------------
+
     def _build_info_row(self, label_text: str, value: str) -> QWidget:
-        """A read-only P8 settings row (DESIGN.md § 7.3 "Storage /
-        data-location information: B, P8"): reuses the exact
-        `settings-row`/`settings-row-label` grammar the Appearance/Quiz
-        rows already established, with a plain value label in place of an
-        editable control -- storage/data-location information is
-        informational, not configurable, from this surface."""
         row = QWidget(self)
         row.setObjectName("settings-row")
         row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -298,10 +699,6 @@ class SettingsView(QWidget):
         return row
 
     def _populate_voice_combo_static(self, language: str) -> None:
-        """Cheap, no-subprocess-call population: "Not bound" plus (if a
-        binding already exists) a placeholder item for it. Opening
-        Settings must never block the UI thread on a real PowerShell/
-        WinRT enumeration -- see the class-construction comment above."""
         combo = self._voice_combos[language]
         bound_voice_id = self._controller.voice_binding(language)
 
@@ -317,11 +714,6 @@ class SettingsView(QWidget):
         self._update_voice_status_label(language)
 
     def _reload_voice_combo(self, language: str, installed: list | None = None) -> None:
-        """Repopulates ``language``'s combo with real installed voices.
-        ``installed`` lets a caller that already enumerated once (e.g.
-        "Refresh Voices", across all languages) avoid repeating the
-        PowerShell/WinRT call per language; a standalone caller may omit
-        it to enumerate just this language."""
         combo = self._voice_combos[language]
         bound_voice_id = self._controller.voice_binding(language)
         voices = installed if installed is not None else self._controller.installed_voices(language)
@@ -362,17 +754,23 @@ class SettingsView(QWidget):
             self._reload_voice_combo(language, matching)
 
     def _sync_from_controller(self) -> None:
+        include_proficient = self._controller.include_proficient_in_study()
+        if self._include_proficient_checkbox.isChecked() != include_proficient:
+            self._include_proficient_checkbox.blockSignals(True)
+            self._include_proficient_checkbox.setChecked(include_proficient)
+            self._include_proficient_checkbox.blockSignals(False)
+
+        progress_bars_visible = self._controller.collection_progress_bars_visible()
+        if self._collection_progress_bars_checkbox.isChecked() != progress_bars_visible:
+            self._collection_progress_bars_checkbox.blockSignals(True)
+            self._collection_progress_bars_checkbox.setChecked(progress_bars_visible)
+            self._collection_progress_bars_checkbox.blockSignals(False)
+
         for language, _display_name in VOICE_BINDING_LANGUAGES:
             combo = self._voice_combos[language]
             bound_voice_id = self._controller.voice_binding(language)
             index = combo.findData(bound_voice_id)
             if index < 0 and bound_voice_id:
-                # A binding exists that this combo's current item list
-                # doesn't know about yet (e.g. changed without a
-                # "Refresh Voices" reload since). Add a cheap
-                # placeholder rather than re-populating the whole combo
-                # -- that would discard any real enumerated names
-                # "Refresh Voices" already loaded.
                 combo.blockSignals(True)
                 combo.addItem(f"{bound_voice_id} (click Refresh Voices for its name)", bound_voice_id)
                 combo.blockSignals(False)
@@ -396,6 +794,113 @@ class SettingsView(QWidget):
             self._quiz_presentation_combo.blockSignals(True)
             self._quiz_presentation_combo.setCurrentIndex(index)
             self._quiz_presentation_combo.blockSignals(False)
+
+        # -- Sync Theme Customization Controls --
+        staged = self._controller.staged_custom_theme()
+        for mode in ("Light", "Dark"):
+            custom = staged.dark if mode == "Dark" else staged.light
+            tokens = build_resolved_theme_tokens(mode, custom)
+
+            # Sync preset combo
+            combo = self._preset_combos[mode]
+            preset_idx = combo.findData(custom.preset)
+            if preset_idx >= 0 and combo.currentIndex() != preset_idx:
+                combo.blockSignals(True)
+                combo.setCurrentIndex(preset_idx)
+                combo.blockSignals(False)
+
+            # Sync swatches
+            accent_val = custom.accent_color or f"{tokens.accent.primary.background} (Preset)"
+            self._accent_swatches[mode].setText(f"■  {accent_val}")
+
+            bg_val = custom.background_color or f"{tokens.neutral.app_background} (Preset)"
+            self._bg_swatches[mode].setText(f"■  {bg_val}")
+
+            surf_val = custom.surface_color or f"{tokens.neutral.surface_primary} (Preset)"
+            self._surf_swatches[mode].setText(f"■  {surf_val}")
+
+            text_val = custom.text_color or f"{tokens.neutral.text_primary} (Auto)"
+            self._text_swatches[mode].setText(f"■  {text_val}")
+
+            # Calculate and display WCAG contrast badge
+            cr = contrast_ratio(tokens.neutral.surface_primary, tokens.neutral.text_primary)
+            if cr >= 7.0:
+                self._contrast_badges[mode].setText(f"Contrast {cr:.1f}:1  (AAA)")
+            elif cr >= 4.5:
+                self._contrast_badges[mode].setText(f"Contrast {cr:.1f}:1  (AA)")
+            else:
+                self._contrast_badges[mode].setText(f"Contrast {cr:.1f}:1  (Low)")
+
+        # Sync Action Bar Button States
+        is_dirty = self._controller.is_staged_dirty()
+        self._theme_apply_btn.setEnabled(is_dirty)
+        self._theme_cancel_btn.setEnabled(is_dirty)
+        self._theme_undo_btn.setEnabled(self._controller.can_undo())
+
+        # Sync Software Update Section (Phase E)
+        self._sync_update_ui()
+
+    def _sync_update_ui(self) -> None:
+        result = self._controller.update_result()
+        is_checking = self._controller.is_checking_updates()
+
+        self._update_version_label.setText(f"Installed Version: v{result.current_version}")
+
+        if is_checking or result.state == UpdateCheckState.CHECKING:
+            self._update_check_btn.setEnabled(False)
+            self._update_check_btn.setText("Checking...")
+            self._update_status_label.setText("Checking GitHub for official releases...")
+            self._update_state_badge.setVisible(False)
+            self._update_release_btn.setVisible(False)
+        elif result.state == UpdateCheckState.UP_TO_DATE:
+            self._update_check_btn.setEnabled(True)
+            self._update_check_btn.setText("Check Again")
+            self._update_status_label.setText(f"Vocabulary App is up to date (v{result.current_version}).")
+            self._update_state_badge.setText("Up to Date")
+            self._update_state_badge.setObjectName("settings-update-badge-uptodate")
+            self._update_state_badge.setVisible(True)
+            self._update_release_btn.setVisible(False)
+        elif result.state == UpdateCheckState.UPDATE_AVAILABLE:
+            self._update_check_btn.setEnabled(True)
+            self._update_check_btn.setText("Check Again")
+            latest_tag = result.latest_version or "latest"
+            pub_date = f" ({result.published_at[:10]})" if result.published_at else ""
+            self._update_status_label.setText(
+                f"A new version is available: v{latest_tag}{pub_date}. Click View Release to open release notes."
+            )
+            self._update_state_badge.setText(f"Update Available: v{latest_tag}")
+            self._update_state_badge.setObjectName("settings-update-badge-available")
+            self._update_state_badge.setVisible(True)
+            self._update_release_btn.setVisible(True)
+            self._update_release_btn.setEnabled(bool(result.release_url))
+        elif result.state == UpdateCheckState.CHECK_FAILED:
+            self._update_check_btn.setEnabled(True)
+            self._update_check_btn.setText("Check Again")
+            err_msg = result.error_message or "Network error"
+            self._update_status_label.setText(
+                f"Unable to check for updates ({err_msg}). Offline study and all local features continue to work normally."
+            )
+            self._update_state_badge.setText("Check Failed")
+            self._update_state_badge.setObjectName("settings-update-badge-failed")
+            self._update_state_badge.setVisible(True)
+            self._update_release_btn.setVisible(False)
+        else:  # NOT_CHECKED
+            self._update_check_btn.setEnabled(True)
+            self._update_check_btn.setText("Check for Updates")
+            self._update_status_label.setText("Update status has not been checked yet.")
+            self._update_state_badge.setVisible(False)
+            self._update_release_btn.setVisible(False)
+
+        # Force Qt stylesheet re-evaluation on badge
+        self._update_state_badge.style().unpolish(self._update_state_badge)
+        self._update_state_badge.style().polish(self._update_state_badge)
+
+    def _on_check_updates_clicked(self) -> None:
+        self._controller.check_for_updates()
+        self._sync_update_ui()
+
+    def _on_view_release_clicked(self) -> None:
+        self._controller.open_latest_release_page()
 
     def _on_appearance_changed(self, index: int) -> None:
         value = self._appearance_combo.itemData(index)

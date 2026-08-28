@@ -7,13 +7,16 @@ from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
+from src.collections import CROSS_CARD_CONFIRMATION_MESSAGE, CrossCardMoveConfirmationRequired
 from src.template_quiz import TEMPLATE_FIELD_MATCHING, TEMPLATE_FIELD_MCQ, TEMPLATE_FIELD_SELF_GRADED
+from src.time_utils import format_local_timestamp
 from src.ui_desktop.controllers.review_controller import QUIZ_TYPE_LABELS, QUICK_QUIZ_DEFAULT_TYPE, ReviewController
 from src.ui_desktop.theming.metrics import SPACING
 
@@ -132,9 +135,11 @@ class _WrappingLabel(QLabel):
 
     def resizeEvent(self, event) -> None:  # noqa: N802 (Qt override)
         super().resizeEvent(event)
-        needed = self.heightForWidth(self.width())
-        if needed >= 0 and self.minimumHeight() != needed:
-            self.setMinimumHeight(needed)
+        w = self.width()
+        if w > 0:
+            needed = self.heightForWidth(w)
+            if needed >= 0 and self.minimumHeight() != needed:
+                self.setMinimumHeight(needed)
 
 
 class ReviewView(QWidget):
@@ -170,6 +175,8 @@ class ReviewView(QWidget):
         root.addLayout(body, 1)
 
         controller.state_changed.connect(self._render)
+        controller.starred_changed.connect(self._on_starred_changed)
+        controller.proficient_changed.connect(self._on_proficient_changed)
 
     def set_motion(self, motion) -> None:
         """Injected by MainWindow (shared ``TransitionManager``, DESIGN.md
@@ -240,8 +247,10 @@ class ReviewView(QWidget):
         content_layout.setSpacing(0)
 
         column = QWidget(content)
+        column.setMinimumWidth(min(MAIN_COLUMN_MAX_WIDTH, 560))
         column.setMaximumWidth(MAIN_COLUMN_MAX_WIDTH)
         self._column_layout = QVBoxLayout(column)
+        self._column_layout.setContentsMargins(0, 0, 0, 0)
         # Looser than any one group's *internal* spacing (e.g.
         # _build_entry_content's term/Meaning/Example) so the canvas reads
         # as deliberate groups -- prompt block, then nav, then Quiz
@@ -280,7 +289,12 @@ class ReviewView(QWidget):
 
         entry = self._controller.current_entry()
         if entry is None:
-            self._column_layout.addWidget(_empty_state_label("This Card has no Entries."))
+            if self._controller.is_current_card_all_proficient():
+                self._column_layout.addWidget(
+                    _empty_state_label("All entries in this Card are marked as proficient. No regular study content needed.")
+                )
+            else:
+                self._column_layout.addWidget(_empty_state_label("This Card has no Entries."))
             self._drawer.render(self._controller)
             return
 
@@ -301,6 +315,35 @@ class ReviewView(QWidget):
         layout.setSpacing(SPACING.md)
         layout.setAlignment(Qt.AlignmentFlag.AlignHCenter)
 
+        actions = QWidget(block)
+        actions_layout = QHBoxLayout(actions)
+        actions_layout.setContentsMargins(0, 0, 0, 0)
+        actions_layout.setSpacing(SPACING.sm)
+
+        star_button = QPushButton(actions)
+        star_button.setObjectName("review-current-entry-star-button")
+        star_button.setProperty("learningStar", True)
+        star_button.setProperty("learningEntryAction", True)
+        star_button.setMinimumSize(96, 32)
+        self._set_star_button_state(star_button, self._controller.is_entry_starred(int(entry["id"])))
+        star_button.clicked.connect(lambda: self._toggle_current_entry_star(confirm_cross_card=False))
+        actions_layout.addWidget(star_button)
+
+        proficient_button = QPushButton(actions)
+        proficient_button.setObjectName("review-current-entry-proficient-button")
+        proficient_button.setProperty("learningProficient", True)
+        proficient_button.setProperty("learningEntryAction", True)
+        proficient_button.setMinimumSize(96, 32)
+        self._set_proficient_button_state(
+            proficient_button,
+            self._controller.is_entry_proficient(int(entry["id"])),
+        )
+        proficient_button.clicked.connect(
+            lambda: self._toggle_current_entry_proficient(confirm_cross_card=False)
+        )
+        actions_layout.addWidget(proficient_button)
+        layout.addWidget(actions, 0, Qt.AlignmentFlag.AlignHCenter)
+
         term = _WrappingLabel(str(entry.get("term") or ""), block)
         term.setObjectName("review-term-label")
         term.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -316,6 +359,56 @@ class ReviewView(QWidget):
             layout.addWidget(_field_block("Example", example, block))
 
         return block
+
+    @staticmethod
+    def _set_star_button_state(button: QPushButton, starred: bool) -> None:
+        button.setProperty("starred", starred)
+        button.setText("★ Starred" if starred else "☆ Star")
+        button.setAccessibleName("Unstar current Entry" if starred else "Star current Entry")
+        button.style().unpolish(button)
+        button.style().polish(button)
+
+    def _on_starred_changed(self, entry_id: int, starred: bool) -> None:
+        current = self._controller.current_entry()
+        if current is None or int(current["id"]) != entry_id:
+            return
+        button = self.findChild(QPushButton, "review-current-entry-star-button")
+        if button is not None:
+            self._set_star_button_state(button, starred)
+
+    @staticmethod
+    def _set_proficient_button_state(button: QPushButton, proficient: bool) -> None:
+        button.setProperty("proficient", proficient)
+        button.setText("✓ Proficient" if proficient else "→ Proficient")
+        button.setAccessibleName(
+            "Remove current Entry from Proficient Pool"
+            if proficient
+            else "Add current Entry to Proficient Pool"
+        )
+        button.style().unpolish(button)
+        button.style().polish(button)
+
+    def _on_proficient_changed(self, entry_id: int, proficient: bool) -> None:
+        current = self._controller.current_entry()
+        if current is None or int(current["id"]) != entry_id:
+            return
+        button = self.findChild(QPushButton, "review-current-entry-proficient-button")
+        if button is not None:
+            self._set_proficient_button_state(button, proficient)
+
+    def _toggle_current_entry_star(self, *, confirm_cross_card: bool) -> None:
+        try:
+            self._controller.toggle_current_entry_star(confirm_cross_card=confirm_cross_card)
+        except CrossCardMoveConfirmationRequired:
+            if _confirm_cross_card_reorganization(self):
+                self._toggle_current_entry_star(confirm_cross_card=True)
+
+    def _toggle_current_entry_proficient(self, *, confirm_cross_card: bool) -> None:
+        try:
+            self._controller.toggle_current_entry_proficient(confirm_cross_card=confirm_cross_card)
+        except CrossCardMoveConfirmationRequired:
+            if _confirm_cross_card_reorganization(self):
+                self._toggle_current_entry_proficient(confirm_cross_card=True)
 
     def _build_nav_row(self) -> QWidget:
         row = QWidget()
@@ -494,7 +587,7 @@ class _CardContentsDrawer(QWidget):
         return button
 
     def _build_history_row(self, session: dict) -> QWidget:
-        completed_at = str(session.get("completed_at") or "")
+        completed_at = format_local_timestamp(session.get("completed_at"))
         correct = session.get("correct_count", 0)
         total = session.get("total_items", 0)
         label = QLabel(f"{completed_at} · {correct}/{total} correct", self)
@@ -767,3 +860,13 @@ def _clear_layout(layout) -> None:
         widget = item.widget()
         if widget is not None:
             widget.deleteLater()
+
+
+def _confirm_cross_card_reorganization(parent: QWidget) -> bool:
+    result = QMessageBox.question(
+        parent,
+        "Confirm Card Reorganization",
+        CROSS_CARD_CONFIRMATION_MESSAGE,
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+    )
+    return result == QMessageBox.StandardButton.Yes

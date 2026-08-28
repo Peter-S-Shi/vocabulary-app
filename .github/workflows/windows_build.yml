@@ -1,0 +1,262 @@
+name: Windows Build & Packaging
+
+on:
+  push:
+    branches:
+      - main
+      - 'milestone/**'
+      - 'release/**'
+  pull_request:
+    branches:
+      - main
+      - 'milestone/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-regression:
+    name: Full Regression / Release Gate (manual only)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install test and runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-desktop.txt -r requirements-build.txt
+
+      - name: Run complete unittest discovery
+        run: |
+          python -m unittest discover -v
+
+  release-closure-theme-update-surface:
+    name: Release Closure / Shard 1 - Theme & Update Surface
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install test and runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-desktop.txt -r requirements-build.txt
+
+      - name: Run affected Theme/Update surface modules
+        run: |
+          python -m unittest -v `
+            tests.test_m17_theme_completion `
+            tests.test_m17_theme_typography_hierarchy_patch `
+            tests.test_v1_1_phase_d_theme_settings_ui `
+            tests.test_v1_1_phase_e_update_checker `
+            tests.test_v1_1_phase_e_update_settings_ui
+
+  release-closure-m18-remainder-m19:
+    name: Release Closure / Shard 2 - M18 remainder + M19
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install test and runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-desktop.txt -r requirements-build.txt
+
+      - name: Run M18 remainder (from test_m18_backup_restore_preview) and full M19
+        run: |
+          python -m unittest -v `
+            tests.test_m18_backup_restore_preview `
+            tests.test_m18_collection_manager `
+            tests.test_m18_data_tools `
+            tests.test_m18_light_dark_contrast_corrective `
+            tests.test_m18_linked_source `
+            tests.test_m18_review_calendar `
+            tests.test_m18_settings_storage `
+            tests.test_m18_template_definitions `
+            tests.test_m18_template_manager `
+            tests.test_m19_adversarial_boundaries `
+            tests.test_m19_analytics_representative_cases `
+            tests.test_m19_audio_export_preflight_progress `
+            tests.test_m19_background_task_navigation `
+            tests.test_m19_destination_and_scale `
+            tests.test_m19_empty_database_hardening `
+            tests.test_m19_quiz_session_integrity
+
+  release-closure-m20-timezone-v1_1:
+    name: Release Closure / Shard 3 - M20 + timezone + v1.1 Phase/Patch/Review Scheduling
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install test and runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-desktop.txt -r requirements-build.txt
+
+      - name: Run M20 + timezone + v1.1 Phase/Patch/Review Scheduling modules
+        run: |
+          python -m unittest -v `
+            tests.test_m20_build_packaging `
+            tests.test_m20_data_lifecycle `
+            tests.test_m20_installed_voice_binding `
+            tests.test_recent_entry_count_timezone_boundary `
+            tests.test_v1_1_phase_b `
+            tests.test_v1_1_phase_c `
+            tests.test_v1_1_phase_d_theme_engine `
+            tests.test_v1_1_phase_f2_upgrade_verification `
+            tests.test_v1_1_phase_patch_a1_quiz_review_scheduling `
+            tests.test_v1_1_phase_patch_a2_review_calendar_coherence `
+            tests.test_v1_1_phase_patch_b1_proficient_filter `
+            tests.test_v1_1_phase_patch_b2_manual_proficient `
+            tests.test_v1_1_phase_patch_b3_strength_recommendation `
+            tests.test_v1_1_phase_patch_b4_system_pool_random_quiz `
+            tests.test_v1_1_phase_patch_c1_duplicate_definition `
+            tests.test_v1_1_phase_patch_c2_native_duplicate_ux `
+            tests.test_v1_1_review_scheduling
+
+  build-windows:
+    name: Build Windows Installer (v1.1.0)
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup --no-progress
+          $inno_path = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $inno_path)) {
+            $inno_path = "C:\Program Files\Inno Setup 6\ISCC.exe"
+          }
+          if (-not (Test-Path $inno_path)) {
+            throw "Inno Setup compiler (ISCC.exe) was not found after installation."
+          }
+          Write-Host "Found Inno Setup at: $inno_path"
+          & $inno_path /? | Select-Object -First 2
+
+      - name: Install build and runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-desktop.txt -r requirements-build.txt
+
+      - name: Run build packaging and upgrade harness tests
+        run: |
+          python -m unittest tests.test_m20_build_packaging tests.test_v1_1_phase_f2_upgrade_verification
+
+      - name: Build Windows Executable & Inno Setup Installer
+        run: |
+          python winbuild/build.py --require-installer --require-clean
+
+      - name: Verify build artifacts and provenance
+        run: |
+          $manifest = "dist\build_manifest.json"
+          $checksums = "dist\SHA256SUMS.txt"
+
+          if (-not (Test-Path $manifest)) {
+            throw "Expected manifest missing: $manifest"
+          }
+          if (-not (Test-Path $checksums)) {
+            throw "Expected checksums file missing: $checksums"
+          }
+
+          $manifest_json = Get-Content $manifest -Raw | ConvertFrom-Json
+          $app_version = $manifest_json.app_version
+          Write-Host "Manifest App Version: $app_version"
+          Write-Host "Manifest Source SHA: $($manifest_json.source_sha)"
+          Write-Host "Manifest Source Dirty: $($manifest_json.source_dirty)"
+          Write-Host "Manifest Installer SHA256: $($manifest_json.installer_sha256)"
+
+          if (-not $app_version) {
+            throw "Manifest app_version is empty"
+          }
+          if ($manifest_json.source_dirty -ne $false) {
+            throw "Manifest source_dirty is True. Build provenance must be clean."
+          }
+
+          $git_sha = (git rev-parse HEAD).Trim()
+          if ($manifest_json.source_sha -ne $git_sha) {
+            throw "Manifest source_sha ($($manifest_json.source_sha)) does not match git HEAD ($git_sha)"
+          }
+
+          $installer = "dist\installer\VocabularyApp-Setup-$app_version.exe"
+          if (-not (Test-Path $installer)) {
+            throw "Expected installer artifact missing: $installer"
+          }
+
+          $installer_size = (Get-Item $installer).Length
+          Write-Host "Installer size: $([math]::Round($installer_size / 1MB, 2)) MB ($installer_size bytes)"
+          if ($installer_size -lt 10MB) {
+            throw "Installer is suspiciously small ($installer_size bytes)."
+          }
+
+          Write-Host "--- SHA256SUMS.txt ---"
+          Get-Content $checksums
+
+      - name: Run automated v1.0.0 to v1.1.0 upgrade & data-preservation proof
+        run: |
+          $upgrade_data_dir = Join-Path $env:RUNNER_TEMP "vocabulary-app-upgrade-proof"
+          python winbuild/verify_upgrade.py --data-dir $upgrade_data_dir
+
+      - name: Upload Windows Installer and Manifest Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: VocabularyApp-Windows-Installer
+          path: |
+            dist/installer/VocabularyApp-Setup-*.exe
+            dist/build_manifest.json
+            dist/SHA256SUMS.txt
+            dist/upgrade_verification_report.json
+          if-no-files-found: error

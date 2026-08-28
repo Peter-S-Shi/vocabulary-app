@@ -184,7 +184,14 @@ class M13BatchBLinkedSourceTests(unittest.TestCase):
             preserved = conn.execute("SELECT name FROM collections WHERE name = 'Preserved'").fetchone()
             self.assertEqual(get_schema_version(conn), CURRENT_SCHEMA_VERSION)
             self.assertEqual(get_metadata(conn, "app_data_version"), APP_DATA_VERSION)
-        self.assertEqual(applied, ["m13_linked_append_source", "m15.1_template_speech_semantics"])
+        self.assertEqual(
+            applied,
+            [
+                "m13_linked_append_source",
+                "m15.1_template_speech_semantics",
+                "v1.1_stable_card_review_schedule",
+            ],
+        )
         self.assertEqual(migrated_schema, fresh_schema)
         self.assertIsNotNone(preserved)
 

@@ -14,6 +14,9 @@ from src.db_import import DatabaseImportError
 from src.db_import import import_existing_database as _import_existing_database
 from src.entry_templates import get_entry_templates
 from src.import_export import (
+    DEFAULT_DUPLICATE_DEFINITION,
+    DUPLICATE_DEFINITION_SAME_LANGUAGE_TERM,
+    DUPLICATE_DEFINITION_SAME_LANGUAGE_TERM_MEANING,
     ImportPreviewError,
     build_export_filename,
     build_import_preview,
@@ -62,6 +65,11 @@ IMPORT_MODE_LABELS: tuple[tuple[str, str], ...] = (
     ("collection", "Collection/Card Import"),
 )
 
+DUPLICATE_DEFINITION_LABELS: tuple[tuple[str, str], ...] = (
+    (DUPLICATE_DEFINITION_SAME_LANGUAGE_TERM_MEANING, "Same language + same term + same meaning"),
+    (DUPLICATE_DEFINITION_SAME_LANGUAGE_TERM, "Same language + same term"),
+)
+
 EXPORT_SCOPE_LABELS: tuple[tuple[str, str], ...] = (
     ("all", "All entries"),
     ("collection", "Selected collection"),
@@ -92,6 +100,7 @@ class DataToolsController(QObject):
         self.selected_sheet: str | None = None
         self.preview: dict | None = None
         self.preview_error: str | None = None
+        self.duplicate_definition: str = DEFAULT_DUPLICATE_DEFINITION
         self.duplicate_handling: str = "skip"
         self.target_collection_id: int | None = None
         self.collection_import_mode: str = "append_to_existing"
@@ -147,8 +156,21 @@ class DataToolsController(QObject):
     def set_sheet(self, sheet_name: str) -> None:
         self.selected_sheet = sheet_name
 
+    def set_duplicate_definition(self, value: str) -> None:
+        if value == self.duplicate_definition:
+            return
+        self.duplicate_definition = value
+        self.preview = None
+        self.preview_error = None
+        self.import_result = None
+        self.import_error = None
+        self.import_state_changed.emit()
+
     def set_duplicate_handling(self, value: str) -> None:
+        if value == self.duplicate_handling:
+            return
         self.duplicate_handling = value
+        self.import_state_changed.emit()
 
     def set_target_collection(self, collection_id: int | None) -> None:
         self.target_collection_id = collection_id
@@ -170,11 +192,19 @@ class DataToolsController(QObject):
     def run_preview(self) -> None:
         if self.file_bytes is None:
             return
-        options: dict = {}
+        options: dict = {
+            "duplicate_definition": self.duplicate_definition,
+        }
         if self.selected_sheet:
             options["sheet_name"] = self.selected_sheet
         try:
-            self.preview = build_import_preview(self.file_bytes, self.filename, mode=self.mode, options=options)
+            self.preview = build_import_preview(
+                self.file_bytes,
+                self.filename,
+                mode=self.mode,
+                options=options,
+                duplicate_definition=self.duplicate_definition,
+            )
             self.preview_error = None
         except ImportPreviewError as error:
             self.preview = None
@@ -207,14 +237,21 @@ class DataToolsController(QObject):
                 target_collection_id=self.target_collection_id,
                 create_collection_options=create_options,
                 preserve_file_order=self.preserve_file_order,
+                duplicate_definition=self.duplicate_definition,
             )
         elif self.mode == "template_aware":
             result = import_template_entry_rows(
-                valid_rows, duplicate_handling=self.duplicate_handling, target_collection_id=self.target_collection_id
+                valid_rows,
+                duplicate_handling=self.duplicate_handling,
+                target_collection_id=self.target_collection_id,
+                duplicate_definition=self.duplicate_definition,
             )
         else:
             result = import_general_entry_rows(
-                valid_rows, duplicate_handling=self.duplicate_handling, target_collection_id=self.target_collection_id
+                valid_rows,
+                duplicate_handling=self.duplicate_handling,
+                target_collection_id=self.target_collection_id,
+                duplicate_definition=self.duplicate_definition,
             )
 
         self.import_result = result

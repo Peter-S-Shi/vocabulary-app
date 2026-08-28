@@ -3,11 +3,20 @@ from __future__ import annotations
 from PySide6.QtCore import QObject, Signal
 
 from src import db
-from src.collections import get_card_groups_for_collection, get_entries_in_collection
+from src.collections import (
+    add_entries_to_system_collection,
+    get_card_entries_for_study,
+    get_card_groups_for_collection,
+    get_entries_in_collection,
+    get_entry_ids_in_system_collection,
+    is_system_collection_id,
+    remove_entries_from_system_collection,
+)
 from src.learning_workflow import get_card_learning_history, get_study_cards
 from src.quiz import QUIZ_TYPES
 from src.template_quiz import get_available_template_quiz_sources_for_card, get_template_quiz_rules
 from src.ui_desktop.state.handoff import QUICK_QUIZ_DEFAULT_TYPE, QUIZ_TYPE_LABELS, QuizLaunchIntent
+from src.ui_desktop.state.preferences import Preferences
 
 """
 ReviewController owns the Study Mode / Review workspace's transient
@@ -46,15 +55,26 @@ MATCHING_ITEM_COUNT_OPTIONS: tuple[int, ...] = (4, 6, 8, 10)
 
 class ReviewController(QObject):
     state_changed = Signal()
+    starred_changed = Signal(int, bool)
+    proficient_changed = Signal(int, bool)
 
-    def __init__(self) -> None:
+    def __init__(self, preferences: Preferences | None = None) -> None:
         super().__init__()
+        self.preferences = preferences
         self._study_cards: list[dict] = []
         self._card_index: int = -1
         self._entries: list[dict] = []
         self._entry_index: int = 0
         self._visited_entry_ids: set[int] = set()
+        self._starred_entry_ids: set[int] = set()
+        self._proficient_entry_ids: set[int] = set()
         self._history: list[dict] = []
+
+    @property
+    def include_proficient_in_study(self) -> bool:
+        if self.preferences is not None:
+            return bool(self.preferences.include_proficient_in_study)
+        return True
 
     # -- loading -----------------------------------------------------------
 
@@ -78,6 +98,8 @@ class ReviewController(QObject):
             self._entries = []
             self._entry_index = 0
             self._visited_entry_ids = set()
+            self._starred_entry_ids = set()
+            self._proficient_entry_ids = set()
             self._history = []
             self.state_changed.emit()
             return False
@@ -108,6 +130,11 @@ class ReviewController(QObject):
         self._select_card_index(index)
         return True
 
+    def reload_current_card(self) -> None:
+        """Re-read entries for the currently selected Card (e.g. after preference change)."""
+        if self._card_index >= 0 and self._card_index < len(self._study_cards):
+            self._select_card_index(self._card_index)
+
     def _select_card_index(self, index: int) -> None:
         self._card_index = index
         card = self._study_cards[index]
@@ -115,16 +142,41 @@ class ReviewController(QObject):
         self._entry_index = 0
         self._visited_entry_ids = set()
         self._mark_current_entry_visited()
+        self._starred_entry_ids = set(
+            get_entry_ids_in_system_collection(
+                [entry["id"] for entry in self._entries],
+                "starred",
+            )
+        )
+        self._proficient_entry_ids = set(
+            get_entry_ids_in_system_collection(
+                [entry["id"] for entry in self._entries],
+                "proficient_pool",
+            )
+        )
         with db.get_connection() as connection:
             self._history = get_card_learning_history(connection, card["collection_id"], card["card_number"])
         self.state_changed.emit()
 
-    @staticmethod
-    def _entries_for_card(collection_id: int, card_number: int) -> list[dict]:
-        for group in get_card_groups_for_collection(collection_id):
-            if group["card_number"] == card_number:
-                return list(group["entries"])
-        return []
+    def _entries_for_card(self, collection_id: int, card_number: int) -> list[dict]:
+        return get_card_entries_for_study(
+            collection_id,
+            card_number,
+            include_proficient=self.include_proficient_in_study,
+        )
+
+    def is_current_card_all_proficient(self) -> bool:
+        """Return True if the current Card has structural entries, but all of them
+        are currently excluded because they reside in the Proficient Pool."""
+        card = self.current_card()
+        if card is None or bool(self._entries):
+            return False
+        raw_entries = get_card_entries_for_study(
+            card["collection_id"],
+            card["card_number"],
+            include_proficient=True,
+        )
+        return len(raw_entries) > 0
 
     # -- current state -------------------------------------------------------
 
@@ -155,6 +207,86 @@ class ReviewController(QObject):
 
     def is_entry_visited(self, entry_id: int) -> bool:
         return entry_id in self._visited_entry_ids
+
+    def is_entry_starred(self, entry_id: int) -> bool:
+        return entry_id in self._starred_entry_ids
+
+    def is_entry_proficient(self, entry_id: int) -> bool:
+        return entry_id in self._proficient_entry_ids
+
+    def toggle_current_entry_star(self, *, confirm_cross_card: bool = False) -> bool:
+        entry = self.current_entry()
+        if entry is None:
+            raise ValueError("No current Entry is available")
+
+        entry_id = int(entry["id"])
+        if self.is_entry_starred(entry_id):
+            remove_entries_from_system_collection(
+                [entry_id],
+                "starred",
+                confirm_cross_card=confirm_cross_card,
+            )
+            self._starred_entry_ids.remove(entry_id)
+            starred = False
+        else:
+            add_entries_to_system_collection([entry_id], "starred")
+            self._starred_entry_ids.add(entry_id)
+            starred = True
+
+        self.starred_changed.emit(entry_id, starred)
+        return starred
+
+    def toggle_current_entry_proficient(self, *, confirm_cross_card: bool = False) -> bool:
+        """Toggle Proficient Pool membership without advancing learning state.
+
+        Membership changes can alter the visible roster when proficient Entries
+        are excluded, or when studying the Proficient Pool itself. Re-read only
+        the current Card and keep the same logical slot without marking the newly
+        displayed Entry visited.
+        """
+        entry = self.current_entry()
+        if entry is None:
+            raise ValueError("No current Entry is available")
+
+        entry_id = int(entry["id"])
+        if self.is_entry_proficient(entry_id):
+            remove_entries_from_system_collection(
+                [entry_id],
+                "proficient_pool",
+                confirm_cross_card=confirm_cross_card,
+            )
+            proficient = False
+        else:
+            add_entries_to_system_collection([entry_id], "proficient_pool")
+            proficient = True
+
+        old_ids = [int(item["id"]) for item in self._entries]
+        old_index = self._entry_index
+        card = self.current_card()
+        roster_can_change = card is not None and (
+            not self.include_proficient_in_study
+            or is_system_collection_id(int(card["collection_id"]))
+        )
+        if roster_can_change and card is not None:
+            self._entries = self._entries_for_card(card["collection_id"], card["card_number"])
+            new_ids = [int(item["id"]) for item in self._entries]
+            if new_ids != old_ids:
+                self._entry_index = min(old_index, max(len(self._entries) - 1, 0))
+                self._starred_entry_ids = set(
+                    get_entry_ids_in_system_collection(new_ids, "starred")
+                )
+                self._proficient_entry_ids = set(
+                    get_entry_ids_in_system_collection(new_ids, "proficient_pool")
+                )
+                self.state_changed.emit()
+                return proficient
+
+        if proficient:
+            self._proficient_entry_ids.add(entry_id)
+        else:
+            self._proficient_entry_ids.discard(entry_id)
+        self.proficient_changed.emit(entry_id, proficient)
+        return proficient
 
     # -- entry navigation ------------------------------------------------
 
@@ -268,7 +400,11 @@ class ReviewController(QObject):
         card = self.current_card()
         if card is None:
             return []
-        return get_available_template_quiz_sources_for_card(card["collection_id"], card["card_number"])
+        return get_available_template_quiz_sources_for_card(
+            card["collection_id"],
+            card["card_number"],
+            include_proficient=self.include_proficient_in_study,
+        )
 
     def template_rules(self, template_type: str) -> list[dict]:
         return get_template_quiz_rules(template_type)

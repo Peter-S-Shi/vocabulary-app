@@ -1099,7 +1099,9 @@ Empty, neutral, warning, controlled error, success, and partial-success states m
 
 ## 13. Theme Architecture
 
-Theme configuration has two independent axes.
+Theme configuration is governed by two orthogonal axes: **Appearance Mode** and **Theme Customization** (authoritative baseline Presets + constrained semantic custom theme editing).
+
+All theme resolution and rendering flows through a single source of truth: `ThemeManager` + semantic `ThemeTokens` + `Preferences`. **No per-view styling or secondary styling systems are permitted.**
 
 ### 13.1 Appearance
 
@@ -1113,38 +1115,59 @@ Supported values:
 
 On desktop, `System` resolves through a live read of the OS's current Light/Dark appearance (Qt's `QStyleHints.colorScheme()`, not a hand-rolled per-platform poll) and re-resolves automatically if the OS appearance changes while the app is running and `System` remains selected; switching to an explicit Light/Dark choice is never silently overridden by a later OS change (M17 Theme Completion).
 
-Theme changes apply without restart and must not mutate vocabulary data, Quiz state, Review evidence, Analytics, or other learning state.
+Theme changes apply live without restart and must not mutate vocabulary data, Quiz state, Review evidence, Analytics, or other learning state.
 
-### 13.2 Accent families
+### 13.2 Presets & Constrained Semantic Theme Customization
 
-All four are first-class supported moods of the same product:
+The product provides four official Presets. In v1.1.0, a Preset selects the mode's official accent-family baseline; Light/Dark neutral Background, Surface, and Text baselines remain the Appearance defaults unless the user customizes them.
 
-1. **Calm Blue / Slate** — default;
+1. **Calm Blue / Slate** — default baseline;
 2. **Sage / Teal**;
 3. **Indigo / Violet**;
 4. **Warm Neutral**.
 
-Do not expose arbitrary RGB/hex theme editing unless a later product decision authorizes it.
+#### Authorized Custom Theme Model (v1.1.0 Phase D Contract)
+
+Rather than exposing unconstrained arbitrary RGB/hex modifications that could break UI contrast or pollute semantic states, the design authority authorizes **constrained semantic theme customization**:
+
+1. **Independent Per-Mode Customization**: Light Mode and Dark Mode can be customized and persisted independently (`preferences.custom_theme.light` and `preferences.custom_theme.dark`), each anchored to an official Preset.
+2. **Constrained Customization Dimensions**:
+   - **Preset**: Official accent-family starting baseline for the mode.
+   - **Accent Color**: Interactive emphasis color.
+   - **Background**: Application outermost window canvas color.
+   - **Surfaces**: Primary content surface and card container color.
+   - **Text**: Main typography color.
+3. **Automatic Interaction Token Family Derivation**: Customizing an Accent color does not merely replace a single hex; the theme engine automatically derives a complete, internally consistent semantic token family including paired primary, hover, pressed, and soft Accent states, plus the derived selected background, Accent border, and focus ring.
+4. **Mathematical Contrast Guard**: Text-bearing custom Accent states (primary, hover, pressed, and soft) are resolved with a WCAG AA 4.5:1 contrast guard. A custom primary Text color is accepted only when it clears the defined contrast checks against the resolved primary Surface and app Background; otherwise the engine substitutes a readable fallback. The Settings UI exposes Auto Guard and a contrast readout. This contract does not imply that every decorative or non-text color pairing is itself a 4.5:1 text-bearing pair.
+5. **Semantic State Immutability**: Business, assessment, and feedback state colors (`success`, `warning`, `danger`, `info`, `quiz-correct`, `quiz-wrong`, and `star`) are immutable invariants. They are **strictly protected from pollution or alteration by custom themes or accents**.
 
 ---
 
-## 14. Theme Controls
+## 14. Theme Controls & Customization UX
 
-Two access levels:
+### 14.1 Quick Theme Control — Deferred
 
-**Quick Theme Control** — compact popover reachable from the Management shell.
+A compact Management-shell quick theme control remains an optional future access point, not part of the accepted v1.1.0 Phase D implementation. The authoritative v1.1.0 theme configuration surface is Settings → Appearance / Theme Customization. A future implementation must require a new product decision and must reuse the existing ThemeManager / ThemeTokens / Preferences architecture rather than introducing a second theme-control path.
 
-```text
-Appearance          Accent
-○ System             ● Calm Blue
-○ Light              ○ Sage / Teal
-○ Dark               ○ Indigo / Violet
-                     ○ Warm Neutral
-```
+### 14.2 Settings Theme Customization
 
-Changes apply immediately. Theme controls do not permanently occupy prominent navigation space.
+The authoritative configuration surface is located at **Settings → Theme Customization**:
 
-**Settings → Appearance** — full authoritative configuration surface.
+1. **`[Light Mode]` / `[Dark Mode]` Tabbed Workspace**: Two dedicated tabs allowing independent inspection and tuning of Light and Dark themes.
+2. **Tab Switch Real-Time Live Preview**: Switching tabs temporarily switches the entire running application into that mode for complete, real-time live preview, **without altering the user's stored `Appearance = System / Light / Dark` preference**.
+3. **In-Picker Real-Time Live Preview**: While selecting colors via the native color picker dialog (`QColorDialog`), interactive adjustments (dragging wheels or sliders) immediately preview live across the entire window. Rejecting or canceling the picker reverts the preview to the pre-picker staged state; accepting retains the selection in staged configuration.
+4. **Staging vs. Committed Apply**:
+   - Changes made in the editor are staged in memory with live visual feedback, but are **never written to disk (`preferences.json`) before `Apply` is clicked**.
+   - **Cancel**: Discards all uncommitted staged edits and restores the latest committed theme state.
+   - **Apply**: Commits the staged theme to disk preferences, applies it permanently, and records an undo snapshot.
+5. **Separated Staged vs. Committed Undo Lifecycle**:
+   - **Staged Undo**: Undoing staged operations (e.g. `Reset to Preset` or `Reset All to Default` prior to Apply) restores the in-memory staged snapshot and active tab live preview, **without writing uncommitted changes to disk or modifying committed preferences**.
+   - **Committed Undo**: Undoing after an `Apply` restores and persists the previous committed snapshot.
+6. **Reset Lifecycle**:
+   - **Reset to Preset**: Clears custom color overrides for the active tab's mode, preserving its selected Preset.
+   - **Reset All to Default**: Resets both Light and Dark modes to factory default Calm Blue with custom colors cleared.
+   - Both Reset actions are immediately undoable via `Undo`.
+7. **Non-Modal Contextual Feedback**: Contextual status feedback provides clear, non-intrusive confirmation upon Apply, Reset, Undo, and Cancel actions without interrupting workflow.
 
 Study Mode does not keep a prominent theme selector visible during an active Immersive Focus session.
 
@@ -1508,7 +1531,7 @@ A composition substitution remains a DESIGN FAIL even if:
 
 **Analytics:** global mastery score; opaque learner grade; rainbow Findings; charts dominating interpretation.
 
-**Theme:** accent overriding semantic state; arbitrary foreground/background pairing; naïve Light/Dark inversion; theme changes modifying learning data.
+**Theme:** accent overriding semantic state; arbitrary foreground/background pairing; naïve Light/Dark inversion; theme changes modifying learning data; ad-hoc per-view styling; unconstrained hex replacements bypassing contrast guards.
 
 ---
 
@@ -1620,7 +1643,7 @@ FAIL when data mutates before confirmation, destructive actions are ambiguous/de
 
 ### 27.8 Theme/accessibility acceptance
 
-PASS only when all supported Accent × Appearance combinations preserve hierarchy, explicit foregrounds, contrast, and semantic-state independence.
+PASS only when all supported baseline Presets and custom theme configurations preserve hierarchy, explicit foregrounds, contrast ($\ge 4.5:1$), and semantic-state independence.
 
 Automated contrast checks are necessary but do not replace viewing representative real native surfaces in Light and Dark.
 

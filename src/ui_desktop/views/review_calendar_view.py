@@ -1,18 +1,25 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QDate, QEvent, QLocale, Qt
+from PySide6.QtGui import QColor, QPalette, QTextCharFormat
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCalendarWidget,
     QComboBox,
+    QDateEdit,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
+from src.time_utils import format_local_timestamp
 from src.ui_desktop.controllers.review_calendar_controller import DATE_RANGE_PRESETS, ReviewCalendarController
 from src.ui_desktop.theming.metrics import SPACING
 
@@ -55,12 +62,11 @@ canonical mockup or exact rail placement for this surface:
   7. Surface Hierarchy       -> table on `surface_primary`, matching
                                  Entries/Templates; unchanged detail
                                  vocabulary.
-  8. Action Hierarchy        -> no destructive/mutating actions exist
-                                 here at all (read-only evidence browsing,
-                                 like the M17 Collections Navigator before
-                                 M18.1 added writes) -- selection is the
-                                 only interaction.
-  9. Editing Container       -> none; purely a read surface.
+  8. Action Hierarchy        -> next-review editing is the sole active
+                                 mutation; Quiz completion history remains
+                                 read-only evidence.
+  9. Editing Container       -> compact date editor attached to the
+                                 separate current-Card Schedule table.
  10. Navigation/Chrome       -> full Management shell retained.
  11. Motion/Transition       -> reuses the existing shared
                                  `TransitionManager.fade_in` on workspace
@@ -77,10 +83,10 @@ canonical mockup or exact rail placement for this surface:
                                  (including its legacy-compatibility
                                  section) in Light and Dark Mode.
 
-Read-only: this workspace never mutates SQLite, never revives legacy
-due/interval/rating scheduling as active product truth (frozen semantic
-boundary), and keeps Quiz-backed completion evidence visually distinct
-from legacy Review compatibility records.
+This workspace mutates only stable-Card next-review schedules. It never
+revives legacy rating/SRS history as active product truth and keeps
+Quiz-backed completion evidence visually distinct from schedule state and
+legacy Review compatibility records.
 """
 
 
@@ -90,7 +96,22 @@ class ReviewCalendarView(QWidget):
         self.setObjectName("review-calendar-root")
         self._controller = controller
 
-        layout = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        scroll = QScrollArea(self)
+        scroll.setObjectName("review-calendar-scroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        outer.addWidget(scroll)
+
+        body = QWidget(scroll)
+        scroll.setWidget(body)
+
+        layout = QVBoxLayout(body)
         layout.setContentsMargins(SPACING.lg, SPACING.lg, SPACING.lg, SPACING.lg)
         layout.setSpacing(SPACING.md)
 
@@ -98,7 +119,14 @@ class ReviewCalendarView(QWidget):
         title = QLabel("Review Calendar", self)
         title.setObjectName("review-calendar-title")
         toolbar.addWidget(title)
+
+        self._today_button = QPushButton("Today", self)
+        self._today_button.setObjectName("review-calendar-today-button")
+        self._today_button.clicked.connect(self._on_today_clicked)
+        toolbar.addWidget(self._today_button)
+
         toolbar.addStretch(1)
+
         range_label = QLabel("Range", self)
         range_label.setObjectName("review-calendar-range-label")
         toolbar.addWidget(range_label)
@@ -111,6 +139,89 @@ class ReviewCalendarView(QWidget):
         toolbar.addWidget(self._range_combo)
         layout.addLayout(toolbar)
 
+        # Upper Date Management Section (Calendar Widget + Schedule Table)
+        schedule_container = QHBoxLayout()
+        schedule_container.setSpacing(SPACING.md)
+
+        english_locale = QLocale(QLocale.Language.English, QLocale.Country.UnitedStates)
+        self._calendar = QCalendarWidget(self)
+        self._calendar.setObjectName("review-calendar-widget")
+        self._calendar.setGridVisible(True)
+        self._calendar.setVerticalHeaderFormat(QCalendarWidget.VerticalHeaderFormat.NoVerticalHeader)
+        self._calendar.setLocale(english_locale)
+        self._update_weekend_format()
+        self._calendar.selectionChanged.connect(self._on_calendar_date_changed)
+        self._calendar.setFixedWidth(300)
+        self._calendar.setMinimumHeight(220)
+        schedule_container.addWidget(self._calendar, 0)
+
+        schedule_right_col = QVBoxLayout()
+        schedule_right_col.setSpacing(SPACING.sm)
+
+        self._schedule_heading = QLabel("Review Schedule", self)
+        self._schedule_heading.setObjectName("review-calendar-schedule-heading")
+        schedule_right_col.addWidget(self._schedule_heading)
+
+        self._schedule_table = QTableWidget(self)
+        self._schedule_table.setObjectName("review-calendar-schedule-table")
+        self._schedule_table.setColumnCount(4)
+        self._schedule_table.setHorizontalHeaderLabels(["Collection", "Card", "Status", "Next Review"])
+        self._schedule_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._schedule_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._schedule_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self._schedule_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._schedule_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._schedule_table.setMinimumHeight(160)
+        self._schedule_table.verticalHeader().setVisible(False)
+        self._schedule_table.horizontalHeader().setStretchLastSection(True)
+        self._schedule_table.setColumnWidth(0, 180)
+        self._schedule_table.setColumnWidth(1, 80)
+        self._schedule_table.setColumnWidth(2, 100)
+        self._schedule_table.itemSelectionChanged.connect(self._on_schedule_selected)
+        schedule_right_col.addWidget(self._schedule_table, 1)
+
+        self._editing_target_label = QLabel("Select a Card from the schedule above to edit its review date.", self)
+        self._editing_target_label.setObjectName("review-calendar-editing-target-label")
+        self._editing_target_label.setWordWrap(True)
+        schedule_right_col.addWidget(self._editing_target_label)
+
+        schedule_editor = QHBoxLayout()
+        schedule_editor.addWidget(QLabel("Next review", self))
+        self._schedule_date = QDateEdit(self)
+        self._schedule_date.setObjectName("review-calendar-schedule-date")
+        self._schedule_date.setCalendarPopup(True)
+        self._schedule_date.setMinimumWidth(125)
+        self._schedule_date.setLocale(english_locale)
+        calendar_popup = self._schedule_date.calendarWidget()
+        if calendar_popup:
+            calendar_popup.setObjectName("review-calendar-popup")
+            calendar_popup.setLocale(english_locale)
+        self._schedule_date.setDisplayFormat("yyyy-MM-dd")
+        self._schedule_date.setDate(QDate.currentDate())
+        schedule_editor.addWidget(self._schedule_date)
+
+        self._schedule_save_button = QPushButton("Save schedule", self)
+        self._schedule_save_button.setObjectName("review-calendar-schedule-save-button")
+        self._schedule_save_button.setEnabled(False)
+        self._schedule_save_button.clicked.connect(self._save_schedule)
+        schedule_editor.addWidget(self._schedule_save_button)
+
+        self._schedule_clear_button = QPushButton("Clear schedule", self)
+        self._schedule_clear_button.setObjectName("review-calendar-schedule-clear-button")
+        self._schedule_clear_button.setEnabled(False)
+        self._schedule_clear_button.clicked.connect(self._clear_schedule)
+        schedule_editor.addWidget(self._schedule_clear_button)
+        schedule_editor.addStretch(1)
+        schedule_right_col.addLayout(schedule_editor)
+
+        schedule_container.addLayout(schedule_right_col, 1)
+        layout.addLayout(schedule_container)
+
+        # Lower Section: Quiz Completion History (Read-Only Evidence)
+        history_heading = QLabel("Quiz Completion History", self)
+        history_heading.setObjectName("review-calendar-detail-heading")
+        layout.addWidget(history_heading)
+
         self._table = QTableWidget(self)
         self._table.setObjectName("review-calendar-table")
         self._table.setColumnCount(6)
@@ -118,8 +229,16 @@ class ReviewCalendarView(QWidget):
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self._table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._table.setMinimumHeight(200)
         self._table.verticalHeader().setVisible(False)
-        self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self._table.horizontalHeader().setStretchLastSection(True)
+        self._table.setColumnWidth(0, 160)
+        self._table.setColumnWidth(1, 140)
+        self._table.setColumnWidth(2, 80)
+        self._table.setColumnWidth(3, 110)
+        self._table.setColumnWidth(4, 70)
         self._table.itemSelectionChanged.connect(self._on_row_selected)
         layout.addWidget(self._table, 2)
 
@@ -138,53 +257,66 @@ class ReviewCalendarView(QWidget):
         self._history_table.setHorizontalHeaderLabels(["Completed", "Quiz Type", "Correct", "Wrong"])
         self._history_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._history_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self._history_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._history_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._history_table.setMinimumHeight(160)
         self._history_table.verticalHeader().setVisible(False)
-        self._history_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self._history_table.horizontalHeader().setStretchLastSection(True)
+        self._history_table.setColumnWidth(0, 160)
+        self._history_table.setColumnWidth(1, 120)
+        self._history_table.setColumnWidth(2, 70)
         layout.addWidget(self._history_table, 1)
 
-        legacy_heading = QLabel("Legacy Review History (compatibility only)", self)
-        legacy_heading.setObjectName("review-calendar-legacy-heading")
-        layout.addWidget(legacy_heading)
-        legacy_caption = QLabel(
-            "These records came from the retired independent Review scheduler. "
-            "They are not Quiz-backed Card learning completions.",
-            self,
-        )
-        legacy_caption.setObjectName("review-calendar-legacy-caption")
-        legacy_caption.setWordWrap(True)
-        layout.addWidget(legacy_caption)
-
-        self._legacy_table = QTableWidget(self)
-        self._legacy_table.setObjectName("review-calendar-legacy-table")
-        self._legacy_table.setColumnCount(3)
-        self._legacy_table.setHorizontalHeaderLabels(["Reviewed", "Rating", "Entries"])
-        self._legacy_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self._legacy_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-        self._legacy_table.verticalHeader().setVisible(False)
-        self._legacy_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        layout.addWidget(self._legacy_table, 1)
+        self._selected_session_timestamp: str | None = None
 
         controller.entries_changed.connect(self._render_table)
         controller.selection_changed.connect(self._render_detail)
 
+    def changeEvent(self, event: QEvent) -> None:
+        super().changeEvent(event)
+        if event.type() in (
+            QEvent.Type.PaletteChange,
+            QEvent.Type.ApplicationPaletteChange,
+            QEvent.Type.StyleChange,
+        ):
+            self._update_weekend_format()
+
+    def _update_weekend_format(self) -> None:
+        text_color = self.palette().color(QPalette.ColorRole.Text)
+        fmt = QTextCharFormat()
+        fmt.setForeground(text_color)
+        self._calendar.setWeekdayTextFormat(Qt.DayOfWeek.Saturday, fmt)
+        self._calendar.setWeekdayTextFormat(Qt.DayOfWeek.Sunday, fmt)
+        if hasattr(self, "_schedule_date"):
+            popup_calendar = self._schedule_date.calendarWidget()
+            if popup_calendar is not None:
+                popup_calendar.setWeekdayTextFormat(Qt.DayOfWeek.Saturday, fmt)
+                popup_calendar.setWeekdayTextFormat(Qt.DayOfWeek.Sunday, fmt)
+
     def refresh(self) -> None:
         self._controller.refresh()
+        cur_qdate = QDate.fromString(self._controller.selected_date, "yyyy-MM-dd")
+        if cur_qdate.isValid():
+            self._calendar.blockSignals(True)
+            self._calendar.setSelectedDate(cur_qdate)
+            self._calendar.blockSignals(False)
+        self._schedule_heading.setText(f"Review Schedule ({self._controller.selected_date})")
+
+    def _on_today_clicked(self) -> None:
+        today_qdate = QDate.currentDate()
+        self._calendar.blockSignals(True)
+        self._calendar.setSelectedDate(today_qdate)
+        self._calendar.blockSignals(False)
+        self._schedule_heading.setText(f"Review Schedule ({today_qdate.toString('yyyy-MM-dd')})")
+        self._controller.go_to_today()
+
+    def _on_calendar_date_changed(self) -> None:
+        selected_date_str = self._calendar.selectedDate().toString("yyyy-MM-dd")
+        self._schedule_heading.setText(f"Review Schedule ({selected_date_str})")
+        self._controller.set_selected_date(selected_date_str)
 
     def _render_table(self) -> None:
-        # ReviewCalendarController.refresh() already clears selection
-        # state before emitting entries_changed (unlike Templates' stable-
-        # id table, this primary evidence surface is a chronological
-        # *event* log where "the same row identity" is not well-defined
-        # across a refresh -- an independent review finding on this
-        # checkpoint). Rebuilding the table's rows/selection must happen
-        # with signals blocked: `clearSelection()` fires
-        # `itemSelectionChanged` synchronously, and `_on_row_selected()`
-        # reads `currentRow()` (Qt's *current-index* concept, which
-        # `clearSelection()` alone does not reset) -- unblocked, that
-        # handler would re-read whatever old row data is still sitting at
-        # that index and immediately re-select it, undoing the clear
-        # (caught by this checkpoint's own regression test before it ever
-        # shipped).
+        self._selected_session_timestamp = None
         self._table.blockSignals(True)
         try:
             self._table.clearSelection()
@@ -193,17 +325,51 @@ class ReviewCalendarView(QWidget):
             entries = self._controller.entries
             self._table.setRowCount(len(entries))
             for row, entry in enumerate(entries):
-                self._table.setItem(row, 0, QTableWidgetItem(str(entry.get("completed_at") or "")))
+                self._table.setItem(row, 0, QTableWidgetItem(format_local_timestamp(entry.get("completed_at"))))
                 self._table.setItem(row, 1, QTableWidgetItem(str(entry.get("collection_name") or "")))
                 self._table.setItem(row, 2, QTableWidgetItem(f"#{entry.get('card_number')}"))
                 self._table.setItem(row, 3, QTableWidgetItem(str(entry.get("quiz_type") or "")))
                 self._table.setItem(row, 4, QTableWidgetItem(str(int(entry.get("correct_count") or 0))))
                 self._table.setItem(row, 5, QTableWidgetItem(str(int(entry.get("wrong_count") or 0))))
                 item = self._table.item(row, 0)
-                item.setData(Qt.ItemDataRole.UserRole, (int(entry["collection_id"]), int(entry["card_number"])))
+                item.setData(
+                    Qt.ItemDataRole.UserRole,
+                    (
+                        int(entry["session_id"]),
+                        None if entry["card_id"] is None else int(entry["card_id"]),
+                        int(entry["collection_id"]),
+                        int(entry["card_number"]),
+                    ),
+                )
                 item.setData(Qt.ItemDataRole.UserRole + 1, str(entry.get("collection_name") or ""))
         finally:
             self._table.blockSignals(False)
+
+        self._schedule_table.blockSignals(True)
+        try:
+            self._schedule_table.clearSelection()
+            self._schedule_table.setCurrentCell(-1, -1)
+            schedules = self._controller.scheduled_cards_for_date(self._controller.selected_date)
+            self._schedule_table.setRowCount(len(schedules))
+            for row, schedule in enumerate(schedules):
+                self._schedule_table.setItem(row, 0, QTableWidgetItem(str(schedule["collection_name"])))
+                self._schedule_table.setItem(row, 1, QTableWidgetItem(f"#{schedule['card_number']}"))
+                self._schedule_table.setItem(row, 2, QTableWidgetItem(str(schedule["state"])))
+                self._schedule_table.setItem(row, 3, QTableWidgetItem(str(schedule.get("next_due_at") or "Unscheduled")))
+                self._schedule_table.item(row, 0).setData(
+                    Qt.ItemDataRole.UserRole,
+                    (
+                        int(schedule["card_id"]),
+                        int(schedule["collection_id"]),
+                        int(schedule["card_number"]),
+                    ),
+                )
+                self._schedule_table.item(row, 0).setData(
+                    Qt.ItemDataRole.UserRole + 1,
+                    str(schedule["collection_name"]),
+                )
+        finally:
+            self._schedule_table.blockSignals(False)
 
     def _on_range_changed(self, index: int) -> None:
         days = self._range_combo.itemData(index)
@@ -217,33 +383,105 @@ class ReviewCalendarView(QWidget):
         item = self._table.item(row, 0)
         if item is None:
             return
-        collection_id, card_number = item.data(Qt.ItemDataRole.UserRole)
+        session_id, card_id, collection_id, card_number = item.data(
+            Qt.ItemDataRole.UserRole
+        )
         collection_name = item.data(Qt.ItemDataRole.UserRole + 1)
-        self._controller.select_card(collection_id, card_number, collection_name)
+        self._selected_session_timestamp = item.text()
+        self._controller.select_card_event(
+            card_id=card_id,
+            collection_id=collection_id,
+            card_number=card_number,
+            collection_name=collection_name,
+            session_id=session_id,
+        )
+
+    def _on_schedule_selected(self) -> None:
+        row = self._schedule_table.currentRow()
+        item = self._schedule_table.item(row, 0) if row >= 0 else None
+        if item is None:
+            return
+        card_id, collection_id, card_number = item.data(Qt.ItemDataRole.UserRole)
+        self._selected_session_timestamp = None
+        self._controller.select_current_card(
+            card_id=card_id,
+            collection_id=collection_id,
+            card_number=card_number,
+            collection_name=item.data(Qt.ItemDataRole.UserRole + 1),
+        )
+
+    def _save_schedule(self) -> None:
+        if self._controller.current_schedule is None:
+            return
+        self._controller.set_selected_next_review(
+            self._schedule_date.date().toString("yyyy-MM-dd")
+        )
+
+    def _clear_schedule(self) -> None:
+        if self._controller.current_schedule is None:
+            return
+        col_name = self._controller.selected_collection_name or "this Card"
+        card_num = self._controller.selected_card_number
+        card_label = f"{col_name} — Card #{card_num}" if card_num is not None else col_name
+
+        reply = QMessageBox.question(
+            self,
+            "Clear Review Schedule",
+            f"This will remove the scheduled review date for {card_label}.\n\nThis action cannot be undone. Are you sure you want to proceed?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._controller.clear_selected_schedule()
 
     def _render_detail(self) -> None:
         controller = self._controller
+
+        # 1. Update Schedule Editor & Target Label (Schedule Target Isolation)
+        if controller.current_schedule is not None and not controller.selected_from_history:
+            self._schedule_save_button.setEnabled(True)
+            self._schedule_clear_button.setEnabled(
+                bool(controller.current_schedule.get("next_due_at"))
+            )
+            if controller.current_schedule.get("next_due_at"):
+                due = QDate.fromString(controller.current_schedule["next_due_at"], "yyyy-MM-dd")
+                if due.isValid():
+                    self._schedule_date.setDate(due)
+
+            review_count = len(controller.card_history)
+            target_text = (
+                f"Editing schedule for: {controller.selected_collection_name} — "
+                f"Card #{controller.selected_card_number} (Reviews completed: {review_count})"
+            )
+            self._editing_target_label.setText(target_text)
+        else:
+            if controller.current_schedule is None:
+                self._schedule_save_button.setEnabled(False)
+                self._schedule_clear_button.setEnabled(False)
+                self._editing_target_label.setText("Select a Card from the schedule above to edit its review date.")
+
+        # 2. Update Card History Detail Table (read-only evidence)
         if controller.selected_collection_id is None:
             self._detail_summary.setText("Select a completion above to see its Card's full history.")
             self._history_table.setRowCount(0)
-            self._legacy_table.setRowCount(0)
             return
 
-        self._detail_summary.setText(
-            f"{controller.selected_collection_name} — Card #{controller.selected_card_number}"
-        )
+        review_count = len(controller.card_history)
+        if controller.selected_from_history and self._selected_session_timestamp:
+            self._detail_summary.setText(
+                f"{controller.selected_collection_name} — Card #{controller.selected_card_number} · "
+                f"Reviews completed: {review_count} · Selected session: {self._selected_session_timestamp}"
+            )
+        else:
+            self._detail_summary.setText(
+                f"{controller.selected_collection_name} — Card #{controller.selected_card_number} · "
+                f"Reviews completed: {review_count}"
+            )
 
         history = controller.card_history
         self._history_table.setRowCount(len(history))
         for row, entry in enumerate(history):
-            self._history_table.setItem(row, 0, QTableWidgetItem(str(entry.get("completed_at") or "")))
+            self._history_table.setItem(row, 0, QTableWidgetItem(format_local_timestamp(entry.get("completed_at"))))
             self._history_table.setItem(row, 1, QTableWidgetItem(str(entry.get("quiz_type") or "")))
             self._history_table.setItem(row, 2, QTableWidgetItem(str(int(entry.get("correct_count") or 0))))
             self._history_table.setItem(row, 3, QTableWidgetItem(str(int(entry.get("wrong_count") or 0))))
-
-        legacy_logs = controller.legacy_logs
-        self._legacy_table.setRowCount(len(legacy_logs))
-        for row, log in enumerate(legacy_logs):
-            self._legacy_table.setItem(row, 0, QTableWidgetItem(str(log.get("reviewed_at") or "")))
-            self._legacy_table.setItem(row, 1, QTableWidgetItem(str(log.get("rating") or "")))
-            self._legacy_table.setItem(row, 2, QTableWidgetItem(str(log.get("entry_count") or "")))

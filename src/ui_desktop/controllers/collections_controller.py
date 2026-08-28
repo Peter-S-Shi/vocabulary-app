@@ -18,6 +18,20 @@ from src.collections import (
     set_card_name,
     update_collection,
 )
+from src.learning_workflow import get_collection_learning_progress
+from src.ui_desktop.state.handoff import QuizLaunchIntent
+
+
+SYSTEM_POOL_RANDOM_QUIZ_TYPES: tuple[str, ...] = (
+    "term_to_meaning",
+    "meaning_to_term",
+    "term_to_meaning_mcq",
+    "meaning_to_term_mcq",
+    "mixed_mcq",
+    "matching",
+)
+_RANDOM_QUIZ_SYSTEM_TYPES = frozenset(("starred", "proficient_pool"))
+_MCQ_RANDOM_QUIZ_TYPES = frozenset(("term_to_meaning_mcq", "meaning_to_term_mcq", "mixed_mcq"))
 
 """
 CollectionsController owns the Collections workspace's transient
@@ -63,7 +77,23 @@ class CollectionsController(QObject):
 
     def refresh(self) -> None:
         all_collections = get_collections()
-        self.collections = [c for c in all_collections if not c["is_system"]]
+        progress_by_collection = get_collection_learning_progress()
+        self.collections = []
+        for collection in all_collections:
+            if collection["is_system"]:
+                continue
+            progress = progress_by_collection.get(
+                int(collection["id"]),
+                {"learned_cards": 0, "total_cards": 0, "percent": 0},
+            )
+            self.collections.append(
+                {
+                    **collection,
+                    "learned_cards": int(progress["learned_cards"]),
+                    "total_cards": int(progress["total_cards"]),
+                    "learning_percent": int(progress["percent"]),
+                }
+            )
         self.system_pools = [c for c in all_collections if c["is_system"]]
         if self.selected_id is not None and not any(
             c["id"] == self.selected_id for c in (*self.collections, *self.system_pools)
@@ -88,7 +118,14 @@ class CollectionsController(QObject):
     def selected_collection(self) -> dict | None:
         if self.selected_id is None:
             return None
-        return get_collection_by_id(self.selected_id)
+        collection = get_collection_by_id(self.selected_id)
+        if collection is None or self.selected_is_system:
+            return collection
+        projected = next(
+            (row for row in self.collections if int(row["id"]) == int(self.selected_id)),
+            None,
+        )
+        return projected or collection
 
     # -- Card pagination (§ 2/§ 3/§ 4) --------------------------------------
 
@@ -156,6 +193,54 @@ class CollectionsController(QObject):
         if system_type not in SYSTEM_COLLECTION_TYPES:
             return None
         return f"system:{system_type}"
+
+    # -- Starred / Proficient whole-pool Quiz launch (Patch B4) ---------
+
+    def random_quiz_type_options(self) -> list[str]:
+        """Plain random-quiz modes the selected practice pool can build.
+
+        Template modes are Card/template scoped and therefore deliberately
+        absent. MCQ needs four Entries for one answer plus three distractors;
+        Matching needs at least two Entries. Core generation remains the final
+        authority for semantic uniqueness and reports an honest start error.
+        """
+        if self.system_type_for_selected() not in _RANDOM_QUIZ_SYSTEM_TYPES:
+            return []
+        entry_count = len(get_entries_in_collection(int(self.selected_id)))
+        if entry_count < 1:
+            return []
+        return [
+            quiz_type
+            for quiz_type in SYSTEM_POOL_RANDOM_QUIZ_TYPES
+            if not (quiz_type in _MCQ_RANDOM_QUIZ_TYPES and entry_count < 4)
+            and not (quiz_type == "matching" and entry_count < 2)
+        ]
+
+    def random_quiz_item_count_range(self, quiz_type: str = "term_to_meaning") -> tuple[int, int]:
+        if quiz_type not in self.random_quiz_type_options() or self.selected_id is None:
+            return (0, 0)
+        entry_count = len(get_entries_in_collection(int(self.selected_id)))
+        minimum = 2 if quiz_type == "matching" else 1
+        return (minimum, entry_count)
+
+    def build_system_pool_random_quiz_intent(self, quiz_type: str, item_count: int) -> QuizLaunchIntent:
+        collection = self.selected_collection()
+        system_type = self.system_type_for_selected()
+        if collection is None or system_type not in _RANDOM_QUIZ_SYSTEM_TYPES:
+            raise ValueError("Random Quiz is available only for Starred and Proficient Pool.")
+        minimum, maximum = self.random_quiz_item_count_range(quiz_type)
+        if minimum == 0 or item_count < minimum or item_count > maximum:
+            raise ValueError("Choose an item count within the available pool range.")
+        return QuizLaunchIntent(
+            source=f"collections_{system_type}_random_quiz",
+            collection_id=int(collection["id"]),
+            collection_name=str(collection.get("name") or ""),
+            card_number=0,
+            card_id=None,
+            quiz_type=quiz_type,
+            item_count=int(item_count),
+            reason=f"Requested as whole-pool practice from {collection.get('name') or 'a system pool'}.",
+        )
 
     # -- Collection Manager (M18.1) --------------------------------------
     # Every write below calls the exact same `src.collections` functions

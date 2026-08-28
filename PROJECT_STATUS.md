@@ -1,12 +1,56 @@
 # Vocabulary App Project Status
 
-Last reviewed: 2026-08-19
+Last reviewed: 2026-08-28
 
 This file is the authoritative evidence-based snapshot of the current project state. Detailed milestone history remains in `ROADMAP.md`, milestone QA/design/packaging documents, and the frozen pre-release snapshot archived at `docs/history/PROJECT_STATUS_PRE_V1_RELEASE_2026-08-19.md`.
 
 ## Current Phase
 
-**Current Version Complete — Vocabulary App v1.0.0 is released.**
+**Milestone 21 / Vocabulary App v1.1.0 implementation and release verification are complete on merged `main`. The next authorized lifecycle step is to publish v1.1.0 from that merged source.**
+
+This is intentionally one step ahead of the merge-ready PR branch. It does not
+claim that a `v1.1.0` tag or GitHub Release already exists.
+
+## M21 / v1.1.0 Closure
+
+M21 closed the approved v1.1 scope without reopening product development:
+
+- **Implementation Phases A-E:** stable Card review scheduling; direct Star
+  actions and Collection progress; local-time presentation and one durable
+  Windows product identity; constrained per-mode theme customization; and
+  release update awareness without automatic download or installation.
+- **Phase Patch:** coherent Quiz-to-schedule and Review Calendar behavior;
+  consistent Proficient Pool, manual-proficient, strength-recommendation, and
+  random-practice contracts; and one normalized duplicate definition shared by
+  import preview and write paths.
+- **Phase F verification:** v1.1.0 version/provenance authority, reproducible
+  Windows packaging, packaged-launch smoke coverage, and a real isolated
+  v1.0.0 → v1.1.0 overlay proof preserving user data, preferences, version
+  identity, and the established Windows product identity.
+- **Data safety corrective:** upgrade verification requires an explicit
+  isolated data root and rejects the production data root (including its
+  descendants); synthetic scheduling fixtures fail closed before opening the
+  production database.
+
+Human overlay acceptance on a real Windows installation passed for launch,
+legacy data, preferences, displayed version, representative v1.1 behavior, and
+single-product identity. The original single timeout-bounded `unittest
+discover` release gate could not complete within the 45-minute CI limit and
+was replaced with three parallel Release Closure shards (Theme & Update
+Surface; M18 remainder + full M19; M20 + timezone + v1.1 Phase/Patch/Review
+Scheduling); `unittest discover` remains available as a manual-only
+`workflow_dispatch` job, not the active gate. GitHub Actions run
+[33156983972](https://github.com/Peter-S-Shi/vocabulary-app/actions/runs/33156983972)
+at head `f94e3eb` shows all three Release Closure shards green together with a
+green Windows installer build, packaged-launch smoke test, and real isolated
+v1.0.0 → v1.1.0 overlay upgrade proof.
+
+No v1.1.0 tag or GitHub Release has been created. Publication must use the
+verified merged `main` commit and requires separate operator authorization.
+
+## Released Baseline
+
+**Vocabulary App v1.0.0 remains the current released version.**
 
 Milestone 20 — Packaging and Release Candidate is **Complete**. Human RC Acceptance passed, PR #33 was merged to `main`, tag `v1.0.0` was created from the merged release source, the canonical Windows installer was built from that tagged source, and the GitHub Release was published.
 
@@ -82,7 +126,7 @@ The PySide6 native desktop application is the primary product surface. It includ
 - Analytics (Learning Brief + Full Findings)
 - Card Audio Export using compatible speech voices already installed on Windows
 
-Streamlit remains in the repository as a compatibility/reference UI; it is not the v1.0 packaged release target.
+Streamlit remains in the repository as a compatibility/reference UI; it is not the packaged release target.
 
 The release remains local-first: no account, telemetry, cloud sync, or mandatory external service is required.
 

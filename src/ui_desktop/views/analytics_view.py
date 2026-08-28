@@ -79,7 +79,8 @@ from the parent pattern alone:
   7. Surface Hierarchy       -> table on `surface_primary`, matching
                                  every other M18 table.
   8. Action Hierarchy        -> no destructive/mutating actions exist
-                                 here (read-only, like Review Calendar);
+                                 here (read-only, like Review Calendar's
+                                 historical evidence section);
                                  a "Show every current Entry" checkbox is
                                  the only control besides row selection.
   9. Editing Container       -> none; purely a read surface.

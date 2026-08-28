@@ -79,19 +79,43 @@ def get_app_version() -> str:
     return APP_VERSION
 
 
+def _parse_version_quad(version_str: str) -> tuple[int, int, int, int]:
+    clean = version_str.split("-")[0].split("+")[0]
+    parts = [int(p) for p in clean.split(".") if p.isdigit()]
+    while len(parts) < 4:
+        parts.append(0)
+    return (parts[0], parts[1], parts[2], parts[3])
+
+
 def verify_version_info_matches(app_version: str) -> None:
-    """winbuild/version_info.txt's ProductVersion string is
-    hand-maintained (PyInstaller version-resource files are not valid
-    Python the app itself can import) -- fail loudly rather than ship
-    an installer whose embedded Windows file-properties version has
-    silently drifted from ``src.app_config.APP_VERSION``."""
+    """winbuild/version_info.txt's version fields are hand-maintained
+    (PyInstaller version-resource files are not valid Python the app itself
+    can import) -- fail loudly rather than ship an installer whose
+    embedded Windows file-properties versions have silently drifted from
+    ``src.app_config.APP_VERSION``.
+
+    Validates all active Windows executable/version-resource fields:
+      - prodvers=(major, minor, patch, 0)
+      - filevers=(major, minor, patch, 0)
+      - StringStruct(u'FileVersion', u'major.minor.patch.0')
+      - StringStruct(u'ProductVersion', u'<app_version>')
+    """
     text = VERSION_INFO_PATH.read_text(encoding="utf-8")
-    expected = f"StringStruct(u'ProductVersion', u'{app_version}')"
-    if expected not in text:
-        raise BuildError(
-            f"{VERSION_INFO_PATH} ProductVersion does not match "
-            f"src.app_config.APP_VERSION ({app_version}). Update it before building."
-        )
+    quad = _parse_version_quad(app_version)
+    quad_str = ".".join(str(x) for x in quad)
+
+    expected_checks = [
+        (f"prodvers={quad}", "prodvers"),
+        (f"filevers={quad}", "filevers"),
+        (f"StringStruct(u'FileVersion', u'{quad_str}')", "FileVersion"),
+        (f"StringStruct(u'ProductVersion', u'{app_version}')", "ProductVersion"),
+    ]
+    for pattern, field_name in expected_checks:
+        if pattern not in text:
+            raise BuildError(
+                f"{VERSION_INFO_PATH} {field_name} does not match "
+                f"src.app_config.APP_VERSION ({app_version}). Expected pattern: {pattern}"
+            )
 
 
 def run_pyinstaller() -> Path:
@@ -107,6 +131,33 @@ def run_pyinstaller() -> Path:
     if not exe_path.is_file():
         raise BuildError(f"PyInstaller reported success but {exe_path} does not exist.")
     return app_dir
+
+
+def verify_packaged_smoke(app_dir: Path) -> None:
+    """Run packaged startup/import smoke test on the built onedir executable."""
+    exe_path = app_dir / "Vocabulary App.exe"
+    if not exe_path.is_file():
+        raise BuildError(f"Executable missing for smoke test: {exe_path}")
+
+    print(f"Running packaged app smoke test: {exe_path} --smoke-test ...")
+    proc = subprocess.run(
+        [str(exe_path), "--smoke-test"],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    if proc.returncode != 0:
+        raise BuildError(
+            f"Packaged app smoke test failed (exit {proc.returncode})!\n"
+            f"Stdout: {proc.stdout}\n"
+            f"Stderr: {proc.stderr}"
+        )
+    if "PACKAGED_SMOKE_TEST_PASSED" not in proc.stdout:
+        raise BuildError(
+            f"Packaged app smoke test did not output expected token.\nOutput: {proc.stdout}"
+        )
+    print("Packaged app startup/import smoke test: PASSED (all runtime modules loaded cleanly)")
 
 
 def find_inno_compiler() -> Path | None:
@@ -130,12 +181,18 @@ def find_inno_compiler() -> Path | None:
     return Path(found) if found else None
 
 
-def run_inno_setup(app_version: str) -> Path | None:
+def run_inno_setup(app_version: str, *, require_installer: bool = False) -> Path | None:
     if not INNO_SCRIPT_PATH.is_file():
+        if require_installer:
+            raise BuildError(f"Inno Setup script missing: {INNO_SCRIPT_PATH}")
         print(f"Skipping Inno Setup: {INNO_SCRIPT_PATH} does not exist yet.")
         return None
     compiler = find_inno_compiler()
     if compiler is None:
+        if require_installer:
+            raise BuildError(
+                "Inno Setup compiler (ISCC.exe) not found on this machine, but an installer was required."
+            )
         print("Skipping Inno Setup: ISCC.exe not found on this machine.")
         return None
     completed = _run([
@@ -147,7 +204,13 @@ def run_inno_setup(app_version: str) -> Path | None:
     installers = sorted(output_dir.glob("*.exe")) if output_dir.is_dir() else []
     if not installers:
         raise BuildError(f"Inno Setup reported success but no installer found under {output_dir}.")
-    return installers[-1]
+    installer = installers[-1]
+    expected_name = f"VocabularyApp-Setup-{app_version}.exe"
+    if installer.name != expected_name:
+        raise BuildError(
+            f"Inno Setup produced installer with unexpected filename: {installer.name} (expected {expected_name})."
+        )
+    return installer
 
 
 # § 9 code signing. Never a hard-coded provider/tool/credential: the
@@ -213,9 +276,18 @@ def main() -> int:
     parser.add_argument(
         "--skip-inno", action="store_true", help="Build the PyInstaller onedir output only.",
     )
+    parser.add_argument(
+        "--require-installer", action="store_true", help="Require Inno Setup installer to be built; fail if missing.",
+    )
+    parser.add_argument(
+        "--require-clean", action="store_true", help="Fail if the git working tree is dirty.",
+    )
     args = parser.parse_args()
 
     source_sha, source_dirty = get_source_sha()
+    if args.require_clean and source_dirty:
+        raise BuildError("Working tree is dirty but --require-clean was specified.")
+
     app_version = get_app_version()
     verify_version_info_matches(app_version)
 
@@ -226,6 +298,9 @@ def main() -> int:
     app_dir_size = dir_size_bytes(app_dir)
     print(f"PyInstaller onedir output: {app_dir} ({app_dir_size / (1024 * 1024):.1f} MiB)")
 
+    # Verify packaged executable startup/import smoke test before packaging installer
+    verify_packaged_smoke(app_dir)
+
     # Sign the payload .exe before Inno Setup packages it, so the
     # installer wraps an already-signed executable; the installer .exe
     # itself is signed separately below, after it's built -- both
@@ -234,7 +309,12 @@ def main() -> int:
     exe_signed = sign_file(exe_path)
     exe_signature = verify_signature(exe_path) if exe_signed else None
 
-    installer_path = None if args.skip_inno else run_inno_setup(app_version)
+    installer_path = None if args.skip_inno else run_inno_setup(
+        app_version, require_installer=args.require_installer,
+    )
+    if args.require_installer and not installer_path:
+        raise BuildError("An installer was required (--require-installer) but was not produced.")
+
     installer_signed = sign_file(installer_path) if installer_path else False
     installer_signature = verify_signature(installer_path) if installer_signed else None
     installer_sha256 = sha256_file(installer_path) if installer_path else None
@@ -256,6 +336,17 @@ def main() -> int:
     manifest_path = DIST_DIR / "build_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     print(f"Build manifest: {manifest_path}")
+
+    # Generate SHA256SUMS.txt
+    checksums: list[str] = []
+    if installer_path and Path(installer_path).is_file():
+        checksums.append(f"{installer_sha256}  installer/{Path(installer_path).name}")
+    manifest_sha = sha256_file(manifest_path)
+    checksums.append(f"{manifest_sha}  {manifest_path.name}")
+    sums_path = DIST_DIR / "SHA256SUMS.txt"
+    sums_path.write_text("\n".join(checksums) + "\n", encoding="utf-8")
+    print(f"Checksums: {sums_path}")
+
     if installer_path:
         print(f"Installer: {installer_path}")
         print(f"Installer SHA-256: {installer_sha256}")

@@ -318,6 +318,13 @@ def get_system_collection_by_type_or_name(system_type: str) -> dict | None:
     return get_collection_by_name(fallback_name)
 
 
+def is_system_collection_id(collection_id: int) -> bool:
+    collection = get_collection_by_id(collection_id)
+    if collection is None:
+        return False
+    return bool(collection.get("is_system") or collection.get("system_type"))
+
+
 def get_or_create_collection_by_name(
     name: str,
     description: str = "",
@@ -750,6 +757,33 @@ def get_card_groups_for_collection(collection_id: int) -> list[dict]:
         }
         for card_number, card_entries in sorted(grouped_entries.items())
     ]
+
+
+def get_card_entries_for_study(
+    collection_id: int,
+    card_number: int,
+    *,
+    include_proficient: bool = True,
+) -> list[dict]:
+    """Return the active study entries for a specific Card.
+
+    If include_proficient is False and the collection is a regular (non-system)
+    collection, entries currently residing in the Proficient Pool are filtered out.
+    System collections (Proficient Pool, Starred, Mistake Book) are never filtered.
+    """
+    card_groups = get_card_groups_for_collection(collection_id)
+    for group in card_groups:
+        if int(group["card_number"]) == int(card_number):
+            entries = list(group["entries"])
+            if not include_proficient and not is_system_collection_id(collection_id):
+                proficient_ids = get_entry_ids_in_system_collection(
+                    [int(e["id"]) for e in entries],
+                    "proficient_pool",
+                )
+                if proficient_ids:
+                    return [e for e in entries if int(e["id"]) not in proficient_ids]
+            return entries
+    return []
 
 
 CARD_SORT_MODES = ("card_number", "card_created_at", "card_updated_at")

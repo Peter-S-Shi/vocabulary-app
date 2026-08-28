@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QHBoxLayout, QMainWindow, QMessageBox, QStackedWidget, QToolBar, QWidget
 
+from src.update_checker import UpdateCheckResult, UpdateCheckState
 from src.ui_desktop.controllers.collections_controller import CollectionsController
 from src.ui_desktop.controllers.entries_controller import EntriesController
 from src.ui_desktop.controllers.quiz_controller import QuizController
@@ -100,13 +102,17 @@ class MainWindow(QMainWindow):
         self.today_controller = TodayController()
         self.entries_controller = EntriesController()
         self.collections_controller = CollectionsController()
-        self.review_controller = ReviewController()
-        self.quiz_controller = QuizController()
         self.settings_controller = SettingsController(preferences, self.theme_manager)
+        self.review_controller = ReviewController(self.settings_controller.preferences)
+        self.quiz_controller = QuizController(preferences=self.settings_controller.preferences)
         self.templates_controller = TemplatesController()
         self.review_calendar_controller = ReviewCalendarController()
         self.data_tools_controller = DataToolsController()
         self.analytics_controller = AnalyticsController()
+
+        self.settings_controller.include_proficient_in_study_changed.connect(
+            lambda _: self.review_controller.reload_current_card()
+        )
 
         self.today_view = TodayView(self.today_controller)
         self.today_view.navigate_to_entries_requested.connect(
@@ -117,8 +123,15 @@ class MainWindow(QMainWindow):
         self.today_view.quiz_launch_requested.connect(self._start_quiz)
         self.entries_view = EntriesView(self.entries_controller)
         self.collections_view = CollectionsView(self.collections_controller)
+        self.collections_view.set_learning_progress_bars_visible(
+            self.settings_controller.collection_progress_bars_visible()
+        )
+        self.settings_controller.collection_progress_bars_changed.connect(
+            self.collections_view.set_learning_progress_bars_visible
+        )
         self.collections_view.open_entries_requested.connect(self._open_entries_with_scope)
         self.collections_view.open_in_study_requested.connect(self._open_review_at_card)
+        self.collections_view.quiz_launch_requested.connect(self._start_quiz)
         self.review_view = ReviewView(self.review_controller)
         self.review_view.set_motion(self._motion)
         self.review_view.exit_requested.connect(self._exit_study_mode)
@@ -181,13 +194,22 @@ class MainWindow(QMainWindow):
         # M17 Theme Completion: everything QSS/QPalette-driven re-themes
         # itself automatically the instant ThemeManager.apply() re-runs
         # (ThemeManager docstring) -- only the Star column's custom
-        # QAbstractItemModel-painted gold needs an explicit push, both now
+        # QAbstractItemModel-painted Star color needs an explicit push, both now
         # (using whatever ThemeManager already applied at bootstrap) and
         # on every future live theme change.
         if self.theme_manager is not None:
             self.theme_manager.theme_applied.connect(self._on_theme_applied)
             if self.theme_manager.current_tokens is not None:
                 self._on_theme_applied(self.theme_manager.current_tokens)
+
+        # Level 1 Update Awareness (Phase E): non-blocking background check
+        # Never blocks startup or modalizes UI; updates the navigation rail indicator on detection.
+        self.settings_controller.update_status_changed.connect(self._on_update_status_changed)
+        QTimer.singleShot(200, self.settings_controller.check_for_updates)
+
+    def _on_update_status_changed(self, result: UpdateCheckResult) -> None:
+        """Updates shell chrome with a restrained, non-modal update indicator when an update is available."""
+        self._navigation_rail.set_update_available(result.state == UpdateCheckState.UPDATE_AVAILABLE)
 
     def _on_theme_applied(self, tokens) -> None:
         """The live-theme seam MainWindow brokers (module docstring's
@@ -435,4 +457,6 @@ class MainWindow(QMainWindow):
         # Audio Export voice preflight (Final Human Acceptance Gate
         # corrective): never let the app tear down while it is running.
         self.data_tools_view._audio_preflight_controller.shutdown_voice_preflight()
+        # Phase E update awareness: ensure background update check workers are safely stopped/detached
+        self.settings_controller.shutdown()
         super().closeEvent(event)

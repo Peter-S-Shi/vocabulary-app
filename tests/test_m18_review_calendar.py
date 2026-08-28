@@ -3,12 +3,15 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtCore import QLocale, Qt
+    from PySide6.QtGui import QColor, QPalette
+    from PySide6.QtWidgets import QApplication, QHeaderView, QLabel, QPushButton, QScrollArea, QToolButton
 
     PYSIDE6_AVAILABLE = True
 except ImportError:  # pragma: no cover - exercised only when PySide6 is absent
@@ -36,7 +39,7 @@ if PYSIDE6_AVAILABLE:
         DEFAULT_RANGE_DAYS,
         ReviewCalendarController,
     )
-    from src.ui_desktop.theming.theme_manager import build_stylesheet
+    from src.ui_desktop.theming.theme_manager import build_palette, build_stylesheet
     from src.ui_desktop.theming.tokens import THEME_CALM_BLUE_DARK, THEME_CALM_BLUE_LIGHT
     from src.ui_desktop.views.review_calendar_view import ReviewCalendarView
     from src.ui_desktop.widgets.navigation_rail import NavigationRail
@@ -67,6 +70,11 @@ class _SyntheticDatabaseTestCase(unittest.TestCase):
         session_id = quiz.create_quiz_session(collection_id, 1, "term_to_meaning", 1)
         quiz.record_quiz_answer(session_id, entry_id, term, meaning, meaning, True)
         quiz.mark_quiz_session_completed(session_id)
+        with db.get_connection() as conn:
+            conn.execute(
+                "UPDATE quiz_sessions SET completed_at = ? WHERE id = ?",
+                (f"{date.today().isoformat()}T12:00:00+00:00", session_id),
+            )
         return collection_id, entry_id
 
 
@@ -190,6 +198,37 @@ class ReviewCalendarViewStructureTests(_SyntheticDatabaseTestCase):
 
         self.assertEqual(view._table.rowCount(), 1)
 
+    def test_pre_m11_3_completion_without_card_identity_remains_browseable(self) -> None:
+        self._make_completed_card("Legacy Evidence", "ancien", "old")
+        with db.get_connection() as conn:
+            session_id = int(
+                conn.execute(
+                    "SELECT id FROM quiz_sessions ORDER BY id DESC LIMIT 1"
+                ).fetchone()[0]
+            )
+            conn.execute(
+                """
+                UPDATE quiz_sessions
+                SET card_id = NULL, card_revision_id = NULL
+                WHERE id = ?
+                """,
+                (session_id,),
+            )
+        controller = ReviewCalendarController()
+        view = ReviewCalendarView(controller)
+        self.addCleanup(view.deleteLater)
+
+        view.refresh()
+        view._table.selectRow(0)
+
+        self.assertEqual(view._table.rowCount(), 1)
+        self.assertIsNone(controller.selected_card_id)
+        self.assertIsNone(controller.current_schedule)
+        self.assertEqual(
+            [entry["session_id"] for entry in controller.card_history],
+            [session_id],
+        )
+
     def test_selecting_a_row_populates_the_history_table(self) -> None:
         self._make_completed_card("Shapes", "carre", "square")
         controller = ReviewCalendarController()
@@ -223,6 +262,104 @@ class ReviewCalendarViewStructureTests(_SyntheticDatabaseTestCase):
             view._detail_summary.text(), "Select a completion above to see its Card's full history."
         )
 
+    def test_page_and_each_table_remain_scrollable_with_large_results_in_a_short_window(self) -> None:
+        controller = ReviewCalendarController()
+        view = ReviewCalendarView(controller)
+        self.addCleanup(view.deleteLater)
+
+        tables = (view._schedule_table, view._table, view._history_table)
+        for table in tables:
+            table.setRowCount(40)
+
+        view.resize(640, 420)
+        view.show()
+        self.app.processEvents()
+        self.app.processEvents()
+
+        page_scroll = view.findChild(QScrollArea, "review-calendar-scroll")
+        self.assertIsNotNone(page_scroll)
+        self.assertGreater(page_scroll.verticalScrollBar().maximum(), 0)
+        for table in tables:
+            with self.subTest(table=table.objectName()):
+                self.assertEqual(
+                    table.verticalScrollBarPolicy(),
+                    Qt.ScrollBarPolicy.ScrollBarAsNeeded,
+                )
+                self.assertEqual(
+                    table.horizontalScrollBarPolicy(),
+                    Qt.ScrollBarPolicy.ScrollBarAsNeeded,
+                )
+                self.assertGreater(table.verticalScrollBar().maximum(), 0)
+
+    def test_schedule_calendar_uses_english_month_and_weekday_names(self) -> None:
+        controller = ReviewCalendarController()
+        view = ReviewCalendarView(controller)
+        self.addCleanup(view.deleteLater)
+
+        self.assertEqual(view._schedule_date.locale().language(), QLocale.Language.English)
+        self.assertEqual(
+            view._schedule_date.calendarWidget().locale().language(),
+            QLocale.Language.English,
+        )
+
+    def test_light_mode_review_calendar_typography_hierarchy_and_column_resizing(self) -> None:
+        original_palette = self.app.palette()
+        original_stylesheet = self.app.styleSheet()
+        self.addCleanup(self.app.setPalette, original_palette)
+        self.addCleanup(self.app.setStyleSheet, original_stylesheet)
+        self.app.setPalette(build_palette(THEME_CALM_BLUE_LIGHT))
+        self.app.setStyleSheet(build_stylesheet(THEME_CALM_BLUE_LIGHT))
+
+        controller = ReviewCalendarController()
+        view = ReviewCalendarView(controller)
+        self.addCleanup(view.deleteLater)
+        view.show()
+        self.app.processEvents()
+
+        # Verify tables have stretchLastSection and interactive columns enabled
+        for table in (view._schedule_table, view._table, view._history_table):
+            with self.subTest(table=table.objectName()):
+                self.assertTrue(table.horizontalHeader().stretchLastSection())
+                self.assertEqual(
+                    table.horizontalHeader().sectionResizeMode(0),
+                    QHeaderView.ResizeMode.Interactive,
+                )
+                self.assertEqual(
+                    table.palette().color(QPalette.ColorRole.Text).name(),
+                    QColor(THEME_CALM_BLUE_LIGHT.neutral.text_primary).name(),
+                )
+
+        # Verify title, headings, and labels follow standard neutral hierarchy
+        title = view.findChild(QLabel, "review-calendar-title")
+        self.assertEqual(
+            title.palette().color(title.foregroundRole()).name(),
+            QColor(THEME_CALM_BLUE_LIGHT.neutral.text_primary).name(),
+        )
+
+        schedule_heading = view.findChild(QLabel, "review-calendar-schedule-heading")
+        self.assertEqual(
+            schedule_heading.palette().color(schedule_heading.foregroundRole()).name(),
+            QColor(THEME_CALM_BLUE_LIGHT.neutral.text_secondary).name(),
+        )
+
+        range_label = view.findChild(QLabel, "review-calendar-range-label")
+        self.assertEqual(
+            range_label.palette().color(range_label.foregroundRole()).name(),
+            QColor(THEME_CALM_BLUE_LIGHT.neutral.text_muted).name(),
+        )
+
+        # Verify schedule date editor is wide enough not to clip text
+        self.assertGreaterEqual(view._schedule_date.minimumWidth(), 125)
+
+        calendar = view._schedule_date.calendarWidget()
+        calendar.ensurePolished()
+        for button in calendar.findChildren(QToolButton):
+            with self.subTest(calendar_button=button.objectName()):
+                self.assertEqual(
+                    button.palette().color(button.foregroundRole()).name(),
+                    QColor(THEME_CALM_BLUE_LIGHT.neutral.text_primary).name(),
+                )
+
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
 class M18ReviewCalendarTokenQssStructuralCoverageTests(unittest.TestCase):
@@ -233,12 +370,18 @@ class M18ReviewCalendarTokenQssStructuralCoverageTests(unittest.TestCase):
 
     REPRESENTATIVE_SELECTORS = (
         "#review-calendar-title",
+        "#review-calendar-today-button",
         "#review-calendar-range-label",
         "#review-calendar-range-combo",
+        "#review-calendar-widget",
+        "#review-calendar-schedule-heading",
+        "#review-calendar-schedule-table",
+        "#review-calendar-editing-target-label",
+        "#review-calendar-schedule-date",
+        "#review-calendar-schedule-save-button",
+        "#review-calendar-schedule-clear-button",
         "#review-calendar-detail-heading",
         "#review-calendar-detail-summary",
-        "#review-calendar-legacy-heading",
-        "#review-calendar-legacy-caption",
     )
 
     def _assert_all_selectors_present(self, tokens) -> None:
