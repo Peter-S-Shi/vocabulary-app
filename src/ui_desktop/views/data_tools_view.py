@@ -27,6 +27,7 @@ from src.backup import BackupError
 from src.db_import import DatabaseImportError
 from src.template_definitions import TemplateDefinitionError
 from src.ui_desktop.controllers.data_tools_controller import (
+    DUPLICATE_DEFINITION_LABELS,
     EXPORT_SCOPE_LABELS,
     IMPORT_MODE_LABELS,
     DataToolsController,
@@ -394,7 +395,15 @@ class _ImportDialog(QDialog):
 
         # -- Duplicate handling + destination --------------------------
         options_form = QFormLayout()
+        self._duplicate_definition_combo = QComboBox(self)
+        self._duplicate_definition_combo.setObjectName("data-tools-duplicate-definition-combo")
+        for value, label in DUPLICATE_DEFINITION_LABELS:
+            self._duplicate_definition_combo.addItem(label, value)
+        self._duplicate_definition_combo.currentIndexChanged.connect(self._on_duplicate_definition_changed)
+        options_form.addRow("Duplicate definition", self._duplicate_definition_combo)
+
         self._duplicate_combo = QComboBox(self)
+        self._duplicate_combo.setObjectName("data-tools-duplicate-handling-combo")
         self._duplicate_combo.addItem("Skip duplicates", "skip")
         self._duplicate_combo.addItem("Import anyway", "import_anyway")
         self._duplicate_combo.currentIndexChanged.connect(self._on_duplicate_changed)
@@ -489,6 +498,11 @@ class _ImportDialog(QDialog):
         value = self._sheet_combo.itemData(index)
         if value is not None:
             self._controller.set_sheet(value)
+
+    def _on_duplicate_definition_changed(self, index: int) -> None:
+        value = self._duplicate_definition_combo.itemData(index)
+        if value is not None:
+            self._controller.set_duplicate_definition(value)
 
     def _on_duplicate_changed(self, index: int) -> None:
         value = self._duplicate_combo.itemData(index)
@@ -604,6 +618,18 @@ class _ImportDialog(QDialog):
             self._sheet_combo.blockSignals(False)
 
         self._update_destination_visibility()
+
+        self._duplicate_definition_combo.blockSignals(True)
+        def_idx = self._duplicate_definition_combo.findData(controller.duplicate_definition)
+        if def_idx >= 0:
+            self._duplicate_definition_combo.setCurrentIndex(def_idx)
+        self._duplicate_definition_combo.blockSignals(False)
+
+        self._duplicate_combo.blockSignals(True)
+        hand_idx = self._duplicate_combo.findData(controller.duplicate_handling)
+        if hand_idx >= 0:
+            self._duplicate_combo.setCurrentIndex(hand_idx)
+        self._duplicate_combo.blockSignals(False)
 
         if controller.preview_error:
             self._preview_error_label.setText(controller.preview_error)
