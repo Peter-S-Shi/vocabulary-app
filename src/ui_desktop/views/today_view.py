@@ -211,15 +211,7 @@ class TodayView(QWidget):
         open_entries_button.clicked.connect(self.navigate_to_entries_requested.emit)
         quick_actions_grid.addWidget(open_entries_button, 0, 0)
 
-        start_quiz_button = _quick_action_button("Start Quiz", rail)
-        start_quiz_button.setEnabled(False)
-        start_quiz_button.setToolTip(QUIZ_NO_TARGET_TOOLTIP)
-        quick_actions_grid.addWidget(start_quiz_button, 0, 1)
-
-        # Both cells are fixed-width; a stretch in the (unused) third
-        # column keeps the pair anchored to the first row/left edge
-        # instead of stretching across the full rail width.
-        quick_actions_grid.setColumnStretch(2, 1)
+        quick_actions_grid.setColumnStretch(1, 1)
         layout.addLayout(quick_actions_grid)
         layout.addStretch(1)
         return rail
