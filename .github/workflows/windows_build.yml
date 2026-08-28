@@ -49,9 +49,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-desktop.txt -r requirements-build.txt
 
-      - name: Run build packaging tests
+      - name: Run build packaging and upgrade harness tests
         run: |
-          python -m unittest tests.test_m20_build_packaging
+          python -m unittest tests.test_m20_build_packaging tests.test_v1_1_phase_f2_upgrade_verification
 
       - name: Build Windows Executable & Inno Setup Installer
         run: |
@@ -102,6 +102,10 @@ jobs:
           Write-Host "--- SHA256SUMS.txt ---"
           Get-Content $checksums
 
+      - name: Run automated v1.0.0 to v1.1.0 upgrade & data-preservation proof
+        run: |
+          python winbuild/verify_upgrade.py
+
       - name: Upload Windows Installer and Manifest Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -110,4 +114,5 @@ jobs:
             dist/installer/VocabularyApp-Setup-*.exe
             dist/build_manifest.json
             dist/SHA256SUMS.txt
+            dist/upgrade_verification_report.json
           if-no-files-found: error
