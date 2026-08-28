@@ -167,7 +167,10 @@ class DataToolsController(QObject):
         self.import_state_changed.emit()
 
     def set_duplicate_handling(self, value: str) -> None:
+        if value == self.duplicate_handling:
+            return
         self.duplicate_handling = value
+        self.import_state_changed.emit()
 
     def set_target_collection(self, collection_id: int | None) -> None:
         self.target_collection_id = collection_id

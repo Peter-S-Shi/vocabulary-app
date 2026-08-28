@@ -296,3 +296,52 @@ class TestNativeDuplicateDefinitionUX(unittest.TestCase):
         self.assertEqual(controller.duplicate_definition, DUPLICATE_DEFINITION_SAME_LANGUAGE_TERM)
         self.assertIsNone(controller.preview)
         self.assertFalse(dialog._confirm_button.isEnabled())
+
+    @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed")
+    def test_import_dialog_handling_change_resets_confirmation_checkbox_while_preserving_preview(self) -> None:
+        _qt_app()
+        controller = DataToolsController()
+        dialog = _ImportDialog(controller, parent=None)
+        self.addCleanup(dialog.deleteLater)
+
+        csv_bytes = rows_to_csv_bytes([{"language": "English", "term": "a", "meaning": "b"}])
+        controller.load_file(csv_bytes, "test.csv")
+        controller.run_preview()
+
+        self.assertIsNotNone(controller.preview)
+        self.assertTrue(controller.can_confirm_import())
+
+        # Check acknowledgment checkbox
+        dialog._confirm_checkbox.setChecked(True)
+        self.assertTrue(dialog._confirm_button.isEnabled())
+
+        # Switch duplicate handling combo to "import_anyway"
+        hand_combo = dialog.findChild(QComboBox, "data-tools-duplicate-handling-combo")
+        self.assertIsNotNone(hand_combo)
+        hand_combo.setCurrentIndex(1)  # import_anyway
+
+        # Preview and controller readiness must be retained
+        self.assertEqual(controller.duplicate_handling, "import_anyway")
+        self.assertIsNotNone(controller.preview)
+        self.assertTrue(controller.can_confirm_import())
+
+        # But acknowledgement checkbox must be reset to False, disabling confirm button
+        self.assertFalse(dialog._confirm_checkbox.isChecked())
+        self.assertFalse(dialog._confirm_button.isEnabled())
+
+        # Re-checking enables confirm button again
+        dialog._confirm_checkbox.setChecked(True)
+        self.assertTrue(dialog._confirm_button.isEnabled())
+
+        # Setting duplicate handling to same value produces no additional state churn
+        emitted_count = 0
+        controller.import_state_changed.connect(lambda: nonlocal_inc())
+        def nonlocal_inc():
+            nonlocal emitted_count
+            emitted_count += 1
+
+        controller.set_duplicate_handling("import_anyway")
+        self.assertEqual(emitted_count, 0)
+        self.assertTrue(dialog._confirm_checkbox.isChecked())
+        self.assertTrue(dialog._confirm_button.isEnabled())
+
