@@ -19,13 +19,17 @@ Your core learning data (entries, Collections, Quiz history) lives in a local SQ
 |---|---|
 | ![Today screen, light theme](assets/readme/today.png) | ![Today screen, dark theme](assets/readme/today-dark.png) |
 
-**Entries** (table-first manager) and **Study** (Immersive Focus card):
+**Entries** (table-first manager) and **Study** — the compact Star/Proficient actions above each Card are direct, one-click learning-status controls:
 
 | Entries | Study |
 |---|---|
-| ![Entries screen, dark theme](assets/readme/entries-dark.png) | ![Study card screen, dark theme](assets/readme/study-dark.png) |
+| ![Entries screen, dark theme, one entry starred](assets/readme/entries-dark.png) | ![Study card screen, dark theme, with compact Star and Proficient action buttons above the term](assets/readme/study-dark.png) |
 
-Screenshots are from the packaged v1.0.0 Windows build, running against a small fictional demo dataset.
+**Theme Customization** (Settings) — independent per-mode Accent/Background/Surfaces/Text colors with a guarded-contrast preset (Indigo / Violet shown here), live-previewed before you click Apply:
+
+![Settings screen showing the Theme Customization panel with the Indigo / Violet preset selected](assets/readme/theme-settings.png)
+
+Screenshots are from the packaged v1.1.0 Windows build, running against a small fictional demo dataset. They cover Today, Entries, Study, and Theme Customization; Collections, Quiz, Review Calendar, Analytics, and the other workspaces aren't pictured here — see [What it does](#what-it-does) below for the full feature list.
 
 ## What it does
 
@@ -130,7 +134,7 @@ See [Data Storage](docs/policies/DATA_STORAGE.md) and [Data Safety](docs/policie
 
 ## Known limitations
 
-- The v1.0 release is signed with a self-signed Authenticode certificate, not a publicly trusted one; SmartScreen reputation isn't guaranteed and a warning may appear on first run.
+- The release is signed with a self-signed Authenticode certificate (the same `CN=Peter Shi` identity since v1.0), not a publicly trusted one; SmartScreen reputation isn't guaranteed and a warning may appear on first run.
 - Full pristine clean-machine VM verification was deferred; v1.0 acceptance used a fresh local standard Windows account instead (see [PROJECT_STATUS.md](PROJECT_STATUS.md)).
 - Windows 10/11 x64 only.
 - Card Audio Export depends on compatible speech voices already installed on the user's Windows system.
@@ -141,7 +145,7 @@ See [Data Storage](docs/policies/DATA_STORAGE.md) and [Data Safety](docs/policie
 - [docs/README.md](docs/README.md) — full documentation map
 - [ARCHITECTURE.md](ARCHITECTURE.md) — layer boundaries and core module responsibilities
 - [DESIGN.md](DESIGN.md) — frozen desktop UI design system
-- [ROADMAP.md](ROADMAP.md) / [PROJECT_STATUS.md](PROJECT_STATUS.md) — full milestone history and the current release-evidence record (v1.0.0 shipped through M20; v1.1.0 implementation and verification closed in M21)
+- [ROADMAP.md](ROADMAP.md) / [PROJECT_STATUS.md](PROJECT_STATUS.md) — full milestone history and the current release-evidence record (v1.0.0 shipped through M20; v1.1.0 shipped through M21)
 - [CONTRIBUTING.md](CONTRIBUTING.md) — project principles and architecture rules for contributors
 
 ## Common Errors
