@@ -17,7 +17,8 @@ permissions:
 
 jobs:
   full-regression:
-    name: Full Regression / Release Gate
+    name: Full Regression / Release Gate (manual only)
+    if: github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     timeout-minutes: 45
     env:
@@ -40,6 +41,119 @@ jobs:
       - name: Run complete unittest discovery
         run: |
           python -m unittest discover -v
+
+  release-closure-theme-update-surface:
+    name: Release Closure / Shard 1 - Theme & Update Surface
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install test and runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-desktop.txt -r requirements-build.txt
+
+      - name: Run affected Theme/Update surface modules
+        run: |
+          python -m unittest -v `
+            tests.test_m17_theme_completion `
+            tests.test_m17_theme_typography_hierarchy_patch `
+            tests.test_v1_1_phase_d_theme_settings_ui `
+            tests.test_v1_1_phase_e_update_checker `
+            tests.test_v1_1_phase_e_update_settings_ui
+
+  release-closure-m18-remainder-m19:
+    name: Release Closure / Shard 2 - M18 remainder + M19
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install test and runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-desktop.txt -r requirements-build.txt
+
+      - name: Run M18 remainder (from test_m18_backup_restore_preview) and full M19
+        run: |
+          python -m unittest -v `
+            tests.test_m18_backup_restore_preview `
+            tests.test_m18_collection_manager `
+            tests.test_m18_data_tools `
+            tests.test_m18_light_dark_contrast_corrective `
+            tests.test_m18_linked_source `
+            tests.test_m18_review_calendar `
+            tests.test_m18_settings_storage `
+            tests.test_m18_template_definitions `
+            tests.test_m18_template_manager `
+            tests.test_m19_adversarial_boundaries `
+            tests.test_m19_analytics_representative_cases `
+            tests.test_m19_audio_export_preflight_progress `
+            tests.test_m19_background_task_navigation `
+            tests.test_m19_destination_and_scale `
+            tests.test_m19_empty_database_hardening `
+            tests.test_m19_quiz_session_integrity
+
+  release-closure-m20-timezone-v1_1:
+    name: Release Closure / Shard 3 - M20 + timezone + v1.1 Phase/Patch/Review Scheduling
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install test and runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-desktop.txt -r requirements-build.txt
+
+      - name: Run M20 + timezone + v1.1 Phase/Patch/Review Scheduling modules
+        run: |
+          python -m unittest -v `
+            tests.test_m20_build_packaging `
+            tests.test_m20_data_lifecycle `
+            tests.test_m20_installed_voice_binding `
+            tests.test_recent_entry_count_timezone_boundary `
+            tests.test_v1_1_phase_b `
+            tests.test_v1_1_phase_c `
+            tests.test_v1_1_phase_d_theme_engine `
+            tests.test_v1_1_phase_f2_upgrade_verification `
+            tests.test_v1_1_phase_patch_a1_quiz_review_scheduling `
+            tests.test_v1_1_phase_patch_a2_review_calendar_coherence `
+            tests.test_v1_1_phase_patch_b1_proficient_filter `
+            tests.test_v1_1_phase_patch_b2_manual_proficient `
+            tests.test_v1_1_phase_patch_b3_strength_recommendation `
+            tests.test_v1_1_phase_patch_b4_system_pool_random_quiz `
+            tests.test_v1_1_phase_patch_c1_duplicate_definition `
+            tests.test_v1_1_phase_patch_c2_native_duplicate_ux `
+            tests.test_v1_1_review_scheduling
 
   build-windows:
     name: Build Windows Installer (v1.1.0)

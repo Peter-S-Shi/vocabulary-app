@@ -443,7 +443,7 @@ class EntriesStarThemeAwareTests(unittest.TestCase):
     def test_default_star_color_is_a_safe_placeholder_before_any_theme_push(self) -> None:
         model = EntriesTableModel([{"id": 1, "starred": True}])
         color = model.data(model.index(0, model.COLUMNS.index(model.STAR_COLUMN)), Qt.ItemDataRole.ForegroundRole)
-        self.assertEqual(color.name(), QColor("#2C4C6C").name())
+        self.assertEqual(color.name(), QColor(THEME_CALM_BLUE_LIGHT.accent.primary.background).name())
 
     def test_set_star_color_repaints_only_filled_stars(self) -> None:
         model = EntriesTableModel([{"id": 1, "starred": True}, {"id": 2, "starred": False}])
