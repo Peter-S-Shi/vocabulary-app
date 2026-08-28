@@ -5,36 +5,42 @@ Automates and proves:
      108095e3ce7d256bc610c33f427a9ee2fee4956cb69dde3bf0e105413865b297).
   2. Silent installation of v1.0.0 to per-user Programs directory.
   3. Verification of installed v1.0.0 executable metadata (ProductVersion="1.0.0",
-     FileVersion="1.0.0.0").
-  4. Construction of authentic v1.0.0 user state (%LOCALAPPDATA%\vocabulary_app):
+     FileVersion="1.0.0.0") and Inno Uninstall Registry entry.
+  4. Construction of authentic v1.0.0 user state from the repository's v1.0.0 tag/source:
+     - Real default database path: %LOCALAPPDATA%\\vocabulary_app\\vocab.db
      - Genuine v1.0 schema (schema_version="15.1.0-speech-semantics", app_data_version="15.1")
-     - Sentinel Collection and Sentinel Entry with complete card history
+     - Sentinel Collection and Sentinel Entry created via v1.0.0 domain APIs
      - Sentinel Preferences (preferences.json)
   5. Silent overlay upgrade of current v1.1.0 installer to the identical AppId/location.
-  6. Verification of upgraded v1.1.0 executable metadata (ProductVersion="1.1.0",
+  6. Verification of Inno Uninstall Registry evidence (single registration updated in-place,
+     stable AppId, no duplicate/parallel product entries).
+  7. Verification of upgraded v1.1.0 executable metadata (ProductVersion="1.1.0",
      FileVersion="1.1.0.0").
-  7. Verification of data preservation across installer execution (no wipe/truncate).
-  8. Execution of v1.1.0 migration and validation of pre-migration backup contract
+  8. Verification of data preservation across installer execution (no wipe/truncate of vocab.db).
+  9. Execution of v1.1.0 migration and validation of pre-migration backup contract
      (vocab-pre-15.1.0-speech-semantics-*.db).
-  9. Verification of upgraded schema (schema_version="21.1.0-review-schedule",
+ 10. Verification of upgraded schema (schema_version="21.1.0-review-schedule",
      app_data_version="21.1", card_review_schedules table).
- 10. Verification of sentinel data accessibility and preferences durability.
+ 11. Verification of sentinel data accessibility and preferences durability.
 """
 
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
+from datetime import datetime, timezone
+import gc
 import hashlib
 import json
 import os
+from pathlib import Path
 import shutil
 import sqlite3
 import subprocess
 import sys
-import urllib.request
-from datetime import datetime, timezone
-from pathlib import Path
+import tempfile
 from typing import Any
+import urllib.request
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -42,99 +48,87 @@ if str(PROJECT_ROOT) not in sys.path:
 
 # Official published v1.0.0 release evidence
 V1_0_RELEASE_TAG = "v1.0.0"
+V1_0_RELEASE_SHA = "3ad6a2027cdbb66413661b3e3bb99a9c2cc2bd14"
 V1_0_INSTALLER_NAME = "VocabularyApp-Setup-1.0.0.exe"
-V1_0_EXPECTED_SHA256 = (
+V1_0_KNOWN_SHA256 = (
     "108095e3ce7d256bc610c33f427a9ee2fee4956cb69dde3bf0e105413865b297"
 )
-V1_0_RELEASE_URL = (
-    "https://github.com/Peter-S-Shi/vocabulary-app/releases/download/"
+V1_0_RELEASE_DOWNLOAD_URL = (
+    f"https://github.com/Peter-S-Shi/vocabulary-app/releases/download/"
     f"{V1_0_RELEASE_TAG}/{V1_0_INSTALLER_NAME}"
 )
 
-# v1.1.0 Expected Constants
-V1_1_EXPECTED_APP_VERSION = "1.1.0"
-V1_1_EXPECTED_FILE_VERSION = "1.1.0.0"
+# Product identity constants
+INNO_APP_ID = "{6C6F9E2A-6E3A-4C9F-9E8E-6B9C6E9A6F3D}"
+INNO_UNINSTALL_KEY_NAME = f"{INNO_APP_ID}_is1"
+EXPECTED_DEFAULT_DB_FILENAME = "vocab.db"
+
+# Schema version constants
 V1_0_SCHEMA_VERSION = "15.1.0-speech-semantics"
 V1_0_APP_DATA_VERSION = "15.1"
 V1_1_SCHEMA_VERSION = "21.1.0-review-schedule"
 V1_1_APP_DATA_VERSION = "21.1"
+V1_1_EXPECTED_APP_VERSION = "1.1.0"
+V1_1_EXPECTED_FILE_VERSION = "1.1.0.0"
 
-# Sentinel Identifiers for Data Safety Proof
-SENTINEL_COLLECTION_NAME = "v1_0_Upgrade_Sentinel_Collection"
+# Sentinel test data constants
 SENTINEL_TERM = "v1_0_provenance_sentinel_term"
 SENTINEL_MEANING = "v1_0_provenance_sentinel_meaning"
+SENTINEL_COLLECTION_NAME = "v1_0_Upgrade_Sentinel_Collection"
 SENTINEL_PREF_KEY = "v1_0_sentinel_pref_flag"
 SENTINEL_PREF_VAL = "v1.0-verified-safe-upgrade-sentinel"
 
 
 class UpgradeVerificationError(RuntimeError):
-    """Raised when an upgrade or data preservation invariant is violated."""
+    """Raised when any upgrade or data safety invariant fails."""
 
 
 def calculate_sha256(path: Path) -> str:
-    """Compute hex-encoded SHA-256 digest of a file."""
-    hasher = hashlib.sha256()
-    with path.open("rb") as f:
-        while chunk := f.read(65536):
-            hasher.update(chunk)
-    return hasher.hexdigest()
-
-
-def verify_v1_installer_sha256(path: Path) -> None:
-    """Assert that the v1.0.0 installer matches known release evidence."""
+    """Calculate the lowercase hexadecimal SHA-256 digest of a file."""
     if not path.is_file():
-        raise UpgradeVerificationError(f"v1.0.0 installer not found at {path}")
-    actual_sha = calculate_sha256(path)
-    if actual_sha.lower() != V1_0_EXPECTED_SHA256.lower():
+        raise UpgradeVerificationError(f"File not found for checksum: {path}")
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(65536), b""):
+            digest.update(chunk)
+    return digest.hexdigest().lower()
+
+
+def verify_v1_installer_sha256(installer_path: Path) -> str:
+    """Verify that the v1.0.0 installer matches official release evidence."""
+    actual_sha = calculate_sha256(installer_path)
+    expected_sha = V1_0_KNOWN_SHA256.lower()
+    if actual_sha != expected_sha:
         raise UpgradeVerificationError(
             f"v1.0.0 installer SHA-256 mismatch!\n"
-            f"  Expected: {V1_0_EXPECTED_SHA256}\n"
+            f"  File: {installer_path}\n"
             f"  Actual:   {actual_sha}\n"
-            "Refusing to test unverified or altered installer artifact."
+            f"  Expected: {expected_sha}"
         )
+    return actual_sha
 
 
-def download_v1_installer(dest_dir: Path) -> Path:
-    """Download official v1.0.0 installer if not present."""
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    installer_path = dest_dir / V1_0_INSTALLER_NAME
-    if installer_path.is_file():
+def ensure_v1_installer(download_dir: Path, custom_path: Path | None = None) -> Path:
+    """Ensure authentic v1.0.0 installer exists, downloading if necessary."""
+    if custom_path:
+        if not custom_path.is_file():
+            raise UpgradeVerificationError(f"Specified v1.0 installer not found: {custom_path}")
+        verify_v1_installer_sha256(custom_path)
+        return custom_path
+
+    target_path = download_dir / V1_0_INSTALLER_NAME
+    if target_path.is_file():
         try:
-            verify_v1_installer_sha256(installer_path)
-            print(f"Using cached v1.0.0 installer: {installer_path}")
-            return installer_path
+            verify_v1_installer_sha256(target_path)
+            return target_path
         except UpgradeVerificationError:
-            print("Cached v1.0.0 installer invalid; re-downloading...")
-            installer_path.unlink()
+            target_path.unlink()
 
-    print(f"Downloading v1.0.0 installer from {V1_0_RELEASE_URL} ...")
-    try:
-        # First try gh cli if available
-        result = subprocess.run(
-            [
-                "gh",
-                "release",
-                "download",
-                V1_0_RELEASE_TAG,
-                "--pattern",
-                V1_0_INSTALLER_NAME,
-                "--dir",
-                str(dest_dir),
-            ],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0 or not installer_path.is_file():
-            # Fallback to direct HTTP download
-            urllib.request.urlretrieve(V1_0_RELEASE_URL, installer_path)
-    except Exception as exc:
-        raise UpgradeVerificationError(
-            f"Failed to download official v1.0.0 installer: {exc}"
-        ) from exc
-
-    verify_v1_installer_sha256(installer_path)
-    print(f"v1.0.0 installer verified: {installer_path} (SHA-256 match)")
-    return installer_path
+    download_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Downloading v1.0.0 installer from {V1_0_RELEASE_DOWNLOAD_URL} ...")
+    urllib.request.urlretrieve(V1_0_RELEASE_DOWNLOAD_URL, str(target_path))
+    verify_v1_installer_sha256(target_path)
+    return target_path
 
 
 def get_default_programs_install_dir() -> Path:
@@ -163,51 +157,157 @@ def get_windows_exe_version(exe_path: Path) -> dict[str, str]:
         "-NoProfile",
         "-Command",
         f"(Get-Item -LiteralPath '{exe_path}').VersionInfo | "
-        "Select-Object ProductVersion, FileVersion | ConvertTo-Json",
+        "Select-Object ProductVersion, FileVersion, FileDescription, ProductName | "
+        "ConvertTo-Json",
     ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        raise UpgradeVerificationError(
+            f"Failed to query PE version for {exe_path}: {proc.stderr}"
+        )
+
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
         data = json.loads(proc.stdout)
         return {
             "ProductVersion": str(data.get("ProductVersion", "")).strip(),
             "FileVersion": str(data.get("FileVersion", "")).strip(),
+            "FileDescription": str(data.get("FileDescription", "")).strip(),
+            "ProductName": str(data.get("ProductName", "")).strip(),
         }
     except Exception as exc:
         raise UpgradeVerificationError(
-            f"Failed to extract Windows version metadata from {exe_path}: {exc}"
+            f"Failed to parse PE version JSON for {exe_path}: {exc}\nOutput: {proc.stdout}"
         ) from exc
 
 
-def run_silent_installer(installer_path: Path) -> None:
-    """Run Inno Setup installer silently and wait for completion."""
-    if not installer_path.is_file():
-        raise UpgradeVerificationError(f"Installer not found at {installer_path}")
+def get_inno_uninstall_registrations(
+    app_id: str = INNO_APP_ID,
+    app_name: str = "Vocabulary App",
+) -> list[dict[str, Any]]:
+    """Query Windows registry for Inno Setup uninstall registrations."""
+    results: list[dict[str, Any]] = []
+    try:
+        import winreg
+    except ImportError:
+        return results
 
-    args = [
+    roots = [
+        (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
+        (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
+    ]
+    for hkey, subkey_path in roots:
+        try:
+            with winreg.OpenKey(hkey, subkey_path) as key:
+                num_subkeys, _, _ = winreg.QueryInfoKey(key)
+                for i in range(num_subkeys):
+                    subkey_name = winreg.EnumKey(key, i)
+                    try:
+                        with winreg.OpenKey(key, subkey_name) as app_key:
+                            values: dict[str, Any] = {}
+                            num_vals, _, _ = winreg.QueryInfoKey(app_key)
+                            for j in range(num_vals):
+                                val_name, val_data, _ = winreg.EnumValue(app_key, j)
+                                values[val_name] = val_data
+                            display_name = str(values.get("DisplayName", ""))
+                            # Match against exact AppId subkey or app name
+                            if app_id.lower() in subkey_name.lower() or (
+                                app_name.lower() in display_name.lower()
+                            ):
+                                results.append({
+                                    "hive": "HKCU" if hkey == winreg.HKEY_CURRENT_USER else "HKLM",
+                                    "key_name": subkey_name,
+                                    "display_name": display_name,
+                                    "display_version": str(values.get("DisplayVersion", "")),
+                                    "install_location": str(values.get("InstallLocation", "")),
+                                    "uninstall_string": str(values.get("UninstallString", "")),
+                                    "quiet_uninstall_string": str(values.get("QuietUninstallString", "")),
+                                })
+                    except (OSError, PermissionError):
+                        continue
+        except (OSError, PermissionError):
+            continue
+    return results
+
+
+def verify_v1_0_uninstall_registration(
+    registrations: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Verify that v1.0.0 created exactly one correct uninstall registration."""
+    if not registrations:
+        raise UpgradeVerificationError(
+            "No Inno Setup uninstall registration found after v1.0.0 installation!"
+        )
+    if len(registrations) > 1:
+        raise UpgradeVerificationError(
+            f"Expected exactly 1 uninstall registration for v1.0.0, found {len(registrations)}: {registrations}"
+        )
+    reg = registrations[0]
+    if INNO_UNINSTALL_KEY_NAME.lower() not in reg["key_name"].lower():
+        raise UpgradeVerificationError(
+            f"Uninstall key name '{reg['key_name']}' does not match expected Inno AppId '{INNO_UNINSTALL_KEY_NAME}'"
+        )
+    if not reg["display_version"].startswith("1.0.0"):
+        raise UpgradeVerificationError(
+            f"v1.0.0 DisplayVersion is '{reg['display_version']}', expected '1.0.0'"
+        )
+    return reg
+
+
+def verify_v1_1_overlay_uninstall_registration(
+    v1_0_reg: dict[str, Any],
+    registrations: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Verify that v1.1.0 updated the existing registration in-place without side-by-side duplicates."""
+    if not registrations:
+        raise UpgradeVerificationError(
+            "No Inno Setup uninstall registration found after v1.1.0 upgrade!"
+        )
+    if len(registrations) > 1:
+        raise UpgradeVerificationError(
+            f"Multiple uninstall registrations found after v1.1.0 upgrade! "
+            f"Overlay failed and installed parallel products: {registrations}"
+        )
+    reg = registrations[0]
+    if reg["key_name"].lower() != v1_0_reg["key_name"].lower():
+        raise UpgradeVerificationError(
+            f"AppId key name changed during upgrade! Before: '{v1_0_reg['key_name']}', After: '{reg['key_name']}'"
+        )
+    if not reg["display_version"].startswith(V1_1_EXPECTED_APP_VERSION):
+        raise UpgradeVerificationError(
+            f"v1.1.0 DisplayVersion is '{reg['display_version']}', expected '{V1_1_EXPECTED_APP_VERSION}'"
+        )
+    return reg
+
+
+def run_silent_installer(installer_path: Path) -> None:
+    """Execute an Inno Setup installer silently with standard per-user flags."""
+    if not installer_path.is_file():
+        raise UpgradeVerificationError(f"Installer binary not found: {installer_path}")
+
+    cmd = [
         str(installer_path),
         "/VERYSILENT",
         "/SUPPRESSMSGBOXES",
         "/NORESTART",
         "/SP-",
+        "/CURRENTUSER",
     ]
     print(f"Running silent installer: {installer_path.name} ...")
-    proc = subprocess.run(args, capture_output=True, text=True)
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if proc.returncode != 0:
         raise UpgradeVerificationError(
-            f"Installer {installer_path.name} exited with code {proc.returncode}.\n"
+            f"Installer {installer_path.name} failed with code {proc.returncode}.\n"
             f"Stdout: {proc.stdout}\nStderr: {proc.stderr}"
         )
     print(f"Installer {installer_path.name} finished successfully (code 0).")
-
-
-from contextlib import contextmanager
 
 
 @contextmanager
 def scoped_app_env(data_dir: Path):
     """Scope database and preference environment variables to data_dir, restoring on exit."""
     from src import db
-    db_path = data_dir / "vocabulary.db"
+
+    db_path = data_dir / EXPECTED_DEFAULT_DB_FILENAME
     pref_path = data_dir / "preferences.json"
     backup_dir = data_dir / "backups"
 
@@ -232,80 +332,193 @@ def scoped_app_env(data_dir: Path):
                 os.environ[k] = v
 
 
-def create_v1_0_user_state(data_dir: Path) -> dict[str, Any]:
-    """Construct an authentic v1.0.0 user state (%LOCALAPPDATA%\vocabulary_app).
+def create_authentic_v1_0_user_state(
+    data_dir: Path,
+    repo_root: Path = PROJECT_ROOT,
+) -> dict[str, Any]:
+    """Construct an authentic v1.0.0 user state using real v1.0.0 tag source code.
 
-    Generates genuine v1.0.0 database schema (schema_version=15.1.0-speech-semantics,
-    app_data_version=15.1) without v1.1.0 card_review_schedules table, and populates
-    durable sentinel data.
+    Creates an isolated git worktree at tag `v1.0.0`, executes v1.0.0's native
+    init_db() and domain APIs to create a sentinel collection and entry in the
+    real default database (`vocab.db`), writes authentic v1.0 preferences, and
+    cleans up the worktree.
     """
     data_dir.mkdir(parents=True, exist_ok=True)
-    db_path = data_dir / "vocabulary.db"
+    db_path = data_dir / EXPECTED_DEFAULT_DB_FILENAME
     pref_path = data_dir / "preferences.json"
+    backup_dir = data_dir / "backups"
 
-    with scoped_app_env(data_dir):
-        # 1. Initialize schema via app initialization, then adjust to v1.0 baseline
-        from src.db import init_db
-        from src.migrations import set_metadata, set_schema_version
-        from src.collections import create_collection, add_entries_to_collection
-        from src.entries import add_entry
+    if db_path.is_file():
+        db_path.unlink()
 
-        init_db()
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp_parent:
+        worktree_dir = Path(tmp_parent) / "v1_0_worktree"
 
-        # 2. Add sentinel user data using core domain API
-        sentinel_entry_id = int(add_entry(
-            language="English",
-            term=SENTINEL_TERM,
-            meaning=SENTINEL_MEANING,
-            explanation_language="English",
-            entry_type="word",
-            example="Sentinel example sentence for v1.0 upgrade verification.",
-            notes="Sentinel notes.",
-            tags="v1_sentinel,upgrade_proof",
-        ))
-
-        sentinel_collection_id = int(create_collection(
-            name=SENTINEL_COLLECTION_NAME,
-            description="Sentinel Collection created under v1.0.0 contract.",
-        ))
-
-        add_entries_to_collection(
-            collection_id=sentinel_collection_id,
-            entry_ids=[sentinel_entry_id],
+        # 1. Add detached git worktree at v1.0.0 tag
+        print(f"Creating isolated git worktree at tag {V1_0_RELEASE_TAG} ...")
+        proc_wt = subprocess.run(
+            ["git", "worktree", "add", "--detach", str(worktree_dir), V1_0_RELEASE_TAG],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            check=False,
         )
+        if proc_wt.returncode != 0:
+            raise UpgradeVerificationError(
+                f"Failed to create git worktree for {V1_0_RELEASE_TAG}:\n{proc_wt.stderr}"
+            )
 
-        # 3. Roll schema back to exact v1.0.0 truth (drop v1.1 table and set v1.0 version metadata)
-        conn = sqlite3.connect(db_path)
         try:
-            conn.row_factory = sqlite3.Row
-            conn.execute("DROP TABLE IF EXISTS card_review_schedules")
-            set_schema_version(conn, V1_0_SCHEMA_VERSION)
-            set_metadata(conn, "app_data_version", V1_0_APP_DATA_VERSION)
-            set_metadata(conn, "last_migration_at", datetime.now(timezone.utc).isoformat())
-            conn.commit()
-        finally:
-            conn.close()
+            # 2. Write seeding script inside v1.0.0 worktree
+            seeder_script = worktree_dir / "seed_v1_0_baseline.py"
+            seeder_content = f"""
+import json
+import os
+import sqlite3
+import sys
+from pathlib import Path
 
-    # 4. Write authentic v1.0 preferences.json with sentinel values
-    preferences_data = {
-        "theme": "dark",
-        "include_proficient_in_study": True,
-        "speech_engine": "windows_builtin",
-        SENTINEL_PREF_KEY: SENTINEL_PREF_VAL,
-    }
-    pref_path.write_text(json.dumps(preferences_data, indent=2), encoding="utf-8")
+# Force v1.0.0 worktree to the front of sys.path
+sys.path.insert(0, os.getcwd())
+
+from src.db import init_db, get_connection
+from src.entries import add_entry
+from src.collections import create_collection, add_entries_to_collection
+from src.migrations import get_schema_version, get_metadata
+
+# 1. Native v1.0.0 schema initialization
+init_db()
+
+# 2. Seed sentinel entry and collection via v1.0 domain APIs
+sentinel_entry_id = int(add_entry(
+    language="English",
+    term="{SENTINEL_TERM}",
+    meaning="{SENTINEL_MEANING}",
+    explanation_language="English",
+    entry_type="word",
+    example="Authentic v1.0.0 sentence created via v1.0.0 git tag source.",
+    notes="Sentinel notes.",
+    tags="v1_sentinel,upgrade_proof",
+))
+
+sentinel_collection_id = int(create_collection(
+    name="{SENTINEL_COLLECTION_NAME}",
+    description="Sentinel Collection created under authentic v1.0.0 tag.",
+))
+
+add_entries_to_collection(
+    collection_id=sentinel_collection_id,
+    entry_ids=[sentinel_entry_id],
+)
+
+# 3. Read metadata and verify v1.0 invariants
+with get_connection() as conn:
+    schema_ver = get_schema_version(conn)
+    app_data_ver = get_metadata(conn, "app_data_version")
+
+# 4. Write authentic v1.0 preferences.json
+preferences_data = {{
+    "theme": "dark",
+    "include_proficient_in_study": True,
+    "speech_engine": "windows_builtin",
+    "{SENTINEL_PREF_KEY}": "{SENTINEL_PREF_VAL}",
+}}
+pref_path = Path(os.environ["VOCAB_APP_PREFERENCES_PATH"])
+pref_path.write_text(json.dumps(preferences_data, indent=2), encoding="utf-8")
+
+result = {{
+    "sentinel_entry_id": sentinel_entry_id,
+    "sentinel_collection_id": sentinel_collection_id,
+    "v1_0_schema_version": schema_ver,
+    "v1_0_app_data_version": app_data_ver,
+}}
+print("V1_0_SEED_RESULT_START" + json.dumps(result) + "V1_0_SEED_RESULT_END")
+"""
+            seeder_script.write_text(seeder_content, encoding="utf-8")
+
+            # 3. Execute seeder script in v1.0.0 worktree subprocess
+            child_env = dict(os.environ)
+            child_env["VOCAB_APP_DB_PATH"] = str(db_path)
+            child_env["VOCAB_APP_BACKUP_DIR"] = str(backup_dir)
+            child_env["VOCAB_APP_PREFERENCES_PATH"] = str(pref_path)
+            child_env["PYTHONPATH"] = str(worktree_dir)
+
+            proc_seed = subprocess.run(
+                [sys.executable, str(seeder_script)],
+                cwd=str(worktree_dir),
+                env=child_env,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if proc_seed.returncode != 0:
+                raise UpgradeVerificationError(
+                    f"v1.0.0 state creation failed with code {proc_seed.returncode}.\n"
+                    f"Stdout: {proc_seed.stdout}\nStderr: {proc_seed.stderr}"
+                )
+
+            # Parse result token
+            output = proc_seed.stdout
+            start_marker = "V1_0_SEED_RESULT_START"
+            end_marker = "V1_0_SEED_RESULT_END"
+            if start_marker not in output or end_marker not in output:
+                raise UpgradeVerificationError(
+                    f"Failed to parse v1.0 seeder output:\n{output}"
+                )
+            json_str = output.split(start_marker)[1].split(end_marker)[0]
+            seed_data = json.loads(json_str)
+
+        finally:
+            # 4. Clean up git worktree
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(worktree_dir)],
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+    # 5. Direct verification of generated v1.0 database file
+    if not db_path.is_file():
+        raise UpgradeVerificationError(f"Expected database missing: {db_path}")
+
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.row_factory = sqlite3.Row
+        schema_row = conn.execute(
+            "SELECT value FROM app_metadata WHERE key = 'schema_version'"
+        ).fetchone()
+        if not schema_row or schema_row["value"] != V1_0_SCHEMA_VERSION:
+            raise UpgradeVerificationError(
+                f"Generated v1.0 DB schema is '{schema_row['value'] if schema_row else None}', "
+                f"expected '{V1_0_SCHEMA_VERSION}'"
+            )
+        has_schedules = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'card_review_schedules'"
+        ).fetchone()
+        if has_schedules is not None:
+            raise UpgradeVerificationError(
+                "Generated v1.0 DB contains 'card_review_schedules' table; provenance is invalid!"
+            )
+    finally:
+        conn.close()
 
     db_sha = calculate_sha256(db_path)
     pref_sha = calculate_sha256(pref_path)
-    print(f"Created authentic v1.0 user state at {data_dir}:")
-    print(f"  vocabulary.db SHA-256: {db_sha}")
-    print(f"  preferences.json SHA-256: {pref_sha}")
+    print(f"Created authentic v1.0 user state from tag {V1_0_RELEASE_TAG} at {data_dir}:")
+    print(f"  Database file: {db_path.name} (SHA-256: {db_sha})")
+    print(f"  Preferences:   {pref_path.name} (SHA-256: {pref_sha})")
 
     return {
-        "sentinel_entry_id": sentinel_entry_id,
-        "sentinel_collection_id": sentinel_collection_id,
+        "v1_0_source_tag": V1_0_RELEASE_TAG,
+        "v1_0_source_sha": V1_0_RELEASE_SHA,
+        "database_filename": db_path.name,
+        "sentinel_entry_id": seed_data["sentinel_entry_id"],
+        "sentinel_collection_id": seed_data["sentinel_collection_id"],
         "pre_upgrade_db_sha": db_sha,
         "pre_upgrade_pref_sha": pref_sha,
+        "v1_0_schema_version": seed_data["v1_0_schema_version"],
+        "v1_0_app_data_version": seed_data["v1_0_app_data_version"],
     }
 
 
@@ -331,7 +544,7 @@ def verify_pre_migration_backup(backup_dir: Path) -> Path:
     conn = sqlite3.connect(backup_file)
     try:
         conn.row_factory = sqlite3.Row
-        from src.migrations import get_schema_version, get_metadata
+        from src.migrations import get_schema_version
 
         backup_schema = get_schema_version(conn)
         if backup_schema != V1_0_SCHEMA_VERSION:
@@ -359,14 +572,22 @@ def verify_pre_migration_backup(backup_dir: Path) -> Path:
     return backup_file
 
 
-def verify_v1_1_migrated_state(data_dir: Path, sentinel_info: dict[str, Any]) -> dict[str, Any]:
+def verify_v1_1_migrated_state(
+    data_dir: Path,
+    sentinel_info: dict[str, Any],
+) -> dict[str, Any]:
     """Execute v1.1.0 migration and verify all schema and data preservation invariants."""
-    db_path = data_dir / "vocabulary.db"
+    db_path = data_dir / EXPECTED_DEFAULT_DB_FILENAME
     pref_path = data_dir / "preferences.json"
     backup_dir = data_dir / "backups"
 
+    if not db_path.is_file():
+        raise UpgradeVerificationError(
+            f"Target database file missing at production path: {db_path}"
+        )
+
     with scoped_app_env(data_dir):
-        # 1. Run migration / init_db()
+        # 1. Run migration via standard production init_db()
         from src.db import init_db
         from src.migrations import get_schema_version, get_metadata
         from src.entries import get_entry_by_id
@@ -456,31 +677,32 @@ def run_full_upgrade_verification(
     install_dir: Path,
     report_path: Path,
     skip_installer_execution: bool = False,
+    repo_root: Path = PROJECT_ROOT,
 ) -> dict[str, Any]:
-    """Execute complete end-to-end upgrade verification pipeline."""
+    """Execute full automated v1.0.0 -> v1.1.0 upgrade & data-safety verification pipeline."""
     report: dict[str, Any] = {
-        "verified_at_utc": datetime.now(timezone.utc).isoformat(),
-        "v1_0_installer": {
-            "path": str(v1_installer_path),
-            "sha256": calculate_sha256(v1_installer_path),
-            "expected_sha256": V1_0_EXPECTED_SHA256,
-            "sha_verified": True,
-        },
-        "v1_1_installer": {
-            "path": str(v1_1_installer_path),
-            "sha256": calculate_sha256(v1_1_installer_path),
-        },
-        "install_dir": str(install_dir),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "v1_0_release_tag": V1_0_RELEASE_TAG,
+        "v1_0_release_sha": V1_0_RELEASE_SHA,
+        "v1_0_expected_installer_sha256": V1_0_KNOWN_SHA256,
+        "target_database_filename": EXPECTED_DEFAULT_DB_FILENAME,
+        "inno_app_id": INNO_APP_ID,
+        "inno_uninstall_key": INNO_UNINSTALL_KEY_NAME,
         "data_dir": str(data_dir),
+        "install_dir": str(install_dir),
+        "stages": {},
     }
 
-    # Step 1: Verify v1.0.0 installer SHA
-    verify_v1_installer_sha256(v1_installer_path)
+    # Step 0: Check v1.0.0 installer SHA-256
+    v1_sha = verify_v1_installer_sha256(v1_installer_path)
+    report["v1_0_installer_path"] = str(v1_installer_path)
+    report["v1_0_installer_sha256"] = v1_sha
+    print(f"v1.0.0 installer verified: {v1_installer_path} (SHA-256 match)")
 
     installed_exe = install_dir / "Vocabulary App.exe"
 
     if not skip_installer_execution:
-        # Step 2: Clean install v1.0.0
+        # Step 1: Clean install v1.0.0
         print("\n=== Step 1: Installing v1.0.0 ===")
         run_silent_installer(v1_installer_path)
         v1_meta = get_windows_exe_version(installed_exe)
@@ -495,13 +717,19 @@ def run_full_upgrade_verification(
             )
         report["v1_0_installed_metadata"] = v1_meta
 
-    # Step 3: Seed authentic v1.0.0 user state
-    print("\n=== Step 2: Seeding Authentic v1.0.0 User State ===")
-    sentinel_info = create_v1_0_user_state(data_dir)
+        # Verify v1.0 Inno uninstall registration
+        v1_regs = get_inno_uninstall_registrations(INNO_APP_ID)
+        v1_reg = verify_v1_0_uninstall_registration(v1_regs)
+        print(f"Verified v1.0.0 Inno uninstall registration: {v1_reg['key_name']} ({v1_reg['display_version']})")
+        report["v1_0_uninstall_registration"] = v1_reg
+
+    # Step 2: Seed authentic v1.0.0 user state using v1.0.0 git tag
+    print(f"\n=== Step 2: Seeding Authentic v1.0.0 User State from tag {V1_0_RELEASE_TAG} ===")
+    sentinel_info = create_authentic_v1_0_user_state(data_dir, repo_root=repo_root)
     report["v1_0_user_state"] = sentinel_info
 
     if not skip_installer_execution:
-        # Step 4: Overlay upgrade to v1.1.0
+        # Step 3: Overlay upgrade to v1.1.0
         print("\n=== Step 3: Overlay Upgrading to v1.1.0 ===")
         run_silent_installer(v1_1_installer_path)
         v1_1_meta = get_windows_exe_version(installed_exe)
@@ -516,23 +744,30 @@ def run_full_upgrade_verification(
             )
         report["v1_1_installed_metadata"] = v1_1_meta
 
+        # Verify v1.1 Inno uninstall registration is updated in-place (overlay, not parallel)
+        v1_1_regs = get_inno_uninstall_registrations(INNO_APP_ID)
+        v1_1_reg = verify_v1_1_overlay_uninstall_registration(v1_reg, v1_1_regs)
+        print(f"Verified v1.1.0 overlay uninstall registration: {v1_1_reg['key_name']} ({v1_1_reg['display_version']})")
+        report["v1_1_uninstall_registration"] = v1_1_reg
+
         # Verify user state files were not wiped by Inno Setup
-        db_path = data_dir / "vocabulary.db"
+        db_path = data_dir / EXPECTED_DEFAULT_DB_FILENAME
         pref_path = data_dir / "preferences.json"
         if not db_path.is_file() or not pref_path.is_file():
             raise UpgradeVerificationError(
-                "v1.1.0 installer erased user data files in %LOCALAPPDATA%\\vocabulary_app!"
+                f"v1.1.0 installer erased user data files in {data_dir}!"
             )
 
-    # Step 5: Run v1.1.0 migration and verify data preservation
+    # Step 4: Run v1.1.0 migration and verify data preservation
     print("\n=== Step 4: Verifying v1.1.0 Schema Migration & Data Preservation ===")
-    migration_info = verify_v1_1_migrated_state(data_dir, sentinel_info)
-    report["migration_and_data_preservation"] = migration_info
-    report["overall_status"] = "PASSED"
+    migration_result = verify_v1_1_migrated_state(data_dir, sentinel_info)
+    report["migration_and_data_preservation"] = migration_result
 
+    report["overall_status"] = "PASSED"
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(f"\nUpgrade verification report written to: {report_path}")
+
     return report
 
 
@@ -578,18 +813,17 @@ def main() -> int:
     args = parser.parse_args()
 
     # Resolve v1.0 installer
-    v1_installer = args.v1_installer
-    if v1_installer is None:
-        v1_installer = download_v1_installer(Path("dist/v1_0_installer"))
-    else:
-        verify_v1_installer_sha256(v1_installer)
+    download_dir = PROJECT_ROOT / "dist" / "v1_0_installer"
+    try:
+        v1_installer = ensure_v1_installer(download_dir, args.v1_installer)
+    except Exception as exc:
+        print(f"[FAILED] Failed to prepare v1.0.0 installer: {exc}", file=sys.stderr)
+        return 1
 
-    # Resolve v1.1 installer
     v1_1_installer = args.v1_1_installer
-    if not v1_1_installer.is_file():
-        raise UpgradeVerificationError(
-            f"v1.1.0 installer missing at {v1_1_installer}. Run winbuild/build.py first."
-        )
+    if not args.skip_installer_execution and not v1_1_installer.is_file():
+        print(f"[FAILED] v1.1.0 installer not found: {v1_1_installer}", file=sys.stderr)
+        return 1
 
     data_dir = args.data_dir or get_default_user_data_dir()
     install_dir = args.install_dir or get_default_programs_install_dir()
@@ -602,10 +836,11 @@ def main() -> int:
             install_dir=install_dir,
             report_path=args.report_path,
             skip_installer_execution=args.skip_installer_execution,
+            repo_root=PROJECT_ROOT,
         )
         print("\n=======================================================")
         print("[OK] PHASE F2 UPGRADE & DATA-PRESERVATION PROOF: PASSED")
-        print("=======================================================\n")
+        print("=======================================================")
         return 0
     except UpgradeVerificationError as err:
         print(f"\n[FAILED] UPGRADE PROOF FAILED: {err}", file=sys.stderr)

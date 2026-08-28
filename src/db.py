@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 import sqlite3
 
 from src.app_config import get_database_path
@@ -208,10 +208,9 @@ CREATE_INDEXES_SQL = [
 ]
 
 
-def get_connection(db_path: Path | None = None) -> sqlite3.Connection:
-    target_path = db_path or DB_PATH
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(target_path)
+def get_connection() -> sqlite3.Connection:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(DB_PATH)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     return connection
@@ -302,16 +301,15 @@ def _ensure_entries_template_id_column(connection: sqlite3.Connection) -> None:
         connection.execute("ALTER TABLE entries ADD COLUMN template_id INTEGER")
 
 
-def init_db(db_path: Path | None = None) -> None:
-    target_path = db_path or DB_PATH
-    with get_connection(target_path) as connection:
+def init_db() -> None:
+    with get_connection() as connection:
         # Must run before any DDL below touches `connection`: the backup
         # reads a consistent snapshot through this same connection, and
         # SQLite's online backup API can stall indefinitely against a
         # source connection that already has an uncommitted transaction
         # open on itself (as the CREATE/ALTER statements below would
         # leave it, until this `with` block's implicit commit on exit).
-        backup_before_pending_migration(connection, target_path)
+        backup_before_pending_migration(connection, DB_PATH)
         connection.execute(CREATE_ENTRIES_TABLE_SQL)
         _ensure_entries_quiz_count_columns(connection)
         _ensure_entries_template_id_column(connection)
