@@ -9,7 +9,7 @@ from pathlib import Path
 import sqlite3
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from src.app_config import get_default_data_dir, get_default_db_path
 from winbuild.verify_upgrade import (
@@ -23,15 +23,19 @@ from winbuild.verify_upgrade import (
     SENTINEL_TERM,
     V1_0_APP_DATA_VERSION,
     V1_0_KNOWN_SHA256,
+    V1_0_PEELED_COMMIT_SHA,
     V1_0_RELEASE_TAG,
     V1_0_SCHEMA_VERSION,
+    V1_0_TAG_OBJECT_SHA,
     V1_1_APP_DATA_VERSION,
     V1_1_SCHEMA_VERSION,
     UpgradeVerificationError,
     calculate_sha256,
     create_authentic_v1_0_user_state,
+    get_inno_uninstall_registrations,
     run_full_upgrade_verification,
     verify_pre_migration_backup,
+    verify_v1_0_tag_provenance,
     verify_v1_0_uninstall_registration,
     verify_v1_1_migrated_state,
     verify_v1_1_overlay_uninstall_registration,
@@ -54,6 +58,14 @@ class UpgradeVerificationHarnessTests(unittest.TestCase):
         self.assertEqual(default_dir.name, "vocabulary_app")
         self.assertEqual(default_db.parent, default_dir)
 
+    def test_v1_0_tag_provenance_verification(self) -> None:
+        """Verify that tag provenance distinctly captures tag object SHA and source commit SHA."""
+        provenance = verify_v1_0_tag_provenance()
+        self.assertEqual(provenance["tag_name"], V1_0_RELEASE_TAG)
+        self.assertEqual(provenance["tag_object_sha"], V1_0_TAG_OBJECT_SHA)
+        self.assertEqual(provenance["source_commit_sha"], V1_0_PEELED_COMMIT_SHA)
+        self.assertNotEqual(provenance["tag_object_sha"], provenance["source_commit_sha"])
+
     def test_sha256_calculation_and_v1_installer_sha_guard(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -70,39 +82,145 @@ class UpgradeVerificationHarnessTests(unittest.TestCase):
             with self.assertRaises(UpgradeVerificationError):
                 verify_v1_installer_sha256(fake_installer)
 
-    def test_inno_uninstall_registration_verification_rules(self) -> None:
-        """Verify uninstall registration single-instance and overlay validation logic."""
+    def test_query_info_key_tuple_semantics_and_registration_parsing(self) -> None:
+        """Lock down winreg.QueryInfoKey tuple index 1 as num_values (narrow regression)."""
+        # winreg.QueryInfoKey returns (num_subkeys, num_values, last_modified).
+        # A subkey typically has 0 subkeys and N values.
+        mock_values = [
+            ("DisplayName", "Vocabulary App", 1),
+            ("Inno Setup: Setup Version", "1.0.0", 1),
+            ("Inno Setup: App Path", r"C:\Users\test\AppData\Local\Programs\Vocabulary App", 1),
+            ("UninstallString", r"C:\Users\test\AppData\Local\Programs\Vocabulary App\unins000.exe", 1),
+            ("QuietUninstallString", r"C:\Users\test\AppData\Local\Programs\Vocabulary App\unins000.exe /SILENT", 1),
+        ]
+
+        class MockAppKey:
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                pass
+
+        class MockParentKey:
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                pass
+
+        def mock_open_key(hkey, subkey_path):
+            if subkey_path.endswith("Uninstall"):
+                return MockParentKey()
+            return MockAppKey()
+
+        def mock_query_info_key(key):
+            if isinstance(key, MockParentKey):
+                return (1, 0, 1000)  # 1 subkey, 0 values
+            # Crucial: 0 subkeys, 5 values
+            return (0, len(mock_values), 2000)
+
+        def mock_enum_key(key, index):
+            if index == 0:
+                return INNO_UNINSTALL_KEY_NAME
+            raise OSError("No more keys")
+
+        def mock_enum_value(key, index):
+            if index < len(mock_values):
+                return mock_values[index]
+            raise OSError("No more values")
+
+        with patch("winreg.OpenKey", side_effect=mock_open_key), \
+                patch("winreg.QueryInfoKey", side_effect=mock_query_info_key), \
+                patch("winreg.EnumKey", side_effect=mock_enum_key), \
+                patch("winreg.EnumValue", side_effect=mock_enum_value):
+            registrations = get_inno_uninstall_registrations()
+
+        self.assertEqual(len(registrations), 2)  # Found in HKCU and HKLM mock
+        reg = registrations[0]
+        self.assertEqual(reg["display_name"], "Vocabulary App")
+        self.assertEqual(reg["display_version"], "1.0.0")
+        self.assertEqual(reg["install_location"], r"C:\Users\test\AppData\Local\Programs\Vocabulary App")
+        self.assertEqual(len(reg["raw_values"]), 5)
+
+    def test_inno_uninstall_registration_verification_rules_fail_closed(self) -> None:
+        """Verify uninstall registration fail-closed rules on empty values, wrong version, or parallel installs."""
         # 1. Empty registrations list raises error
         with self.assertRaises(UpgradeVerificationError):
             verify_v1_0_uninstall_registration([])
 
-        # 2. Valid v1.0.0 registration
+        # 2. Valid v1.0.0 registration with populated raw_values
         v1_valid = [{
             "hive": "HKCU",
             "key_name": INNO_UNINSTALL_KEY_NAME,
             "display_name": "Vocabulary App",
             "display_version": "1.0.0",
             "install_location": r"C:\Users\test\AppData\Local\Programs\Vocabulary App",
+            "raw_values": {"DisplayName": "Vocabulary App", "Inno Setup: Setup Version": "1.0.0"},
         }]
-        reg = verify_v1_0_uninstall_registration(v1_valid)
+        reg = verify_v1_0_uninstall_registration(
+            v1_valid,
+            expected_install_dir=Path(r"C:\Users\test\AppData\Local\Programs\Vocabulary App"),
+        )
         self.assertEqual(reg["display_version"], "1.0.0")
 
-        # 3. Multiple registrations for v1.0 raises error
+        # 3. Empty raw_values fails closed
+        v1_empty_raw = [{
+            "hive": "HKCU",
+            "key_name": INNO_UNINSTALL_KEY_NAME,
+            "display_name": "Vocabulary App",
+            "display_version": "1.0.0",
+            "install_location": r"C:\Users\test\AppData\Local\Programs\Vocabulary App",
+            "raw_values": {},
+        }]
         with self.assertRaises(UpgradeVerificationError):
-            verify_v1_0_uninstall_registration([v1_valid[0], v1_valid[0]])
+            verify_v1_0_uninstall_registration(v1_empty_raw)
 
-        # 4. Valid v1.1.0 overlay registration
+        # 4. Missing/empty DisplayVersion fails closed
+        v1_missing_ver = [{
+            "hive": "HKCU",
+            "key_name": INNO_UNINSTALL_KEY_NAME,
+            "display_name": "Vocabulary App",
+            "display_version": "",
+            "install_location": r"C:\Users\test\AppData\Local\Programs\Vocabulary App",
+            "raw_values": {"DisplayName": "Vocabulary App"},
+        }]
+        with self.assertRaises(UpgradeVerificationError):
+            verify_v1_0_uninstall_registration(v1_missing_ver)
+
+        # 5. Wrong DisplayName fails closed
+        v1_wrong_name = [{
+            "hive": "HKCU",
+            "key_name": INNO_UNINSTALL_KEY_NAME,
+            "display_name": "Some Other Software",
+            "display_version": "1.0.0",
+            "install_location": r"C:\Users\test\AppData\Local\Programs\Vocabulary App",
+            "raw_values": {"DisplayName": "Some Other Software"},
+        }]
+        with self.assertRaises(UpgradeVerificationError):
+            verify_v1_0_uninstall_registration(v1_wrong_name)
+
+        # 6. InstallLocation mismatch fails closed
+        with self.assertRaises(UpgradeVerificationError):
+            verify_v1_0_uninstall_registration(
+                v1_valid,
+                expected_install_dir=Path(r"C:\Users\test\OtherDir"),
+            )
+
+        # 7. Valid v1.1.0 overlay registration
         v1_1_valid = [{
             "hive": "HKCU",
             "key_name": INNO_UNINSTALL_KEY_NAME,
             "display_name": "Vocabulary App",
             "display_version": "1.1.0",
             "install_location": r"C:\Users\test\AppData\Local\Programs\Vocabulary App",
+            "raw_values": {"DisplayName": "Vocabulary App", "Inno Setup: Setup Version": "1.1.0"},
         }]
-        overlay_reg = verify_v1_1_overlay_uninstall_registration(v1_valid[0], v1_1_valid)
+        overlay_reg = verify_v1_1_overlay_uninstall_registration(
+            v1_valid[0],
+            v1_1_valid,
+            expected_install_dir=Path(r"C:\Users\test\AppData\Local\Programs\Vocabulary App"),
+        )
         self.assertEqual(overlay_reg["display_version"], "1.1.0")
 
-        # 5. Parallel/duplicate product registration raises error
+        # 8. Parallel/duplicate product registration raises error
         parallel_reg = [
             v1_valid[0],
             {
@@ -111,6 +229,7 @@ class UpgradeVerificationHarnessTests(unittest.TestCase):
                 "display_name": "Vocabulary App 1.1",
                 "display_version": "1.1.0",
                 "install_location": r"C:\Users\test\AppData\Local\Programs\Vocabulary App 1.1",
+                "raw_values": {"DisplayName": "Vocabulary App 1.1"},
             },
         ]
         with self.assertRaises(UpgradeVerificationError):
@@ -127,7 +246,9 @@ class UpgradeVerificationHarnessTests(unittest.TestCase):
             self.assertTrue(db_path.is_file())
             self.assertTrue(pref_path.is_file())
             self.assertEqual(sentinel_info["database_filename"], "vocab.db")
-            self.assertEqual(sentinel_info["v1_0_source_tag"], V1_0_RELEASE_TAG)
+            self.assertEqual(sentinel_info["v1_0_tag_name"], V1_0_RELEASE_TAG)
+            self.assertEqual(sentinel_info["v1_0_tag_object_sha"], V1_0_TAG_OBJECT_SHA)
+            self.assertEqual(sentinel_info["v1_0_source_commit_sha"], V1_0_PEELED_COMMIT_SHA)
 
             # Verify authentic v1.0.0 schema state in vocab.db
             conn = sqlite3.connect(db_path)
@@ -215,6 +336,7 @@ class UpgradeVerificationHarnessTests(unittest.TestCase):
                 "display_name": "Vocabulary App",
                 "display_version": "1.0.0",
                 "install_location": str(install_dir),
+                "raw_values": {"DisplayName": "Vocabulary App", "Inno Setup: Setup Version": "1.0.0"},
             }]
             v1_1_reg_mock = [{
                 "hive": "HKCU",
@@ -222,6 +344,7 @@ class UpgradeVerificationHarnessTests(unittest.TestCase):
                 "display_name": "Vocabulary App",
                 "display_version": "1.1.0",
                 "install_location": str(install_dir),
+                "raw_values": {"DisplayName": "Vocabulary App", "Inno Setup: Setup Version": "1.1.0"},
             }]
             reg_call_count = 0
 
@@ -245,6 +368,8 @@ class UpgradeVerificationHarnessTests(unittest.TestCase):
 
             self.assertEqual(report["overall_status"], "PASSED")
             self.assertEqual(report["target_database_filename"], "vocab.db")
+            self.assertEqual(report["v1_0_tag_object_sha"], V1_0_TAG_OBJECT_SHA)
+            self.assertEqual(report["v1_0_source_commit_sha"], V1_0_PEELED_COMMIT_SHA)
             self.assertTrue(report_path.is_file())
             report_json = json.loads(report_path.read_text(encoding="utf-8"))
             self.assertEqual(

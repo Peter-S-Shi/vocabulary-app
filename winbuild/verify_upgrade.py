@@ -7,13 +7,14 @@ Automates and proves:
   3. Verification of installed v1.0.0 executable metadata (ProductVersion="1.0.0",
      FileVersion="1.0.0.0") and Inno Uninstall Registry entry.
   4. Construction of authentic v1.0.0 user state from the repository's v1.0.0 tag/source:
+     - Verified git tag provenance: annotated tag object SHA vs peeled source commit SHA.
      - Real default database path: %LOCALAPPDATA%\\vocabulary_app\\vocab.db
      - Genuine v1.0 schema (schema_version="15.1.0-speech-semantics", app_data_version="15.1")
      - Sentinel Collection and Sentinel Entry created via v1.0.0 domain APIs
      - Sentinel Preferences (preferences.json)
   5. Silent overlay upgrade of current v1.1.0 installer to the identical AppId/location.
   6. Verification of Inno Uninstall Registry evidence (single registration updated in-place,
-     stable AppId, no duplicate/parallel product entries).
+     stable AppId, populated raw_values, no duplicate/parallel product entries).
   7. Verification of upgraded v1.1.0 executable metadata (ProductVersion="1.1.0",
      FileVersion="1.1.0.0").
   8. Verification of data preservation across installer execution (no wipe/truncate of vocab.db).
@@ -46,9 +47,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-# Official published v1.0.0 release evidence
+# Official published v1.0.0 release evidence & provenance
 V1_0_RELEASE_TAG = "v1.0.0"
-V1_0_RELEASE_SHA = "3ad6a2027cdbb66413661b3e3bb99a9c2cc2bd14"
+V1_0_TAG_OBJECT_SHA = "3ad6a2027cdbb66413661b3e3bb99a9c2cc2bd14"
+V1_0_PEELED_COMMIT_SHA = "2363e73bbd85ca24f7e227f8007e0046eeabd471"
 V1_0_INSTALLER_NAME = "VocabularyApp-Setup-1.0.0.exe"
 V1_0_KNOWN_SHA256 = (
     "108095e3ce7d256bc610c33f427a9ee2fee4956cb69dde3bf0e105413865b297"
@@ -106,6 +108,56 @@ def verify_v1_installer_sha256(installer_path: Path) -> str:
             f"  Expected: {expected_sha}"
         )
     return actual_sha
+
+
+def verify_v1_0_tag_provenance(repo_root: Path = PROJECT_ROOT) -> dict[str, str]:
+    """Verify git tag v1.0.0 provenance: tag object SHA vs peeled source commit SHA."""
+    proc_tag = subprocess.run(
+        ["git", "rev-parse", V1_0_RELEASE_TAG],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc_tag.returncode != 0:
+        raise UpgradeVerificationError(
+            f"Failed to resolve git tag {V1_0_RELEASE_TAG}:\n{proc_tag.stderr}"
+        )
+    tag_sha = proc_tag.stdout.strip()
+    if tag_sha != V1_0_TAG_OBJECT_SHA:
+        raise UpgradeVerificationError(
+            f"Git tag {V1_0_RELEASE_TAG} tag object SHA mismatch!\n"
+            f"  Actual:   {tag_sha}\n"
+            f"  Expected: {V1_0_TAG_OBJECT_SHA}"
+        )
+
+    proc_commit = subprocess.run(
+        ["git", "rev-parse", f"{V1_0_RELEASE_TAG}^{{commit}}"],
+        cwd=str(repo_root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc_commit.returncode != 0:
+        raise UpgradeVerificationError(
+            f"Failed to resolve git commit for tag {V1_0_RELEASE_TAG}:\n{proc_commit.stderr}"
+        )
+    commit_sha = proc_commit.stdout.strip()
+    if commit_sha != V1_0_PEELED_COMMIT_SHA:
+        raise UpgradeVerificationError(
+            f"Git tag {V1_0_RELEASE_TAG} peeled commit SHA mismatch!\n"
+            f"  Actual:   {commit_sha}\n"
+            f"  Expected: {V1_0_PEELED_COMMIT_SHA}"
+        )
+
+    print(f"Verified v1.0.0 git provenance:")
+    print(f"  Tag Object SHA:    {tag_sha}")
+    print(f"  Source Commit SHA: {commit_sha}")
+    return {
+        "tag_name": V1_0_RELEASE_TAG,
+        "tag_object_sha": tag_sha,
+        "source_commit_sha": commit_sha,
+    }
 
 
 def ensure_v1_installer(download_dir: Path, custom_path: Path | None = None) -> Path:
@@ -198,16 +250,19 @@ def get_inno_uninstall_registrations(
     for hkey, subkey_path in roots:
         try:
             with winreg.OpenKey(hkey, subkey_path) as key:
+                # winreg.QueryInfoKey returns (num_subkeys, num_values, last_modified)
                 num_subkeys, _, _ = winreg.QueryInfoKey(key)
                 for i in range(num_subkeys):
                     subkey_name = winreg.EnumKey(key, i)
                     try:
                         with winreg.OpenKey(key, subkey_name) as app_key:
                             values: dict[str, Any] = {}
-                            num_vals, _, _ = winreg.QueryInfoKey(app_key)
-                            for j in range(num_vals):
+                            # Correct indexing: index 1 is num_values
+                            _, num_values, _ = winreg.QueryInfoKey(app_key)
+                            for j in range(num_values):
                                 val_name, val_data, _ = winreg.EnumValue(app_key, j)
                                 values[val_name] = val_data
+
                             val_map = {str(k).strip().lower(): str(v).strip() for k, v in values.items()}
                             display_name = str(values.get("DisplayName") or val_map.get("displayname", ""))
                             # Match against exact AppId subkey or app name
@@ -246,8 +301,9 @@ def get_inno_uninstall_registrations(
 
 def verify_v1_0_uninstall_registration(
     registrations: list[dict[str, Any]],
+    expected_install_dir: Path | None = None,
 ) -> dict[str, Any]:
-    """Verify that v1.0.0 created exactly one correct uninstall registration."""
+    """Verify that v1.0.0 created exactly one correct, populated uninstall registration."""
     if not registrations:
         raise UpgradeVerificationError(
             "No Inno Setup uninstall registration found after v1.0.0 installation!"
@@ -261,16 +317,36 @@ def verify_v1_0_uninstall_registration(
         raise UpgradeVerificationError(
             f"Uninstall key name '{reg['key_name']}' does not match expected Inno AppId '{INNO_APP_ID}'"
         )
-    if reg["display_version"] and not reg["display_version"].startswith("1.0.0"):
+    if not reg.get("raw_values"):
         raise UpgradeVerificationError(
-            f"v1.0.0 DisplayVersion is '{reg['display_version']}', expected '1.0.0'"
+            f"Uninstall registration raw_values is empty! Failed to enumerate values from registry key '{reg['key_name']}'"
         )
+    if "vocabulary app" not in reg.get("display_name", "").lower():
+        raise UpgradeVerificationError(
+            f"Uninstall DisplayName is '{reg.get('display_name')}', expected to contain 'Vocabulary App'"
+        )
+    if not reg.get("display_version", "").startswith("1.0.0"):
+        raise UpgradeVerificationError(
+            f"v1.0.0 DisplayVersion is '{reg.get('display_version')}', expected '1.0.0'"
+        )
+    if not reg.get("install_location"):
+        raise UpgradeVerificationError(
+            f"Uninstall InstallLocation / App Path is empty for v1.0.0 in key '{reg['key_name']}'"
+        )
+    if expected_install_dir:
+        actual_install = Path(reg["install_location"]).resolve()
+        expected_install = expected_install_dir.resolve()
+        if actual_install != expected_install and expected_install.name.lower() not in str(actual_install).lower():
+            raise UpgradeVerificationError(
+                f"v1.0.0 InstallLocation '{actual_install}' does not match expected '{expected_install}'"
+            )
     return reg
 
 
 def verify_v1_1_overlay_uninstall_registration(
     v1_0_reg: dict[str, Any],
     registrations: list[dict[str, Any]],
+    expected_install_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Verify that v1.1.0 updated the existing registration in-place without side-by-side duplicates."""
     if not registrations:
@@ -287,10 +363,29 @@ def verify_v1_1_overlay_uninstall_registration(
         raise UpgradeVerificationError(
             f"AppId key name changed during upgrade! Before: '{v1_0_reg['key_name']}', After: '{reg['key_name']}'"
         )
-    if reg["display_version"] and not reg["display_version"].startswith(V1_1_EXPECTED_APP_VERSION):
+    if not reg.get("raw_values"):
         raise UpgradeVerificationError(
-            f"v1.1.0 DisplayVersion is '{reg['display_version']}', expected '{V1_1_EXPECTED_APP_VERSION}'"
+            f"v1.1.0 uninstall registration raw_values is empty for key '{reg['key_name']}'"
         )
+    if "vocabulary app" not in reg.get("display_name", "").lower():
+        raise UpgradeVerificationError(
+            f"v1.1.0 uninstall DisplayName is '{reg.get('display_name')}', expected to contain 'Vocabulary App'"
+        )
+    if not reg.get("display_version", "").startswith(V1_1_EXPECTED_APP_VERSION):
+        raise UpgradeVerificationError(
+            f"v1.1.0 DisplayVersion is '{reg.get('display_version')}', expected '{V1_1_EXPECTED_APP_VERSION}'"
+        )
+    if not reg.get("install_location"):
+        raise UpgradeVerificationError(
+            f"v1.1.0 InstallLocation / App Path is empty in key '{reg['key_name']}'"
+        )
+    if expected_install_dir:
+        actual_install = Path(reg["install_location"]).resolve()
+        expected_install = expected_install_dir.resolve()
+        if actual_install != expected_install and expected_install.name.lower() not in str(actual_install).lower():
+            raise UpgradeVerificationError(
+                f"v1.1.0 InstallLocation '{actual_install}' does not match expected '{expected_install}'"
+            )
     return reg
 
 
@@ -358,6 +453,9 @@ def create_authentic_v1_0_user_state(
     real default database (`vocab.db`), writes authentic v1.0 preferences, and
     cleans up the worktree.
     """
+    # 0. Verify git tag provenance before proceeding
+    tag_provenance = verify_v1_0_tag_provenance(repo_root)
+
     data_dir.mkdir(parents=True, exist_ok=True)
     db_path = data_dir / EXPECTED_DEFAULT_DB_FILENAME
     pref_path = data_dir / "preferences.json"
@@ -525,8 +623,9 @@ print("V1_0_SEED_RESULT_START" + json.dumps(result) + "V1_0_SEED_RESULT_END")
     print(f"  Preferences:   {pref_path.name} (SHA-256: {pref_sha})")
 
     return {
-        "v1_0_source_tag": V1_0_RELEASE_TAG,
-        "v1_0_source_sha": V1_0_RELEASE_SHA,
+        "v1_0_tag_name": tag_provenance["tag_name"],
+        "v1_0_tag_object_sha": tag_provenance["tag_object_sha"],
+        "v1_0_source_commit_sha": tag_provenance["source_commit_sha"],
         "database_filename": db_path.name,
         "sentinel_entry_id": seed_data["sentinel_entry_id"],
         "sentinel_collection_id": seed_data["sentinel_collection_id"],
@@ -698,7 +797,8 @@ def run_full_upgrade_verification(
     report: dict[str, Any] = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "v1_0_release_tag": V1_0_RELEASE_TAG,
-        "v1_0_release_sha": V1_0_RELEASE_SHA,
+        "v1_0_tag_object_sha": V1_0_TAG_OBJECT_SHA,
+        "v1_0_source_commit_sha": V1_0_PEELED_COMMIT_SHA,
         "v1_0_expected_installer_sha256": V1_0_KNOWN_SHA256,
         "target_database_filename": EXPECTED_DEFAULT_DB_FILENAME,
         "inno_app_id": INNO_APP_ID,
@@ -734,7 +834,7 @@ def run_full_upgrade_verification(
 
         # Verify v1.0 Inno uninstall registration
         v1_regs = get_inno_uninstall_registrations(INNO_APP_ID)
-        v1_reg = verify_v1_0_uninstall_registration(v1_regs)
+        v1_reg = verify_v1_0_uninstall_registration(v1_regs, expected_install_dir=install_dir)
         print(f"Verified v1.0.0 Inno uninstall registration: {v1_reg['key_name']} ({v1_reg['display_version']})")
         report["v1_0_uninstall_registration"] = v1_reg
 
@@ -761,7 +861,7 @@ def run_full_upgrade_verification(
 
         # Verify v1.1 Inno uninstall registration is updated in-place (overlay, not parallel)
         v1_1_regs = get_inno_uninstall_registrations(INNO_APP_ID)
-        v1_1_reg = verify_v1_1_overlay_uninstall_registration(v1_reg, v1_1_regs)
+        v1_1_reg = verify_v1_1_overlay_uninstall_registration(v1_reg, v1_1_regs, expected_install_dir=install_dir)
         print(f"Verified v1.1.0 overlay uninstall registration: {v1_1_reg['key_name']} ({v1_1_reg['display_version']})")
         report["v1_1_uninstall_registration"] = v1_1_reg
 
