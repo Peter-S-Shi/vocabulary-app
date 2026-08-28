@@ -90,6 +90,30 @@ class _EmptyDatabaseTestCase(unittest.TestCase):
         finally:
             conn.close()
 
+    def _open_main_window(self) -> "MainWindow":
+        """Construct a MainWindow and register close-before-delete cleanup.
+
+        ``window.close()`` must run before ``window.deleteLater()``:
+        closing is what fires ``MainWindow.closeEvent``, which blocks
+        until every in-flight background QThread (the ANALYTICS
+        workspace's load worker, in particular) has actually stopped.
+        ``deleteLater()`` alone never triggers ``closeEvent``, so cycling
+        through ANALYTICS on an empty database left that QThread still
+        running at interpreter shutdown -- Qt treats destroying a running
+        QThread as fatal ("QThread: Destroyed while thread is still
+        running") and aborts the whole process natively (no Python
+        traceback, no AssertionError, just a bare nonzero exit code after
+        the test summary had already printed "OK").
+        """
+        window = MainWindow()
+
+        def _close_and_delete() -> None:
+            window.close()
+            window.deleteLater()
+
+        self.addCleanup(_close_and_delete)
+        return window
+
 
 @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed; see requirements-desktop.txt.")
 class EmptyDatabaseWorkspaceCycleTests(_EmptyDatabaseTestCase):
@@ -98,8 +122,7 @@ class EmptyDatabaseWorkspaceCycleTests(_EmptyDatabaseTestCase):
         cls.app = _qt_app()
 
     def test_every_workspace_renders_on_an_empty_database(self) -> None:
-        window = MainWindow()
-        self.addCleanup(window.deleteLater)
+        window = self._open_main_window()
         for name in ALL_MANAGEMENT_WORKSPACES:
             workspace = Workspace[name]
             window.show_workspace(workspace)
@@ -110,8 +133,7 @@ class EmptyDatabaseWorkspaceCycleTests(_EmptyDatabaseTestCase):
         self.assertIs(window.current_workspace(), Workspace.TODAY)
 
     def test_study_mode_entry_is_a_controlled_empty_state(self) -> None:
-        window = MainWindow()
-        self.addCleanup(window.deleteLater)
+        window = self._open_main_window()
         window._enter_review()
         self.assertIs(window.current_workspace(), Workspace.REVIEW)
         self.assertIs(window.app_state.mode, ShellMode.STUDY)
@@ -120,8 +142,7 @@ class EmptyDatabaseWorkspaceCycleTests(_EmptyDatabaseTestCase):
         self.assertIs(window.app_state.mode, ShellMode.MANAGEMENT)
 
     def test_stale_study_target_fails_honestly_without_navigation(self) -> None:
-        window = MainWindow()
-        self.addCleanup(window.deleteLater)
+        window = self._open_main_window()
         window.show_workspace(Workspace.COLLECTIONS)
         # A Card handoff whose Collection/Card no longer exists (or, on
         # an empty database, never existed) must not enter Study mode.
@@ -135,8 +156,7 @@ class EmptyDatabaseWorkspaceCycleTests(_EmptyDatabaseTestCase):
         self.assertIs(window.app_state.mode, ShellMode.MANAGEMENT)
 
     def test_quiz_launch_attempt_renders_honest_state_not_a_crash(self) -> None:
-        window = MainWindow()
-        self.addCleanup(window.deleteLater)
+        window = self._open_main_window()
         intent = QuizLaunchIntent(
             source="review_quick_quiz",
             collection_id=9999,
@@ -154,8 +174,7 @@ class EmptyDatabaseWorkspaceCycleTests(_EmptyDatabaseTestCase):
         self.assertIsNone(window.quiz_controller.session_id)
 
     def test_entries_scope_handoff_to_missing_collection_is_safe(self) -> None:
-        window = MainWindow()
-        self.addCleanup(window.deleteLater)
+        window = self._open_main_window()
         window._open_entries_with_scope(EntriesScopeIntent(scope="collection:9999"))
         self.assertIs(window.current_workspace(), Workspace.ENTRIES)
         self.assertEqual(window.entries_controller.model.rowCount(), 0)
@@ -164,8 +183,7 @@ class EmptyDatabaseWorkspaceCycleTests(_EmptyDatabaseTestCase):
         """Browsing an empty product must not fabricate learning state:
         after cycling every workspace, entering/exiting Study mode, and
         attempting a Quiz launch, every table is still empty."""
-        window = MainWindow()
-        self.addCleanup(window.deleteLater)
+        window = self._open_main_window()
         for name in ALL_MANAGEMENT_WORKSPACES:
             window.show_workspace(Workspace[name])
         window._enter_review()
@@ -196,11 +214,16 @@ class EmptyDatabaseWorkspaceCycleTests(_EmptyDatabaseTestCase):
         first = MainWindow()
         for name in ALL_MANAGEMENT_WORKSPACES:
             first.show_workspace(Workspace[name])
-        first.analytics_controller.shutdown()
+        # A real restart fully tears down the first instance -- including
+        # its in-flight Analytics QThread -- before the second one opens.
+        # window.close() (not a direct analytics_controller.shutdown()
+        # call alone) is what actually blocks for that via
+        # MainWindow.closeEvent, which also shuts down Settings' update
+        # worker the same way.
+        first.close()
         first.deleteLater()
 
-        second = MainWindow()
-        self.addCleanup(second.deleteLater)
+        second = self._open_main_window()
         for name in ALL_MANAGEMENT_WORKSPACES:
             second.show_workspace(Workspace[name])
         self.assertIs(second.current_workspace(), Workspace.SETTINGS)
