@@ -604,11 +604,11 @@ def main() -> int:
             skip_installer_execution=args.skip_installer_execution,
         )
         print("\n=======================================================")
-        print("✓ PHASE F2 UPGRADE & DATA-PRESERVATION PROOF: PASSED")
+        print("[OK] PHASE F2 UPGRADE & DATA-PRESERVATION PROOF: PASSED")
         print("=======================================================\n")
         return 0
     except UpgradeVerificationError as err:
-        print(f"\n❌ UPGRADE PROOF FAILED: {err}", file=sys.stderr)
+        print(f"\n[FAILED] UPGRADE PROOF FAILED: {err}", file=sys.stderr)
         return 1
 
 
