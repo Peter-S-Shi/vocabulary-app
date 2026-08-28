@@ -217,8 +217,17 @@ def get_inno_uninstall_registrations(
                                     "hive": "HKCU" if hkey == winreg.HKEY_CURRENT_USER else "HKLM",
                                     "key_name": subkey_name,
                                     "display_name": display_name,
-                                    "display_version": str(values.get("DisplayVersion", "")),
-                                    "install_location": str(values.get("InstallLocation", "")),
+                                    "display_version": str(
+                                        values.get("DisplayVersion")
+                                        or values.get("Inno Setup: Setup Version")
+                                        or ""
+                                    ),
+                                    "setup_version": str(values.get("Inno Setup: Setup Version", "")),
+                                    "install_location": str(
+                                        values.get("InstallLocation")
+                                        or values.get("Inno Setup: App Path")
+                                        or ""
+                                    ),
                                     "uninstall_string": str(values.get("UninstallString", "")),
                                     "quiet_uninstall_string": str(values.get("QuietUninstallString", "")),
                                 })
