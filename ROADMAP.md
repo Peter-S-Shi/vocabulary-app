@@ -2163,8 +2163,12 @@ M21 is the bounded post-v1.0 product increment:
 
 ### Milestone 21 Release Gate
 
-- complete unittest discovery runs as an independent timeout-bounded GitHub
-  Actions release gate;
+- three parallel Release Closure shards (Theme & Update Surface; M18
+  remainder + full M19; M20 + timezone + v1.1 Phase/Patch/Review Scheduling)
+  run as the GitHub Actions release-closure evidence gate, after the original
+  single timeout-bounded `unittest discover` job could not complete within
+  the CI time limit; `unittest discover` remains available as a manual-only
+  job, not the active gate;
 - Windows installer build, provenance checks, packaged launch, and the real
   isolated overlay upgrade proof remain green on the release source;
 - repository-wide release review has no hard standards violation, release

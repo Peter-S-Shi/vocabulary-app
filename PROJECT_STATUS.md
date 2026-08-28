@@ -34,12 +34,16 @@ M21 closed the approved v1.1 scope without reopening product development:
 
 Human overlay acceptance on a real Windows installation passed for launch,
 legacy data, preferences, displayed version, representative v1.1 behavior, and
-single-product identity. The final GitHub workflow owns two independent release
-gates: timeout-bounded full unittest discovery, and Windows installer build plus
-real isolated upgrade proof. A local full-suite attempt on 2026-08-28 was
-interrupted for execution-cost reasons while progressing normally through the
-existing slow Qt/theme tests; it is neither a PASS nor a FAIL and is not used as
-release evidence.
+single-product identity. The original single timeout-bounded `unittest
+discover` release gate could not complete within the 45-minute CI limit and
+was replaced with three parallel Release Closure shards (Theme & Update
+Surface; M18 remainder + full M19; M20 + timezone + v1.1 Phase/Patch/Review
+Scheduling); `unittest discover` remains available as a manual-only
+`workflow_dispatch` job, not the active gate. GitHub Actions run
+[33156983972](https://github.com/Peter-S-Shi/vocabulary-app/actions/runs/33156983972)
+at head `f94e3eb` shows all three Release Closure shards green together with a
+green Windows installer build, packaged-launch smoke test, and real isolated
+v1.0.0 → v1.1.0 overlay upgrade proof.
 
 No v1.1.0 tag or GitHub Release has been created. Publication must use the
 verified merged `main` commit and requires separate operator authorization.

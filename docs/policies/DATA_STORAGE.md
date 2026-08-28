@@ -80,12 +80,12 @@ not publish or commit them.
 
 Stop the app before manually copying `vocab.db`.
 
-## Future Packaged App Direction
+## Packaged Desktop Data Location
 
-No automatic path migration is implemented. A future packaged desktop version may use an operating-system app-data directory:
+The packaged desktop app stores durable per-user data outside the installation directory. On Windows, the default data directory is:
 
-- Windows: `%LOCALAPPDATA%/VocabularyApp/`
-- macOS: `~/Library/Application Support/VocabularyApp/`
-- Linux: `~/.local/share/vocabulary-app/`
+- Windows: `%LOCALAPPDATA%\vocabulary_app\`
 
-Moving existing data would require an explicit, backup-aware migration workflow.
+Off Windows, the same default falls back to XDG data-home semantics: `$XDG_DATA_HOME/vocabulary_app` when that variable is set, otherwise `~/.local/share/vocabulary_app`.
+
+`VOCAB_APP_DB_PATH` overrides only the database file path (see "Optional Database Path Override" above); it selects a different database file to open and does not automatically copy, merge, or migrate data between locations. Moving existing data between locations remains an explicit, backup-aware operation the user performs themselves.
