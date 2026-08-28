@@ -53,6 +53,8 @@ class ThemeSettingsUITests(unittest.TestCase):
         )
         self._patcher.start()
 
+        self.original_stylesheet = self.app.styleSheet()
+        self.original_palette = self.app.palette()
         self.theme_manager = ThemeManager(self.app)
         self.theme_manager.apply_preferences(self.prefs)
         self.controller = SettingsController(
@@ -63,6 +65,8 @@ class ThemeSettingsUITests(unittest.TestCase):
         self.view = SettingsView(self.controller)
 
     def tearDown(self) -> None:
+        self.app.setStyleSheet(self.original_stylesheet)
+        self.app.setPalette(self.original_palette)
         self._patcher.stop()
         self.tmp_dir.cleanup()
 

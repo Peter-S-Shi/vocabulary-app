@@ -32,7 +32,7 @@ TEMPLATE_QUIZ_RULES = {
         {"id": "masculine_singular_to_masculine_plural", "source_field_key": "masculine_singular", "target_field_key": "masculine_plural", "label": "Masculine Singular -> Masculine Plural"},
         {"id": "masculine_singular_to_feminine_plural", "source_field_key": "masculine_singular", "target_field_key": "feminine_plural", "label": "Masculine Singular -> Feminine Plural"},
         {"id": "meaning_to_masculine_singular", "source_field_key": "meaning", "target_field_key": "masculine_singular", "label": "Meaning -> Masculine Singular"},
-        {"id": "masculine_singular_to_meaning", "source_field_key": "meaning", "target_field_key": "meaning", "label": "Masculine Singular -> Meaning"},
+        {"id": "masculine_singular_to_meaning", "source_field_key": "masculine_singular", "target_field_key": "meaning", "label": "Masculine Singular -> Meaning"},
     ],
     "french_noun_gender_plural": [
         {"id": "singular_to_plural", "source_field_key": "singular", "target_field_key": "plural", "label": "Singular -> Plural"},

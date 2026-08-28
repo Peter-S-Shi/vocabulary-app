@@ -6,14 +6,13 @@ from typing import Callable
 
 from PySide6.QtCore import QObject, Signal
 
-from src import db
 from src.collections import (
     add_entries_to_system_collection,
     get_card_entries_for_study,
     get_entry_ids_in_system_collection,
     remove_entries_from_system_collection,
 )
-from src.insights import get_completed_quiz_strength_candidates
+from src.insights import get_completed_quiz_strength_candidates_for_session
 from src.quiz import (
     create_quiz_items,
     create_quiz_session,
@@ -471,12 +470,10 @@ class QuizController(QObject):
         session = complete_quiz_session(self.session_id)
         self.completed_session = session
         self.mistakes = get_quiz_item_log_view(session_id=self.session_id, show_wrong_only=True)
-        with db.get_connection() as connection:
-            self._completion_proficient_candidates = get_completed_quiz_strength_candidates(
-                connection,
-                self.session_id,
-                as_of_date=self._today_provider(),
-            )
+        self._completion_proficient_candidates = get_completed_quiz_strength_candidates_for_session(
+            self.session_id,
+            as_of_date=self._today_provider(),
+        )
         self._selected_completion_proficient_entry_ids = {
             int(candidate["entry_id"])
             for candidate in self._completion_proficient_candidates

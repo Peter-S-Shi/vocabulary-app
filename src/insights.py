@@ -14,6 +14,7 @@ from src.analytics import (
     get_entry_evidence_profiles,
     get_template_coverage_profile,
 )
+from src.db import get_connection
 
 
 PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
@@ -244,6 +245,20 @@ def get_completed_quiz_strength_candidates(
         and finding["primary_finding"] == "strength"
         and not bool(finding["context"]["in_proficient_pool"])
     ]
+
+
+def get_completed_quiz_strength_candidates_for_session(
+    session_id: int,
+    *,
+    as_of_date: str | date | datetime | None = None,
+) -> list[dict]:
+    """Load one completed Quiz's current Strength recommendation projection."""
+    with get_connection() as connection:
+        return get_completed_quiz_strength_candidates(
+            connection,
+            session_id,
+            as_of_date=as_of_date,
+        )
 
 
 def _coverage_finding(profile: dict) -> dict | None:

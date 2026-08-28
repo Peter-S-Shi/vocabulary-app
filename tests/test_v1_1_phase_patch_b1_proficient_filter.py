@@ -211,6 +211,16 @@ class TestProficientPoolSemanticsAndFilter(unittest.TestCase):
         )
         self.assertEqual(len(generation["quiz_items"]), 2)
 
+    def test_template_filtering_preserves_existing_rule_direction(self) -> None:
+        rules = {
+            rule["id"]: rule
+            for rule in get_template_quiz_rules("french_adjective_agreement")
+        }
+
+        rule = rules["masculine_singular_to_meaning"]
+        self.assertEqual(rule["source_field_key"], "masculine_singular")
+        self.assertEqual(rule["target_field_key"], "meaning")
+
     # -- 5. All-Proficient Card Honest Boundary ----------------------------
 
     def test_all_proficient_card_in_review_controller_and_view(self) -> None:
