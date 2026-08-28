@@ -311,7 +311,8 @@ class _ImportDialog(QDialog):
         super().__init__(parent)
         self.setObjectName("data-tools-import-dialog")
         self.setWindowTitle("Import")
-        self.setMinimumSize(640, 620)
+        self.setMinimumSize(640, 560)
+        self.resize(780, 720)
         self._controller = controller
 
         outer = QVBoxLayout(self)
@@ -365,9 +366,9 @@ class _ImportDialog(QDialog):
         self._summary_label.setObjectName("data-tools-summary-label")
         layout.addWidget(self._summary_label)
 
-        valid_heading = QLabel("Valid Rows", self)
-        valid_heading.setObjectName("data-tools-section-heading")
-        layout.addWidget(valid_heading)
+        self._valid_heading = QLabel("Valid Rows", self)
+        self._valid_heading.setObjectName("data-tools-section-heading")
+        layout.addWidget(self._valid_heading)
         self._valid_table = QTableWidget(self)
         self._valid_table.setObjectName("data-tools-valid-table")
         self._valid_table.setColumnCount(4)
@@ -376,12 +377,13 @@ class _ImportDialog(QDialog):
         self._valid_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self._valid_table.verticalHeader().setVisible(False)
         self._valid_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        self._valid_table.setMaximumHeight(160)
+        self._valid_table.setMinimumHeight(220)
         layout.addWidget(self._valid_table)
 
-        invalid_heading = QLabel("Invalid Rows", self)
-        invalid_heading.setObjectName("data-tools-section-heading")
-        layout.addWidget(invalid_heading)
+        self._invalid_heading = QLabel("Invalid Rows", self)
+        self._invalid_heading.setObjectName("data-tools-section-heading")
+        self._invalid_heading.setVisible(False)
+        layout.addWidget(self._invalid_heading)
         self._invalid_table = QTableWidget(self)
         self._invalid_table.setObjectName("data-tools-invalid-table")
         self._invalid_table.setColumnCount(2)
@@ -390,7 +392,9 @@ class _ImportDialog(QDialog):
         self._invalid_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self._invalid_table.verticalHeader().setVisible(False)
         self._invalid_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        self._invalid_table.setMaximumHeight(140)
+        self._invalid_table.setMinimumHeight(100)
+        self._invalid_table.setMaximumHeight(160)
+        self._invalid_table.setVisible(False)
         layout.addWidget(self._invalid_table)
 
         # -- Duplicate handling + destination --------------------------
@@ -641,6 +645,8 @@ class _ImportDialog(QDialog):
             self._summary_label.setText("")
             self._valid_table.setRowCount(0)
             self._invalid_table.setRowCount(0)
+            self._invalid_heading.setVisible(False)
+            self._invalid_table.setVisible(False)
         else:
             summary = preview["summary"]
             self._summary_label.setText(
@@ -658,6 +664,9 @@ class _ImportDialog(QDialog):
                 self._valid_table.setItem(row, 3, QTableWidgetItem(str(data.get("language") or "")))
 
             invalid_rows = preview["invalid_rows"]
+            has_invalid = len(invalid_rows) > 0
+            self._invalid_heading.setVisible(has_invalid)
+            self._invalid_table.setVisible(has_invalid)
             self._invalid_table.setRowCount(len(invalid_rows))
             for row, entry in enumerate(invalid_rows):
                 self._invalid_table.setItem(row, 0, QTableWidgetItem(str(entry.get("row_number"))))

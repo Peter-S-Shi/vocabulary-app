@@ -345,3 +345,45 @@ class TestNativeDuplicateDefinitionUX(unittest.TestCase):
         self.assertTrue(dialog._confirm_checkbox.isChecked())
         self.assertTrue(dialog._confirm_button.isEnabled())
 
+    @unittest.skipUnless(PYSIDE6_AVAILABLE, "PySide6 is not installed")
+    def test_import_dialog_sizing_and_invalid_rows_conditional_visibility(self) -> None:
+        _qt_app()
+        controller = DataToolsController()
+        dialog = _ImportDialog(controller, parent=None)
+        self.addCleanup(dialog.deleteLater)
+
+        # 1. Dialog default sizing is roomy
+        self.assertGreaterEqual(dialog.minimumWidth(), 640)
+        self.assertGreaterEqual(dialog.minimumHeight(), 540)
+        self.assertGreaterEqual(dialog.width(), 700)
+        self.assertGreaterEqual(dialog.height(), 650)
+
+        # 2. Valid table has usable viewport height (not clamped by 160px max)
+        self.assertGreaterEqual(dialog._valid_table.minimumHeight(), 200)
+
+        # 3. Before preview or when invalid_count == 0: Invalid section is hidden
+        self.assertTrue(dialog._invalid_heading.isHidden())
+        self.assertTrue(dialog._invalid_table.isHidden())
+
+        # Load file with only valid rows
+        csv_valid_bytes = rows_to_csv_bytes([
+            {"language": "English", "term": f"word{i}", "meaning": f"def{i}"}
+            for i in range(8)
+        ])
+        controller.load_file(csv_valid_bytes, "valid_8.csv")
+        controller.run_preview()
+
+        self.assertEqual(dialog._valid_table.rowCount(), 8)
+        self.assertTrue(dialog._invalid_heading.isHidden())
+        self.assertTrue(dialog._invalid_table.isHidden())
+
+        # 4. Load file with invalid rows -> Invalid section is shown
+        csv_invalid_bytes = b"term,meaning\n,missing_lang\n"
+        controller.load_file(csv_invalid_bytes, "invalid.csv")
+        controller.run_preview()
+
+        self.assertEqual(dialog._invalid_table.rowCount(), 1)
+        self.assertFalse(dialog._invalid_heading.isHidden())
+        self.assertFalse(dialog._invalid_table.isHidden())
+
+
