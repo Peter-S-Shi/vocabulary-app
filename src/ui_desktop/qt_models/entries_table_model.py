@@ -4,6 +4,7 @@ from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt, Signal
 from PySide6.QtGui import QColor
 
 from src.time_utils import format_local_timestamp
+from src.ui_desktop.theming.tokens import THEME_CALM_BLUE_LIGHT
 
 """
 QAbstractTableModel adapter wrapping the plain dict rows returned by
@@ -71,7 +72,7 @@ class EntriesTableModel(QAbstractTableModel):
 
     # Safe default before the view supplies the real resolved token color
     # (set_star_color()); never the sole source of truth for it.
-    DEFAULT_STAR_COLOR = QColor("#2C4C6C")
+    DEFAULT_STAR_COLOR = QColor(THEME_CALM_BLUE_LIGHT.accent.primary.background)
     FOCUSED_ROW_TINT = QColor(62, 102, 144, 40)
 
     checkbox_toggled = Signal(int, bool)

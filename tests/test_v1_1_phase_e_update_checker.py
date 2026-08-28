@@ -8,7 +8,6 @@ from unittest.mock import MagicMock
 
 from src.app_config import APP_VERSION
 from src.update_checker import (
-    PYSIDE6_AVAILABLE,
     SemVer,
     UpdateCheckResult,
     UpdateCheckState,
@@ -16,10 +15,17 @@ from src.update_checker import (
     extract_highest_stable_release,
 )
 
-if PYSIDE6_AVAILABLE:
+try:
     from PySide6.QtWidgets import QApplication
     from PySide6.QtTest import QSignalSpy
-    from src.update_checker import UpdateAwarenessService, UpdateCheckWorker
+    from src.ui_desktop.update_service import (
+        PYSIDE6_AVAILABLE,
+        UpdateAwarenessService,
+        UpdateCheckWorker,
+        _ACTIVE_WORKER_REGISTRY,
+    )
+except ImportError:
+    PYSIDE6_AVAILABLE = False
 
 
 class SemVerTests(unittest.TestCase):
@@ -428,7 +434,7 @@ class UpdateAwarenessAsyncServiceTests(unittest.TestCase):
 
     def test_service_teardown_while_worker_running_does_not_destroy_running_qthread(self) -> None:
         import gc
-        from src.update_checker import _ACTIVE_WORKER_REGISTRY
+        from src.ui_desktop.update_service import _ACTIVE_WORKER_REGISTRY
 
         # Worker sleeps longer than the short shutdown wait window
         def slow_fetcher(url: str, timeout: float):

@@ -24,6 +24,8 @@ from src.ui_desktop.theming.theme_manager import Appearance
 from src.ui_desktop.theming.tokens import (
     PRESET_CALM_BLUE,
     PRESET_NAMES,
+    THEME_CALM_BLUE_DARK,
+    THEME_CALM_BLUE_LIGHT,
     ModeCustomization,
     build_resolved_theme_tokens,
 )
@@ -589,7 +591,12 @@ class SettingsView(QWidget):
         import copy
         staged = self._controller.staged_custom_theme()
         custom = staged.dark if mode.lower() == "dark" else staged.light
-        current_hex = getattr(custom, field_name) or "#3E6690"
+        default_fallback = (
+            THEME_CALM_BLUE_DARK.accent.primary.background
+            if mode.lower() == "dark"
+            else THEME_CALM_BLUE_LIGHT.accent.primary.background
+        )
+        current_hex = getattr(custom, field_name) or default_fallback
         initial_qcolor = QColor(current_hex)
         pre_pick_custom = copy.deepcopy(custom)
 

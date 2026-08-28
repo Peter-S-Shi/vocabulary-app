@@ -11,9 +11,8 @@ from src.ui_desktop.state.preferences import Preferences, parse_quiz_presentatio
 from src.ui_desktop.state.tts_runtime import SOURCE_LABELS, resolve_voice_binding
 from src.ui_desktop.theming.theme_manager import ThemeManager, parse_accent, parse_appearance, Appearance
 from src.ui_desktop.theming.tokens import CustomThemeConfig, ModeCustomization, PRESET_CALM_BLUE, PRESET_NAMES
+from src.ui_desktop.update_service import UpdateAwarenessService
 from src.update_checker import (
-    PYSIDE6_AVAILABLE,
-    UpdateAwarenessService,
     UpdateCheckResult,
     UpdateCheckState,
 )
@@ -56,10 +55,8 @@ class SettingsController(QObject):
 
         if update_service is not None:
             self._update_service: UpdateAwarenessService | None = update_service
-        elif PYSIDE6_AVAILABLE:
-            self._update_service = UpdateAwarenessService(current_version=APP_VERSION)
         else:
-            self._update_service = None
+            self._update_service = UpdateAwarenessService(current_version=APP_VERSION)
 
         if self._update_service is not None:
             self._update_service.state_changed.connect(self._on_update_service_state_changed)

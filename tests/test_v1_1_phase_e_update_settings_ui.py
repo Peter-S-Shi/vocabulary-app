@@ -14,9 +14,11 @@ from src.ui_desktop.main_window import MainWindow
 from src.ui_desktop.state.preferences import Preferences
 from src.ui_desktop.views.settings_view import SettingsView
 from src.ui_desktop.widgets.navigation_rail import NavigationRail
-from src.update_checker import (
+from src.ui_desktop.update_service import (
     PYSIDE6_AVAILABLE,
     UpdateAwarenessService,
+)
+from src.update_checker import (
     UpdateCheckResult,
     UpdateCheckState,
 )
