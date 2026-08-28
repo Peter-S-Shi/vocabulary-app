@@ -158,6 +158,12 @@ class SigningHookTests(unittest.TestCase):
 
 
 class InnoCompilerDiscoveryTests(unittest.TestCase):
+    def test_finds_program_files_install_location(self) -> None:
+        prog_path = Path(r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe")
+        with patch.object(Path, "is_file", autospec=True, side_effect=lambda p: str(p) == str(prog_path)):
+            found = find_inno_compiler()
+        self.assertEqual(found, prog_path)
+
     def test_finds_per_user_install_location(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             local_app_data = Path(tmp)
@@ -165,13 +171,19 @@ class InnoCompilerDiscoveryTests(unittest.TestCase):
             iscc_dir.mkdir(parents=True)
             iscc_path = iscc_dir / "ISCC.exe"
             iscc_path.write_bytes(b"")
-            with patch.dict("os.environ", {"LOCALAPPDATA": str(local_app_data)}):
+
+            def mock_is_file(p: Path) -> bool:
+                return str(p) == str(iscc_path)
+
+            with patch.dict("os.environ", {"LOCALAPPDATA": str(local_app_data)}), \
+                    patch.object(Path, "is_file", autospec=True, side_effect=mock_is_file):
                 found = find_inno_compiler()
             self.assertEqual(found, iscc_path)
 
     def test_returns_none_when_not_found_anywhere(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, \
                 patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
+                patch.object(Path, "is_file", return_value=False), \
                 patch("shutil.which", return_value=None):
             self.assertIsNone(find_inno_compiler())
 
