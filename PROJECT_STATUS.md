@@ -47,9 +47,11 @@ Independent Collection and system-pool Quizzes remain separate.
 
 The completed Card Matching session uses the M22-A Card history and next-review
 scheduling paths without synthetic completion evidence. Local targeted tests
-and the architecture audit cover this source change. This snapshot does not
-claim Windows-native human acceptance, a new public release, or an installer
-containing M22-B; v1.1.0 remains the published version.
+and the architecture audit cover this source change. The product owner reported
+Windows-native Human Acceptance PASS on the M22-B branch. This section describes
+the post-merge source state; at this branch publication checkpoint, no M22-B PR
+has been opened or merged. No public release or installer contains M22-B;
+v1.1.0 remains the published version.
 
 ## M21 / v1.1.0 Closure
 

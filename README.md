@@ -22,9 +22,11 @@ fixes. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the milestone status.
 The post-merge M22-B source state also includes
 Card-scoped Matching:
 Matching launched from a selected Card uses only that Card's eligible Entries
-and retains stable Card/revision identity for history and scheduling. This
-source correction has no published installer or recorded Windows-native human
-acceptance yet; v1.1.0 remains the current public release.
+and retains stable Card/revision identity for history and scheduling. The
+product owner reported Windows-native Human Acceptance PASS on the M22-B branch.
+This is the post-merge source state; at this branch publication checkpoint, no
+M22-B PR has been opened or merged. These changes have not shipped in an
+installer; v1.1.0 remains the current public release.
 
 ## See it
 

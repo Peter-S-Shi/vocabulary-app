@@ -2218,9 +2218,11 @@ Card/revision identity into M22-A history and scheduling. Independent
 Collection and system-pool Quiz paths remain available.
 
 Targeted local regression and architecture checks cover implementation;
-Windows-native human acceptance is not claimed here. This source milestone
-is not a new published version or installer. v1.1.0 remains the current
-public release, and M22 as a whole remains open.
+the product owner reported Windows-native Human Acceptance PASS on the M22-B
+branch. This section describes the post-merge source state; at this branch
+publication checkpoint, no M22-B PR has been opened or merged. This source
+milestone has not shipped in an installer. v1.1.0 remains the current public
+release, and M22 as a whole remains open.
 
 ## Maintenance / Next Version
 
