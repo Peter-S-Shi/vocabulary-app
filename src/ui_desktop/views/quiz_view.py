@@ -4,23 +4,28 @@ from datetime import date
 
 from PySide6.QtCore import QDate, QLocale, Qt, Signal
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QButtonGroup,
     QCheckBox,
     QComboBox,
     QDialog,
     QDateEdit,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
     QRadioButton,
     QScrollArea,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
 from src.collections import CROSS_CARD_CONFIRMATION_MESSAGE, CrossCardMoveConfirmationRequired
+from src.time_utils import format_local_timestamp
 from src.ui_desktop.controllers.quiz_controller import MATCHING_FAMILY, MCQ_FAMILY, QuizController
 from src.ui_desktop.state.handoff import QUIZ_TYPE_LABELS
 from src.ui_desktop.state.preferences import (
@@ -754,6 +759,55 @@ class QuizView(QWidget):
         stats_layout.addWidget(_stat_block(str(session.get("correct_count") or 0), "Correct", block))
         stats_layout.addWidget(_stat_block(str(session.get("wrong_count") or 0), "Wrong", block))
         layout.addWidget(stats_row)
+
+        card_history = controller.completion_card_history()
+        current_attempt = next(
+            (
+                row["attempt_number"]
+                for row in card_history
+                if int(row["session_id"]) == int(session.get("id") or 0)
+            ),
+            None,
+        )
+        if current_attempt is not None:
+            attempt_label = QLabel(f"Quiz #{current_attempt} for this Card", block)
+            attempt_label.setObjectName("quiz-completion-attempt-label")
+            attempt_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(attempt_label)
+
+            history_heading = QLabel("This Card's completed Quizzes", block)
+            history_heading.setObjectName("quiz-completion-card-history-heading")
+            history_heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(history_heading)
+
+            history_table = QTableWidget(block)
+            history_table.setObjectName("quiz-completion-card-history")
+            history_table.setColumnCount(5)
+            history_table.setHorizontalHeaderLabels(
+                ["Attempt", "Completed", "Quiz type", "Correct", "Wrong"]
+            )
+            history_table.setRowCount(len(card_history))
+            history_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+            history_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+            history_table.verticalHeader().setVisible(False)
+            history_table.horizontalHeader().setResizeContentsPrecision(20)
+            history_table.horizontalHeader().setSectionResizeMode(
+                QHeaderView.ResizeMode.ResizeToContents
+            )
+            history_table.horizontalHeader().setStretchLastSection(True)
+            history_table.setMaximumHeight(160)
+            history_table.setMinimumHeight(95)
+            for row_index, row in enumerate(card_history):
+                cells = (
+                    f"#{row['attempt_number']}",
+                    format_local_timestamp(row.get("completed_at")),
+                    QUIZ_TYPE_LABELS.get(row.get("quiz_type"), str(row.get("quiz_type") or "")),
+                    f"{int(row.get('correct_count') or 0)} / {int(row.get('total_items') or 0)}",
+                    str(int(row.get("wrong_count") or 0)),
+                )
+                for column, value in enumerate(cells):
+                    history_table.setItem(row_index, column, QTableWidgetItem(value))
+            layout.addWidget(history_table)
 
         layout.addWidget(_section_divider(block))
 

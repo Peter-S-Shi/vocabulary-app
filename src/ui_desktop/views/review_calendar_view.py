@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from src.time_utils import format_local_timestamp
-from src.ui_desktop.controllers.review_calendar_controller import DATE_RANGE_PRESETS, ReviewCalendarController
+from src.ui_desktop.controllers.review_calendar_controller import DATE_RANGE_PRESETS, ReviewCalendarController, ScheduleFilter
 from src.ui_desktop.theming.metrics import SPACING
 
 """
@@ -162,6 +162,14 @@ class ReviewCalendarView(QWidget):
         self._schedule_heading.setObjectName("review-calendar-schedule-heading")
         schedule_right_col.addWidget(self._schedule_heading)
 
+        self._schedule_filter = QComboBox(self)
+        self._schedule_filter.setObjectName("review-calendar-schedule-filter")
+        self._schedule_filter.addItem("Selected date", ScheduleFilter.SELECTED_DATE.value)
+        self._schedule_filter.addItem("Unscheduled current Cards", ScheduleFilter.UNSCHEDULED.value)
+        self._schedule_filter.setAccessibleName("Review schedule list")
+        self._schedule_filter.currentIndexChanged.connect(self._on_schedule_filter_changed)
+        schedule_right_col.addWidget(self._schedule_filter)
+
         self._schedule_table = QTableWidget(self)
         self._schedule_table.setObjectName("review-calendar-schedule-table")
         self._schedule_table.setColumnCount(4)
@@ -300,20 +308,34 @@ class ReviewCalendarView(QWidget):
             self._calendar.blockSignals(True)
             self._calendar.setSelectedDate(cur_qdate)
             self._calendar.blockSignals(False)
-        self._schedule_heading.setText(f"Review Schedule ({self._controller.selected_date})")
+        self._update_schedule_heading()
 
     def _on_today_clicked(self) -> None:
         today_qdate = QDate.currentDate()
         self._calendar.blockSignals(True)
         self._calendar.setSelectedDate(today_qdate)
         self._calendar.blockSignals(False)
-        self._schedule_heading.setText(f"Review Schedule ({today_qdate.toString('yyyy-MM-dd')})")
         self._controller.go_to_today()
+        self._update_schedule_heading()
 
     def _on_calendar_date_changed(self) -> None:
         selected_date_str = self._calendar.selectedDate().toString("yyyy-MM-dd")
-        self._schedule_heading.setText(f"Review Schedule ({selected_date_str})")
         self._controller.set_selected_date(selected_date_str)
+        self._update_schedule_heading()
+
+    def _on_schedule_filter_changed(self, index: int) -> None:
+        self._controller.set_schedule_filter(
+            ScheduleFilter(self._schedule_filter.itemData(index))
+        )
+        self._update_schedule_heading()
+
+    def _update_schedule_heading(self) -> None:
+        if self._controller.schedule_filter == ScheduleFilter.UNSCHEDULED:
+            self._schedule_heading.setText("Unscheduled current Cards")
+        else:
+            self._schedule_heading.setText(
+                f"Review Schedule ({self._controller.selected_date})"
+            )
 
     def _render_table(self) -> None:
         self._selected_session_timestamp = None
@@ -349,7 +371,7 @@ class ReviewCalendarView(QWidget):
         try:
             self._schedule_table.clearSelection()
             self._schedule_table.setCurrentCell(-1, -1)
-            schedules = self._controller.scheduled_cards_for_date(self._controller.selected_date)
+            schedules = self._controller.visible_schedules()
             self._schedule_table.setRowCount(len(schedules))
             for row, schedule in enumerate(schedules):
                 self._schedule_table.setItem(row, 0, QTableWidgetItem(str(schedule["collection_name"])))
@@ -455,10 +477,13 @@ class ReviewCalendarView(QWidget):
             )
             self._editing_target_label.setText(target_text)
         else:
-            if controller.current_schedule is None:
-                self._schedule_save_button.setEnabled(False)
-                self._schedule_clear_button.setEnabled(False)
-                self._editing_target_label.setText("Select a Card from the schedule above to edit its review date.")
+            self._schedule_save_button.setEnabled(False)
+            self._schedule_clear_button.setEnabled(False)
+            self._editing_target_label.setText(
+                "Quiz history is read-only. Select a current Card from the schedule list to edit its review date."
+                if controller.selected_from_history
+                else "Select a Card from the schedule above to edit its review date."
+            )
 
         # 2. Update Card History Detail Table (read-only evidence)
         if controller.selected_collection_id is None:

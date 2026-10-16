@@ -2187,6 +2187,23 @@ The v1.0.0 product generation is complete and released. The v1.1.0 increment
 has completed implementation, release verification, and publication from
 verified merged `main`; v1.1.0 is the new current public release.
 
+## Milestone 22-A: Card workflow correction after v1.1.0
+
+M22-A is the bounded source increment for
+[Issue #40](https://github.com/Peter-S-Shi/vocabulary-app/issues/40) and
+[Issue #42](https://github.com/Peter-S-Shi/vocabulary-app/issues/42):
+
+- active unscheduled Cards can be found in Review Calendar and scheduled after
+  leaving Quiz completion; historical completion events remain read-only;
+- Card-scoped Quiz completion shows its completed attempt number and a compact
+  stable-Card history, including the just-completed Quiz exactly once;
+- Collection-scoped Quizzes do not show Card attempt history.
+
+Implementation is present in this source snapshot. Independent audit, merge,
+Windows-native visual acceptance, and release verification remain separate
+gates. Other M22 investigations and product decisions are outside M22-A.
+v1.1.0 remains the current public release.
+
 ## Maintenance / Next Version
 
 After the current version is complete:

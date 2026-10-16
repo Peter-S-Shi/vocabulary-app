@@ -12,7 +12,9 @@ from src.collections import (
     get_entry_ids_in_system_collection,
     remove_entries_from_system_collection,
 )
+from src.db import get_connection
 from src.insights import get_completed_quiz_strength_candidates_for_session
+from src.learning_workflow import get_card_learning_history_by_id
 from src.quiz import (
     create_quiz_items,
     create_quiz_session,
@@ -592,6 +594,22 @@ class QuizController(QObject):
         self._selected_completion_proficient_audit_entry_ids.difference_update(selected_ids)
         self.state_changed.emit()
         return selected_ids
+
+    def completion_card_history(self) -> list[dict]:
+        session = self.completed_session
+        if not session or not session.get("card_id") or int(session.get("card_number") or 0) <= 0:
+            return []
+        with get_connection() as connection:
+            history = get_card_learning_history_by_id(connection, int(session["card_id"]))
+        chronological = sorted(
+            history,
+            key=lambda row: (str(row["completed_at"]), int(row["session_id"])),
+        )
+        numbered = [
+            {**row, "attempt_number": number}
+            for number, row in enumerate(chronological, start=1)
+        ]
+        return list(reversed(numbered))
 
     def completion_schedule(self, *, today: str | None = None) -> dict | None:
         session = self.completed_session

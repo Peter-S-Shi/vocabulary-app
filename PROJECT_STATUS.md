@@ -1,6 +1,6 @@
 # Vocabulary App Project Status
 
-Last reviewed: 2026-08-28
+Last reviewed: 2026-10-16
 
 This file is the authoritative evidence-based snapshot of the current project state. Detailed milestone history remains in `ROADMAP.md`, milestone QA/design/packaging documents, and the frozen pre-release snapshot archived at `docs/history/PROJECT_STATUS_PRE_V1_RELEASE_2026-08-19.md`.
 
@@ -13,6 +13,23 @@ This is intentionally one step ahead of the exact publication mechanics
 below -- it records the release-state this snapshot commit is authoritative
 for once the `v1.1.0` tag is created pointing at it, the same convention
 `v1.0.0`'s release used.
+
+## M22-A / Post-v1.1.0 Card workflow correction
+
+This source snapshot implements the bounded M22-A fixes for
+[Issue #40](https://github.com/Peter-S-Shi/vocabulary-app/issues/40) and
+[Issue #42](https://github.com/Peter-S-Shi/vocabulary-app/issues/42).
+Review Calendar exposes active unscheduled Cards through a separate current-Card
+selection path, while completed-Quiz history stays read-only. Card-scoped Quiz
+completion shows a completed-attempt number and compact history keyed by stable
+Card ID. Collection-scoped completion has no Card attempt history.
+
+M22-A changes presentation/controller behavior only; the Quiz, scheduling,
+persistence, revision, and migration contracts remain unchanged. The published
+v1.1.0 installer does not include these source changes. Independent remote
+audit, merge, Windows-native visual acceptance, and any later release decision
+are separate gates. This snapshot does not close all of M22 or claim a new
+released version.
 
 ## M21 / v1.1.0 Closure
 

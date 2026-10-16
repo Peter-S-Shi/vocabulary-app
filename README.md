@@ -11,6 +11,12 @@ Your core learning data (entries, Collections, Quiz history) lives in a local SQ
 
 **v1.1.0 is the current public release, published from verified merged `main`.** The native Windows desktop app (PySide6 + SQLite) is the primary product surface; the earlier Streamlit UI remains as a compatibility/reference surface. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the v1.1 release evidence and the [v1.1.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.1.0) for the currently published installer and checksum.
 
+The post-v1.1.0 M22-A source increment addresses
+[unscheduled Card scheduling](https://github.com/Peter-S-Shi/vocabulary-app/issues/40)
+and [Card Quiz completion history](https://github.com/Peter-S-Shi/vocabulary-app/issues/42).
+These changes are not in the published v1.1.0 installer; see
+[PROJECT_STATUS.md](PROJECT_STATUS.md) for the development gates.
+
 ## See it
 
 **Today** — the daily home, built from real completed-Quiz history. Appearance is live-switchable between System / Light / Dark from Settings, no restart required:

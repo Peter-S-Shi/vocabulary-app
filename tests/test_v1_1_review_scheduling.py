@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from datetime import date
+from datetime import date, timedelta
 from io import BytesIO
 import os
 import tempfile
@@ -11,14 +11,14 @@ from unittest.mock import patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QDate
-from PySide6.QtWidgets import QApplication, QLabel, QMessageBox, QPushButton, QWidget
+from PySide6.QtWidgets import QApplication, QCalendarWidget, QComboBox, QDateEdit, QLabel, QMessageBox, QPushButton, QTableWidget, QWidget
 from openpyxl import load_workbook
 
 from src import db, quiz
 from src.app_config import get_default_db_path
 from src.backup import BACKUP_TABLES, build_full_backup_workbook_bytes, preview_backup_workbook
 from src.card_history import reconcile_collection_card_history
-from src.learning_workflow import get_card_learning_history
+from src.learning_workflow import get_card_learning_history, get_card_learning_history_by_id
 from src.migrations import (
     CURRENT_SCHEMA_VERSION,
     REVIEW_SCHEDULE_SCHEMA_VERSION,
@@ -103,6 +103,32 @@ class ReviewScheduleTestCase(unittest.TestCase):
                     (collection_id,),
                 ).fetchone()[0]
             )
+
+    def _complete_card_quiz(self, card_id: int, *, quiz_type: str = "term_to_meaning", correct: bool = True) -> dict:
+        require_isolated_test_database(db.DB_PATH)
+        with db.get_connection() as conn:
+            card = conn.execute(
+                "SELECT collection_id, card_number FROM cards WHERE id = ?", (card_id,)
+            ).fetchone()
+            entry_id = int(conn.execute(
+                """
+                SELECT membership.entry_id
+                FROM card_revisions AS revision
+                JOIN card_revision_entries AS membership ON membership.revision_id = revision.id
+                WHERE revision.card_id = ?
+                ORDER BY revision.revision_number DESC
+                LIMIT 1
+                """,
+                (card_id,),
+            ).fetchone()[0])
+        session_id = quiz.create_quiz_session(
+            int(card["collection_id"]), int(card["card_number"]), quiz_type, 1
+        )
+        quiz.record_quiz_answer(
+            session_id, entry_id, "fictional prompt", "fictional answer",
+            "fictional answer" if correct else "fictional error", correct,
+        )
+        return quiz.complete_quiz_session(session_id)
 
     def test_synthetic_fixture_rejects_production_database_path(self) -> None:
         production_db_path = get_default_db_path()
@@ -449,6 +475,196 @@ class QuizCompletionScheduleTests(ReviewScheduleTestCase):
         )
 
 
+class CardCompletionHistoryTests(ReviewScheduleTestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = QApplication.instance() or QApplication([])
+
+    def test_card_completion_shows_completed_attempt_and_history_once(self) -> None:
+        card_id = self._card_id(name="Fictional Card Progress")
+        first = self._complete_card_quiz(card_id, quiz_type="term_to_meaning")
+        latest = self._complete_card_quiz(
+            card_id, quiz_type="meaning_to_term", correct=False
+        )
+        controller = QuizController()
+        controller.completed_session = latest
+        view = QuizView(controller)
+        self.addCleanup(view.deleteLater)
+        view._render()
+
+        attempt = view.findChild(QLabel, "quiz-completion-attempt-label")
+        self.assertIsNotNone(attempt)
+        self.assertEqual(attempt.text(), "Quiz #2 for this Card")
+        history = view.findChild(QTableWidget, "quiz-completion-card-history")
+        self.assertIsNotNone(history)
+        self.assertEqual(history.rowCount(), 2)
+        self.assertEqual(
+            [history.item(row, 0).text() for row in range(2)], ["#2", "#1"]
+        )
+        self.assertEqual(history.item(0, 2).text(), "Meaning → Term")
+        self.assertEqual(history.item(0, 3).text(), "0 / 1")
+        self.assertEqual(history.item(1, 3).text(), "1 / 1")
+        self.assertEqual(
+            [row["session_id"] for row in self._history(card_id)],
+            [latest["id"], first["id"]],
+        )
+
+    def test_collection_completion_has_no_card_attempt_or_history(self) -> None:
+        card_id = self._card_id(name="Fictional Collection Quiz")
+        self._complete_card_quiz(card_id)
+        with db.get_connection() as conn:
+            card = conn.execute(
+                "SELECT collection_id FROM cards WHERE id = ?", (card_id,)
+            ).fetchone()
+        with db.get_connection() as conn:
+            entry_id = int(conn.execute(
+                "SELECT entry_id FROM entry_collections WHERE collection_id = ? LIMIT 1",
+                (int(card["collection_id"]),),
+            ).fetchone()[0])
+        session_id = quiz.create_quiz_session(
+            int(card["collection_id"]), 0, "term_to_meaning", 1
+        )
+        quiz.record_quiz_answer(
+            session_id, entry_id, "fictional prompt", "fictional answer",
+            "fictional answer", True,
+        )
+        completed = quiz.complete_quiz_session(session_id)
+        controller = QuizController()
+        controller.completed_session = completed
+        view = QuizView(controller)
+        self.addCleanup(view.deleteLater)
+        view._render()
+
+        self.assertIsNone(view.findChild(QLabel, "quiz-completion-attempt-label"))
+        self.assertIsNone(view.findChild(QTableWidget, "quiz-completion-card-history"))
+        self.assertIsNotNone(
+            view.findChild(QPushButton, "quiz-completion-return-today-button")
+        )
+        self.assertIsNotNone(
+            view.findChild(QPushButton, "quiz-completion-next-card-button")
+        )
+
+    def test_attempt_order_uses_session_id_when_completion_times_match(self) -> None:
+        card_id = self._card_id(name="Fictional Equal Time History")
+        sessions = [
+            self._complete_card_quiz(card_id, quiz_type=quiz_type)
+            for quiz_type in ("term_to_meaning", "meaning_to_term", "term_to_meaning")
+        ]
+        require_isolated_test_database(db.DB_PATH)
+        with db.get_connection() as conn:
+            conn.execute(
+                "UPDATE quiz_sessions SET completed_at = ? WHERE card_id = ?",
+                ("2026-08-26T12:00:00+00:00", card_id),
+            )
+        controller = QuizController()
+        controller.completed_session = sessions[-1]
+        view = QuizView(controller)
+        self.addCleanup(view.deleteLater)
+        view._render()
+
+        self.assertEqual(
+            view.findChild(QLabel, "quiz-completion-attempt-label").text(),
+            "Quiz #3 for this Card",
+        )
+        history = view.findChild(QTableWidget, "quiz-completion-card-history")
+        self.assertEqual(
+            [history.item(row, 0).text() for row in range(3)],
+            ["#3", "#2", "#1"],
+        )
+        self.assertEqual(
+            [row["session_id"] for row in self._history(card_id)],
+            [session["id"] for session in reversed(sessions)],
+        )
+
+    def test_long_card_history_scrolls_and_keeps_completion_actions(self) -> None:
+        card_id = self._card_id(name="Fictional Long Progress")
+        latest = None
+        for _ in range(12):
+            latest = self._complete_card_quiz(card_id)
+        controller = QuizController()
+        controller.completed_session = latest
+        view = QuizView(controller)
+        self.addCleanup(view.deleteLater)
+        view.resize(700, 440)
+        view._render()
+        view.show()
+        QApplication.processEvents()
+
+        history = view.findChild(QTableWidget, "quiz-completion-card-history")
+        self.assertEqual(history.rowCount(), 12)
+        self.assertLessEqual(history.height(), 160)
+        self.assertGreater(history.verticalScrollBar().maximum(), 0)
+        self.assertIsNotNone(
+            view.findChild(QPushButton, "quiz-completion-next-card-button")
+        )
+        self.assertIsNotNone(
+            view.findChild(QPushButton, "quiz-completion-schedule-save-button")
+        )
+
+    def test_reused_card_number_does_not_inherit_retired_card_attempts(self) -> None:
+        old_card_id = self._card_id(name="Fictional Replacement History")
+        old_session = self._complete_card_quiz(old_card_id)
+        require_isolated_test_database(db.DB_PATH)
+        now = "2026-08-26T12:00:00+00:00"
+        with db.get_connection() as conn:
+            collection_id = int(conn.execute(
+                "SELECT collection_id FROM cards WHERE id = ?", (old_card_id,)
+            ).fetchone()[0])
+            conn.execute(
+                "DELETE FROM entry_collections WHERE collection_id = ?",
+                (collection_id,),
+            )
+            reconcile_collection_card_history(
+                conn, collection_id, change_reason="fictional_card_retirement"
+            )
+            replacement_entry_id = int(conn.execute(
+                """
+                INSERT INTO entries (
+                    language, explanation_language, entry_type, term, meaning,
+                    example, notes, tags, source, status, created_at, updated_at
+                ) VALUES ('English', 'English', 'word', 'replacement word',
+                          'replacement meaning', '', '', '', '', 'new', ?, ?)
+                """,
+                (now, now),
+            ).lastrowid)
+            conn.execute(
+                "INSERT INTO entry_collections (entry_id, collection_id, position, added_at) "
+                "VALUES (?, ?, 1, ?)",
+                (replacement_entry_id, collection_id, now),
+            )
+            reconcile_collection_card_history(
+                conn, collection_id, change_reason="fictional_card_replacement"
+            )
+            new_card_id = int(conn.execute(
+                "SELECT id FROM cards WHERE collection_id = ? AND card_number = 1 AND is_active = 1",
+                (collection_id,),
+            ).fetchone()[0])
+        self.assertNotEqual(new_card_id, old_card_id)
+        new_session = self._complete_card_quiz(new_card_id)
+        controller = QuizController()
+        controller.completed_session = new_session
+        view = QuizView(controller)
+        self.addCleanup(view.deleteLater)
+        view._render()
+
+        self.assertEqual(
+            view.findChild(QLabel, "quiz-completion-attempt-label").text(),
+            "Quiz #1 for this Card",
+        )
+        self.assertEqual(
+            view.findChild(QTableWidget, "quiz-completion-card-history").rowCount(),
+            1,
+        )
+        self.assertEqual(
+            [row["session_id"] for row in self._history(old_card_id)],
+            [old_session["id"]],
+        )
+
+    def _history(self, card_id: int) -> list[dict]:
+        with db.get_connection() as conn:
+            return get_card_learning_history_by_id(conn, card_id)
+
+
 class TodayScheduleRoutingTests(ReviewScheduleTestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -495,6 +711,111 @@ class ReviewCalendarScheduleTests(ReviewScheduleTestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["card_id"], card_id)
         self.assertEqual(rows[0]["state"], "unscheduled")
+
+    def test_unscheduled_card_is_visible_and_schedulable_after_quiz_completion(self) -> None:
+        card_id = self._card_id(name="Fictional Calendar Recovery")
+        completed = self._complete_card_quiz(card_id)
+        controller = ReviewCalendarController()
+        view = ReviewCalendarView(controller)
+        self.addCleanup(view.deleteLater)
+
+        view.refresh()
+        filter_combo = view.findChild(QComboBox, "review-calendar-schedule-filter")
+        self.assertIsNotNone(filter_combo)
+        filter_combo.setCurrentIndex(1)
+        schedule_table = view.findChild(QTableWidget, "review-calendar-schedule-table")
+        self.assertEqual(schedule_table.rowCount(), 1)
+        self.assertIn("Fictional Calendar Recovery", schedule_table.item(0, 0).text())
+        schedule_table.selectRow(0)
+        target = (date.today() + timedelta(days=7)).isoformat()
+        view.findChild(QDateEdit, "review-calendar-schedule-date").setDate(
+            QDate.fromString(target, "yyyy-MM-dd")
+        )
+        view.findChild(QPushButton, "review-calendar-schedule-save-button").click()
+
+        self.assertEqual(controller.current_schedule["card_id"], card_id)
+        self.assertEqual(controller.current_schedule["next_due_at"], target)
+        self.assertEqual(schedule_table.rowCount(), 0)
+        with db.get_connection() as conn:
+            history = get_card_learning_history(conn, completed["collection_id"], 1)
+        self.assertEqual([row["session_id"] for row in history], [completed["id"]])
+
+    def test_scheduled_card_can_be_cleared_back_into_unscheduled_list(self) -> None:
+        card_id = self._card_id(name="Fictional Calendar Roundtrip")
+        controller = ReviewCalendarController()
+        view = ReviewCalendarView(controller)
+        self.addCleanup(view.deleteLater)
+        view.refresh()
+        filter_combo = view.findChild(QComboBox, "review-calendar-schedule-filter")
+        schedule_table = view.findChild(QTableWidget, "review-calendar-schedule-table")
+        filter_combo.setCurrentIndex(1)
+        schedule_table.selectRow(0)
+        target = (date.today() + timedelta(days=7)).isoformat()
+        view.findChild(QDateEdit, "review-calendar-schedule-date").setDate(
+            QDate.fromString(target, "yyyy-MM-dd")
+        )
+        view.findChild(QPushButton, "review-calendar-schedule-save-button").click()
+        self.assertEqual(schedule_table.rowCount(), 0)
+
+        filter_combo.setCurrentIndex(0)
+        controller.set_selected_date(target)
+        self.assertEqual(schedule_table.rowCount(), 1)
+        schedule_table.selectRow(0)
+        with patch.object(
+            QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes
+        ):
+            view.findChild(QPushButton, "review-calendar-schedule-clear-button").click()
+        filter_combo.setCurrentIndex(1)
+        self.assertEqual(schedule_table.rowCount(), 1)
+        self.assertEqual(
+            controller.unscheduled_current_cards()[0]["card_id"], card_id
+        )
+
+    def test_unscheduled_filter_stays_clearly_labeled_when_calendar_date_changes(self) -> None:
+        self._card_id(name="Fictional Filter Heading")
+        controller = ReviewCalendarController()
+        view = ReviewCalendarView(controller)
+        self.addCleanup(view.deleteLater)
+        view.refresh()
+        view.findChild(QComboBox, "review-calendar-schedule-filter").setCurrentIndex(1)
+
+        calendar = view.findChild(QCalendarWidget, "review-calendar-widget")
+        calendar.setSelectedDate(calendar.selectedDate().addDays(1))
+
+        self.assertEqual(
+            view.findChild(QLabel, "review-calendar-schedule-heading").text(),
+            "Unscheduled current Cards",
+        )
+        self.assertEqual(
+            view.findChild(QTableWidget, "review-calendar-schedule-table").rowCount(),
+            1,
+        )
+
+    def test_history_selection_clears_a_previous_editable_schedule_target(self) -> None:
+        card_id = self._card_id(name="Fictional History Boundary")
+        self._complete_card_quiz(card_id)
+        controller = ReviewCalendarController()
+        view = ReviewCalendarView(controller)
+        self.addCleanup(view.deleteLater)
+
+        view.refresh()
+        view.findChild(QComboBox, "review-calendar-schedule-filter").setCurrentIndex(1)
+        view.findChild(QTableWidget, "review-calendar-schedule-table").selectRow(0)
+        self.assertTrue(
+            view.findChild(QPushButton, "review-calendar-schedule-save-button").isEnabled()
+        )
+        view.findChild(QTableWidget, "review-calendar-table").selectRow(0)
+
+        self.assertTrue(controller.selected_from_history)
+        self.assertFalse(
+            view.findChild(QPushButton, "review-calendar-schedule-save-button").isEnabled()
+        )
+        self.assertIsNone(controller.current_schedule)
+        with self.assertRaises(ValueError):
+            controller.set_selected_next_review(
+                (date.today()).isoformat(), today=(date.today()).isoformat()
+            )
+        self.assertIsNone(get_card_schedule(card_id)["next_due_at"])
 
     def test_retired_historical_event_cannot_select_replacement_schedule(self) -> None:
         old_card_id = self._card_id(name="Synthetic Historical Identity")
