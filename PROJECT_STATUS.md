@@ -24,12 +24,16 @@ selection path, while completed-Quiz history stays read-only. Card-scoped Quiz
 completion shows a completed-attempt number and compact history keyed by stable
 Card ID. Collection-scoped completion has no Card attempt history.
 
+The Card history table also shows read-only Accuracy calculated from the
+existing correct/total counts, with zero-item records marked unavailable.
 M22-A changes presentation/controller behavior only; the Quiz, scheduling,
-persistence, revision, and migration contracts remain unchanged. The published
-v1.1.0 installer does not include these source changes. Independent remote
-audit, merge, Windows-native visual acceptance, and any later release decision
-are separate gates. This snapshot does not close all of M22 or claim a new
-released version.
+persistence, revision, and migration contracts remain unchanged.
+
+**Post-merge M22-A state:** #40 and #42 are implemented, independently reviewed,
+Windows-native Human Acceptance has passed all six checks, and the changes are
+merged into `main`. v1.1.0 remains the current published release, and its
+installer does not include these fixes. M22 as a whole is not closed, and no
+new version has shipped.
 
 ## M21 / v1.1.0 Closure
 

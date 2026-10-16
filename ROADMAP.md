@@ -2196,13 +2196,15 @@ M22-A is the bounded source increment for
 - active unscheduled Cards can be found in Review Calendar and scheduled after
   leaving Quiz completion; historical completion events remain read-only;
 - Card-scoped Quiz completion shows its completed attempt number and a compact
-  stable-Card history, including the just-completed Quiz exactly once;
+  read-only stable-Card history, including the just-completed Quiz exactly once
+  and Accuracy derived from existing correct/total counts;
 - Collection-scoped Quizzes do not show Card attempt history.
 
-Implementation is present in this source snapshot. Independent audit, merge,
-Windows-native visual acceptance, and release verification remain separate
-gates. Other M22 investigations and product decisions are outside M22-A.
-v1.1.0 remains the current public release.
+**Post-merge M22-A state:** #40 and #42 are implemented, independently reviewed,
+Windows-native Human Acceptance has passed all six checks, and the changes are
+merged into `main`. Other M22 investigations and product decisions are outside
+M22-A. v1.1.0 remains the current public release; no installer containing
+these fixes has shipped.
 
 ## Maintenance / Next Version
 

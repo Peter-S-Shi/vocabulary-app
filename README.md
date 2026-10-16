@@ -14,8 +14,10 @@ Your core learning data (entries, Collections, Quiz history) lives in a local SQ
 The post-v1.1.0 M22-A source increment addresses
 [unscheduled Card scheduling](https://github.com/Peter-S-Shi/vocabulary-app/issues/40)
 and [Card Quiz completion history](https://github.com/Peter-S-Shi/vocabulary-app/issues/42).
-These changes are not in the published v1.1.0 installer; see
-[PROJECT_STATUS.md](PROJECT_STATUS.md) for the development gates.
+In the post-merge source state, these fixes are implemented, independently
+reviewed, Windows-native Human Acceptance PASS, and merged into `main`.
+v1.1.0 remains the published release; its installer does not include these
+fixes. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the milestone status.
 
 ## See it
 

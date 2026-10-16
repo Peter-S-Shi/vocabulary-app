@@ -504,10 +504,42 @@ class CardCompletionHistoryTests(ReviewScheduleTestCase):
         self.assertEqual(history.item(0, 2).text(), "Meaning → Term")
         self.assertEqual(history.item(0, 3).text(), "0 / 1")
         self.assertEqual(history.item(1, 3).text(), "1 / 1")
+        self.assertEqual(history.horizontalHeaderItem(5).text(), "Accuracy")
+        self.assertEqual(
+            [history.item(row, 5).text() for row in range(2)],
+            ["0%", "100%"],
+        )
         self.assertEqual(
             [row["session_id"] for row in self._history(card_id)],
             [latest["id"], first["id"]],
         )
+
+    def test_zero_total_legacy_card_completion_marks_accuracy_unavailable(self) -> None:
+        card_id = self._card_id(name="Fictional Zero Item History")
+        require_isolated_test_database(db.DB_PATH)
+        with db.get_connection() as conn:
+            collection_id = int(conn.execute(
+                "SELECT collection_id FROM cards WHERE id = ?", (card_id,)
+            ).fetchone()[0])
+        session_id = quiz.create_quiz_session(
+            collection_id, 1, "term_to_meaning", 0
+        )
+        with db.get_connection() as conn:
+            conn.execute(
+                "UPDATE quiz_sessions SET status = 'completed', completed_at = ? WHERE id = ?",
+                ("2026-08-26T12:00:00+00:00", session_id),
+            )
+        controller = QuizController()
+        controller.completed_session = quiz.get_quiz_session(session_id)
+        view = QuizView(controller)
+        self.addCleanup(view.deleteLater)
+        view._render()
+
+        history = view.findChild(QTableWidget, "quiz-completion-card-history")
+        self.assertEqual(history.rowCount(), 1)
+        self.assertEqual(history.item(0, 3).text(), "0 / 0")
+        self.assertEqual(history.item(0, 5).text(), "N/A")
+        self.assertIn("Unavailable", history.item(0, 5).toolTip())
 
     def test_collection_completion_has_no_card_attempt_or_history(self) -> None:
         card_id = self._card_id(name="Fictional Collection Quiz")
@@ -585,7 +617,7 @@ class CardCompletionHistoryTests(ReviewScheduleTestCase):
         controller.completed_session = latest
         view = QuizView(controller)
         self.addCleanup(view.deleteLater)
-        view.resize(700, 440)
+        view.resize(420, 440)
         view._render()
         view.show()
         QApplication.processEvents()
@@ -594,6 +626,9 @@ class CardCompletionHistoryTests(ReviewScheduleTestCase):
         self.assertEqual(history.rowCount(), 12)
         self.assertLessEqual(history.height(), 160)
         self.assertGreater(history.verticalScrollBar().maximum(), 0)
+        self.assertEqual(history.horizontalHeaderItem(5).text(), "Accuracy")
+        self.assertEqual(history.item(0, 5).text(), "100%")
+        self.assertGreater(history.horizontalScrollBar().maximum(), 0)
         self.assertIsNotNone(
             view.findChild(QPushButton, "quiz-completion-next-card-button")
         )

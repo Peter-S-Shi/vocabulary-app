@@ -782,13 +782,14 @@ class QuizView(QWidget):
 
             history_table = QTableWidget(block)
             history_table.setObjectName("quiz-completion-card-history")
-            history_table.setColumnCount(5)
+            history_table.setColumnCount(6)
             history_table.setHorizontalHeaderLabels(
-                ["Attempt", "Completed", "Quiz type", "Correct", "Wrong"]
+                ["Attempt", "Completed", "Quiz type", "Correct", "Wrong", "Accuracy"]
             )
             history_table.setRowCount(len(card_history))
             history_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
             history_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+            history_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
             history_table.verticalHeader().setVisible(False)
             history_table.horizontalHeader().setResizeContentsPrecision(20)
             history_table.horizontalHeader().setSectionResizeMode(
@@ -798,15 +799,27 @@ class QuizView(QWidget):
             history_table.setMaximumHeight(160)
             history_table.setMinimumHeight(95)
             for row_index, row in enumerate(card_history):
+                total_items = int(row.get("total_items") or 0)
+                correct_count = int(row.get("correct_count") or 0)
+                accuracy = (
+                    f"{round(correct_count * 100 / total_items)}%"
+                    if total_items > 0 else "N/A"
+                )
                 cells = (
                     f"#{row['attempt_number']}",
                     format_local_timestamp(row.get("completed_at")),
                     QUIZ_TYPE_LABELS.get(row.get("quiz_type"), str(row.get("quiz_type") or "")),
-                    f"{int(row.get('correct_count') or 0)} / {int(row.get('total_items') or 0)}",
+                    f"{correct_count} / {total_items}",
                     str(int(row.get("wrong_count") or 0)),
+                    accuracy,
                 )
                 for column, value in enumerate(cells):
-                    history_table.setItem(row_index, column, QTableWidgetItem(value))
+                    item = QTableWidgetItem(value)
+                    if column == 5:
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                        if total_items <= 0:
+                            item.setToolTip("Unavailable: no Quiz items")
+                    history_table.setItem(row_index, column, item)
             layout.addWidget(history_table)
 
         layout.addWidget(_section_divider(block))
