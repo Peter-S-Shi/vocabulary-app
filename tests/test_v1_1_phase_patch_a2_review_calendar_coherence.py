@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 import tempfile
 import unittest
@@ -221,13 +221,18 @@ class PatchA2ReviewCalendarCoherenceTests(unittest.TestCase):
     def test_card_history_detail_header_format_from_schedule_and_from_history(self) -> None:
         """Card History detail header displays completed reviews and selected session timestamp cleanly."""
         card_id, col_id, card_num = self._create_card(name="Text collections")
-        self._record_completion(col_id, card_num, card_id, "2026-08-10T09:48:00+00:00")
-        self._record_completion(col_id, card_num, card_id, "2026-08-12T14:20:00+00:00")
-        self._record_completion(col_id, card_num, card_id, "2026-08-15T18:00:00+00:00")
-        set_card_next_review(card_id, "2026-08-28")
+        # Keep these synthetic events within the Calendar's rolling 30-day range.
+        for days_ago, clock in ((6, "09:48:00"), (4, "14:20:00"), (1, "18:00:00")):
+            completed_day = date.today() - timedelta(days=days_ago)
+            self._record_completion(
+                col_id, card_num, card_id,
+                f"{completed_day.isoformat()}T{clock}+00:00",
+            )
+        due_date = (date.today() + timedelta(days=1)).isoformat()
+        set_card_next_review(card_id, due_date)
 
         controller = ReviewCalendarController()
-        controller.set_selected_date("2026-08-28")
+        controller.set_selected_date(due_date)
         view = ReviewCalendarView(controller)
         self.addCleanup(view.deleteLater)
         view.refresh()

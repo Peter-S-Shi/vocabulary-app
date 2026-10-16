@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from enum import Enum
 
 from PySide6.QtCore import QObject, Signal
 
@@ -47,6 +48,11 @@ DATE_RANGE_PRESETS: tuple[tuple[str, int], ...] = (
 DEFAULT_RANGE_DAYS = 30
 
 
+class ScheduleFilter(str, Enum):
+    SELECTED_DATE = "selected_date"
+    UNSCHEDULED = "unscheduled"
+
+
 class ReviewCalendarController(QObject):
     entries_changed = Signal()
     selection_changed = Signal()
@@ -56,6 +62,7 @@ class ReviewCalendarController(QObject):
         self.range_days: int = DEFAULT_RANGE_DAYS
         self.entries: list[dict] = []
         self.schedules: list[dict] = []
+        self.schedule_filter = ScheduleFilter.SELECTED_DATE
         self.selected_date: str = date.today().isoformat()
         self.selected_collection_id: int | None = None
         self.selected_card_number: int | None = None
@@ -80,6 +87,25 @@ class ReviewCalendarController(QObject):
     def scheduled_cards_for_date(self, target_date: str | None = None) -> list[dict]:
         target = target_date or self.selected_date
         return [s for s in self.schedules if s.get("next_due_at") == target]
+
+    def unscheduled_current_cards(self) -> list[dict]:
+        return [
+            schedule for schedule in self.schedules
+            if bool(schedule.get("is_active")) and schedule.get("next_due_at") is None
+        ]
+
+    def visible_schedules(self) -> list[dict]:
+        if self.schedule_filter == ScheduleFilter.UNSCHEDULED:
+            return self.unscheduled_current_cards()
+        return self.scheduled_cards_for_date()
+
+    def set_schedule_filter(self, schedule_filter: ScheduleFilter) -> None:
+        selected_filter = ScheduleFilter(schedule_filter)
+        if selected_filter == self.schedule_filter:
+            return
+        self.schedule_filter = selected_filter
+        self.clear_selection()
+        self.entries_changed.emit()
 
     def card_review_count(self) -> int:
         return len(self.card_history)
@@ -187,8 +213,9 @@ class ReviewCalendarController(QObject):
             if self.selected_from_history
             else get_card_review_logs(self.selected_collection_id, self.selected_card_number)
         )
-        # Schedule target isolation: selecting a historical completion event
-        # must NEVER hijack or change the schedule editing target!
+        # Historical Quiz evidence is never an editable schedule target, even
+        # when a current Card was selected immediately before the event.
+        self.current_schedule = None
         if not self.selected_from_history:
             schedule = (
                 None
