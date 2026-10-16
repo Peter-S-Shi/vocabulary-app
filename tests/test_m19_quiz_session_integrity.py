@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -145,6 +146,61 @@ class RepeatedLaunchLeavesExactlyOneActiveSessionTests(_QuizIntegrityTestCase):
         self.assertEqual(self._active_ids(), [second_session_id])
         statuses = dict(self._sessions())
         self.assertEqual(statuses[first_session_id], "cancelled")
+
+    def test_failed_replacement_rolls_back_new_session_and_preserves_old(self) -> None:
+        controller = QuizController()
+        self.assertTrue(controller.start(self._intent()))
+        first_session_id = controller.session_id
+        with db.get_connection() as connection:
+            connection.execute(
+                f"""CREATE TRIGGER reject_cancel_for_test
+                    BEFORE UPDATE OF status ON quiz_sessions
+                    WHEN OLD.id = {first_session_id} AND NEW.status = 'cancelled'
+                    BEGIN SELECT RAISE(ABORT, 'injected cancellation failure'); END"""
+            )
+
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "injected cancellation failure"):
+            controller.start(self._intent())
+
+        self.assertEqual(controller.session_id, first_session_id)
+        self.assertEqual(self._sessions(), [(first_session_id, "active")])
+
+    def test_failed_new_insert_rolls_back_old_cancellation(self) -> None:
+        controller = QuizController()
+        self.assertTrue(controller.start(self._intent()))
+        first_session_id = controller.session_id
+        with db.get_connection() as connection:
+            connection.execute(
+                """CREATE TRIGGER reject_replacement_insert_for_test
+                   BEFORE INSERT ON quiz_sessions
+                   BEGIN SELECT RAISE(ABORT, 'injected insertion failure'); END"""
+            )
+
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "injected insertion failure"):
+            controller.start(self._intent())
+
+        self.assertEqual(controller.session_id, first_session_id)
+        self.assertEqual(self._sessions(), [(first_session_id, "active")])
+
+    def test_atomic_replacement_preserves_cancelled_answer_counts(self) -> None:
+        controller = QuizController()
+        self.assertTrue(controller.start(self._intent()))
+        first_session_id = controller.session_id
+        controller.reveal_answer()
+        self.assertTrue(controller.submit_self_graded(True))
+        controller.reveal_answer()
+        self.assertTrue(controller.submit_self_graded(False))
+
+        self.assertTrue(controller.start(self._intent()))
+        with db.get_connection() as connection:
+            old = connection.execute(
+                "SELECT status, correct_count, wrong_count FROM quiz_sessions WHERE id = ?",
+                (first_session_id,),
+            ).fetchone()
+        self.assertEqual((old["status"], old["correct_count"], old["wrong_count"]),
+                         ("cancelled", 1, 1))
+        self.assertEqual(self._item_log_count(first_session_id), 2)
+        self.assertEqual(self._active_ids(), [controller.session_id])
 
     def test_many_rapid_launches_never_accumulate_active_sessions(self) -> None:
         controller = QuizController()

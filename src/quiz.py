@@ -132,6 +132,7 @@ def create_quiz_session(
     *,
     expected_card_id: int | None = None,
     expected_card_revision_id: int | None = None,
+    replace_session_id: int | None = None,
 ) -> int:
     _validate_quiz_type(quiz_type)
 
@@ -144,8 +145,9 @@ def create_quiz_session(
     now = _now_iso()
 
     with get_connection() as connection:
-        # Serialize the revision check with session insertion for a Card launch.
-        if expected_card_revision_id is not None:
+        # The identity check, old-session cancellation and new insert must
+        # commit together. A rejected launch leaves the old Quiz active.
+        if expected_card_revision_id is not None or replace_session_id is not None:
             connection.execute("BEGIN IMMEDIATE")
         card_identity = None
         if card_number > 0:
@@ -163,6 +165,13 @@ def create_quiz_session(
                 and int(card_identity["card_revision_id"]) != int(expected_card_revision_id)
             ):
                 raise ValueError("The selected Card changed. Reopen it before starting Quiz.")
+        if replace_session_id is not None:
+            previous = connection.execute(
+                "SELECT status FROM quiz_sessions WHERE id = ?", (replace_session_id,)
+            ).fetchone()
+            if previous is None or previous["status"] != "active":
+                raise ValueError("The Quiz session to replace is no longer active.")
+            _cancel_quiz_session_in_connection(connection, replace_session_id)
         cursor = connection.execute(
             """
             INSERT INTO quiz_sessions (
@@ -429,25 +438,29 @@ def mark_quiz_session_completed(session_id: int) -> bool:
         return cursor.rowcount == 1
 
 
+def _cancel_quiz_session_in_connection(connection, session_id: int) -> None:
+    counts = _get_quiz_answer_counts(connection, session_id)
+    connection.execute(
+        """
+        UPDATE quiz_sessions
+        SET
+            correct_count = ?,
+            wrong_count = ?,
+            status = 'cancelled'
+        WHERE id = ?
+          AND status = 'active'
+        """,
+        (
+            counts["correct_count"],
+            counts["wrong_count"],
+            session_id,
+        ),
+    )
+
+
 def mark_quiz_session_cancelled(session_id: int) -> None:
     with get_connection() as connection:
-        counts = _get_quiz_answer_counts(connection, session_id)
-        connection.execute(
-            """
-            UPDATE quiz_sessions
-            SET
-                correct_count = ?,
-                wrong_count = ?,
-                status = 'cancelled'
-            WHERE id = ?
-              AND status = 'active'
-            """,
-            (
-                counts["correct_count"],
-                counts["wrong_count"],
-                session_id,
-            ),
-        )
+        _cancel_quiz_session_in_connection(connection, session_id)
 
 
 def complete_quiz_session(session_id: int) -> dict:

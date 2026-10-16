@@ -239,13 +239,14 @@ class QuizController(QObject):
                 len(items),
                 expected_card_id=intent.card_id if intent.quiz_type == "matching" else None,
                 expected_card_revision_id=matching_card_revision_id,
+                replace_session_id=(
+                    self.session_id if self.completed_session is None else None
+                ),
             )
         except ValueError as error:
             self.start_error = str(error)
             self.state_changed.emit()
             return False
-        if self.session_id is not None and self.completed_session is None:
-            mark_quiz_session_cancelled(self.session_id)
         self.session_id = new_session_id
         self.intent = intent
         self.items = items
@@ -722,13 +723,10 @@ class QuizController(QObject):
         self._reset()
 
     def restart_active(self) -> bool:
-        """Cancel the in-progress session and immediately start a fresh one
-        with the same launch parameters (DESIGN.md coverage matrix's
+        """Atomically replace the in-progress session with a fresh one
+        using the same launch parameters (DESIGN.md coverage matrix's
         "Restart/cancel session confirmation" P6 flow)."""
         intent = self.intent
-        if self.session_id is not None and self.completed_session is None:
-            mark_quiz_session_cancelled(self.session_id)
-        self._reset(silent=True)
         if intent is None:
             return False
         return self.start(intent)
