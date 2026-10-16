@@ -129,6 +129,9 @@ def create_quiz_session(
     card_number: int,
     quiz_type: str,
     total_items: int,
+    *,
+    expected_card_id: int | None = None,
+    expected_card_revision_id: int | None = None,
 ) -> int:
     _validate_quiz_type(quiz_type)
 
@@ -141,6 +144,9 @@ def create_quiz_session(
     now = _now_iso()
 
     with get_connection() as connection:
+        # Serialize the revision check with session insertion for a Card launch.
+        if expected_card_revision_id is not None:
+            connection.execute("BEGIN IMMEDIATE")
         card_identity = None
         if card_number > 0:
             card_identity = get_current_card_identity(
@@ -150,6 +156,13 @@ def create_quiz_session(
             )
             if card_identity is None:
                 raise ValueError("The selected Card has no current stable identity.")
+            if expected_card_id is not None and int(card_identity["card_id"]) != int(expected_card_id):
+                raise ValueError("The selected Card changed. Reopen it before starting Quiz.")
+            if (
+                expected_card_revision_id is not None
+                and int(card_identity["card_revision_id"]) != int(expected_card_revision_id)
+            ):
+                raise ValueError("The selected Card changed. Reopen it before starting Quiz.")
         cursor = connection.execute(
             """
             INSERT INTO quiz_sessions (
@@ -1207,32 +1220,43 @@ def grade_mcq_answer(selected_option: str, correct_option: str) -> bool:
     return selected_option == correct_option
 
 
-def generate_matching_items(collection_id: int, item_count: int) -> dict:
-    if item_count < 2:
-        raise ValueError("Matching quiz requires at least 2 items.")
-
-    collection_entries = get_collection_entries_for_distractors(collection_id)
-
-    if len(collection_entries) < 2:
-        raise ValueError("Matching quiz requires at least 2 entries in the selected collection.")
-
-    unique_meaning_entries = []
+def _entries_with_unique_matching_meanings(entries: list[dict]) -> list[dict]:
+    unique_entries = []
     seen_meanings = set()
-    for entry in _shuffled(collection_entries):
+    for entry in entries:
         normalized_meaning = normalize_answer_text(entry.get("meaning", ""))
         if not normalized_meaning or normalized_meaning in seen_meanings:
             continue
         seen_meanings.add(normalized_meaning)
-        unique_meaning_entries.append(entry)
+        unique_entries.append(entry)
+    return unique_entries
 
-    if len(unique_meaning_entries) < item_count:
+
+def get_card_matching_capacity(
+    collection_id: int, card_number: int, *, include_proficient: bool = True
+) -> int:
+    """Count unambiguous Matching candidates in the selected current Card."""
+    entries = get_entries_for_quiz(
+        collection_id, card_number, include_proficient=include_proficient
+    )
+    return len(_entries_with_unique_matching_meanings(entries))
+
+
+def _generate_matching_items_from_entries(
+    entries: list[dict], item_count: int, *, scope: str
+) -> dict:
+    if item_count < 2:
+        raise ValueError("Matching quiz requires at least 2 items.")
+    if len(entries) < 2:
+        raise ValueError(f"Matching quiz requires at least 2 entries in the selected {scope}.")
+
+    unique_entries = _entries_with_unique_matching_meanings(_shuffled(entries))
+    if len(unique_entries) < item_count:
         raise ValueError(
-            f"The selected collection has only {len(unique_meaning_entries)} entries with unique meanings. Choose a smaller item count."
+            f"The selected {scope} has only {len(unique_entries)} entries with unique meanings. Choose a smaller item count."
         )
 
-    sampled_entries = _sample(unique_meaning_entries, item_count)
-    meaning_choices = shuffle_sequence([entry["meaning"] for entry in sampled_entries])
-
+    sampled_entries = _sample(unique_entries, item_count)
     return {
         "items": [
             {
@@ -1242,8 +1266,30 @@ def generate_matching_items(collection_id: int, item_count: int) -> dict:
             }
             for entry in sampled_entries
         ],
-        "meaning_choices": meaning_choices,
+        "meaning_choices": shuffle_sequence([entry["meaning"] for entry in sampled_entries]),
     }
+
+
+def generate_matching_items(collection_id: int, item_count: int) -> dict:
+    return _generate_matching_items_from_entries(
+        get_collection_entries_for_distractors(collection_id), item_count, scope="collection"
+    )
+
+
+def generate_card_matching_items(
+    collection_id: int,
+    card_number: int,
+    item_count: int,
+    *,
+    include_proficient: bool = True,
+) -> dict:
+    return _generate_matching_items_from_entries(
+        get_entries_for_quiz(
+            collection_id, card_number, include_proficient=include_proficient
+        ),
+        item_count,
+        scope="Card",
+    )
 
 
 def get_proficient_pool_collection() -> dict | None:

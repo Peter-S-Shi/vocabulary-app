@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import replace
 from datetime import date
 from typing import Callable
 
 from PySide6.QtCore import QObject, Signal
 
+from src.card_history import get_current_card_identity
 from src.collections import (
     add_entries_to_system_collection,
     get_card_entries_for_study,
@@ -19,6 +19,7 @@ from src.quiz import (
     create_quiz_items,
     create_quiz_session,
     generate_mcq_items,
+    generate_card_matching_items,
     generate_random_quiz_items,
     get_failed_proficient_pool_entries_for_session,
     get_active_quiz_session,
@@ -174,14 +175,6 @@ class QuizController(QObject):
         whichever state resulted rather than assuming success."""
         self.start_error = None
 
-        if intent.quiz_type == "matching" and intent.card_number != 0:
-            # Defense in depth for the frozen "plain Matching is never
-            # Card-scoped" rule (module docstring) -- normalized here once
-            # rather than relied on from the caller, so the session record
-            # can never disagree with the whole-Collection item set
-            # actually generated.
-            intent = replace(intent, card_number=0, card_id=None)
-
         active = get_active_quiz_session()
         if active is not None and active["id"] != self.session_id:
             self.blocked_session = active
@@ -189,6 +182,22 @@ class QuizController(QObject):
             self.state_changed.emit()
             return False
         self.blocked_session = None
+
+        matching_card_revision_id = None
+        if intent.quiz_type == "matching" and intent.card_number > 0:
+            with get_connection() as connection:
+                current_card = get_current_card_identity(
+                    connection, intent.collection_id, intent.card_number
+                )
+            if (
+                current_card is None
+                or intent.card_id is None
+                or int(current_card["card_id"]) != int(intent.card_id)
+            ):
+                self.start_error = "The selected Card changed. Reopen it before starting Quiz."
+                self.state_changed.emit()
+                return False
+            matching_card_revision_id = int(current_card["card_revision_id"])
 
         try:
             generation = self._generate_items(intent)
@@ -219,22 +228,25 @@ class QuizController(QObject):
             self.state_changed.emit()
             return False
 
-        # This controller's own previous session is still active and was
-        # never completed -- a repeated launch (double-clicked Quick Quiz,
-        # or a second launch action arriving first) would otherwise create
-        # a new session alongside it, leaving two concurrently active rows
-        # and orphaning the first forever (module docstring, M19). Cancel
-        # it: abandoning an active Quiz cancels it, exactly as
-        # exit_active()/cancel_active() already do. Deliberately placed
-        # after generation succeeds, so a launch that fails to build items
-        # never destroys the session already in progress. Already-recorded
-        # answers survive as Entry-level evidence -- the M14 contract keeps
-        # explicitly answered Items eligible under a cancelled session --
-        # and no Card completion is fabricated.
+        # Create only after checking that the generated Card snapshot still has
+        # the same identity and revision. A rejected launch must preserve the
+        # Quiz already in progress; cancel it only after replacement succeeds.
+        try:
+            new_session_id = create_quiz_session(
+                intent.collection_id,
+                intent.card_number,
+                intent.quiz_type,
+                len(items),
+                expected_card_id=intent.card_id if intent.quiz_type == "matching" else None,
+                expected_card_revision_id=matching_card_revision_id,
+            )
+        except ValueError as error:
+            self.start_error = str(error)
+            self.state_changed.emit()
+            return False
         if self.session_id is not None and self.completed_session is None:
             mark_quiz_session_cancelled(self.session_id)
-
-        self.session_id = create_quiz_session(intent.collection_id, intent.card_number, intent.quiz_type, len(items))
+        self.session_id = new_session_id
         self.intent = intent
         self.items = items
         self._starred_entry_ids = set(
@@ -287,10 +299,18 @@ class QuizController(QObject):
             )
 
         if quiz_type == "matching":
-            # Plain Matching is whole-Collection only in the current product
-            # (confirmed: Streamlit always forces card_number=0 for it; no
-            # core function generates a Card-scoped plain-matching set) --
-            # honored here rather than inventing Card-scoped Matching.
+            if intent.card_number > 0:
+                matching = generate_card_matching_items(
+                    intent.collection_id,
+                    intent.card_number,
+                    intent.item_count,
+                    include_proficient=self.include_proficient_in_study,
+                )
+                return {
+                    "quiz_items": matching["items"],
+                    "meaning_choices": matching["meaning_choices"],
+                    "warning": "",
+                }
             return generate_random_quiz_items(intent.collection_id, "matching", intent.item_count)
 
         if intent.card_number == 0:

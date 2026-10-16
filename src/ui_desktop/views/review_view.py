@@ -671,14 +671,12 @@ class _StudyCardSelectorDialog(QDialog):
 
 
 class _ChooseQuizTypeDialog(QDialog):
-    """P6 transient utility (DESIGN.md § 8): choose and start a real Quiz
-    for the current Card -- or, for Matching, the current Collection,
-    since plain Matching is whole-Collection only in the current product
-    (M17 Feature 3's compatibility check; see ``ReviewController.
-    build_choose_quiz_type_intent``). The optional template-aware section
-    only appears when the current Card actually has entries using a
-    template with defined quiz rules -- it is never shown as a fabricated
-    capability."""
+    """P6 utility (DESIGN.md § 8): choose a Quiz for the current Card.
+
+    Plain Matching uses only the selected Card's eligible meanings. The
+    template-aware section appears only when this Card has rule-eligible
+    Entries; it is never shown as a fabricated capability.
+    """
 
     launch_requested = Signal(object)  # QuizLaunchIntent
 
@@ -711,6 +709,13 @@ class _ChooseQuizTypeDialog(QDialog):
             self._matching_count_combo.addItem(f"{count} items", count)
         self._matching_count_combo.setVisible(False)
         layout.addWidget(self._matching_count_combo)
+        self._matching_scope_hint = QLabel(
+            "Matching uses only this Card's eligible entries with distinct meanings.", self
+        )
+        self._matching_scope_hint.setObjectName("review-matching-card-scope-hint")
+        self._matching_scope_hint.setWordWrap(True)
+        self._matching_scope_hint.setVisible(False)
+        layout.addWidget(self._matching_scope_hint)
 
         self._template_sources = controller.available_template_sources()
         self._template_checkbox: QCheckBox | None = None
@@ -766,7 +771,9 @@ class _ChooseQuizTypeDialog(QDialog):
         self._on_template_source_changed(0)
 
     def _on_type_changed(self) -> None:
-        self._matching_count_combo.setVisible(self._type_combo.currentData() == "matching")
+        matching = self._type_combo.currentData() == "matching"
+        self._matching_count_combo.setVisible(matching)
+        self._matching_scope_hint.setVisible(matching)
 
     def _on_template_toggled(self, checked: bool) -> None:
         self._type_combo.setEnabled(not checked)
@@ -808,7 +815,7 @@ class _ChooseQuizTypeDialog(QDialog):
             quiz_type = self._type_combo.currentData()
             matching_count = self._matching_count_combo.currentData() if quiz_type == "matching" else None
             if quiz_type == "matching" and matching_count is None:
-                self._warning_label.setText("This Collection does not have enough entries for Matching.")
+                self._warning_label.setText("This Card needs at least 2 distinct meanings for Matching.")
                 return
             intent = self._controller.build_choose_quiz_type_intent(quiz_type, matching_item_count=matching_count)
 

@@ -7,13 +7,12 @@ from src.collections import (
     add_entries_to_system_collection,
     get_card_entries_for_study,
     get_card_groups_for_collection,
-    get_entries_in_collection,
     get_entry_ids_in_system_collection,
     is_system_collection_id,
     remove_entries_from_system_collection,
 )
 from src.learning_workflow import get_card_learning_history, get_study_cards
-from src.quiz import QUIZ_TYPES
+from src.quiz import QUIZ_TYPES, get_card_matching_capacity
 from src.template_quiz import get_available_template_quiz_sources_for_card, get_template_quiz_rules
 from src.ui_desktop.state.handoff import QUICK_QUIZ_DEFAULT_TYPE, QUIZ_TYPE_LABELS, QuizLaunchIntent
 from src.ui_desktop.state.preferences import Preferences
@@ -47,9 +46,8 @@ it only builds the typed request.
 completion/setup surfaces need the same labels Review does.
 """
 
-# Matches src/ui_streamlit/quiz_page.py's MATCHING_ITEM_COUNTS -- plain
-# Matching is whole-Collection only (see build_choose_quiz_type_intent),
-# so its size is chosen independently of the current Card's entry count.
+# Keep the familiar Matching sizes, bounded by the selected Card's distinct
+# eligible meanings; also offer its exact capacity when between these sizes.
 MATCHING_ITEM_COUNT_OPTIONS: tuple[int, ...] = (4, 6, 8, 10)
 
 
@@ -353,23 +351,14 @@ class ReviewController(QObject):
         if card is None:
             return None
         if quiz_type == "matching":
-            # Plain Matching is whole-Collection only in the current product
-            # (M17 Feature 3 compatibility check: Streamlit always forces
-            # card_number=0 for it, and no core function generates a
-            # Card-scoped plain-matching set) -- never Card-scoped here
-            # either, regardless of which Card Review currently displays.
-            return QuizLaunchIntent(
-                source="review_choose_quiz_type",
-                collection_id=card["collection_id"],
-                collection_name=card["collection_name"],
-                card_number=0,
-                card_id=None,
-                quiz_type="matching",
-                item_count=matching_item_count or self.matching_item_count_options()[0]
-                if self.matching_item_count_options()
-                else 0,
-                reason="Requested from Review's Choose Quiz Type for the current Collection.",
+            options = self.matching_item_count_options()
+            item_count = (
+                matching_item_count
+                if matching_item_count is not None
+                else (options[0] if options else 0)
             )
+        else:
+            item_count = card["entry_count"]
         return QuizLaunchIntent(
             source="review_choose_quiz_type",
             collection_id=card["collection_id"],
@@ -377,7 +366,7 @@ class ReviewController(QObject):
             card_number=card["card_number"],
             card_id=card["card_id"],
             quiz_type=quiz_type,
-            item_count=card["entry_count"],
+            item_count=item_count,
             reason="Requested from Review's Choose Quiz Type for the current Card.",
         )
 
@@ -385,10 +374,14 @@ class ReviewController(QObject):
         card = self.current_card()
         if card is None:
             return []
-        available = len(get_entries_in_collection(card["collection_id"]))
+        available = get_card_matching_capacity(
+            card["collection_id"],
+            card["card_number"],
+            include_proficient=self.include_proficient_in_study,
+        )
         options = [count for count in MATCHING_ITEM_COUNT_OPTIONS if count <= available]
-        if not options and available >= 2:
-            options = [available]
+        if available >= 2 and available not in options:
+            options.append(available)
         return options
 
     # -- template-aware Quiz options -------------------------------------

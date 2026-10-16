@@ -102,7 +102,7 @@ QUIZ_TYPE_LABELS: dict[str, str] = {
     "term_to_meaning_mcq": "Term → Meaning (multiple choice)",
     "meaning_to_term_mcq": "Meaning → Term (multiple choice)",
     "mixed_mcq": "Mixed (multiple choice)",
-    "matching": "Matching (whole Collection)",
+    "matching": "Matching",
     "template_field_self_graded": "Custom field (self-graded)",
     "template_field_mcq": "Custom field (multiple choice)",
     "template_field_matching": "Custom field (matching)",

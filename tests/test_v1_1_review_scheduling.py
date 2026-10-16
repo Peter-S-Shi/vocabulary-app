@@ -18,6 +18,8 @@ from src import db, quiz
 from src.app_config import get_default_db_path
 from src.backup import BACKUP_TABLES, build_full_backup_workbook_bytes, preview_backup_workbook
 from src.card_history import reconcile_collection_card_history
+from src.collections import add_entries_to_collection, create_collection
+from src.entries import add_entry
 from src.learning_workflow import get_card_learning_history, get_card_learning_history_by_id
 from src.migrations import (
     CURRENT_SCHEMA_VERSION,
@@ -38,6 +40,7 @@ from src.review_schedule import (
     set_card_next_review,
 )
 from src.ui_desktop.controllers.quiz_controller import QuizController
+from src.ui_desktop.controllers.review_controller import ReviewController
 from src.ui_desktop.controllers.today_controller import TodayController
 from src.ui_desktop.controllers.review_calendar_controller import ReviewCalendarController
 from src.ui_desktop.views.review_calendar_view import ReviewCalendarView
@@ -513,6 +516,65 @@ class CardCompletionHistoryTests(ReviewScheduleTestCase):
             [row["session_id"] for row in self._history(card_id)],
             [latest["id"], first["id"]],
         )
+
+    def test_card_matching_completion_flows_into_history_and_calendar_schedule(self) -> None:
+        require_isolated_test_database(db.DB_PATH)
+        entry_ids = [
+            add_entry("French", "English", "word", term, meaning)
+            for term, meaning in [
+                ("chat", "cat"), ("chien", "dog"),
+                ("pomme", "apple"), ("poire", "pear"),
+            ]
+        ]
+        collection_id = create_collection("Fictional Matching Progress", card_size=4)
+        add_entries_to_collection(entry_ids, collection_id)
+        review = ReviewController()
+        self.assertTrue(review.open_card(collection_id, 1))
+        selected_card_id = review.current_card()["card_id"]
+        intent = review.build_choose_quiz_type_intent("matching", matching_item_count=4)
+        controller = QuizController()
+        self.assertTrue(controller.start(intent))
+        for item in controller.matching_items():
+            controller.set_matching_selection(item, item["expected_meaning"])
+        self.assertTrue(controller.submit_matching())
+
+        session = controller.completed_session
+        self.assertEqual(session["card_id"], selected_card_id)
+        self.assertIsNotNone(session["card_revision_id"])
+        self.assertEqual(session["correct_count"], 4)
+        self.assertEqual(len(quiz.get_quiz_item_logs(session["id"])), 4)
+        self.assertEqual(
+            [row["session_id"] for row in controller.completion_card_history()],
+            [session["id"]],
+        )
+        completion = QuizView(controller)
+        self.addCleanup(completion.deleteLater)
+        completion._render()
+        self.assertEqual(
+            completion.findChild(QLabel, "quiz-completion-attempt-label").text(),
+            "Quiz #1 for this Card",
+        )
+        self.assertEqual(
+            completion.findChild(QTableWidget, "quiz-completion-card-history").rowCount(),
+            1,
+        )
+
+        calendar = ReviewCalendarController()
+        calendar_view = ReviewCalendarView(calendar)
+        self.addCleanup(calendar_view.deleteLater)
+        calendar_view.refresh()
+        calendar_view.findChild(QComboBox, "review-calendar-schedule-filter").setCurrentIndex(1)
+        schedule_table = calendar_view.findChild(QTableWidget, "review-calendar-schedule-table")
+        self.assertEqual(schedule_table.rowCount(), 1)
+        schedule_table.selectRow(0)
+        next_due = (date.today() + timedelta(days=7)).isoformat()
+        calendar_view.findChild(QDateEdit, "review-calendar-schedule-date").setDate(
+            QDate.fromString(next_due, "yyyy-MM-dd")
+        )
+        calendar_view.findChild(QPushButton, "review-calendar-schedule-save-button").click()
+        self.assertEqual(calendar.current_schedule["card_id"], selected_card_id)
+        self.assertEqual(calendar.current_schedule["next_due_at"], next_due)
+        self.assertEqual(schedule_table.rowCount(), 0)
 
     def test_zero_total_legacy_card_completion_marks_accuracy_unavailable(self) -> None:
         card_id = self._card_id(name="Fictional Zero Item History")

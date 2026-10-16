@@ -35,6 +35,22 @@ merged into `main`. v1.1.0 remains the current published release, and its
 installer does not include these fixes. M22 as a whole is not closed, and no
 new version has shipped.
 
+## M22-B / Card-originated Matching correction
+
+**Post-merge M22-B source state:** Issue #37
+is implemented and merged into `main`. A Quiz launched from a selected Card
+keeps that Card's stable identity; plain Matching draws only its eligible
+Entries with distinct meanings and records the actual Card revision on the
+session. Review's Matching count choices follow the selected Card, with an
+explicit unavailable message when it cannot form two distinct answers.
+Independent Collection and system-pool Quizzes remain separate.
+
+The completed Card Matching session uses the M22-A Card history and next-review
+scheduling paths without synthetic completion evidence. Local targeted tests
+and the architecture audit cover this source change. This snapshot does not
+claim Windows-native human acceptance, a new public release, or an installer
+containing M22-B; v1.1.0 remains the published version.
+
 ## M21 / v1.1.0 Closure
 
 M21 closed the approved v1.1 scope without reopening product development:

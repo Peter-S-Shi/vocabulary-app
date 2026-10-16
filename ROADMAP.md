@@ -2206,6 +2206,22 @@ merged into `main`. Other M22 investigations and product decisions are outside
 M22-A. v1.1.0 remains the current public release; no installer containing
 these fixes has shipped.
 
+## Milestone 22-B: Card-originated Matching after M22-A
+
+**Post-merge M22-B source state:** Issue #37
+is implemented and merged into `main` under the approved Owner Decision.
+Selected-Card Quiz launches retain Card identity. Plain Matching generates
+only from that Card's eligible Entries with distinct meanings, bounds the
+visible item-count choices to that Card, and reports unavailable combinations
+without borrowing Collection Entries. Completed sessions carry real stable
+Card/revision identity into M22-A history and scheduling. Independent
+Collection and system-pool Quiz paths remain available.
+
+Targeted local regression and architecture checks cover implementation;
+Windows-native human acceptance is not claimed here. This source milestone
+is not a new published version or installer. v1.1.0 remains the current
+public release, and M22 as a whole remains open.
+
 ## Maintenance / Next Version
 
 After the current version is complete:
