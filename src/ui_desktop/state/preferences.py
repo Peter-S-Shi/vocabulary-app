@@ -137,14 +137,23 @@ def _parse_voice_bindings(raw_value: object) -> dict[str, str]:
 def save_preferences(preferences: Preferences, path: Path | None = None) -> Path:
     target = path or get_app_preferences_path()
     target.parent.mkdir(parents=True, exist_ok=True)
-    # Maintain legacy fallback accent in sync with active mode's authoritative preset
-    if preferences.appearance == "Dark":
-        preferences.accent = preferences.custom_theme.dark.preset
-    else:
-        preferences.accent = preferences.custom_theme.light.preset
+    
+    # Respect cross-process data relocation lock if present on target parent root
+    from src.data_lock import acquire_data_lock, DataLockError
+    try:
+        with acquire_data_lock(target.parent, exclusive=False):
+            # Maintain legacy fallback accent in sync with active mode's authoritative preset
+            if preferences.appearance == "Dark":
+                preferences.accent = preferences.custom_theme.dark.preset
+            else:
+                preferences.accent = preferences.custom_theme.light.preset
 
-    target.write_text(
-        json.dumps(asdict(preferences), indent=2, sort_keys=True),
-        encoding="utf-8",
-    )
+            target.write_text(
+                json.dumps(asdict(preferences), indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+    except DataLockError as error:
+        raise RuntimeError(
+            f"Cannot save preferences: data folder is locked for relocation: {error}"
+        ) from error
     return target

@@ -114,23 +114,33 @@ The implementation enforces all approved Owner and engineering safety invariants
 - **Sibling-directory staging & atomic promotion:** staging directory is created
   under the target volume's parent filesystem (`<parent>/.vocab-stage-<uuid>`)
   and atomically promoted via `os.replace` to an absent target folder. Existing
-  occupied targets are strictly rejected.
+  occupied targets are strictly rejected even under races, and the target's
+  authoritative provenance marker (`.vocab_app_root_marker.json`) is placed inside
+  the staging directory prior to promotion.
 - **SQLite snapshot consistency:** uses SQLite online backup (`Connection.backup()`)
   to create a coherent database snapshot without raw WAL/SHM copying or forced
   disruptive checkpoints.
-- **Cross-process writer quiescence:** an exclusive file lock (`.app_data.lock`)
-  guards the source directory during relocation against concurrent processes.
-- **Durable recovery journal & fail-closed resolution:** an independent
+- **Cross-process writer quiescence:** an explicit shared vs. exclusive file lock
+  (`.app_data.lock`) guards the data root across processes. Active normal database
+  connections and preference writers acquire shared locks, while relocation acquires
+  an exclusive lock, guaranteeing that active writers block relocation and active
+  relocation blocks writers.
+- **Durable recovery journal & crash-consistent state transitions:** an independent
   migration-recovery journal (`migration-recovery.json`) in the default OS root
-  records committed relocations. If the location pointer (`data-root.json`) is
-  deleted or damaged while the journal survives, startup fails closed with
-  actionable guidance and never reverts silently to a stale default database or
-  creates a blank database.
+  records relocation states (`PREPARED` → `SWITCHING` → `COMMITTED`). An interrupted
+  transition during `SWITCHING` with an intact promoted target is safely forward-rolled
+  on startup, while an interrupted operation with damaged or missing target fails
+  closed without touching the source. If `data-root.json` is missing or damaged after
+  a committed migration, startup fails closed with actionable guidance and never reverts
+  silently to a stale default database or creates a blank database.
+- **Target filesystem preflight & disk space verification:** destination directories
+  are strictly verified against symbolic links/junctions and sufficient disk space
+  is preflight-checked prior to beginning staging.
 - **Retained rollback baseline:** original data files at the source location
   are preserved intact and never deleted.
 - **Settings → Storage UX:** Settings offers an explicit "Move Data Folder..."
   button with preflight validation, understandable confirmation detailing the
-  four migrating components, progress/error reporting, and an immediate
+  four migrating components, non-blocking modal progress tracking, and an immediate
   application restart boundary. When environment overrides (`VOCAB_APP_*`) are
   active, relocation is safely disabled with an informative notice.
 

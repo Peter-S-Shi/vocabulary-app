@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 import sqlite3
 
 from src.app_config import DataRootError, bind_startup_data_paths, resolve_data_paths
@@ -210,6 +210,15 @@ CREATE_INDEXES_SQL = [
 
 def get_connection() -> sqlite3.Connection:
     paths = resolve_data_paths()
+    from src.data_lock import acquire_data_lock, DataLockError
+    try:
+        with acquire_data_lock(paths.data_root, exclusive=False):
+            pass
+    except DataLockError as error:
+        raise DataRootError(
+            f"The Vocabulary App data folder is locked for relocation: {error}"
+        ) from error
+
     if paths.guarded_database:
         if DB_PATH != paths.database:
             raise DataRootError(

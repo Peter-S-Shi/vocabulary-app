@@ -7,11 +7,11 @@ import sqlite3
 import sys
 import tempfile
 import uuid
-from contextlib import closing, contextmanager
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Iterator
+from typing import Callable
 
 from src.app_config import (
     DATA_ROOT_POINTER_NAME,
@@ -23,10 +23,25 @@ from src.app_config import (
     get_default_data_dir,
     resolve_data_paths,
 )
+from src.data_lock import acquire_data_lock, DataLockError
+from contextlib import contextmanager
+from typing import Iterator
 
 
 class RelocationError(RuntimeError):
     """Raised when data folder relocation cannot proceed safely."""
+
+
+@contextmanager
+def acquire_quiescence_lock(root: Path) -> Iterator[None]:
+    """Acquires a cross-process exclusive lock on the data root during relocation."""
+    try:
+        with acquire_data_lock(root, exclusive=True):
+            yield
+    except DataLockError as error:
+        raise RelocationError(
+            "Another Vocabulary App process or migration is actively using this data folder."
+        ) from error
 
 
 @dataclass(frozen=True)
@@ -46,49 +61,25 @@ class RelocationResult:
     detail: str
 
 
-@contextmanager
-def acquire_quiescence_lock(root: Path) -> Iterator[None]:
-    """Acquires a cross-process lock on the data root during relocation."""
-    root.mkdir(parents=True, exist_ok=True)
-    lock_file = root / ".app_data.lock"
-    handle = None
-    try:
-        handle = open(lock_file, "a+b")
-        if sys.platform == "win32":
-            import msvcrt
-            try:
-                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-            except OSError as error:
-                raise RelocationError(
-                    "Another Vocabulary App process or migration is actively using this data folder."
-                ) from error
-        else:
-            import fcntl
-            try:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except OSError as error:
-                raise RelocationError(
-                    "Another Vocabulary App process or migration is actively using this data folder."
-                ) from error
-        yield
-    finally:
-        if handle is not None:
-            try:
-                if sys.platform == "win32":
-                    import msvcrt
-                    try:
-                        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
-                    except OSError:
-                        pass
-                else:
-                    import fcntl
-                    try:
-                        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-                    except OSError:
-                        pass
-                handle.close()
-            except OSError:
-                pass
+def _get_tree_size_and_validate(path: Path) -> int:
+    """Calculate the total size of regular files in a directory while rejecting symlinks."""
+    total_size = 0
+    if not path.exists():
+        return 0
+    if _is_link(path):
+        raise RelocationError(f"Directory '{path}' is a link or junction, which is not permitted.")
+    for root, dirs, files in os.walk(path):
+        root_path = Path(root)
+        for d in dirs:
+            dir_path = root_path / d
+            if _is_link(dir_path):
+                raise RelocationError(f"Subdirectory '{dir_path}' is a link or junction, which is not permitted.")
+        for f in files:
+            file_path = root_path / f
+            if _is_link(file_path):
+                raise RelocationError(f"File '{file_path}' is a link, which is not permitted.")
+            total_size += file_path.stat().st_size
+    return total_size
 
 
 def plan_relocation(
@@ -115,7 +106,6 @@ def plan_relocation(
         if target.is_relative_to(source):
             raise RelocationError("Target folder cannot be inside the current data folder.")
     except AttributeError:
-        # Fallback for older python
         if str(target).startswith(str(source)):
             raise RelocationError("Target folder cannot be inside the current data folder.")
 
@@ -136,6 +126,29 @@ def plan_relocation(
         raise RelocationError("Target parent directory cannot be a symbolic link or junction.")
 
     _require_writable_directory(target_parent)
+
+    # Estimate required space (db + backups + cache + preferences + 10MB safety buffer)
+    required_bytes = 10 * 1024 * 1024
+    source_db = source / "vocab.db"
+    if source_db.is_file():
+        required_bytes += source_db.stat().st_size
+    for child_name in ("backups", "audio-cache"):
+        child = source / child_name
+        if child.is_dir():
+            required_bytes += _get_tree_size_and_validate(child)
+    source_prefs = source / "preferences.json"
+    if source_prefs.is_file():
+        required_bytes += source_prefs.stat().st_size
+
+    try:
+        disk_stat = shutil.disk_usage(target_parent)
+        if disk_stat.free < required_bytes:
+            raise RelocationError(
+                f"Insufficient disk space on destination: {disk_stat.free // (1024*1024)} MB available, "
+                f"at least {required_bytes // (1024*1024)} MB required."
+            )
+    except OSError as error:
+        raise RelocationError(f"Could not verify destination disk space: {error}") from error
 
     marker_uuid = uuid.uuid4().hex[:12]
     staging_dir = target_parent / f".vocab-stage-{marker_uuid}"
@@ -165,20 +178,24 @@ def execute_relocation(
     if progress_callback:
         progress_callback("Locking source data folder...", 0.05)
 
-    with acquire_quiescence_lock(plan.source_root):
-        plan.staging_dir.mkdir(parents=True, exist_ok=False)
-        stage_marker = plan.staging_dir / ".vocab_stage_marker.json"
-        stage_marker.write_text(
-            json.dumps({
-                "version": 1,
-                "marker_uuid": plan.marker_uuid,
-                "target_dir": str(plan.target_dir),
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            }),
-            encoding="utf-8",
-        )
+    try:
+        with acquire_data_lock(plan.source_root, exclusive=True):
+            # Check target again right under lock
+            if plan.target_dir.exists():
+                raise RelocationError("Target folder already exists and is occupied.")
 
-        try:
+            plan.staging_dir.mkdir(parents=True, exist_ok=False)
+            stage_marker = plan.staging_dir / ".vocab_stage_marker.json"
+            stage_marker.write_text(
+                json.dumps({
+                    "version": 1,
+                    "marker_uuid": plan.marker_uuid,
+                    "target_dir": str(plan.target_dir),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }),
+                encoding="utf-8",
+            )
+
             source_db = plan.source_root / "vocab.db"
             if not source_db.is_file():
                 raise RelocationError("Source folder has no regular vocab.db database.")
@@ -240,18 +257,9 @@ def execute_relocation(
                     except OSError:
                         pass
 
-            if progress_callback:
-                progress_callback("Promoting target folder...", 0.85)
-
-            # Remove stage marker before promoting to final target
-            if stage_marker.exists():
-                stage_marker.unlink()
-
-            # Atomic promotion: sibling rename on same filesystem
-            os.replace(plan.staging_dir, plan.target_dir)
-
-            # Write root marker in target directory
-            root_marker = plan.target_dir / ROOT_MARKER_NAME
+            # Pre-write root marker inside staging directory BEFORE promotion.
+            # This guarantees that the instant target_dir appears on disk, it contains its provenance marker!
+            root_marker = plan.staging_dir / ROOT_MARKER_NAME
             root_marker.write_text(
                 json.dumps({
                     "version": 1,
@@ -263,10 +271,14 @@ def execute_relocation(
                 encoding="utf-8",
             )
 
-            if progress_callback:
-                progress_callback("Updating durable journal and locator...", 0.95)
+            # Remove stage marker before promoting to final target
+            if stage_marker.exists():
+                stage_marker.unlink()
 
-            # Update durable recovery journal
+            if progress_callback:
+                progress_callback("Recording pending migration transition...", 0.80)
+
+            # Journal state transition: SWITCHING
             journal_path = def_root / RECOVERY_JOURNAL_NAME
             existing_history: list[dict] = []
             next_seq = 1
@@ -280,6 +292,35 @@ def execute_relocation(
                 except Exception:
                     pass
 
+            switching_journal_data = {
+                "version": 1,
+                "status": "SWITCHING",
+                "pending_target_root": str(plan.target_dir),
+                "latest_committed_root": str(plan.source_root),
+                "history": existing_history,
+            }
+            with tempfile.NamedTemporaryFile("w", dir=def_root, delete=False, encoding="utf-8") as temp_j:
+                temp_j.write(json.dumps(switching_journal_data, indent=2))
+                temp_j.flush()
+                os.fsync(temp_j.fileno())
+                temp_j_name = temp_j.name
+            os.replace(temp_j_name, journal_path)
+
+            if progress_callback:
+                progress_callback("Promoting target folder...", 0.88)
+
+            # Prevent overwriting occupied target under races
+            if plan.target_dir.exists():
+                raise RelocationError(
+                    f"Destination folder '{plan.target_dir}' was created or occupied during relocation."
+                )
+
+            # Atomic promotion: sibling rename on same filesystem
+            os.replace(plan.staging_dir, plan.target_dir)
+
+            if progress_callback:
+                progress_callback("Updating durable journal and locator...", 0.95)
+
             new_history_entry = {
                 "sequence": next_seq,
                 "committed_at": datetime.now(timezone.utc).isoformat(),
@@ -291,19 +332,14 @@ def execute_relocation(
             }
             existing_history.append(new_history_entry)
 
-            journal_data = {
+            committed_journal_data = {
                 "version": 1,
+                "status": "COMMITTED",
                 "latest_committed_root": str(plan.target_dir),
                 "history": existing_history,
             }
 
-            # Atomic write journal via tempfile + replace
-            with tempfile.NamedTemporaryFile("w", dir=def_root, delete=False, encoding="utf-8") as temp_j:
-                temp_j.write(json.dumps(journal_data, indent=2))
-                temp_j_name = temp_j.name
-            os.replace(temp_j_name, journal_path)
-
-            # Atomic write pointer via tempfile + replace
+            # Atomic write pointer via tempfile + flush + fsync + replace
             pointer_path = def_root / DATA_ROOT_POINTER_NAME
             pointer_data = {
                 "version": 1,
@@ -311,8 +347,18 @@ def execute_relocation(
             }
             with tempfile.NamedTemporaryFile("w", dir=def_root, delete=False, encoding="utf-8") as temp_p:
                 temp_p.write(json.dumps(pointer_data, indent=2))
+                temp_p.flush()
+                os.fsync(temp_p.fileno())
                 temp_p_name = temp_p.name
             os.replace(temp_p_name, pointer_path)
+
+            # Atomic write journal via tempfile + flush + fsync + replace
+            with tempfile.NamedTemporaryFile("w", dir=def_root, delete=False, encoding="utf-8") as temp_j:
+                temp_j.write(json.dumps(committed_journal_data, indent=2))
+                temp_j.flush()
+                os.fsync(temp_j.fileno())
+                temp_j_name = temp_j.name
+            os.replace(temp_j_name, journal_path)
 
             if progress_callback:
                 progress_callback("Relocation complete.", 1.0)
@@ -325,10 +371,14 @@ def execute_relocation(
                 detail="Relocation completed successfully. Restart required.",
             )
 
-        except Exception as error:
-            # Cleanup staging directory on error
-            if plan.staging_dir.exists():
-                shutil.rmtree(plan.staging_dir, ignore_errors=True)
-            if isinstance(error, RelocationError):
-                raise
-            raise RelocationError(f"Relocation failed: {error}") from error
+    except Exception as error:
+        # Cleanup staging directory on error if it still exists
+        if plan.staging_dir.exists():
+            shutil.rmtree(plan.staging_dir, ignore_errors=True)
+        if isinstance(error, RelocationError):
+            raise
+        if isinstance(error, DataLockError):
+            raise RelocationError(
+                f"Cannot start relocation: another Vocabulary App process or writer is actively using this data folder: {error}"
+            ) from error
+        raise RelocationError(f"Relocation failed: {error}") from error

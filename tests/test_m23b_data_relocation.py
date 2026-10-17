@@ -316,6 +316,117 @@ class M23BRelocationEngineTests(unittest.TestCase):
             self.assertEqual(row[0], "wal_meaning")
 
 
+    def test_subprocess_normal_writer_blocks_relocation_and_vice_versa(self) -> None:
+        """Verify that an active normal data writer (holding a shared lock) blocks
+        relocation (which requires an exclusive lock), and active relocation blocks writers.
+        """
+        from src.data_lock import acquire_data_lock, DataLockError
+        from src.data_relocation import plan_relocation, execute_relocation, RelocationError
+
+        target = self.home / "drive_d" / "SubprocessDataTarget"
+        target.parent.mkdir()
+        plan = plan_relocation(target, source_root=self.local_root)
+
+        # 1. Normal app writer holds shared lock: relocation must be blocked
+        with acquire_data_lock(self.local_root, exclusive=False):
+            with self.assertRaises(RelocationError) as ctx:
+                execute_relocation(plan, default_root=self.local_root)
+            self.assertIn("actively using", str(ctx.exception))
+
+        # 2. Relocation holding exclusive lock: normal writer must be blocked
+        with acquire_data_lock(self.local_root, exclusive=True):
+            with self.assertRaises(DataLockError):
+                with acquire_data_lock(self.local_root, exclusive=False):
+                    pass
+
+    def test_crash_recovery_forward_rolls_interrupted_switching_state(self) -> None:
+        """If a crash occurred after promoting target and writing SWITCHING journal,
+        resolve_data_paths() must forward-roll pointer and journal to COMMITTED.
+        """
+        target = self.home / "drive_d" / "InterruptedSwitchingTarget"
+        target.mkdir(parents=True)
+        _create_fictional_app_database(target / "vocab.db")
+
+        # Target has root marker
+        marker = target / app_config.ROOT_MARKER_NAME
+        marker.write_text(
+            json.dumps({
+                "version": 1,
+                "marker_uuid": "test_crash_uuid",
+                "source_root": str(self.local_root),
+                "target_root": str(target),
+                "relocated_at": "2026-10-17T12:00:00Z",
+            }),
+            encoding="utf-8",
+        )
+
+        # Journal is in SWITCHING state, pointer does not exist yet
+        journal_path = self.local_root / app_config.RECOVERY_JOURNAL_NAME
+        journal_path.write_text(
+            json.dumps({
+                "version": 1,
+                "status": "SWITCHING",
+                "pending_target_root": str(target),
+                "latest_committed_root": str(self.local_root),
+                "history": [],
+            }),
+            encoding="utf-8",
+        )
+
+        pointer_path = self.local_root / app_config.DATA_ROOT_POINTER_NAME
+        self.assertFalse(pointer_path.exists())
+
+        with patch.dict(os.environ, {
+            "LOCALAPPDATA": str(self.home / "local"),
+            "VOCAB_APP_DB_PATH": "",
+            "VOCAB_APP_BACKUP_DIR": "",
+            "VOCAB_APP_AUDIO_CACHE_DIR": "",
+            "VOCAB_APP_PREFERENCES_PATH": "",
+        }):
+            # Calling resolve_data_paths() should recover the transition
+            paths = app_config.resolve_data_paths()
+            self.assertEqual(paths.data_root, target.resolve())
+
+            # Pointer should have been written
+            self.assertTrue(pointer_path.exists())
+            pointer_data = json.loads(pointer_path.read_text(encoding="utf-8"))
+            self.assertEqual(pointer_data["data_root"], str(target))
+
+            # Journal should have been updated to COMMITTED
+            journal_data = json.loads(journal_path.read_text(encoding="utf-8"))
+            self.assertEqual(journal_data["status"], "COMMITTED")
+            self.assertEqual(journal_data["latest_committed_root"], str(target))
+
+    def test_crash_recovery_switching_corrupt_target_fails_closed(self) -> None:
+        """If SWITCHING state points to an incomplete/corrupt target, fail closed with DataRootError."""
+        target = self.home / "drive_d" / "IncompleteTarget"
+        target.mkdir(parents=True)
+        # No DB, no marker
+
+        journal_path = self.local_root / app_config.RECOVERY_JOURNAL_NAME
+        journal_path.write_text(
+            json.dumps({
+                "version": 1,
+                "status": "SWITCHING",
+                "pending_target_root": str(target),
+                "latest_committed_root": str(self.local_root),
+                "history": [],
+            }),
+            encoding="utf-8",
+        )
+
+        with patch.dict(os.environ, {
+            "LOCALAPPDATA": str(self.home / "local"),
+            "VOCAB_APP_DB_PATH": "",
+            "VOCAB_APP_BACKUP_DIR": "",
+            "VOCAB_APP_AUDIO_CACHE_DIR": "",
+            "VOCAB_APP_PREFERENCES_PATH": "",
+        }):
+            with self.assertRaises(app_config.DataRootError) as ctx:
+                app_config.resolve_data_paths()
+            self.assertIn("target verification failed", str(ctx.exception))
+
+
 if __name__ == "__main__":
     unittest.main()
 

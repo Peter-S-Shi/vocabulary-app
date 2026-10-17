@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMessageBox,
+    QProgressDialog,
     QPushButton,
     QScrollArea,
     QTabWidget,
@@ -987,9 +988,29 @@ class SettingsView(QWidget):
         if reply != QMessageBox.StandardButton.Yes:
             return
 
+        progress_dialog = QProgressDialog(
+            "Preparing data relocation...",
+            None,  # No cancel button: relocation is a critical atomic boundary once started
+            0,
+            100,
+            self,
+        )
+        progress_dialog.setWindowTitle("Relocating Data Folder")
+        progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+        progress_dialog.setMinimumDuration(0)
+        progress_dialog.setValue(5)
+        QApplication.processEvents()
+
+        def update_progress(message: str, fraction: float) -> None:
+            progress_dialog.setLabelText(message)
+            progress_dialog.setValue(int(fraction * 100))
+            QApplication.processEvents()
+
         try:
             plan = self._controller.plan_data_relocation(target_path)
-            res = self._controller.execute_data_relocation(plan)
+            res = self._controller.execute_data_relocation(plan, progress_callback=update_progress)
+            progress_dialog.setValue(100)
+            progress_dialog.close()
             if res.success:
                 QMessageBox.information(
                     self,
@@ -1002,6 +1023,7 @@ class SettingsView(QWidget):
                 if app is not None:
                     app.quit()
         except Exception as error:
+            progress_dialog.close()
             QMessageBox.critical(
                 self,
                 "Relocation Failed",

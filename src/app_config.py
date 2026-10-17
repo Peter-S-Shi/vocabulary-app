@@ -171,10 +171,54 @@ def resolve_data_paths() -> DataPaths:
             if journal_path.stat().st_size > 65536:
                 raise ValueError("recovery journal is too large")
             raw_journal = json.loads(journal_path.read_text(encoding="utf-8"))
-            if not isinstance(raw_journal, dict) or "latest_committed_root" not in raw_journal:
+            if not isinstance(raw_journal, dict):
                 raise ValueError("recovery journal has an invalid format")
+            
+            # Crash recovery check: if journal was left in SWITCHING state
+            status = raw_journal.get("status")
+            if status == "SWITCHING":
+                pending_root_str = raw_journal.get("pending_target_root")
+                if not isinstance(pending_root_str, str) or not pending_root_str.strip():
+                    raise ValueError("recovery journal left in SWITCHING state without valid pending_target_root")
+                pending_root = Path(pending_root_str).resolve()
+                marker = pending_root / ROOT_MARKER_NAME
+                pending_db = pending_root / "vocab.db"
+                # If target was fully promoted with root marker and valid DB, forward-roll to COMMITTED
+                if pending_root.is_dir() and not _is_link(pending_root) and marker.is_file() and pending_db.is_file():
+                    _validate_relocated_database(pending_db)
+                    # Forward-roll pointer
+                    pointer_data = {"version": 1, "data_root": str(pending_root)}
+                    with tempfile.NamedTemporaryFile("w", dir=default_root, delete=False, encoding="utf-8") as temp_p:
+                        temp_p.write(json.dumps(pointer_data, indent=2))
+                        temp_p.flush()
+                        os.fsync(temp_p.fileno())
+                        temp_p_name = temp_p.name
+                    os.replace(temp_p_name, pointer)
+                    pointer_present = True
+
+                    # Forward-roll journal to COMMITTED
+                    raw_journal["status"] = "COMMITTED"
+                    raw_journal["latest_committed_root"] = str(pending_root)
+                    raw_journal.pop("pending_target_root", None)
+                    with tempfile.NamedTemporaryFile("w", dir=default_root, delete=False, encoding="utf-8") as temp_j:
+                        temp_j.write(json.dumps(raw_journal, indent=2))
+                        temp_j.flush()
+                        os.fsync(temp_j.fileno())
+                        temp_j_name = temp_j.name
+                    os.replace(temp_j_name, journal_path)
+                else:
+                    raise ValueError(
+                        f"Relocation transition was interrupted during SWITCHING to '{pending_root}', "
+                        "and target verification failed"
+                    )
+
+            if "latest_committed_root" not in raw_journal:
+                raise ValueError("recovery journal has an invalid format")
+            latest_val = raw_journal["latest_committed_root"]
+            if not isinstance(latest_val, str) or not latest_val.strip():
+                raise ValueError("recovery journal has an invalid committed root")
             journal_record = raw_journal
-        except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError, sqlite3.Error) as error:
             raise _data_root_error(f"recovery journal error: {error}") from error
 
     if not complete_override and journal_record is not None and not pointer_present:
