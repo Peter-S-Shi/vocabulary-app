@@ -40,12 +40,17 @@ and post-merge `main` CI passed. The product owner reported Windows-native
 Human Acceptance PASS, recorded in Issue #39. These changes have not shipped
 in an installer.
 
-The post-merge M23-A source state prepares Issue #43's safe, unified data-folder
-relocation with a startup pointer and fail-closed resolution for SQLite,
-backups, audio cache and preferences. This statement is one step ahead of
-the M23-A branch: independent audit and PR merge remain pending. Settings
-does not yet move data or offer a folder chooser; M23-B will address verified
-copy, switch and rollback. v1.1.0 remains the published installer.
+The post-merge M23-A source state established Issue #43's safe data-root startup
+pointer and fail-closed resolution for SQLite, backups, audio cache and preferences.
+PR #49 passed required CI and merged M23-A into `main`.
+
+The post-merge M23-B/C source state completes Issue #43 with a unified data-folder
+relocation engine and native Settings → Storage workflow, allowing users to safely
+move their data to another drive (e.g. `D:\VocabularyAppData`) with verified staging,
+durable recovery journal, atomic promotion, retained rollback baseline, and clean
+restart boundaries. This statement is one step ahead: at branch publication,
+independent audit, PR merge, and Windows-native Human Acceptance are pending.
+v1.1.0 remains the published release; no installer with M23-B/C has shipped.
 
 ## See it
 

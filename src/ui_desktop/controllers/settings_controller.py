@@ -1,11 +1,27 @@
 from __future__ import annotations
 
 import copy
+import os
+from typing import Callable
 from pathlib import Path
 from PySide6.QtCore import QObject, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 
-from src.app_config import APP_VERSION, get_app_storage_summary
+from src.app_config import (
+    APP_VERSION,
+    DATABASE_PATH_ENV,
+    BACKUP_DIR_ENV,
+    AUDIO_CACHE_PATH_ENV,
+    APP_PREFERENCES_PATH_ENV,
+    get_app_storage_summary,
+    resolve_data_paths,
+)
+from src.data_relocation import (
+    RelocationPlan,
+    RelocationResult,
+    plan_relocation,
+    execute_relocation,
+)
 from src.tts_providers import InstalledVoice, list_installed_voices, list_installed_voices_for_language
 from src.ui_desktop.state.preferences import Preferences, parse_quiz_presentation, save_preferences
 from src.ui_desktop.state.tts_runtime import SOURCE_LABELS, resolve_voice_binding
@@ -257,6 +273,38 @@ class SettingsController(QObject):
         Streamlit Settings/Data page already reads -- no second path-
         resolution implementation, no mutation."""
         return get_app_storage_summary()
+
+    def has_storage_override(self) -> bool:
+        """Returns True if any VOCAB_APP_* environment override is set."""
+        for env_var in (
+            DATABASE_PATH_ENV,
+            BACKUP_DIR_ENV,
+            AUDIO_CACHE_PATH_ENV,
+            APP_PREFERENCES_PATH_ENV,
+        ):
+            if os.environ.get(env_var, "").strip():
+                return True
+        return False
+
+    def can_relocate_data(self) -> bool:
+        """Relocation in Settings is disabled when environment overrides are active."""
+        return not self.has_storage_override()
+
+    def current_data_root(self) -> Path:
+        """Returns the currently resolved data root folder."""
+        return resolve_data_paths().data_root
+
+    def plan_data_relocation(self, target_dir: Path) -> RelocationPlan:
+        """Prepares and validates a relocation plan for target_dir."""
+        return plan_relocation(target_dir, source_root=self.current_data_root())
+
+    def execute_data_relocation(
+        self,
+        plan: RelocationPlan,
+        progress_callback: Callable[[str, float], None] | None = None,
+    ) -> RelocationResult:
+        """Executes unified data relocation with consistent snapshots and staging."""
+        return execute_relocation(plan, progress_callback=progress_callback)
 
     # -- Software Update (Phase E Level 1 Update Awareness) ------------------
 

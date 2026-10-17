@@ -119,11 +119,21 @@ bypass a damaged pointer for advanced recovery only when the overridden
 database already exists and passes validation; this is not an in-app
 migration. Settings continues to identify environment-selected paths.
 
-**M23-B design review:** verified staging must copy and validate the complete
-data set, reject occupied targets, coordinate with running instances, switch
-the pointer atomically only after a safe copy, retain the previous root for
-rollback, and restart before opening the new root. An absent pointer is
-indistinguishable from an installation that never relocated. Before M23-B
-implements switching, the Owner should review a durable committed-state
-marker or equivalent recovery record so accidental pointer removal cannot
-silently reopen old default data. No such migration mechanism is in M23-A.
+## M23-B/C unified data relocation and Settings storage workflow
+
+The M23-B/C source implements unified, confirmed data-folder relocation via
+Settings → Storage. Key invariants:
+- **Unified 4-component scope:** SQLite database, backups, audio cache, and
+  preferences relocate together.
+- **Sibling-directory staging & atomic promotion:** staging directory is created
+  under the target parent filesystem (`<parent>/.vocab-stage-<uuid>`) and atomically
+  promoted via `os.replace` to an unoccupied destination folder.
+- **SQLite snapshot consistency:** uses SQLite online backup (`Connection.backup()`)
+  without raw WAL/SHM copying.
+- **Cross-process writer quiescence:** exclusive file lock (`.app_data.lock`) guards
+  the source folder during relocation.
+- **Durable recovery journal:** `migration-recovery.json` in the default OS root
+  records committed migrations. If `data-root.json` is missing while the journal
+  survives, startup fails closed with actionable recovery guidance.
+- **Retained rollback baseline:** source files are preserved intact and never deleted.
+- **Restart boundary:** requires immediate application restart after cutover.

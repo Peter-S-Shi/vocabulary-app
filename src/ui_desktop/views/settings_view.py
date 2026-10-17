@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QColorDialog,
     QComboBox,
+    QFileDialog,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QTabWidget,
@@ -400,6 +405,25 @@ class SettingsView(QWidget):
             ("Path source", str(storage["path_source"])),
         ):
             root.addWidget(self._build_info_row(label_text, value))
+
+        # Storage relocation action row
+        move_row = QWidget(body)
+        move_row.setObjectName("settings-storage-action-row")
+        move_layout = QHBoxLayout(move_row)
+        move_layout.setContentsMargins(0, SPACING.sm, 0, SPACING.sm)
+        move_layout.setSpacing(SPACING.md)
+
+        self._storage_move_btn = QPushButton("Move Data Folder...", move_row)
+        self._storage_move_btn.setObjectName("settings-storage-move-button")
+        self._storage_move_btn.clicked.connect(self._on_move_data_folder_clicked)
+        move_layout.addWidget(self._storage_move_btn, 0)
+
+        self._storage_move_note = QLabel(move_row)
+        self._storage_move_note.setObjectName("settings-storage-move-note")
+        self._storage_move_note.setWordWrap(True)
+        move_layout.addWidget(self._storage_move_note, 1)
+
+        root.addWidget(move_row)
 
         root.addStretch(1)
 
@@ -840,6 +864,18 @@ class SettingsView(QWidget):
         # Sync Software Update Section (Phase E)
         self._sync_update_ui()
 
+        # Sync Storage Relocation Controls (M23-C)
+        can_relocate = self._controller.can_relocate_data()
+        self._storage_move_btn.setEnabled(can_relocate)
+        if can_relocate:
+            self._storage_move_note.setText(
+                "Choose a parent folder on another drive or partition to safely move your data."
+            )
+        else:
+            self._storage_move_note.setText(
+                "Cannot move data folder while environment overrides (VOCAB_APP_*) are active."
+            )
+
     def _sync_update_ui(self) -> None:
         result = self._controller.update_result()
         is_checking = self._controller.is_checking_updates()
@@ -911,3 +947,64 @@ class SettingsView(QWidget):
         value = self._quiz_presentation_combo.itemData(index)
         if value is not None:
             self._controller.set_quiz_presentation(value)
+
+    def _on_move_data_folder_clicked(self) -> None:
+        source_root = self._controller.current_data_root()
+        chosen_dir = QFileDialog.getExistingDirectory(
+            self,
+            "Select Parent Folder for New Data Directory",
+            str(Path.home()),
+            QFileDialog.Option.ShowDirsOnly,
+        )
+        if not chosen_dir:
+            return
+
+        chosen_path = Path(chosen_dir).resolve()
+        target_path = chosen_path / "VocabularyAppData"
+
+        confirm_text = (
+            "Vocabulary App will relocate your user data from:\n"
+            f"  {source_root}\n\n"
+            "To:\n"
+            f"  {target_path}\n\n"
+            "The following items will be migrated together:\n"
+            "  • SQLite database (vocab.db)\n"
+            "  • Application backups\n"
+            "  • Audio cache\n"
+            "  • Preferences and theme settings\n\n"
+            "Safety guarantee:\n"
+            "  Your original files will be safely retained at the source location.\n\n"
+            "Notice: The application will close after relocation completes.\n\n"
+            "Do you want to proceed?"
+        )
+        reply = QMessageBox.question(
+            self,
+            "Confirm Data Relocation",
+            confirm_text,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            plan = self._controller.plan_data_relocation(target_path)
+            res = self._controller.execute_data_relocation(plan)
+            if res.success:
+                QMessageBox.information(
+                    self,
+                    "Relocation Successful",
+                    "Data relocation completed successfully.\n\n"
+                    f"New data location:\n{target_path}\n\n"
+                    "Vocabulary App will now exit. Please restart the application to use your new data folder.",
+                )
+                app = QApplication.instance()
+                if app is not None:
+                    app.quit()
+        except Exception as error:
+            QMessageBox.critical(
+                self,
+                "Relocation Failed",
+                f"Data relocation could not be completed:\n\n{error}\n\n"
+                f"Your original data remains unchanged at:\n{source_root}",
+            )

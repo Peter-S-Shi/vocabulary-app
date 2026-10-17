@@ -2266,12 +2266,26 @@ with recovery guidance, and an active process rejects pointer changes until
 restart. The source and packaged desktop entry paths share this failure
 handling. No database schema, user files or installer behavior is migrated.
 
-This source statement is one step ahead of the implementation branch;
-independent audit and PR merge are pending. M23-B must provide confirmed
-folder selection, verified full-data staging, atomic pointer switch, restart,
-and rollback. The pointer-removal ambiguity needs Owner review before M23-B;
-see `docs/policies/DATA_STORAGE.md`. v1.1.0 remains the public release;
+PR #49 passed required CI and merged M23-A into `main`. Native acceptance was
+deferred to the combined M23-B/C delivery. v1.1.0 remains the public release;
 M23-A has not shipped in an installer.
+
+## Milestone 23-B/C: Unified data relocation and Settings storage workflow
+
+**Post-merge M23-B/C source state:** Issue #43 is fully implemented and merged into
+`main`. Users can safely relocate their durable user data (SQLite database, backups,
+audio cache, and preferences) together via Settings → Storage to another drive or
+folder. The implementation enforces sibling-directory staging under the target parent
+filesystem, atomic target promotion to an absent directory, SQLite snapshot consistency
+via online backup without raw WAL copying, cross-process writer quiescence locking,
+and a durable independent migration-recovery journal in the default OS root that
+fails closed if the locator pointer is damaged or deleted. Original data files are
+safely retained as rollback baseline.
+
+This section intentionally describes the post-merge source state one step ahead;
+independent remote audit, PR merge, and Windows-native Human Acceptance are pending.
+v1.1.0 remains the public release; no installer with M23-B/C has shipped, and Issue #43
+is resolved at the source level.
 
 ## Maintenance / Next Version
 

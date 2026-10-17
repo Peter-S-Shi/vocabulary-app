@@ -88,8 +88,8 @@ these source changes have not shipped in an installer.
 
 ## M23-A / Issue #43 data-root startup safety foundation
 
-**Post-merge M23-A source state:** the approved unified-storage contract now
-has one startup path resolver and a minimal versioned bootstrap pointer at the
+**Post-merge M23-A source state:** the approved unified-storage contract has
+one startup path resolver and a minimal versioned bootstrap pointer at the
 default data location. When no pointer exists, v1.1.0 paths and explicit
 environment-override precedence remain unchanged. A configured root must
 exist with a valid SQLite database before database initialization; damaged or
@@ -98,13 +98,47 @@ creating a blank database or falling back. SQLite, backups, audio cache and
 preferences resolve together under a valid selected root, and a running
 process rejects a pointer change until restart.
 
-This section describes the intended post-merge source state one step ahead;
-independent remote audit and PR merge are pending at branch publication.
-M23-A does not expose a Settings folder chooser, migrate files, or complete
-Issue #43. M23-B must add verified staging, atomic switch and rollback; the
-missing-pointer ambiguity is recorded for Owner review in
-`docs/policies/DATA_STORAGE.md`. v1.1.0 remains the published release, and
-no installer with M23-A has shipped.
+PR #49 passed required PR checks and merged M23-A into `main`. Native Human
+Acceptance was deferred to the consolidated M23-B/C workflow. v1.1.0 remains the
+published release; no installer with M23-A has shipped.
+
+## M23-B/C / Unified data relocation engine and Settings storage workflow
+
+**Post-merge M23-B/C source state:** Issue #43 is fully implemented and merged
+into `main`. Vocabulary App provides a safe, unified data-relocation engine and
+native Settings → Storage folder chooser workflow allowing users to relocate
+their durable user data (SQLite database, backups, audio cache, and preferences)
+together to another volume or folder (e.g. `D:\VocabularyAppData`).
+
+The implementation enforces all approved Owner and engineering safety invariants:
+- **Sibling-directory staging & atomic promotion:** staging directory is created
+  under the target volume's parent filesystem (`<parent>/.vocab-stage-<uuid>`)
+  and atomically promoted via `os.replace` to an absent target folder. Existing
+  occupied targets are strictly rejected.
+- **SQLite snapshot consistency:** uses SQLite online backup (`Connection.backup()`)
+  to create a coherent database snapshot without raw WAL/SHM copying or forced
+  disruptive checkpoints.
+- **Cross-process writer quiescence:** an exclusive file lock (`.app_data.lock`)
+  guards the source directory during relocation against concurrent processes.
+- **Durable recovery journal & fail-closed resolution:** an independent
+  migration-recovery journal (`migration-recovery.json`) in the default OS root
+  records committed relocations. If the location pointer (`data-root.json`) is
+  deleted or damaged while the journal survives, startup fails closed with
+  actionable guidance and never reverts silently to a stale default database or
+  creates a blank database.
+- **Retained rollback baseline:** original data files at the source location
+  are preserved intact and never deleted.
+- **Settings → Storage UX:** Settings offers an explicit "Move Data Folder..."
+  button with preflight validation, understandable confirmation detailing the
+  four migrating components, progress/error reporting, and an immediate
+  application restart boundary. When environment overrides (`VOCAB_APP_*`) are
+  active, relocation is safely disabled with an informative notice.
+
+This section intentionally describes the post-merge source state one step ahead
+of this implementation branch. At branch publication, independent remote audit,
+PR merge, and Windows-native Human Acceptance are pending. v1.1.0 remains the
+current published release; no installer with M23-B/C has shipped, and Issue #43
+is resolved at the source level.
 
 ## M21 / v1.1.0 Closure
 
