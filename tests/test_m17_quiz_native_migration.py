@@ -15,9 +15,16 @@ except ImportError:  # pragma: no cover - exercised only when PySide6 is absent
     PYSIDE6_AVAILABLE = False
 
 from src import db, quiz
-from src.collections import add_entries_to_collection, create_collection
+from src.collections import (
+    add_entries_to_collection,
+    add_entries_to_system_collection,
+    create_collection,
+    get_card_groups_for_collection,
+    remove_entries_from_collection,
+)
 from src.entries import add_entry, create_entry_with_template
 from src.entry_templates import ensure_french_verb_present_template
+from src.learning_workflow import get_card_learning_history_by_id
 
 """
 Focused tests for M17 Feature 3 -- native Quiz migration (DESIGN.md § 6.3
@@ -37,6 +44,7 @@ if PYSIDE6_AVAILABLE:
     from src.ui_desktop.controllers.review_controller import ReviewController
     from src.ui_desktop.main_window import MainWindow
     from src.ui_desktop.state.app_state import ShellMode, Workspace
+    from src.ui_desktop.state.preferences import Preferences
     from src.ui_desktop.state.handoff import (
         QuizLaunchIntent,
         learning_action_intent_from_recommendation,
@@ -143,22 +151,142 @@ class QuizControllerStartTests(_SyntheticDatabaseTestCase):
         self.assertIsNotNone(item)
         self.assertGreaterEqual(len(item["options"]), 4)
 
-    def test_start_matching_forces_whole_collection_even_if_card_number_given(self) -> None:
-        collection_id, _ = self._make_card(
-            [("un", "one"), ("deux", "two"), ("trois", "three"), ("quatre", "four")], card_size=1
+    def test_start_matching_from_card_keeps_stable_session_identity(self) -> None:
+        collection_id, entry_ids = self._make_card(
+            [("un", "one"), ("deux", "two"), ("trois", "three"), ("quatre", "four"),
+             ("cinq", "five"), ("six", "six"), ("sept", "seven"), ("huit", "eight")],
+            card_size=4,
         )
+        review = ReviewController()
+        self.assertTrue(review.open_card(collection_id, 1))
+        card = review.current_card()
         controller = QuizController()
-        # Deliberately construct a Card-scoped-looking matching intent to
-        # prove the controller itself normalizes it (defense in depth,
-        # not solely relied on from the caller).
-        intent = self._quick_intent(collection_id, 1, 999, 4, "matching")
+        intent = self._quick_intent(collection_id, 1, card["card_id"], 4, "matching")
 
         self.assertTrue(controller.start(intent))
-        self.assertEqual(controller.intent.card_number, 0)
-        self.assertIsNone(controller.intent.card_id)
         session = quiz.get_quiz_session(controller.session_id)
-        self.assertEqual(session["card_number"], 0)
-        self.assertIsNone(session["card_id"])
+        self.assertEqual(session["card_number"], 1)
+        self.assertEqual(session["card_id"], card["card_id"])
+        self.assertEqual(
+            session["card_revision_id"],
+            get_card_groups_for_collection(collection_id)[0]["card_revision_id"],
+        )
+        self.assertEqual(
+            {item["entry_id"] for item in controller.matching_items()},
+            set(entry_ids[:4]),
+        )
+
+    def test_matching_revision_change_during_generation_preserves_active_quiz(self) -> None:
+        collection_id, entry_ids = self._make_card(
+            [("un", "one"), ("deux", "two"), ("trois", "three"), ("quatre", "four")]
+        )
+        card = get_card_groups_for_collection(collection_id)[0]
+
+        class RevisionChangingController(QuizController):
+            def _generate_items(self, intent):
+                generated = super()._generate_items(intent)
+                if intent.quiz_type == "matching":
+                    remove_entries_from_collection([entry_ids[-1]], collection_id)
+                return generated
+
+        controller = RevisionChangingController()
+        self.assertTrue(controller.start(self._quick_intent(collection_id, 1, card["card_id"], 4)))
+        previous_session_id = controller.session_id
+        matching_intent = self._quick_intent(collection_id, 1, card["card_id"], 4, "matching")
+
+        self.assertFalse(controller.start(matching_intent))
+        self.assertIn("Card changed", controller.start_error)
+        self.assertEqual(controller.session_id, previous_session_id)
+        self.assertEqual(quiz.get_quiz_session(previous_session_id)["status"], "active")
+        with db.get_connection() as connection:
+            self.assertEqual(connection.execute("SELECT COUNT(*) FROM quiz_sessions").fetchone()[0], 1)
+
+    def test_card_matching_duplicate_meanings_stay_within_card(self) -> None:
+        collection_id, entry_ids = self._make_card(
+            [("un", "one"), ("premier", "ONE"), ("deux", "two"),
+             ("trois", "three"), ("quatre", "four"), ("cinq", "five")],
+            card_size=3,
+        )
+        review = ReviewController()
+        self.assertTrue(review.open_card(collection_id, 1))
+        self.assertEqual(review.matching_item_count_options(), [2])
+        controller = QuizController()
+        intent = review.build_choose_quiz_type_intent("matching", matching_item_count=2)
+
+        self.assertTrue(controller.start(intent))
+        self.assertEqual(len(controller.matching_items()), 2)
+        self.assertTrue(
+            {item["entry_id"] for item in controller.matching_items()} <= set(entry_ids[:3])
+        )
+        self.assertEqual(len({choice.casefold() for choice in controller.matching_choices()}), 2)
+
+    def test_card_matching_excludes_proficient_entries_without_borrowing(self) -> None:
+        collection_id, entry_ids = self._make_card(
+            [("un", "one"), ("deux", "two"), ("trois", "three"),
+             ("quatre", "four"), ("cinq", "five"), ("six", "six")],
+            card_size=4,
+        )
+        add_entries_to_system_collection(entry_ids[:2], "proficient_pool")
+        preferences = Preferences(include_proficient_in_study=False)
+        review = ReviewController(preferences)
+        self.assertTrue(review.open_card(collection_id, 1))
+        self.assertEqual(review.matching_item_count_options(), [2])
+        controller = QuizController(preferences=preferences)
+        intent = review.build_choose_quiz_type_intent("matching", matching_item_count=2)
+
+        self.assertTrue(controller.start(intent))
+        self.assertEqual(
+            {item["entry_id"] for item in controller.matching_items()},
+            set(entry_ids[2:4]),
+        )
+
+    def test_card_matching_rejects_collection_sized_request_without_borrowing(self) -> None:
+        collection_id, _ = self._make_card(
+            [("un", "one"), ("deux", "two"), ("trois", "three"),
+             ("quatre", "four"), ("cinq", "five"), ("six", "six")],
+            card_size=2,
+        )
+        review = ReviewController()
+        self.assertTrue(review.open_card(collection_id, 1))
+        controller = QuizController()
+        oversized = self._quick_intent(
+            collection_id, 1, review.current_card()["card_id"], 4, "matching"
+        )
+
+        self.assertFalse(controller.start(oversized))
+        self.assertIn("selected Card has only 2", controller.start_error)
+        self.assertIsNone(quiz.get_active_quiz_session())
+
+    def test_cancelled_card_matching_keeps_no_completion_evidence(self) -> None:
+        collection_id, _ = self._make_card(
+            [("un", "one"), ("deux", "two"), ("trois", "three"), ("quatre", "four")],
+            card_size=4,
+        )
+        review = ReviewController()
+        self.assertTrue(review.open_card(collection_id, 1))
+        card_id = review.current_card()["card_id"]
+        controller = QuizController()
+        self.assertTrue(controller.start(review.build_choose_quiz_type_intent("matching", matching_item_count=4)))
+        session_id = controller.session_id
+        controller.set_matching_selection(controller.matching_items()[0], "one")
+
+        controller.cancel_active()
+        self.assertEqual(quiz.get_quiz_session(session_id)["status"], "cancelled")
+        self.assertEqual(quiz.get_quiz_item_logs(session_id), [])
+        with db.get_connection() as connection:
+            self.assertEqual(get_card_learning_history_by_id(connection, card_id), [])
+
+    def test_stale_card_matching_intent_does_not_create_quiz_evidence(self) -> None:
+        collection_id, _ = self._make_card(
+            [("un", "one"), ("deux", "two"), ("trois", "three"), ("quatre", "four")],
+            card_size=4,
+        )
+        controller = QuizController()
+        stale_intent = self._quick_intent(collection_id, 1, 999999, 4, "matching")
+
+        self.assertFalse(controller.start(stale_intent))
+        self.assertIn("Card", controller.start_error)
+        self.assertIsNone(quiz.get_active_quiz_session())
 
     def test_start_template_quiz_generates_items_from_selected_rules(self) -> None:
         collection_id, entry_ids, template_id = self._make_template_verb_card(

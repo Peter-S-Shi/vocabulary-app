@@ -263,8 +263,9 @@ class NavigationRailAndMainWindowUpdateTests(unittest.TestCase):
     def test_main_window_startup_and_update_signal_wiring(self) -> None:
         service = UpdateAwarenessService(current_version="1.0.0")
 
-        # Mock check_for_updates during MainWindow init to prevent live worker thread in test
-        with patch.object(UpdateAwarenessService, "check_for_updates"):
+        # Suppress the delayed startup check so it cannot launch a real worker
+        # after this test closes the window and the mock scope ends.
+        with patch("src.ui_desktop.main_window.QTimer.singleShot"):
             window = MainWindow()
             window.settings_controller._update_service = service
             service.state_changed.connect(window.settings_controller._on_update_service_state_changed)

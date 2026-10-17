@@ -241,26 +241,27 @@ class ReviewControllerQuizHandoffTests(_SyntheticDatabaseTestCase):
         self.assertEqual(intent.collection_id, collection_id)
         self.assertEqual(intent.card_number, 1)
 
-    def test_choose_quiz_type_matching_is_forced_whole_collection(self) -> None:
-        """M17 Feature 3 compatibility check: plain Matching is
-        whole-Collection only in the current product (Streamlit always
-        forces card_number=0 for it) -- never Card-scoped, regardless of
-        which Card Review currently displays."""
+    def test_choose_quiz_type_matching_targets_selected_card(self) -> None:
+        """A Card-originated plain Matching intent retains the selected Card."""
         collection_id, _ = self._make_card([("chat", "cat"), ("chien", "dog"), ("pomme", "apple"), ("poire", "pear")])
         controller = ReviewController()
         controller.open_default()
+        selected_card_id = controller.current_card()["card_id"]
         intent = controller.build_choose_quiz_type_intent("matching", matching_item_count=4)
         self.assertEqual(intent.quiz_type, "matching")
-        self.assertEqual(intent.card_number, 0)
-        self.assertIsNone(intent.card_id)
+        self.assertEqual(intent.card_number, 1)
+        self.assertEqual(intent.card_id, selected_card_id)
         self.assertEqual(intent.item_count, 4)
 
-    def test_matching_item_count_options_bounded_by_collection_size(self) -> None:
-        self._make_card([("chat", "cat"), ("chien", "dog"), ("pomme", "apple")])
+    def test_matching_item_count_options_follow_selected_card(self) -> None:
+        self._make_card(
+            [("chat", "cat"), ("chien", "dog"), ("pomme", "apple"),
+             ("poire", "pear"), ("livre", "book"), ("soleil", "sun")],
+            card_size=3,
+        )
         controller = ReviewController()
         controller.open_default()
-        options = controller.matching_item_count_options()
-        self.assertTrue(all(option <= 3 for option in options))
+        self.assertEqual(controller.matching_item_count_options(), [3])
 
     def test_quiz_intents_are_none_without_a_current_card(self) -> None:
         controller = ReviewController()
@@ -660,18 +661,24 @@ class ReviewDialogTests(_SyntheticDatabaseTestCase):
 
         matching_index = dialog._type_combo.findData("matching")
         self.assertGreaterEqual(matching_index, 0)
+        self.assertEqual(dialog._type_combo.itemText(matching_index), "Matching")
         dialog._type_combo.setCurrentIndex(matching_index)
 
         self.assertFalse(dialog._matching_count_combo.isHidden())
+        scope_hint = dialog.findChild(QWidget, "review-matching-card-scope-hint")
+        self.assertIsNotNone(scope_hint)
+        self.assertFalse(scope_hint.isHidden())
+        self.assertIn("this Card", scope_hint.text())
 
-    def test_matching_launch_is_whole_collection_not_card_scoped(self) -> None:
+    def test_matching_launch_from_selected_card_retains_card_identity(self) -> None:
         from src.ui_desktop.views.review_view import _ChooseQuizTypeDialog
 
         collection_id, _ = self._make_card(
-            [("chat", "cat"), ("chien", "dog"), ("pomme", "apple"), ("poire", "pear")], card_size=1
+            [("chat", "cat"), ("chien", "dog"), ("pomme", "apple"), ("poire", "pear")], card_size=4
         )
         controller = ReviewController()
         controller.open_default()
+        selected_card_id = controller.current_card()["card_id"]
 
         dialog = _ChooseQuizTypeDialog(controller)
         self.addCleanup(dialog.deleteLater)
@@ -689,8 +696,31 @@ class ReviewDialogTests(_SyntheticDatabaseTestCase):
 
         self.assertEqual(len(received), 1)
         self.assertEqual(received[0].quiz_type, "matching")
-        self.assertEqual(received[0].card_number, 0)
+        self.assertEqual(received[0].card_number, 1)
+        self.assertEqual(received[0].card_id, selected_card_id)
         self.assertEqual(received[0].collection_id, collection_id)
+
+    def test_matching_unavailable_for_card_with_one_distinct_meaning(self) -> None:
+        from src.ui_desktop.views.review_view import _ChooseQuizTypeDialog
+
+        self._make_card(
+            [("chat", "cat"), ("chien", "dog"), ("pomme", "apple"), ("poire", "pear")],
+            card_size=1,
+        )
+        controller = ReviewController()
+        controller.open_default()
+        dialog = _ChooseQuizTypeDialog(controller)
+        self.addCleanup(dialog.deleteLater)
+        dialog._type_combo.setCurrentIndex(dialog._type_combo.findData("matching"))
+
+        received: list[object] = []
+        dialog.launch_requested.connect(received.append)
+        start_button = dialog.findChild(QWidget, "review-choose-quiz-type-start-button")
+        start_button.click()
+
+        self.assertEqual(received, [])
+        self.assertIn("Card", dialog._warning_label.text())
+        self.assertIn("distinct meanings", dialog._warning_label.text())
 
     def test_template_section_hidden_when_no_eligible_sources(self) -> None:
         from src.ui_desktop.views.review_view import _ChooseQuizTypeDialog

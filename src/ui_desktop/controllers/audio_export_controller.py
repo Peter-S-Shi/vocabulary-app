@@ -357,6 +357,10 @@ class AudioExportController(QObject):
 
     def _on_preflight_thread_finished(self) -> None:
         thread = self.sender()
+        # Qt can emit finished before the native thread has fully exited.
+        # Keep its Python wrappers alive through that final teardown step.
+        if thread is not None:
+            thread.wait()
         self._preflight_inflight = [pair for pair in self._preflight_inflight if pair[0] is not thread]
 
     def _on_preflight_progress(self, generation: int, completed: int, total: int) -> None:
