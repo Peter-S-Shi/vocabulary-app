@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sqlite3
 import sys
 import tempfile
@@ -88,6 +89,137 @@ def _require_writable_directory(path: Path) -> None:
     if not os.access(path, os.R_OK | os.W_OK | os.X_OK):
         raise ValueError(f"{path.name} is inaccessible")
     _probe_writable_directory(path)
+
+
+def _summarize_component_tree(path: Path) -> dict[str, object]:
+    """Summarize a directory component (present, file_count, total_bytes) while rejecting links."""
+    if _is_link(path):
+        raise ValueError(f"component '{path.name}' is a link or junction")
+    if not path.exists():
+        return {"present": False, "file_count": 0, "total_bytes": 0}
+    if not path.is_dir():
+        raise ValueError(f"component '{path.name}' is not a regular directory")
+    file_count = 0
+    total_bytes = 0
+    for root, dirs, files in os.walk(path):
+        root_path = Path(root)
+        for d in dirs:
+            dir_path = root_path / d
+            if _is_link(dir_path):
+                raise ValueError(f"subdirectory '{dir_path}' is a link or junction")
+        for f in files:
+            file_path = root_path / f
+            if _is_link(file_path) or not file_path.is_file():
+                raise ValueError(f"file '{file_path}' is not a regular file")
+            file_count += 1
+            total_bytes += file_path.stat().st_size
+    return {
+        "present": True,
+        "file_count": file_count,
+        "total_bytes": total_bytes,
+    }
+
+
+def _build_component_manifest(root: Path) -> dict[str, object]:
+    """Build a verifiable four-component manifest for a staged or promoted data root."""
+    db_path = root / "vocab.db"
+    if _is_link(db_path) or not db_path.is_file():
+        raise ValueError("vocab.db is missing or not a regular file")
+    prefs_path = root / "preferences.json"
+    if _is_link(prefs_path):
+        raise ValueError("preferences.json is a link")
+    prefs_present = prefs_path.exists()
+    if prefs_present:
+        if not prefs_path.is_file():
+            raise ValueError("preferences.json is not a regular file")
+        parsed_prefs = json.loads(prefs_path.read_text(encoding="utf-8"))
+        if not isinstance(parsed_prefs, dict):
+            raise ValueError("preferences.json is not a valid JSON object")
+        prefs_size = prefs_path.stat().st_size
+    else:
+        prefs_size = 0
+
+    return {
+        "database": {
+            "present": True,
+            "size": db_path.stat().st_size,
+        },
+        "preferences": {
+            "present": prefs_present,
+            "size": prefs_size,
+        },
+        "backups": _summarize_component_tree(root / "backups"),
+        "audio_cache": _summarize_component_tree(root / "audio-cache"),
+    }
+
+
+def _verify_promoted_target(
+    pending_root: Path,
+    expected_source_root: Path,
+    expected_uuid: str,
+    expected_components: dict[str, object] | None,
+) -> dict[str, object]:
+    """Verify full four-component integrity and marker provenance of a promoted target root."""
+    if _is_link(pending_root) or not pending_root.is_dir():
+        raise ValueError("promoted target folder is missing or not a regular directory")
+    _require_writable_directory(pending_root)
+
+    marker = pending_root / ROOT_MARKER_NAME
+    if _is_link(marker) or not marker.is_file():
+        raise ValueError("root marker is missing or not a regular file")
+    marker_data = json.loads(marker.read_text(encoding="utf-8"))
+    if not isinstance(marker_data, dict):
+        raise ValueError("root marker is not a valid JSON object")
+
+    marker_target_raw = marker_data.get("target_root", "")
+    if (
+        not isinstance(marker_target_raw, str)
+        or not marker_target_raw.strip()
+        or Path(marker_target_raw).resolve() != pending_root
+    ):
+        raise ValueError("root marker target_root does not match pending target")
+
+    marker_source_raw = marker_data.get("source_root", "")
+    if (
+        not isinstance(marker_source_raw, str)
+        or not marker_source_raw.strip()
+        or Path(marker_source_raw).resolve() != expected_source_root
+    ):
+        raise ValueError("root marker source_root does not match journal latest_committed_root")
+
+    if not expected_uuid or marker_data.get("marker_uuid") != expected_uuid:
+        raise ValueError("root marker uuid does not match journal expectation")
+
+    pending_db = pending_root / "vocab.db"
+    if _is_link(pending_db) or not pending_db.is_file():
+        raise ValueError("promoted target has no regular vocab.db")
+    _validate_relocated_database(pending_db)
+
+    marker_components = marker_data.get("components")
+    manifest = expected_components if isinstance(expected_components, dict) else marker_components
+    if not isinstance(manifest, dict):
+        raise ValueError("missing four-component verification manifest for SWITCHING recovery")
+    if isinstance(expected_components, dict) and isinstance(marker_components, dict):
+        if expected_components != marker_components:
+            raise ValueError("journal component manifest does not match target root marker manifest")
+
+    actual_manifest = _build_component_manifest(pending_root)
+    for comp_key in ("database", "preferences", "backups", "audio_cache"):
+        if comp_key not in manifest or actual_manifest.get(comp_key) != manifest.get(comp_key):
+            raise ValueError(
+                f"component '{comp_key}' verification failed during SWITCHING recovery"
+            )
+
+    for dir_name in ("backups", "audio-cache"):
+        child_dir = pending_root / dir_name
+        if child_dir.exists():
+            _require_writable_directory(child_dir)
+    prefs_file = pending_root / "preferences.json"
+    if prefs_file.exists():
+        with prefs_file.open("rb+"):
+            pass
+
+    return marker_data
 
 
 def _configured_data_root(default_root: Path) -> Path | None:
@@ -180,26 +312,31 @@ def resolve_data_paths() -> DataPaths:
                 pending_root_str = raw_journal.get("pending_target_root")
                 if not isinstance(pending_root_str, str) or not pending_root_str.strip():
                     raise ValueError("recovery journal left in SWITCHING state without valid pending_target_root")
-                pending_root = Path(pending_root_str).resolve()
-                marker = pending_root / ROOT_MARKER_NAME
-                pending_db = pending_root / "vocab.db"
-                # If target was fully promoted with root marker and valid DB, forward-roll to COMMITTED
-                if pending_root.is_dir() and not _is_link(pending_root) and marker.is_file() and pending_db.is_file():
-                    _validate_relocated_database(pending_db)
+                latest_committed_str = raw_journal.get("latest_committed_root")
+                if not isinstance(latest_committed_str, str) or not latest_committed_str.strip():
+                    raise ValueError("recovery journal left in SWITCHING state without valid latest_committed_root")
+                expected_uuid = raw_journal.get("pending_marker_uuid")
+                if not isinstance(expected_uuid, str) or not expected_uuid.strip():
+                    raise ValueError("recovery journal left in SWITCHING state without valid pending_marker_uuid")
 
-                    # Validate root marker provenance
+                pending_root = Path(pending_root_str).resolve()
+                expected_source_root = Path(latest_committed_str).resolve()
+                expected_components = raw_journal.get("pending_components")
+
+                if pending_root.exists() or _is_link(pending_root):
+                    # Case 1: Promoted target exists on disk -> verify full 4-component integrity + marker provenance
                     try:
-                        marker_data = json.loads(marker.read_text(encoding="utf-8"))
-                        if not isinstance(marker_data, dict):
-                            raise ValueError("root marker is not a valid JSON object")
-                        marker_target = Path(marker_data.get("target_root", "")).resolve()
-                        if marker_target != pending_root:
-                            raise ValueError("root marker target_root does not match pending target")
-                        expected_uuid = raw_journal.get("pending_marker_uuid")
-                        if expected_uuid and marker_data.get("marker_uuid") != expected_uuid:
-                            raise ValueError("root marker uuid does not match journal expectation")
-                    except Exception as marker_err:
-                        raise ValueError(f"Root marker provenance check failed: {marker_err}") from marker_err
+                        marker_data = _verify_promoted_target(
+                            pending_root=pending_root,
+                            expected_source_root=expected_source_root,
+                            expected_uuid=expected_uuid,
+                            expected_components=expected_components if isinstance(expected_components, dict) else None,
+                        )
+                    except Exception as verify_err:
+                        raise ValueError(
+                            f"Relocation transition was interrupted during SWITCHING to '{pending_root}', "
+                            f"and target verification failed: {verify_err}"
+                        ) from verify_err
 
                     # Forward-roll pointer
                     pointer_data = {"version": 1, "data_root": str(pending_root)}
@@ -219,9 +356,15 @@ def resolve_data_paths() -> DataPaths:
                     recovered_entry = {
                         "sequence": next_seq,
                         "committed_at": marker_data.get("relocated_at", "recovered"),
-                        "source_root": marker_data.get("source_root", raw_journal.get("latest_committed_root", "")),
+                        "source_root": str(expected_source_root),
                         "target_root": str(pending_root),
-                        "marker_uuid": marker_data.get("marker_uuid", ""),
+                        "schema_version": marker_data.get(
+                            "schema_version", raw_journal.get("pending_schema_version", "unknown")
+                        ),
+                        "app_data_version": marker_data.get(
+                            "app_data_version", raw_journal.get("pending_app_data_version", "unknown")
+                        ),
+                        "marker_uuid": str(marker_data.get("marker_uuid", expected_uuid)),
                         "recovered": True,
                     }
                     history.append(recovered_entry)
@@ -229,8 +372,16 @@ def resolve_data_paths() -> DataPaths:
                     raw_journal["status"] = "COMMITTED"
                     raw_journal["latest_committed_root"] = str(pending_root)
                     raw_journal["history"] = history
-                    raw_journal.pop("pending_target_root", None)
-                    raw_journal.pop("pending_marker_uuid", None)
+                    for k in (
+                        "pending_target_root",
+                        "pending_staging_dir",
+                        "pending_marker_uuid",
+                        "pending_schema_version",
+                        "pending_app_data_version",
+                        "pending_components",
+                        "had_prior_journal",
+                    ):
+                        raw_journal.pop(k, None)
                     with tempfile.NamedTemporaryFile("w", dir=default_root, delete=False, encoding="utf-8") as temp_j:
                         temp_j.write(json.dumps(raw_journal, indent=2))
                         temp_j.flush()
@@ -238,19 +389,105 @@ def resolve_data_paths() -> DataPaths:
                         temp_j_name = temp_j.name
                     os.replace(temp_j_name, journal_path)
                 else:
-                    raise ValueError(
-                        f"Relocation transition was interrupted during SWITCHING to '{pending_root}', "
-                        "and target verification failed"
-                    )
+                    # Case 2: Promoted target does not exist.
+                    # Distinguish an abrupt crash BEFORE atomic promotion (staging directory still present
+                    # on the target parent volume with matching provenance marker) from an unavailable/unplugged
+                    # promoted destination.
+                    pending_staging_str = raw_journal.get("pending_staging_dir")
+                    unpromoted_staging_verified = False
+                    pending_staging: Path | None = None
+                    if isinstance(pending_staging_str, str) and pending_staging_str.strip():
+                        pending_staging = Path(pending_staging_str).resolve()
+                        stage_marker_file = pending_staging / ROOT_MARKER_NAME
+                        if (
+                            pending_staging.is_dir()
+                            and not _is_link(pending_staging)
+                            and stage_marker_file.is_file()
+                            and not _is_link(stage_marker_file)
+                        ):
+                            try:
+                                stage_marker_data = json.loads(stage_marker_file.read_text(encoding="utf-8"))
+                                if (
+                                    isinstance(stage_marker_data, dict)
+                                    and stage_marker_data.get("marker_uuid") == expected_uuid
+                                    and Path(stage_marker_data.get("target_root", "")).resolve() == pending_root
+                                    and Path(stage_marker_data.get("source_root", "")).resolve() == expected_source_root
+                                ):
+                                    unpromoted_staging_verified = True
+                            except Exception:
+                                unpromoted_staging_verified = False
 
-            if "latest_committed_root" not in raw_journal:
-                raise ValueError("recovery journal has an invalid format")
-            latest_val = raw_journal["latest_committed_root"]
-            if not isinstance(latest_val, str) or not latest_val.strip():
-                raise ValueError("recovery journal has an invalid committed root")
-            journal_record = raw_journal
+                    if unpromoted_staging_verified and pending_staging is not None:
+                        # Verify the prior committed source root is still intact before rolling back journal
+                        if _is_link(expected_source_root) or not expected_source_root.is_dir():
+                            raise ValueError("prior source root is unavailable for pre-promotion rollback")
+                        _validate_relocated_database(expected_source_root / "vocab.db")
+
+                        history = raw_journal.get("history")
+                        if not isinstance(history, list):
+                            history = []
+                        had_prior_journal = bool(raw_journal.get("had_prior_journal", bool(history)))
+
+                        if (
+                            not had_prior_journal
+                            and not history
+                            and expected_source_root == default_root.resolve()
+                            and not pointer_present
+                        ):
+                            # First relocation from default root was aborted before promotion: remove journal first
+                            journal_path.unlink(missing_ok=True)
+                            journal_present = False
+                            raw_journal = None
+                        else:
+                            # Restore journal to prior COMMITTED root first
+                            if expected_source_root != default_root.resolve():
+                                pointer_data = {"version": 1, "data_root": str(expected_source_root)}
+                                with tempfile.NamedTemporaryFile("w", dir=default_root, delete=False, encoding="utf-8") as temp_p:
+                                    temp_p.write(json.dumps(pointer_data, indent=2))
+                                    temp_p.flush()
+                                    os.fsync(temp_p.fileno())
+                                    temp_p_name = temp_p.name
+                                os.replace(temp_p_name, pointer)
+                                pointer_present = True
+
+                            raw_journal["status"] = "COMMITTED"
+                            raw_journal["latest_committed_root"] = str(expected_source_root)
+                            raw_journal["history"] = history
+                            for k in (
+                                "pending_target_root",
+                                "pending_staging_dir",
+                                "pending_marker_uuid",
+                                "pending_schema_version",
+                                "pending_app_data_version",
+                                "pending_components",
+                                "had_prior_journal",
+                            ):
+                                raw_journal.pop(k, None)
+                            with tempfile.NamedTemporaryFile("w", dir=default_root, delete=False, encoding="utf-8") as temp_j:
+                                temp_j.write(json.dumps(raw_journal, indent=2))
+                                temp_j.flush()
+                                os.fsync(temp_j.fileno())
+                                temp_j_name = temp_j.name
+                            os.replace(temp_j_name, journal_path)
+
+                        # Remove unpromoted staging directory after journal is durably restored
+                        shutil.rmtree(pending_staging, ignore_errors=True)
+                    else:
+                        raise ValueError(
+                            f"Relocation transition was interrupted during SWITCHING to '{pending_root}', "
+                            "and target verification failed (target missing and no unpromoted staging directory found)"
+                        )
+
+            if raw_journal is not None:
+                if "latest_committed_root" not in raw_journal:
+                    raise ValueError("recovery journal has an invalid format")
+                latest_val = raw_journal["latest_committed_root"]
+                if not isinstance(latest_val, str) or not latest_val.strip():
+                    raise ValueError("recovery journal has an invalid committed root")
+                journal_record = raw_journal
         except (OSError, UnicodeError, json.JSONDecodeError, ValueError, sqlite3.Error) as error:
             raise _data_root_error(f"recovery journal error: {error}") from error
+
 
     if not complete_override and journal_record is not None and not pointer_present:
         latest = journal_record.get("latest_committed_root", "")

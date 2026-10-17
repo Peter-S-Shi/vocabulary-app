@@ -366,6 +366,10 @@ class M23BRelocationEngineTests(unittest.TestCase):
         finally:
             proc.terminate()
             proc.wait(timeout=5)
+            if proc.stdout:
+                proc.stdout.close()
+            if proc.stderr:
+                proc.stderr.close()
 
         # 2. While relocation holds exclusive lock, an external writer process must fail to connect
         with acquire_data_lock(self.local_root, exclusive=True):
@@ -387,6 +391,106 @@ class M23BRelocationEngineTests(unittest.TestCase):
             )
             self.assertEqual(writer_res.returncode, 42)
             self.assertIn("locked for relocation", writer_res.stderr)
+
+    def test_subprocess_audio_cache_and_db_import_writers_respect_relocation_quiescence(self) -> None:
+        """Verify across real OS subprocesses that AudioAssetStore.materialize and
+        import_existing_database participate in the cross-process data relocation lock.
+        """
+        import subprocess
+        from src.data_lock import acquire_data_lock
+        from src.data_relocation import plan_relocation, execute_relocation, RelocationError
+        from src.db_import import import_existing_database, DatabaseImportError
+
+        target = self.home / "drive_d" / "AudioSubprocessTarget"
+        target.parent.mkdir()
+        plan = plan_relocation(target, source_root=self.local_root)
+
+        env = dict(os.environ)
+        env.update({
+            "LOCALAPPDATA": str(self.home / "local"),
+            "VOCAB_APP_DB_PATH": "",
+            "VOCAB_APP_BACKUP_DIR": "",
+            "VOCAB_APP_AUDIO_CACHE_DIR": "",
+            "VOCAB_APP_PREFERENCES_PATH": "",
+        })
+
+        # 1. Spawn a real subprocess that is mid-materialization inside AudioAssetStore.materialize
+        audio_worker_code = (
+            "import os, sys, time, wave\n"
+            "from pathlib import Path\n"
+            "from src.audio_assets import AudioAssetRequest, AudioAssetStore, CANONICAL_CHANNELS, CANONICAL_SAMPLE_RATE_HZ, CANONICAL_SAMPLE_WIDTH_BYTES\n"
+            "from src.tts_providers import ProviderRegistry, ProviderSpec, SynthesisResult, ProviderAvailability\n"
+            "class SlowFakeProvider:\n"
+            "    def __init__(self):\n"
+            "        self.spec = ProviderSpec('en', 'fake-tts', 'voice-en')\n"
+            "    def preflight(self) -> ProviderAvailability:\n"
+            "        return ProviderAvailability(True, 'ok')\n"
+            "    def synthesize_one(self, text: str, output_path: Path) -> SynthesisResult:\n"
+            "        sys.stdout.write('SYNTH_IN_PROGRESS\\n')\n"
+            "        sys.stdout.flush()\n"
+            "        time.sleep(3)\n"
+            "        with wave.open(str(output_path), 'wb') as w:\n"
+            "            w.setnchannels(CANONICAL_CHANNELS)\n"
+            "            w.setsampwidth(CANONICAL_SAMPLE_WIDTH_BYTES)\n"
+            "            w.setframerate(CANONICAL_SAMPLE_RATE_HZ)\n"
+            "            w.writeframes(b'\\x00\\x00' * 2400)\n"
+            "        return SynthesisResult('fake-tts', 'voice-en', 'en', output_path, 'audio/wav', 24000)\n"
+            "store = AudioAssetStore()\n"
+            "reg = ProviderRegistry([SlowFakeProvider()])\n"
+            "req = AudioAssetRequest('bonjour', 'en', 'fake-tts', 'voice-en')\n"
+            "store.materialize(req, reg)\n"
+        )
+        proc = subprocess.Popen(
+            [sys.executable, "-c", audio_worker_code],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+        )
+        try:
+            line = proc.stdout.readline()
+            self.assertEqual(line.strip(), "SYNTH_IN_PROGRESS")
+
+            # Relocation must fail while external process is materializing into audio-cache
+            with self.assertRaises(RelocationError) as ctx:
+                execute_relocation(plan, default_root=self.local_root)
+            self.assertIn("actively using", str(ctx.exception))
+        finally:
+            proc.terminate()
+            proc.wait(timeout=5)
+            if proc.stdout:
+                proc.stdout.close()
+            if proc.stderr:
+                proc.stderr.close()
+
+        # 2. While relocation holds the exclusive lock, external AudioAssetStore.materialize
+        # and import_existing_database must be blocked and fail closed without writing files.
+        external_db = self.home / "external_source.db"
+        _create_fictional_app_database(external_db)
+
+        with acquire_data_lock(self.local_root, exclusive=True):
+            audio_attempt_code = (
+                "import sys\n"
+                "from src.audio_assets import AudioAssetRequest, AudioAssetStore\n"
+                "from src.tts_providers import ProviderRegistry\n"
+                "store = AudioAssetStore()\n"
+                "req = AudioAssetRequest('hello', 'en', 'fake-tts', 'voice-en')\n"
+                "res = store.materialize(req, ProviderRegistry([]))\n"
+                "if not res.succeeded and res.error_code == 'data_root_locked':\n"
+                "    sys.exit(55)\n"
+                "sys.exit(1)\n"
+            )
+            audio_res = subprocess.run(
+                [sys.executable, "-c", audio_attempt_code],
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            self.assertEqual(audio_res.returncode, 55)
+
+            with self.assertRaises(DatabaseImportError) as import_ctx:
+                import_existing_database(external_db, destination_path=self.local_root / "vocab.db")
+            self.assertIn("locked for relocation", str(import_ctx.exception))
 
     def test_failed_promotion_rolls_back_journal_to_committed_source(self) -> None:
         """If target promotion fails (e.g. target became occupied), the journal
@@ -424,52 +528,190 @@ class M23BRelocationEngineTests(unittest.TestCase):
             paths = app_config.resolve_data_paths()
             self.assertEqual(paths.data_root, self.local_root.resolve())
 
-    def test_crash_recovery_forward_rolls_interrupted_switching_state(self) -> None:
-        """If a crash occurred after promoting target and writing SWITCHING journal,
-        resolve_data_paths() must forward-roll pointer and journal to COMMITTED.
+    def test_abrupt_crash_after_switching_journal_before_promotion_recovers_cleanly(self) -> None:
+        """If the process terminates abruptly (SIGKILL / power loss, simulated via BaseException)
+        after writing the SWITCHING journal but BEFORE target promotion, startup recovery must
+        detect the unpromoted staging directory, roll back the journal to the prior committed
+        root (or remove it if first relocation), clean up staging, and open the source root idempotently.
+        Also verifies that if neither target nor staging exists (e.g. unplugged promoted drive),
+        startup fails closed with DataRootError.
         """
-        target = self.home / "drive_d" / "InterruptedSwitchingTarget"
-        target.mkdir(parents=True)
-        _create_fictional_app_database(target / "vocab.db")
+        from unittest.mock import patch
+        from src.data_relocation import plan_relocation, execute_relocation
 
-        # Target has root marker
-        marker = target / app_config.ROOT_MARKER_NAME
-        marker.write_text(
-            json.dumps({
-                "version": 1,
-                "marker_uuid": "test_crash_uuid",
-                "source_root": str(self.local_root),
-                "target_root": str(target),
-                "relocated_at": "2026-10-17T12:00:00Z",
-            }),
-            encoding="utf-8",
-        )
+        class SimulatedPowerLoss(BaseException):
+            pass
 
-        # Journal is in SWITCHING state, pointer does not exist yet
-        journal_path = self.local_root / app_config.RECOVERY_JOURNAL_NAME
-        journal_path.write_text(
-            json.dumps({
-                "version": 1,
-                "status": "SWITCHING",
-                "pending_target_root": str(target),
-                "pending_marker_uuid": "test_crash_uuid",
-                "latest_committed_root": str(self.local_root),
-                "history": [],
-            }),
-            encoding="utf-8",
-        )
-
-        pointer_path = self.local_root / app_config.DATA_ROOT_POINTER_NAME
-        self.assertFalse(pointer_path.exists())
-
-        with patch.dict(os.environ, {
+        env_vars = {
             "LOCALAPPDATA": str(self.home / "local"),
             "VOCAB_APP_DB_PATH": "",
             "VOCAB_APP_BACKUP_DIR": "",
             "VOCAB_APP_AUDIO_CACHE_DIR": "",
             "VOCAB_APP_PREFERENCES_PATH": "",
-        }):
-            # Calling resolve_data_paths() should recover the transition
+        }
+
+        # --- Part 1: First relocation from default root crashes before promotion ---
+        target_1 = self.home / "drive_d" / "CrashBeforePromote1"
+        target_1.parent.mkdir(parents=True, exist_ok=True)
+        plan_1 = plan_relocation(target_1, source_root=self.local_root)
+
+        with patch("src.data_relocation._atomic_promote_no_clobber", side_effect=SimulatedPowerLoss("power lost before MoveFileExW")):
+            with self.assertRaises(SimulatedPowerLoss):
+                execute_relocation(plan_1, default_root=self.local_root)
+
+        # Verify exact post-crash state on disk:
+        # 1) Journal is in SWITCHING state
+        journal_path = self.local_root / app_config.RECOVERY_JOURNAL_NAME
+        self.assertTrue(journal_path.is_file())
+        self.assertEqual(json.loads(journal_path.read_text(encoding="utf-8"))["status"], "SWITCHING")
+        # 2) Staging directory is still on disk with its root marker
+        self.assertTrue(plan_1.staging_dir.is_dir())
+        self.assertTrue((plan_1.staging_dir / app_config.ROOT_MARKER_NAME).is_file())
+        # 3) Target directory was never promoted
+        self.assertFalse(target_1.exists())
+
+        with patch.dict(os.environ, env_vars):
+            # First startup recovers cleanly to local_root and removes unpromoted staging + journal
+            paths = app_config.resolve_data_paths()
+            self.assertEqual(paths.data_root, self.local_root.resolve())
+            self.assertFalse(journal_path.exists())
+            self.assertFalse(plan_1.staging_dir.exists())
+
+            # Second startup is idempotent
+            paths_again = app_config.resolve_data_paths()
+            self.assertEqual(paths_again.data_root, self.local_root.resolve())
+
+        # --- Part 2: Chained relocation (local_root -> committed_1 succeeds; committed_1 -> target_2 crashes before promotion) ---
+        committed_1 = self.home / "drive_d" / "CommittedRoot1"
+        plan_c1 = plan_relocation(committed_1, source_root=self.local_root)
+        res_c1 = execute_relocation(plan_c1, default_root=self.local_root)
+        self.assertTrue(res_c1.success)
+
+        target_2 = self.home / "drive_e" / "CrashBeforePromote2"
+        target_2.parent.mkdir(parents=True, exist_ok=True)
+        plan_2 = plan_relocation(target_2, source_root=committed_1)
+
+        with patch("src.data_relocation._atomic_promote_no_clobber", side_effect=SimulatedPowerLoss("power lost on chained relocation")):
+            with self.assertRaises(SimulatedPowerLoss):
+                execute_relocation(plan_2, default_root=self.local_root)
+
+        self.assertEqual(json.loads(journal_path.read_text(encoding="utf-8"))["status"], "SWITCHING")
+        self.assertTrue(plan_2.staging_dir.is_dir())
+        self.assertFalse(target_2.exists())
+
+        with patch.dict(os.environ, env_vars):
+            # Startup recovers back to committed_1 and preserves history!
+            paths_c1 = app_config.resolve_data_paths()
+            self.assertEqual(paths_c1.data_root, committed_1.resolve())
+            self.assertFalse(plan_2.staging_dir.exists())
+            journal_after = json.loads(journal_path.read_text(encoding="utf-8"))
+            self.assertEqual(journal_after["status"], "COMMITTED")
+            self.assertEqual(journal_after["latest_committed_root"], str(committed_1))
+            self.assertEqual(len(journal_after["history"]), 1)
+
+            # Idempotent on subsequent call
+            self.assertEqual(app_config.resolve_data_paths().data_root, committed_1.resolve())
+
+        # --- Part 3: If target was promoted on an external volume that is now offline (neither target nor staging exists), fail closed! ---
+        journal_path.write_text(
+            json.dumps({
+                "version": 1,
+                "status": "SWITCHING",
+                "pending_target_root": str(self.home / "unplugged_drive" / "VocabularyAppData"),
+                "pending_staging_dir": str(self.home / "unplugged_drive" / ".vocab-stage-deadbeef1234"),
+                "pending_marker_uuid": "deadbeef1234",
+                "latest_committed_root": str(committed_1),
+                "history": journal_after["history"],
+            }),
+            encoding="utf-8",
+        )
+        with patch.dict(os.environ, env_vars):
+            with self.assertRaises(app_config.DataRootError) as ctx:
+                app_config.resolve_data_paths()
+            self.assertIn("target verification failed", str(ctx.exception))
+
+    def test_crash_recovery_forward_rolls_interrupted_switching_state_and_verifies_all_four_components(self) -> None:
+        """If a crash occurred after promoting target and writing SWITCHING journal,
+        resolve_data_paths() must verify all 4 components (database, backups, audio-cache,
+        preferences.json) and marker provenance (source_root, target_root, marker_uuid)
+        before forward-rolling to COMMITTED. Any missing/corrupt component must fail closed.
+        """
+        from unittest.mock import patch
+        from src.data_relocation import plan_relocation, execute_relocation, _atomic_promote_no_clobber
+
+        class SimulatedPostPromotionCrash(BaseException):
+            pass
+
+        target = self.home / "drive_d" / "InterruptedSwitchingTarget"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        plan = plan_relocation(target, source_root=self.local_root)
+
+        def promote_then_crash(staging_dir: Path, target_dir: Path) -> None:
+            _atomic_promote_no_clobber(staging_dir, target_dir)
+            raise SimulatedPostPromotionCrash("crashed right after MoveFileExW before pointer write")
+
+        with patch("src.data_relocation._atomic_promote_no_clobber", side_effect=promote_then_crash):
+            with self.assertRaises(SimulatedPostPromotionCrash):
+                execute_relocation(plan, default_root=self.local_root)
+
+        journal_path = self.local_root / app_config.RECOVERY_JOURNAL_NAME
+        pointer_path = self.local_root / app_config.DATA_ROOT_POINTER_NAME
+        self.assertFalse(pointer_path.exists())
+        self.assertTrue(target.is_dir())
+        self.assertEqual(json.loads(journal_path.read_text(encoding="utf-8"))["status"], "SWITCHING")
+
+        env_vars = {
+            "LOCALAPPDATA": str(self.home / "local"),
+            "VOCAB_APP_DB_PATH": "",
+            "VOCAB_APP_BACKUP_DIR": "",
+            "VOCAB_APP_AUDIO_CACHE_DIR": "",
+            "VOCAB_APP_PREFERENCES_PATH": "",
+        }
+
+        # 1. Tamper with audio-cache file -> must fail closed (not forward-roll!)
+        audio_file = target / "audio-cache" / "sample.mp3"
+        orig_audio_bytes = audio_file.read_bytes()
+        audio_file.unlink()
+        with patch.dict(os.environ, env_vars):
+            with self.assertRaises(app_config.DataRootError) as ctx:
+                app_config.resolve_data_paths()
+            self.assertIn("audio_cache", str(ctx.exception))
+        audio_file.write_bytes(orig_audio_bytes)
+
+        # 2. Tamper with backups file -> must fail closed
+        backup_file = target / "backups" / "backup_1.bak"
+        orig_backup_bytes = backup_file.read_bytes()
+        backup_file.write_bytes(b"truncated")
+        with patch.dict(os.environ, env_vars):
+            with self.assertRaises(app_config.DataRootError) as ctx:
+                app_config.resolve_data_paths()
+            self.assertIn("backups", str(ctx.exception))
+        backup_file.write_bytes(orig_backup_bytes)
+
+        # 3. Tamper with preferences.json -> must fail closed
+        prefs_file = target / "preferences.json"
+        orig_prefs_bytes = prefs_file.read_bytes()
+        prefs_file.unlink()
+        with patch.dict(os.environ, env_vars):
+            with self.assertRaises(app_config.DataRootError) as ctx:
+                app_config.resolve_data_paths()
+            self.assertIn("preferences", str(ctx.exception))
+        prefs_file.write_bytes(orig_prefs_bytes)
+
+        # 4. Tamper with source_root provenance in marker -> must fail closed
+        marker_file = target / app_config.ROOT_MARKER_NAME
+        orig_marker_bytes = marker_file.read_bytes()
+        bad_marker = json.loads(orig_marker_bytes.decode("utf-8"))
+        bad_marker["source_root"] = str(self.home / "wrong_source_root")
+        marker_file.write_text(json.dumps(bad_marker), encoding="utf-8")
+        with patch.dict(os.environ, env_vars):
+            with self.assertRaises(app_config.DataRootError) as ctx:
+                app_config.resolve_data_paths()
+            self.assertIn("source_root", str(ctx.exception))
+        marker_file.write_bytes(orig_marker_bytes)
+
+        # 5. Now with all 4 components and marker provenance intact, resolve_data_paths() forward-rolls!
+        with patch.dict(os.environ, env_vars):
             paths = app_config.resolve_data_paths()
             self.assertEqual(paths.data_root, target.resolve())
 
@@ -478,12 +720,15 @@ class M23BRelocationEngineTests(unittest.TestCase):
             pointer_data = json.loads(pointer_path.read_text(encoding="utf-8"))
             self.assertEqual(pointer_data["data_root"], str(target))
 
-            # Journal should have been updated to COMMITTED
+            # Journal should have been updated to COMMITTED with full metadata
             journal_data = json.loads(journal_path.read_text(encoding="utf-8"))
             self.assertEqual(journal_data["status"], "COMMITTED")
             self.assertEqual(journal_data["latest_committed_root"], str(target))
             self.assertEqual(len(journal_data["history"]), 1)
             self.assertTrue(journal_data["history"][0]["recovered"])
+            self.assertEqual(journal_data["history"][0]["schema_version"], "2")
+            self.assertEqual(journal_data["history"][0]["app_data_version"], "1.1.0")
+
 
     def test_crash_recovery_switching_corrupt_target_fails_closed(self) -> None:
         """If SWITCHING state points to an incomplete/corrupt target, fail closed with DataRootError."""
@@ -497,6 +742,7 @@ class M23BRelocationEngineTests(unittest.TestCase):
                 "version": 1,
                 "status": "SWITCHING",
                 "pending_target_root": str(target),
+                "pending_marker_uuid": "incomplete_uuid",
                 "latest_committed_root": str(self.local_root),
                 "history": [],
             }),
@@ -517,5 +763,6 @@ class M23BRelocationEngineTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 
 

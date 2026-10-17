@@ -1019,6 +1019,12 @@ class SettingsView(QWidget):
             )
             return
 
+        if self._controller.is_relocating():
+            return
+
+        # Quiesce user-driven UI mutations while background relocation worker runs
+        self.setEnabled(False)
+
         progress_dialog = QProgressDialog(
             "Preparing data relocation...",
             None,  # No cancel button: relocation is a critical atomic boundary once started
@@ -1027,21 +1033,23 @@ class SettingsView(QWidget):
             self,
         )
         progress_dialog.setWindowTitle("Relocating Data Folder")
-        progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+        progress_dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
         progress_dialog.setMinimumDuration(0)
         progress_dialog.setValue(5)
         progress_dialog.show()
 
         worker = RelocationWorker(self._controller, plan, self)
+        self._controller.register_relocation_worker(worker)
 
         def on_progress(message: str, fraction: float) -> None:
             progress_dialog.setLabelText(message)
             progress_dialog.setValue(int(fraction * 100))
 
         def on_success(res: object) -> None:
+            self._controller.register_relocation_worker(None)
             progress_dialog.setValue(100)
             progress_dialog.close()
-            # Disable further interactions in settings to enforce clean exit
+            # Keep UI disabled to enforce clean exit boundary
             self.setEnabled(False)
             QMessageBox.information(
                 self,
@@ -1055,16 +1063,29 @@ class SettingsView(QWidget):
                 app.quit()
 
         def on_error(err_msg: str) -> None:
+            self._controller.register_relocation_worker(None)
             progress_dialog.close()
-            QMessageBox.critical(
-                self,
-                "Relocation Failed",
-                f"Data relocation could not be completed:\n\n{err_msg}\n\n"
-                f"Your original data remains unchanged at:\n{source_root}",
-            )
+            if self._controller.is_source_root_unchanged(source_root):
+                self.setEnabled(True)
+                QMessageBox.critical(
+                    self,
+                    "Relocation Failed",
+                    f"Data relocation could not be completed:\n\n{err_msg}\n\n"
+                    f"Your original data remains unchanged at:\n{source_root}",
+                )
+            else:
+                self.setEnabled(False)
+                QMessageBox.critical(
+                    self,
+                    "Relocation Interrupted During Switch",
+                    f"Data relocation encountered an error while finalizing the new location:\n\n{err_msg}\n\n"
+                    f"Your original files are still preserved at:\n{source_root}\n\n"
+                    "Please restart Vocabulary App so automatic startup recovery can verify and complete or safely halt the transition.",
+                )
 
         worker.progress_updated.connect(on_progress)
         worker.finished_success.connect(on_success)
         worker.finished_error.connect(on_error)
         worker.start()
         self._relocation_worker = worker
+

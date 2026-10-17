@@ -475,17 +475,26 @@ def backup_before_pending_migration(conn: sqlite3.Connection, db_path: Path) -> 
         return None
 
     from src.app_config import get_backup_dir
+    from src.data_lock import DataLockError, acquire_data_lock
 
     backup_dir = get_backup_dir()
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    backup_path = backup_dir / build_pre_migration_backup_filename(stored_version)
-
-    destination = sqlite3.connect(backup_path)
+    lock_root = backup_dir.parent if backup_dir.name == "backups" else backup_dir
     try:
-        conn.backup(destination)
-    finally:
-        destination.close()
-    return backup_path
+        with acquire_data_lock(lock_root, exclusive=False):
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            backup_path = backup_dir / build_pre_migration_backup_filename(stored_version)
+
+            destination = sqlite3.connect(backup_path)
+            try:
+                conn.backup(destination)
+            finally:
+                destination.close()
+            return backup_path
+    except DataLockError as error:
+        raise RuntimeError(
+            f"Cannot write pre-migration backup while data folder is locked for relocation: {error}"
+        ) from error
+
 
 
 def run_migrations(conn: sqlite3.Connection) -> list[str]:

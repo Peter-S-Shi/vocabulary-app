@@ -66,21 +66,29 @@ def import_existing_database(source_path: str | Path, destination_path: str | Pa
 
     destination.parent.mkdir(parents=True, exist_ok=True)
 
-    backup_path: Path | None = None
-    if destination.exists() and destination.stat().st_size > 0:
-        backup_dir = get_backup_dir()
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-        backup_path = backup_dir / f"vocab-pre-import-{timestamp}.db"
-        existing_connection = sqlite3.connect(destination)
-        backup_connection = sqlite3.connect(backup_path)
-        try:
-            existing_connection.backup(backup_connection)
-        finally:
-            backup_connection.close()
-            existing_connection.close()
+    from src.data_lock import DataLockError, acquire_data_lock
 
-    shutil.copy2(source, destination)
+    try:
+        with acquire_data_lock(destination.parent, exclusive=False):
+            backup_path: Path | None = None
+            if destination.exists() and destination.stat().st_size > 0:
+                backup_dir = get_backup_dir()
+                backup_dir.mkdir(parents=True, exist_ok=True)
+                timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+                backup_path = backup_dir / f"vocab-pre-import-{timestamp}.db"
+                existing_connection = sqlite3.connect(destination)
+                backup_connection = sqlite3.connect(backup_path)
+                try:
+                    existing_connection.backup(backup_connection)
+                finally:
+                    backup_connection.close()
+                    existing_connection.close()
+
+            shutil.copy2(source, destination)
+    except DataLockError as error:
+        raise DatabaseImportError(
+            f"Cannot import database while data folder is locked for relocation: {error}"
+        ) from error
 
     return {
         "source_path": source,
@@ -88,3 +96,4 @@ def import_existing_database(source_path: str | Path, destination_path: str | Pa
         "backup_path": backup_path,
         "destination_backed_up": backup_path is not None,
     }
+

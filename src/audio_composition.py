@@ -264,38 +264,53 @@ def compose_card_audio(
     providers: ProviderRegistry,
     asset_store: AudioAssetStore | None = None,
 ) -> CardAudioResult:
+    from src.data_lock import DataLockError, acquire_data_lock
+
     store = asset_store or AudioAssetStore()
     if not plan.ready:
         return CardAudioResult(plan.render_key, None, plan.card_id, plan.card_revision_id, False, "card_plan_not_ready", "Card audio plan has unresolved issues.")
     final_path = store.root / "cards" / plan.render_key[:2] / f"{plan.render_key}.wav"
-    if validate_canonical_wav(final_path):
-        return CardAudioResult(plan.render_key, final_path, plan.card_id, plan.card_revision_id, True)
-    final_path.unlink(missing_ok=True)
-    assets: dict[str, Path] = {}
-    for unit in plan.units:
-        if unit.asset_key in assets:
-            continue
-        result = store.materialize(unit.request, providers)
-        if not result.succeeded:
-            return CardAudioResult(plan.render_key, None, plan.card_id, plan.card_revision_id, False, result.error_code, result.error_detail)
-        assets[unit.asset_key] = result.path
-    final_path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="m15-2-card-", dir=final_path.parent) as temp_dir:
-        temporary_path = Path(temp_dir) / "card.wav"
-        try:
-            with wave.open(str(temporary_path), "wb") as writer:
-                writer.setnchannels(CANONICAL_CHANNELS)
-                writer.setsampwidth(CANONICAL_SAMPLE_WIDTH_BYTES)
-                writer.setframerate(CANONICAL_SAMPLE_RATE_HZ)
-                for segment in plan.segments:
-                    if segment.kind == "audio" and segment.asset_key:
-                        _append_canonical_audio(writer, assets[segment.asset_key])
-                    elif segment.kind == "silence":
-                        writer.writeframes(_silence_bytes(segment.pause_ms))
-            if not validate_canonical_wav(temporary_path):
-                raise ValueError("Composed Card audio is not readable.")
-            os.replace(temporary_path, final_path)
-        except (OSError, ValueError, wave.Error) as error:
+    try:
+        with acquire_data_lock(store.lock_root(), exclusive=False):
+            if validate_canonical_wav(final_path):
+                return CardAudioResult(plan.render_key, final_path, plan.card_id, plan.card_revision_id, True)
             final_path.unlink(missing_ok=True)
-            return CardAudioResult(plan.render_key, None, plan.card_id, plan.card_revision_id, False, "card_composition_failed", str(error))
-    return CardAudioResult(plan.render_key, final_path, plan.card_id, plan.card_revision_id, False)
+            assets: dict[str, Path] = {}
+            for unit in plan.units:
+                if unit.asset_key in assets:
+                    continue
+                result = store.materialize(unit.request, providers)
+                if not result.succeeded:
+                    return CardAudioResult(plan.render_key, None, plan.card_id, plan.card_revision_id, False, result.error_code, result.error_detail)
+                assets[unit.asset_key] = result.path
+            final_path.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(prefix="m15-2-card-", dir=final_path.parent) as temp_dir:
+                temporary_path = Path(temp_dir) / "card.wav"
+                try:
+                    with wave.open(str(temporary_path), "wb") as writer:
+                        writer.setnchannels(CANONICAL_CHANNELS)
+                        writer.setsampwidth(CANONICAL_SAMPLE_WIDTH_BYTES)
+                        writer.setframerate(CANONICAL_SAMPLE_RATE_HZ)
+                        for segment in plan.segments:
+                            if segment.kind == "audio" and segment.asset_key:
+                                _append_canonical_audio(writer, assets[segment.asset_key])
+                            elif segment.kind == "silence":
+                                writer.writeframes(_silence_bytes(segment.pause_ms))
+                    if not validate_canonical_wav(temporary_path):
+                        raise ValueError("Composed Card audio is not readable.")
+                    os.replace(temporary_path, final_path)
+                except (OSError, ValueError, wave.Error) as error:
+                    final_path.unlink(missing_ok=True)
+                    return CardAudioResult(plan.render_key, None, plan.card_id, plan.card_revision_id, False, "card_composition_failed", str(error))
+            return CardAudioResult(plan.render_key, final_path, plan.card_id, plan.card_revision_id, False)
+    except DataLockError as error:
+        return CardAudioResult(
+            plan.render_key,
+            None,
+            plan.card_id,
+            plan.card_revision_id,
+            False,
+            "data_root_locked",
+            f"Audio cache is locked for data relocation: {error}",
+        )
+

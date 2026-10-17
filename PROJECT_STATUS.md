@@ -111,38 +111,46 @@ their durable user data (SQLite database, backups, audio cache, and preferences)
 together to another volume or folder (e.g. `D:\VocabularyAppData`).
 
 The implementation enforces all approved Owner and engineering safety invariants:
-- **Sibling-directory staging & atomic promotion:** staging directory is created
-  under the target volume's parent filesystem (`<parent>/.vocab-stage-<uuid>`)
-  and atomically promoted via `os.replace` to an absent target folder. Existing
-  occupied targets are strictly rejected even under races, and the target's
-  authoritative provenance marker (`.vocab_app_root_marker.json`) is placed inside
-  the staging directory prior to promotion.
+- **Sibling-directory staging & atomic no-clobber promotion:** staging directory
+  is created under the target volume's parent filesystem (`<parent>/.vocab-stage-<uuid>`)
+  and atomically promoted via `MoveFileExW` (`MOVEFILE_WRITE_THROUGH` without
+  `MOVEFILE_REPLACE_EXISTING` on Windows) to an absent target folder. Existing
+  occupied targets are strictly rejected without a check-then-replace race, and
+  the target's authoritative provenance and four-component manifest marker
+  (`.vocab_app_root_marker.json`) is written inside the staging directory prior
+  to promotion.
 - **SQLite snapshot consistency:** uses SQLite online backup (`Connection.backup()`)
-  to create a coherent database snapshot without raw WAL/SHM copying or forced
-  disruptive checkpoints.
-- **Cross-process writer quiescence:** an explicit shared vs. exclusive file lock
-  (`.app_data.lock`) guards the data root across processes. Active normal database
-  connections and preference writers acquire shared locks, while relocation acquires
-  an exclusive lock, guaranteeing that active writers block relocation and active
-  relocation blocks writers.
+  and staging WAL truncation to create a coherent database snapshot without raw
+  WAL/SHM copying or disruptive source checkpoints.
+- **Cross-process writer quiescence:** an explicit shared vs. exclusive OS file lock
+  (`.vocab_relocation.lock`, using pointer-sized Win64 `OVERLAPPED` with `LockFileEx`)
+  guards the data root across processes. Active SQLite connections (`LockedConnection`),
+  preference writes, audio-cache materialization/composition (`AudioAssetStore.materialize`
+  and `compose_card_audio`), pre-migration backups, and database imports hold shared
+  locks for their active operation/connection lifetimes, while relocation acquires
+  an exclusive lock.
 - **Durable recovery journal & crash-consistent state transitions:** an independent
   migration-recovery journal (`migration-recovery.json`) in the default OS root
-  records relocation states (`PREPARED` → `SWITCHING` → `COMMITTED`). An interrupted
-  transition during `SWITCHING` with an intact promoted target is safely forward-rolled
-  on startup, while an interrupted operation with damaged or missing target fails
-  closed without touching the source. If `data-root.json` is missing or damaged after
-  a committed migration, startup fails closed with actionable guidance and never reverts
-  silently to a stale default database or creates a blank database.
+  records relocation transitions (`SWITCHING` → `COMMITTED`). If a crash occurs
+  after `SWITCHING` is recorded but before atomic target promotion (verified via
+  the unpromoted sibling staging directory and matching `.vocab_app_root_marker.json`),
+  startup idempotently rolls back the journal to the prior committed root and cleans
+  up staging. If a crash occurs after target promotion, startup verifies full
+  four-component integrity (`vocab.db`, `preferences.json`, `backups`, `audio-cache`)
+  and marker provenance (`source_root`, `target_root`, `marker_uuid`) before
+  forward-rolling `data-root.json` and the journal to `COMMITTED`. Any missing,
+  unavailable, or incomplete promoted target fails closed with `DataRootError`.
 - **Target filesystem preflight & disk space verification:** destination directories
-  are strictly verified against symbolic links/junctions and sufficient disk space
-  is preflight-checked prior to beginning staging.
+  and source components are strictly verified against symbolic links/junctions,
+  non-regular files, and insufficient disk space prior to staging.
 - **Retained rollback baseline:** original data files at the source location
   are preserved intact and never deleted.
-- **Settings → Storage UX:** Settings offers an explicit "Move Data Folder..."
-  button with preflight validation, understandable confirmation detailing the
-  four migrating components, non-blocking modal progress tracking, and an immediate
-  application restart boundary. When environment overrides (`VOCAB_APP_*`) are
-  active, relocation is safely disabled with an informative notice.
+- **Settings → Storage UX:** Settings executes relocation on a dedicated `QThread`
+  worker (`RelocationWorker`) integrated with `SettingsController.shutdown()` and
+  `MainWindow.closeEvent`, keeping the GUI responsive while quiescing UI actions,
+  reporting accurate post-error recovery status, and enforcing an immediate
+  application restart boundary upon completion.
+
 
 This section intentionally describes the post-merge source state one step ahead
 of this implementation branch. At branch publication, independent remote audit,

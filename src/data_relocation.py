@@ -17,6 +17,7 @@ from src.app_config import (
     DATA_ROOT_POINTER_NAME,
     RECOVERY_JOURNAL_NAME,
     ROOT_MARKER_NAME,
+    _build_component_manifest,
     _is_link,
     _require_writable_directory,
     _validate_relocated_database,
@@ -194,13 +195,7 @@ def _atomic_promote_no_clobber(staging_dir: Path, target_dir: Path) -> None:
                 )
             raise RelocationError(f"Atomic promotion failed with Windows error code {err}.")
     else:
-        try:
-            os.link(staging_dir, target_dir)  # link is for files, os.rename without replace on POSIX
-        except (AttributeError, OSError):
-            pass
-        # On POSIX rename(s, t) succeeds if t does not exist; if t exists and is empty dir, rename replaces it.
-        # Check first under POSIX
-        if target_dir.exists():
+        if target_dir.exists() or _is_link(target_dir):
             raise RelocationError(
                 f"Destination folder '{target_dir}' already exists or was occupied during relocation."
             )
@@ -222,11 +217,18 @@ def execute_relocation(
     if progress_callback:
         progress_callback("Locking source data folder...", 0.05)
 
+    journal_in_switching = False
     try:
         with acquire_data_lock(plan.source_root, exclusive=True):
             # Check target again right under lock
-            if plan.target_dir.exists():
+            if plan.target_dir.exists() or _is_link(plan.target_dir):
                 raise RelocationError("Target folder already exists and is occupied.")
+
+            source_db = plan.source_root / "vocab.db"
+            if not source_db.is_file() or _is_link(source_db):
+                raise RelocationError("Source folder has no regular vocab.db database.")
+
+            source_manifest = _build_component_manifest(plan.source_root)
 
             plan.staging_dir.mkdir(parents=True, exist_ok=False)
             stage_marker = plan.staging_dir / ".vocab_stage_marker.json"
@@ -239,10 +241,6 @@ def execute_relocation(
                 }),
                 encoding="utf-8",
             )
-
-            source_db = plan.source_root / "vocab.db"
-            if not source_db.is_file():
-                raise RelocationError("Source folder has no regular vocab.db database.")
 
             if progress_callback:
                 progress_callback("Snapshotting SQLite database...", 0.20)
@@ -260,21 +258,21 @@ def execute_relocation(
             src_backups = plan.source_root / "backups"
             if src_backups.is_dir() and not _is_link(src_backups):
                 shutil.copytree(src_backups, plan.staging_dir / "backups")
-            elif src_backups.exists():
+            elif src_backups.exists() or _is_link(src_backups):
                 raise RelocationError("Source backups component is not a regular directory.")
 
             # Audio cache
             src_audio = plan.source_root / "audio-cache"
             if src_audio.is_dir() and not _is_link(src_audio):
                 shutil.copytree(src_audio, plan.staging_dir / "audio-cache")
-            elif src_audio.exists():
+            elif src_audio.exists() or _is_link(src_audio):
                 raise RelocationError("Source audio-cache component is not a regular directory.")
 
             # Preferences
             src_prefs = plan.source_root / "preferences.json"
             if src_prefs.is_file() and not _is_link(src_prefs):
                 shutil.copy2(src_prefs, plan.staging_dir / "preferences.json")
-            elif src_prefs.exists():
+            elif src_prefs.exists() or _is_link(src_prefs):
                 raise RelocationError("Source preferences.json component is not a regular file.")
 
             if progress_callback:
@@ -291,11 +289,6 @@ def execute_relocation(
                 schema_ver = metadata.get("schema_version", "unknown")
                 app_data_ver = metadata.get("app_data_version", "unknown")
 
-            # Verify staged preferences if present
-            staged_prefs = plan.staging_dir / "preferences.json"
-            if staged_prefs.exists():
-                json.loads(staged_prefs.read_text(encoding="utf-8"))
-
             # Finalize staged DB so it has no orphaned temporary wal/shm files before promotion
             with closing(sqlite3.connect(staged_db)) as staged_conn:
                 staged_conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
@@ -307,8 +300,16 @@ def execute_relocation(
                     except OSError:
                         pass
 
+            # Build and verify 4-component manifest of staged files against source
+            staged_manifest = _build_component_manifest(plan.staging_dir)
+            for comp_key in ("preferences", "backups", "audio_cache"):
+                if staged_manifest[comp_key] != source_manifest[comp_key]:
+                    raise RelocationError(
+                        f"Staged component '{comp_key}' failed completeness verification against source."
+                    )
+
             # Pre-write root marker inside staging directory BEFORE promotion.
-            # This guarantees that the instant target_dir appears on disk, it contains its provenance marker!
+            # This guarantees that both unpromoted staging and promoted target carry full provenance + manifest.
             root_marker = plan.staging_dir / ROOT_MARKER_NAME
             root_marker.write_text(
                 json.dumps({
@@ -316,7 +317,10 @@ def execute_relocation(
                     "marker_uuid": plan.marker_uuid,
                     "source_root": str(plan.source_root),
                     "target_root": str(plan.target_dir),
+                    "schema_version": schema_ver,
+                    "app_data_version": app_data_ver,
                     "relocated_at": datetime.now(timezone.utc).isoformat(),
+                    "components": staged_manifest,
                 }),
                 encoding="utf-8",
             )
@@ -349,7 +353,12 @@ def execute_relocation(
                 "version": 1,
                 "status": "SWITCHING",
                 "pending_target_root": str(plan.target_dir),
+                "pending_staging_dir": str(plan.staging_dir),
                 "pending_marker_uuid": plan.marker_uuid,
+                "pending_schema_version": schema_ver,
+                "pending_app_data_version": app_data_ver,
+                "pending_components": staged_manifest,
+                "had_prior_journal": journal_existed_before,
                 "latest_committed_root": str(plan.source_root),
                 "history": existing_history,
             }
@@ -359,6 +368,7 @@ def execute_relocation(
                 os.fsync(temp_j.fileno())
                 temp_j_name = temp_j.name
             os.replace(temp_j_name, journal_path)
+            journal_in_switching = True
 
             if progress_callback:
                 progress_callback("Promoting target folder...", 0.88)
@@ -374,9 +384,11 @@ def execute_relocation(
                         os.fsync(temp_rb.fileno())
                         temp_rb_name = temp_rb.name
                     os.replace(temp_rb_name, journal_path)
+                    journal_in_switching = False
                 else:
                     try:
                         journal_path.unlink(missing_ok=True)
+                        journal_in_switching = False
                     except OSError:
                         pass
                 raise promote_err
@@ -422,6 +434,7 @@ def execute_relocation(
                 os.fsync(temp_j.fileno())
                 temp_j_name = temp_j.name
             os.replace(temp_j_name, journal_path)
+            journal_in_switching = False
 
             if progress_callback:
                 progress_callback("Relocation complete.", 1.0)
@@ -435,8 +448,8 @@ def execute_relocation(
             )
 
     except Exception as error:
-        # Cleanup staging directory on error if it still exists
-        if plan.staging_dir.exists():
+        # Cleanup staging directory on error only if journal is not left in SWITCHING state
+        if not journal_in_switching and plan.staging_dir.exists():
             shutil.rmtree(plan.staging_dir, ignore_errors=True)
         if isinstance(error, RelocationError):
             raise
@@ -445,3 +458,4 @@ def execute_relocation(
                 f"Cannot start relocation: another Vocabulary App process or writer is actively using this data folder: {error}"
             ) from error
         raise RelocationError(f"Relocation failed: {error}") from error
+

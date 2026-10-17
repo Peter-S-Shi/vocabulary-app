@@ -159,6 +159,88 @@ class SettingsStorageRelocationUITests(unittest.TestCase):
             self.assertTrue(target.is_dir())
             self.assertTrue((target / "vocab.db").is_file())
 
+    def test_shutdown_waits_for_active_relocation_worker(self) -> None:
+        controller = SettingsController()
+        fake_worker = MagicMock()
+        fake_worker.isRunning.return_value = True
+        fake_worker.wait.return_value = True
+        controller.register_relocation_worker(fake_worker)
+        self.assertTrue(controller.is_relocating())
+        self.assertTrue(controller.shutdown(wait_ms=1000))
+        fake_worker.wait.assert_called_once()
+
+    @patch("src.ui_desktop.views.settings_view.QFileDialog.getExistingDirectory")
+    @patch("src.ui_desktop.views.settings_view.QMessageBox.question")
+    @patch("src.ui_desktop.views.settings_view.QMessageBox.critical")
+    def test_view_error_message_distinguishes_unchanged_source_from_interrupted_switch(
+        self,
+        mock_critical: MagicMock,
+        mock_question: MagicMock,
+        mock_get_dir: MagicMock,
+    ) -> None:
+        from src.data_relocation import RelocationError
+
+        target_parent = self.home / "external_drive_err"
+        target_parent.mkdir()
+        mock_get_dir.return_value = str(target_parent)
+        mock_question.return_value = QMessageBox.StandardButton.Yes
+
+        env_vars = {
+            "LOCALAPPDATA": str(self.home / "local"),
+            "VOCAB_APP_DB_PATH": "",
+            "VOCAB_APP_BACKUP_DIR": "",
+            "VOCAB_APP_AUDIO_CACHE_DIR": "",
+            "VOCAB_APP_PREFERENCES_PATH": "",
+        }
+        with patch.dict(os.environ, env_vars):
+            controller = SettingsController()
+            view = SettingsView(controller)
+            self.addCleanup(view.deleteLater)
+
+            # Case 1: Failure while source root is still authoritative and unchanged
+            with patch.object(
+                controller,
+                "execute_data_relocation",
+                side_effect=RelocationError("Simulated pre-switch failure"),
+            ):
+                view._storage_move_btn.click()
+                if hasattr(view, "_relocation_worker") and view._relocation_worker is not None:
+                    view._relocation_worker.wait(5000)
+                self.app.processEvents()
+
+            self.assertTrue(view.isEnabled())
+            self.assertEqual(mock_critical.call_args[0][1], "Relocation Failed")
+            self.assertIn("Your original data remains unchanged", mock_critical.call_args[0][2])
+
+            # Case 2: Failure after journal was left in SWITCHING state (partially committed transition)
+            mock_critical.reset_mock()
+            def fail_after_writing_switching(plan, progress_callback=None):
+                (self.local_root / app_config.RECOVERY_JOURNAL_NAME).write_text(
+                    json.dumps({
+                        "version": 1,
+                        "status": "SWITCHING",
+                        "pending_target_root": str(plan.target_dir),
+                        "pending_marker_uuid": plan.marker_uuid,
+                        "latest_committed_root": str(self.local_root),
+                        "history": [],
+                    }),
+                    encoding="utf-8",
+                )
+                raise RelocationError("Simulated post-switch failure")
+
+            with patch.object(controller, "execute_data_relocation", side_effect=fail_after_writing_switching):
+                view._storage_move_btn.click()
+                if hasattr(view, "_relocation_worker") and view._relocation_worker is not None:
+                    view._relocation_worker.wait(5000)
+                self.app.processEvents()
+
+            # View must stay disabled to enforce restart boundary and NOT falsely promise nothing changed
+            self.assertFalse(view.isEnabled())
+            self.assertEqual(mock_critical.call_args[0][1], "Relocation Interrupted During Switch")
+            self.assertNotIn("Your original data remains unchanged", mock_critical.call_args[0][2])
+            self.assertIn("Please restart Vocabulary App", mock_critical.call_args[0][2])
+
 
 if __name__ == "__main__":
     unittest.main()
+
