@@ -35,10 +35,16 @@ Windows-native Human Acceptance PASS. No M22-C installer has shipped;
 v1.1.0 remains the published release.
 
 The post-merge M22-D source state adds current Collection and Card locations
-to Entries detail (#39), with practice pools labeled separately. This section
-is one step ahead of the M22-D implementation branch: remote audit, PR merge,
-and Windows-native Human Acceptance remain pending. These source changes have
-not shipped in an installer.
+to Entries detail (#39), with practice pools labeled separately. PR #47 and
+post-merge `main` CI passed; Windows-native Human Acceptance has not been
+reported as PASS. These changes have not shipped in an installer.
+
+The post-merge M23-A source state prepares Issue #43's safe, unified data-folder
+relocation with a startup pointer and fail-closed resolution for SQLite,
+backups, audio cache and preferences. This statement is one step ahead of
+the M23-A branch: independent audit and PR merge remain pending. Settings
+does not yet move data or offer a folder chooser; M23-B will address verified
+copy, switch and rollback. v1.1.0 remains the published installer.
 
 ## See it
 
