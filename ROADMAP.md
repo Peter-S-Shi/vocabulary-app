@@ -2234,11 +2234,27 @@ a contrast-safe semantic error color, correct/expected answers in the active
 theme accent, and ungraded self-graded drafts neutrally. Existing grading,
 Matching, and persistence contracts remain intact.
 
-This section intentionally describes the post-merge source state. At this
-implementation-branch checkpoint, independent remote audit, PR merge, and
-Windows-native Human Acceptance remain pending; offscreen contrast checks are
-local engineering evidence only. v1.1.0 remains the current public release;
-M22-C has not shipped in an installer, and M22 as a whole remains open.
+PR #46 passed required PR and post-merge `main` CI and merged M22-C into
+`main`. The product owner reported Windows-native Human Acceptance PASS for all
+four M22-C check groups. v1.1.0 remains the current public release; M22-C has
+not shipped in an installer, and M22 as a whole remains open.
+
+## Milestone 22-D: Current Entry locations
+
+**Post-merge M22-D source state:** Issue #39 is implemented and merged into
+`main`. Entries detail shows every current ordinary Collection and its Card
+number, calculated from current membership position and that Collection's
+Card size. System practice pools are explicitly shown as pool memberships,
+without suggesting ordinary Card ownership. One reusable batched core read
+supplies both current locations and unchanged Entries table Collection names.
+Collection reordering, Card-size changes, membership changes, and deletion
+are reflected on refresh; no schema or learning-history change is involved.
+
+This section intentionally describes the post-merge source state one step
+ahead of the implementation branch. Independent remote audit, PR merge, and
+Windows-native Human Acceptance are pending at branch publication. v1.1.0
+remains the current public release; M22-D has not shipped in an installer,
+and M22 as a whole remains open.
 
 ## Maintenance / Next Version
 

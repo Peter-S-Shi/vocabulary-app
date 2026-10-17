@@ -663,8 +663,16 @@ class EntriesView(QWidget):
         self._detail_layout.addWidget(
             _detail_field("Meaning & Example", str(entry.get("meaning") or ""), secondary=str(entry.get("example") or ""))
         )
-        collection_names = entry.get("collection_names") or []
-        self._detail_layout.addWidget(_detail_field("Collections", ", ".join(collection_names) or "—"))
+        locations = entry.get("collection_locations") or []
+        location_lines = [
+            f"{location['collection_name']} · Practice pool"
+            if location["is_system"]
+            else f"{location['collection_name']} · Card {location['card_number']}"
+            for location in locations
+        ]
+        self._detail_layout.addWidget(
+            _detail_field("Current locations", "\n".join(location_lines) or "No current locations")
+        )
 
         review_count = int(entry.get("review_count") or 0)
         correct_count = int(entry.get("correct_count") or 0)

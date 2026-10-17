@@ -8,7 +8,7 @@ from src.collections import (
     add_entries_to_system_collection,
     add_entry_to_collections,
     get_collection_ids_for_entry,
-    get_collection_names_for_entries,
+    get_entry_locations_for_entries,
     get_collections,
     get_entries_in_collection,
     get_entries_in_system_collection,
@@ -161,10 +161,13 @@ class EntriesController(QObject):
             rows = [row for row in rows if row["id"] in scope_ids]
 
         row_ids = [row["id"] for row in rows]
-        collection_names = get_collection_names_for_entries(row_ids)
+        locations_by_entry = get_entry_locations_for_entries(row_ids)
         starred_ids = get_entry_ids_in_system_collection(row_ids, "starred")
         for row in rows:
-            row["collection_names"] = collection_names.get(row["id"], [])
+            row["collection_locations"] = locations_by_entry.get(row["id"], [])
+            row["collection_names"] = [
+                location["collection_name"] for location in row["collection_locations"]
+            ]
             row["starred"] = row["id"] in starred_ids
         self.model.set_rows(rows)
 
