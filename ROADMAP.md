@@ -2219,10 +2219,26 @@ Collection and system-pool Quiz paths remain available.
 
 Targeted local regression and architecture checks cover implementation;
 the product owner reported Windows-native Human Acceptance PASS on the M22-B
-branch. This section describes the post-merge source state; at this branch
-publication checkpoint, no M22-B PR has been opened or merged. This source
+branch. PR #45 passed required CI and merged M22-B into `main`. This source
 milestone has not shipped in an installer. v1.1.0 remains the current public
 release, and M22 as a whole remains open.
+
+## Milestone 22-C: Theme visibility and Quiz answer feedback
+
+**Post-merge M22-C source state:** Issue #38
+and Issue #41
+are implemented and merged into `main`. Starred and Proficient Pool Random
+Quiz buttons use explicit, theme-token foreground/background pairs with hover,
+disabled, and keyboard-focus states. Quiz presents adjudicated wrong answers in
+a contrast-safe semantic error color, correct/expected answers in the active
+theme accent, and ungraded self-graded drafts neutrally. Existing grading,
+Matching, and persistence contracts remain intact.
+
+This section intentionally describes the post-merge source state. At this
+implementation-branch checkpoint, independent remote audit, PR merge, and
+Windows-native Human Acceptance remain pending; offscreen contrast checks are
+local engineering evidence only. v1.1.0 remains the current public release;
+M22-C has not shipped in an installer, and M22 as a whole remains open.
 
 ## Maintenance / Next Version
 

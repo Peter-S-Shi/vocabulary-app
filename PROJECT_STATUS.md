@@ -48,10 +48,28 @@ Independent Collection and system-pool Quizzes remain separate.
 The completed Card Matching session uses the M22-A Card history and next-review
 scheduling paths without synthetic completion evidence. Local targeted tests
 and the architecture audit cover this source change. The product owner reported
-Windows-native Human Acceptance PASS on the M22-B branch. This section describes
-the post-merge source state; at this branch publication checkpoint, no M22-B PR
-has been opened or merged. No public release or installer contains M22-B;
-v1.1.0 remains the published version.
+Windows-native Human Acceptance PASS on the M22-B branch. PR #45 passed
+required CI and merged M22-B into `main`. No public release or installer
+contains M22-B; v1.1.0 remains the published version.
+
+## M22-C / Theme visibility and Quiz feedback
+
+**Post-merge M22-C source state:** Issue #38
+and Issue #41
+are implemented and merged into `main`. The Starred and Proficient Pool Random
+Quiz buttons have explicit theme-token colors for normal, hover, disabled,
+and keyboard-focus states. Quiz answer presentation uses a contrast-safe error
+color for adjudicated wrong answers and the active theme accent for correct
+and expected answers; ungraded self-graded drafts remain neutral. Existing
+Correct/Wrong grading labels, Matching flow, and learning data are unchanged.
+
+This section records the intended post-merge source state one step ahead of
+this implementation branch. At branch publication, independent remote audit,
+PR merge, and Windows-native Human Acceptance have **not** occurred. Focused
+local tests cover the supported presets and custom themes; offscreen tests do
+not establish native visual acceptance. v1.1.0 remains the current published
+release, and no installer containing M22-C has shipped. M22 as a whole remains
+open.
 
 ## M21 / v1.1.0 Closure
 
