@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QThread, Signal, Slot
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QApplication,
@@ -47,6 +47,27 @@ VOICE_BINDING_LANGUAGES: tuple[tuple[str, str], ...] = (
     ("zh-CN", "Mandarin (zh-CN)"),
 )
 NOT_BOUND_VOICE_ID = ""
+
+
+class RelocationWorker(QThread):
+    progress_updated = Signal(str, float)
+    finished_success = Signal(object)
+    finished_error = Signal(str)
+
+    def __init__(self, controller: SettingsController, plan: object, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._controller = controller
+        self._plan = plan
+
+    def run(self) -> None:
+        try:
+            res = self._controller.execute_data_relocation(
+                self._plan,
+                progress_callback=lambda msg, frac: self.progress_updated.emit(msg, frac),
+            )
+            self.finished_success.emit(res)
+        except Exception as error:
+            self.finished_error.emit(str(error))
 
 
 class SettingsView(QWidget):
@@ -988,6 +1009,16 @@ class SettingsView(QWidget):
         if reply != QMessageBox.StandardButton.Yes:
             return
 
+        try:
+            plan = self._controller.plan_data_relocation(target_path)
+        except Exception as error:
+            QMessageBox.critical(
+                self,
+                "Preflight Validation Failed",
+                f"Data relocation could not be started:\n\n{error}",
+            )
+            return
+
         progress_dialog = QProgressDialog(
             "Preparing data relocation...",
             None,  # No cancel button: relocation is a critical atomic boundary once started
@@ -999,34 +1030,41 @@ class SettingsView(QWidget):
         progress_dialog.setWindowModality(Qt.WindowModality.WindowModal)
         progress_dialog.setMinimumDuration(0)
         progress_dialog.setValue(5)
-        QApplication.processEvents()
+        progress_dialog.show()
 
-        def update_progress(message: str, fraction: float) -> None:
+        worker = RelocationWorker(self._controller, plan, self)
+
+        def on_progress(message: str, fraction: float) -> None:
             progress_dialog.setLabelText(message)
             progress_dialog.setValue(int(fraction * 100))
-            QApplication.processEvents()
 
-        try:
-            plan = self._controller.plan_data_relocation(target_path)
-            res = self._controller.execute_data_relocation(plan, progress_callback=update_progress)
+        def on_success(res: object) -> None:
             progress_dialog.setValue(100)
             progress_dialog.close()
-            if res.success:
-                QMessageBox.information(
-                    self,
-                    "Relocation Successful",
-                    "Data relocation completed successfully.\n\n"
-                    f"New data location:\n{target_path}\n\n"
-                    "Vocabulary App will now exit. Please restart the application to use your new data folder.",
-                )
-                app = QApplication.instance()
-                if app is not None:
-                    app.quit()
-        except Exception as error:
+            # Disable further interactions in settings to enforce clean exit
+            self.setEnabled(False)
+            QMessageBox.information(
+                self,
+                "Relocation Successful",
+                "Data relocation completed successfully.\n\n"
+                f"New data location:\n{target_path}\n\n"
+                "Vocabulary App will now exit. Please restart the application to use your new data folder.",
+            )
+            app = QApplication.instance()
+            if app is not None:
+                app.quit()
+
+        def on_error(err_msg: str) -> None:
             progress_dialog.close()
             QMessageBox.critical(
                 self,
                 "Relocation Failed",
-                f"Data relocation could not be completed:\n\n{error}\n\n"
+                f"Data relocation could not be completed:\n\n{err_msg}\n\n"
                 f"Your original data remains unchanged at:\n{source_root}",
             )
+
+        worker.progress_updated.connect(on_progress)
+        worker.finished_success.connect(on_success)
+        worker.finished_error.connect(on_error)
+        worker.start()
+        self._relocation_worker = worker

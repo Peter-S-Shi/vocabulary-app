@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import sys
 import tempfile
 import unittest
 from contextlib import closing
@@ -317,9 +318,10 @@ class M23BRelocationEngineTests(unittest.TestCase):
 
 
     def test_subprocess_normal_writer_blocks_relocation_and_vice_versa(self) -> None:
-        """Verify that an active normal data writer (holding a shared lock) blocks
-        relocation (which requires an exclusive lock), and active relocation blocks writers.
+        """Verify across real separate OS processes that an active normal SQLite transaction
+        blocks relocation (which requires an exclusive lock), and active relocation blocks writers.
         """
+        import subprocess
         from src.data_lock import acquire_data_lock, DataLockError
         from src.data_relocation import plan_relocation, execute_relocation, RelocationError
 
@@ -327,17 +329,100 @@ class M23BRelocationEngineTests(unittest.TestCase):
         target.parent.mkdir()
         plan = plan_relocation(target, source_root=self.local_root)
 
-        # 1. Normal app writer holds shared lock: relocation must be blocked
-        with acquire_data_lock(self.local_root, exclusive=False):
+        # 1. Launch a separate OS subprocess holding an active SQLite connection / transaction
+        worker_code = (
+            "import os, sys, time, sqlite3\n"
+            "from pathlib import Path\n"
+            "from src import app_config, db\n"
+            "conn = db.get_connection()\n"
+            "sys.stdout.write('READY\\n')\n"
+            "sys.stdout.flush()\n"
+            "time.sleep(3)\n"
+            "conn.close()\n"
+        )
+        env = dict(os.environ)
+        env.update({
+            "LOCALAPPDATA": str(self.home / "local"),
+            "VOCAB_APP_DB_PATH": "",
+            "VOCAB_APP_BACKUP_DIR": "",
+            "VOCAB_APP_AUDIO_CACHE_DIR": "",
+            "VOCAB_APP_PREFERENCES_PATH": "",
+        })
+        proc = subprocess.Popen(
+            [sys.executable, "-c", worker_code],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+        )
+        try:
+            ready_line = proc.stdout.readline()
+            self.assertEqual(ready_line.strip(), "READY")
+
+            # While the external process holds the DB connection, relocation MUST fail
             with self.assertRaises(RelocationError) as ctx:
                 execute_relocation(plan, default_root=self.local_root)
             self.assertIn("actively using", str(ctx.exception))
+        finally:
+            proc.terminate()
+            proc.wait(timeout=5)
 
-        # 2. Relocation holding exclusive lock: normal writer must be blocked
+        # 2. While relocation holds exclusive lock, an external writer process must fail to connect
         with acquire_data_lock(self.local_root, exclusive=True):
-            with self.assertRaises(DataLockError):
-                with acquire_data_lock(self.local_root, exclusive=False):
-                    pass
+            writer_attempt_code = (
+                "import os, sys\n"
+                "from src import app_config, db\n"
+                "try:\n"
+                "    conn = db.get_connection()\n"
+                "    sys.exit(0)\n"
+                "except Exception as e:\n"
+                "    sys.stderr.write(str(e))\n"
+                "    sys.exit(42)\n"
+            )
+            writer_res = subprocess.run(
+                [sys.executable, "-c", writer_attempt_code],
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            self.assertEqual(writer_res.returncode, 42)
+            self.assertIn("locked for relocation", writer_res.stderr)
+
+    def test_failed_promotion_rolls_back_journal_to_committed_source(self) -> None:
+        """If target promotion fails (e.g. target became occupied), the journal
+        must be rolled back to its previous state (or removed if absent), so the existing app continues to work.
+        """
+        from unittest.mock import patch
+        from src.data_relocation import plan_relocation, execute_relocation, RelocationError
+
+        target = self.home / "drive_d" / "OccupiedTarget"
+        target.parent.mkdir()
+        plan = plan_relocation(target, source_root=self.local_root)
+
+        # Intercept _atomic_promote_no_clobber to simulate promotion failure
+        with patch("src.data_relocation._atomic_promote_no_clobber", side_effect=RelocationError("Simulated promotion failure")):
+            with self.assertRaises(RelocationError) as ctx:
+                execute_relocation(plan, default_root=self.local_root)
+            self.assertIn("Simulated promotion failure", str(ctx.exception))
+
+        # Staging should be cleaned up
+        self.assertFalse(plan.staging_dir.exists())
+
+        # Since no journal existed prior to relocation, temporary journal should have been unlinked
+        # so local_root remains the active default root without missing-pointer errors!
+        journal_path = self.local_root / app_config.RECOVERY_JOURNAL_NAME
+        self.assertFalse(journal_path.exists())
+
+        # Subsequent startup of existing source root must succeed cleanly!
+        with patch.dict(os.environ, {
+            "LOCALAPPDATA": str(self.home / "local"),
+            "VOCAB_APP_DB_PATH": "",
+            "VOCAB_APP_BACKUP_DIR": "",
+            "VOCAB_APP_AUDIO_CACHE_DIR": "",
+            "VOCAB_APP_PREFERENCES_PATH": "",
+        }):
+            paths = app_config.resolve_data_paths()
+            self.assertEqual(paths.data_root, self.local_root.resolve())
 
     def test_crash_recovery_forward_rolls_interrupted_switching_state(self) -> None:
         """If a crash occurred after promoting target and writing SWITCHING journal,
@@ -367,6 +452,7 @@ class M23BRelocationEngineTests(unittest.TestCase):
                 "version": 1,
                 "status": "SWITCHING",
                 "pending_target_root": str(target),
+                "pending_marker_uuid": "test_crash_uuid",
                 "latest_committed_root": str(self.local_root),
                 "history": [],
             }),
@@ -396,6 +482,8 @@ class M23BRelocationEngineTests(unittest.TestCase):
             journal_data = json.loads(journal_path.read_text(encoding="utf-8"))
             self.assertEqual(journal_data["status"], "COMMITTED")
             self.assertEqual(journal_data["latest_committed_root"], str(target))
+            self.assertEqual(len(journal_data["history"]), 1)
+            self.assertTrue(journal_data["history"][0]["recovered"])
 
     def test_crash_recovery_switching_corrupt_target_fails_closed(self) -> None:
         """If SWITCHING state points to an incomplete/corrupt target, fail closed with DataRootError."""

@@ -144,6 +144,9 @@ class SettingsStorageRelocationUITests(unittest.TestCase):
 
             with patch.object(self.app, "quit") as mock_quit:
                 view._storage_move_btn.click()
+                if hasattr(view, "_relocation_worker") and view._relocation_worker is not None:
+                    view._relocation_worker.wait(5000)
+                self.app.processEvents()
 
             mock_question.assert_called_once()
             self.assertIn("Vocabulary App will relocate your user data", mock_question.call_args[0][2])

@@ -186,6 +186,21 @@ def resolve_data_paths() -> DataPaths:
                 # If target was fully promoted with root marker and valid DB, forward-roll to COMMITTED
                 if pending_root.is_dir() and not _is_link(pending_root) and marker.is_file() and pending_db.is_file():
                     _validate_relocated_database(pending_db)
+
+                    # Validate root marker provenance
+                    try:
+                        marker_data = json.loads(marker.read_text(encoding="utf-8"))
+                        if not isinstance(marker_data, dict):
+                            raise ValueError("root marker is not a valid JSON object")
+                        marker_target = Path(marker_data.get("target_root", "")).resolve()
+                        if marker_target != pending_root:
+                            raise ValueError("root marker target_root does not match pending target")
+                        expected_uuid = raw_journal.get("pending_marker_uuid")
+                        if expected_uuid and marker_data.get("marker_uuid") != expected_uuid:
+                            raise ValueError("root marker uuid does not match journal expectation")
+                    except Exception as marker_err:
+                        raise ValueError(f"Root marker provenance check failed: {marker_err}") from marker_err
+
                     # Forward-roll pointer
                     pointer_data = {"version": 1, "data_root": str(pending_root)}
                     with tempfile.NamedTemporaryFile("w", dir=default_root, delete=False, encoding="utf-8") as temp_p:
@@ -196,10 +211,26 @@ def resolve_data_paths() -> DataPaths:
                     os.replace(temp_p_name, pointer)
                     pointer_present = True
 
-                    # Forward-roll journal to COMMITTED
+                    # Forward-roll journal to COMMITTED and append to history
+                    history = raw_journal.get("history")
+                    if not isinstance(history, list):
+                        history = []
+                    next_seq = (max((item.get("sequence", 0) for item in history), default=0) + 1)
+                    recovered_entry = {
+                        "sequence": next_seq,
+                        "committed_at": marker_data.get("relocated_at", "recovered"),
+                        "source_root": marker_data.get("source_root", raw_journal.get("latest_committed_root", "")),
+                        "target_root": str(pending_root),
+                        "marker_uuid": marker_data.get("marker_uuid", ""),
+                        "recovered": True,
+                    }
+                    history.append(recovered_entry)
+
                     raw_journal["status"] = "COMMITTED"
                     raw_journal["latest_committed_root"] = str(pending_root)
+                    raw_journal["history"] = history
                     raw_journal.pop("pending_target_root", None)
+                    raw_journal.pop("pending_marker_uuid", None)
                     with tempfile.NamedTemporaryFile("w", dir=default_root, delete=False, encoding="utf-8") as temp_j:
                         temp_j.write(json.dumps(raw_journal, indent=2))
                         temp_j.flush()

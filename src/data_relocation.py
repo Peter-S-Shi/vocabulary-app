@@ -7,11 +7,11 @@ import sqlite3
 import sys
 import tempfile
 import uuid
-from contextlib import closing
+from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Iterator
 
 from src.app_config import (
     DATA_ROOT_POINTER_NAME,
@@ -24,8 +24,6 @@ from src.app_config import (
     resolve_data_paths,
 )
 from src.data_lock import acquire_data_lock, DataLockError
-from contextlib import contextmanager
-from typing import Iterator
 
 
 class RelocationError(RuntimeError):
@@ -68,6 +66,8 @@ def _get_tree_size_and_validate(path: Path) -> int:
         return 0
     if _is_link(path):
         raise RelocationError(f"Directory '{path}' is a link or junction, which is not permitted.")
+    if not path.is_dir():
+        raise RelocationError(f"Expected directory at '{path}', found file or special object.")
     for root, dirs, files in os.walk(path):
         root_path = Path(root)
         for d in dirs:
@@ -127,6 +127,15 @@ def plan_relocation(
 
     _require_writable_directory(target_parent)
 
+    # Validate source components strictly
+    for child_name in ("backups", "audio-cache"):
+        child = source / child_name
+        if child.exists() and not child.is_dir():
+            raise RelocationError(f"Source component '{child_name}' exists but is not a regular directory.")
+    source_prefs = source / "preferences.json"
+    if source_prefs.exists() and not source_prefs.is_file():
+        raise RelocationError("Source component 'preferences.json' exists but is not a regular file.")
+
     # Estimate required space (db + backups + cache + preferences + 10MB safety buffer)
     required_bytes = 10 * 1024 * 1024
     source_db = source / "vocab.db"
@@ -136,7 +145,6 @@ def plan_relocation(
         child = source / child_name
         if child.is_dir():
             required_bytes += _get_tree_size_and_validate(child)
-    source_prefs = source / "preferences.json"
     if source_prefs.is_file():
         required_bytes += source_prefs.stat().st_size
 
@@ -161,6 +169,42 @@ def plan_relocation(
         staging_dir=staging_dir,
         marker_uuid=marker_uuid,
     )
+
+
+def _atomic_promote_no_clobber(staging_dir: Path, target_dir: Path) -> None:
+    """Promotes staging_dir to target_dir atomically without overwriting any existing target."""
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.windll.kernel32
+        MOVEFILE_WRITE_THROUGH = 0x00000008
+        success = kernel32.MoveFileExW(
+            str(staging_dir),
+            str(target_dir),
+            wintypes.DWORD(MOVEFILE_WRITE_THROUGH),
+        )
+        if not success:
+            err = kernel32.GetLastError()
+            ERROR_ALREADY_EXISTS = 183
+            ERROR_FILE_EXISTS = 80
+            if err in (ERROR_ALREADY_EXISTS, ERROR_FILE_EXISTS):
+                raise RelocationError(
+                    f"Destination folder '{target_dir}' already exists or was occupied during relocation."
+                )
+            raise RelocationError(f"Atomic promotion failed with Windows error code {err}.")
+    else:
+        try:
+            os.link(staging_dir, target_dir)  # link is for files, os.rename without replace on POSIX
+        except (AttributeError, OSError):
+            pass
+        # On POSIX rename(s, t) succeeds if t does not exist; if t exists and is empty dir, rename replaces it.
+        # Check first under POSIX
+        if target_dir.exists():
+            raise RelocationError(
+                f"Destination folder '{target_dir}' already exists or was occupied during relocation."
+            )
+        os.rename(staging_dir, target_dir)
 
 
 def execute_relocation(
@@ -216,16 +260,22 @@ def execute_relocation(
             src_backups = plan.source_root / "backups"
             if src_backups.is_dir() and not _is_link(src_backups):
                 shutil.copytree(src_backups, plan.staging_dir / "backups")
+            elif src_backups.exists():
+                raise RelocationError("Source backups component is not a regular directory.")
 
             # Audio cache
             src_audio = plan.source_root / "audio-cache"
             if src_audio.is_dir() and not _is_link(src_audio):
                 shutil.copytree(src_audio, plan.staging_dir / "audio-cache")
+            elif src_audio.exists():
+                raise RelocationError("Source audio-cache component is not a regular directory.")
 
             # Preferences
             src_prefs = plan.source_root / "preferences.json"
             if src_prefs.is_file() and not _is_link(src_prefs):
                 shutil.copy2(src_prefs, plan.staging_dir / "preferences.json")
+            elif src_prefs.exists():
+                raise RelocationError("Source preferences.json component is not a regular file.")
 
             if progress_callback:
                 progress_callback("Verifying staged files...", 0.70)
@@ -278,7 +328,6 @@ def execute_relocation(
             if progress_callback:
                 progress_callback("Recording pending migration transition...", 0.80)
 
-            # Journal state transition: SWITCHING
             journal_path = def_root / RECOVERY_JOURNAL_NAME
             existing_history: list[dict] = []
             next_seq = 1
@@ -292,10 +341,15 @@ def execute_relocation(
                 except Exception:
                     pass
 
+            journal_existed_before = journal_path.is_file()
+            prev_journal_content = journal_path.read_text(encoding="utf-8") if journal_existed_before else None
+
+            # Journal state transition: SWITCHING
             switching_journal_data = {
                 "version": 1,
                 "status": "SWITCHING",
                 "pending_target_root": str(plan.target_dir),
+                "pending_marker_uuid": plan.marker_uuid,
                 "latest_committed_root": str(plan.source_root),
                 "history": existing_history,
             }
@@ -309,14 +363,23 @@ def execute_relocation(
             if progress_callback:
                 progress_callback("Promoting target folder...", 0.88)
 
-            # Prevent overwriting occupied target under races
-            if plan.target_dir.exists():
-                raise RelocationError(
-                    f"Destination folder '{plan.target_dir}' was created or occupied during relocation."
-                )
-
-            # Atomic promotion: sibling rename on same filesystem
-            os.replace(plan.staging_dir, plan.target_dir)
+            try:
+                _atomic_promote_no_clobber(plan.staging_dir, plan.target_dir)
+            except Exception as promote_err:
+                # Promotion failed! Restore previous journal state or remove journal if it didn't exist before
+                if journal_existed_before and prev_journal_content is not None:
+                    with tempfile.NamedTemporaryFile("w", dir=def_root, delete=False, encoding="utf-8") as temp_rb:
+                        temp_rb.write(prev_journal_content)
+                        temp_rb.flush()
+                        os.fsync(temp_rb.fileno())
+                        temp_rb_name = temp_rb.name
+                    os.replace(temp_rb_name, journal_path)
+                else:
+                    try:
+                        journal_path.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+                raise promote_err
 
             if progress_callback:
                 progress_callback("Updating durable journal and locator...", 0.95)
