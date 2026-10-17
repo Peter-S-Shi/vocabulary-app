@@ -81,9 +81,9 @@ clear empty state and updates when Entries is refreshed after Collection
 changes.
 
 PR #47 passed required PR checks, merged M22-D into `main`, and its post-merge
-`main` CI passed. Windows-native Human Acceptance has not been reported as
-PASS. Focused local tests and architecture checks provide engineering
-evidence, not human visual acceptance. v1.1.0 remains the published release;
+`main` CI passed. The product owner reported Windows-native Human Acceptance
+PASS, recorded in Issue #39. Focused local tests and architecture checks
+provide separate engineering evidence. v1.1.0 remains the published release;
 these source changes have not shipped in an installer.
 
 ## M23-A / Issue #43 data-root startup safety foundation

@@ -2251,7 +2251,8 @@ Collection reordering, Card-size changes, membership changes, and deletion
 are reflected on refresh; no schema or learning-history change is involved.
 
 PR #47 passed required PR and post-merge `main` CI and merged M22-D into
-`main`. Windows-native Human Acceptance has not been reported as PASS.
+`main`. The product owner reported Windows-native Human Acceptance PASS,
+recorded in Issue #39.
 v1.1.0 remains the current public release; M22-D has not shipped in an
 installer.
 
