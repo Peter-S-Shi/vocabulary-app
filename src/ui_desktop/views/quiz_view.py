@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Literal
 
 from PySide6.QtCore import QDate, QLocale, Qt, Signal
 from PySide6.QtWidgets import (
@@ -449,7 +450,7 @@ class QuizView(QWidget):
             layout.addWidget(show_button, 0, Qt.AlignmentFlag.AlignHCenter)
         else:
             layout.addWidget(_field_block("Your answer", controller.answer_draft or "(blank)", parent))
-            layout.addWidget(_field_block("Expected", str(item.get("expected_answer") or ""), parent))
+            layout.addWidget(_field_block("Expected", str(item.get("expected_answer") or ""), parent, role="expected"))
 
             grade_row = QWidget(parent)
             grade_layout = QHBoxLayout(grade_row)
@@ -527,8 +528,11 @@ class QuizView(QWidget):
             feedback_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.addWidget(feedback_label)
 
-            layout.addWidget(_field_block("Your answer", str(feedback.get("selected") or ""), parent))
-            layout.addWidget(_field_block("Expected", str(feedback.get("expected_answer") or ""), parent))
+            layout.addWidget(_field_block(
+                "Your answer", str(feedback.get("selected") or ""), parent,
+                role="expected" if is_correct else "wrong",
+            ))
+            layout.addWidget(_field_block("Expected", str(feedback.get("expected_answer") or ""), parent, role="expected"))
 
             next_button = QPushButton("Next Question", parent)
             next_button.setObjectName("quiz-mcq-next-button")
@@ -1158,8 +1162,11 @@ class QuizView(QWidget):
         status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(status_label)
 
-        layout.addWidget(_field_block("Submitted answer", str(mistake.get("user_answer") or "(blank)"), block))
-        layout.addWidget(_field_block("Expected", str(mistake.get("expected_answer") or ""), block))
+        layout.addWidget(_field_block(
+            "Submitted answer", str(mistake.get("user_answer") or "(blank)"), block,
+            role="expected" if is_correct else "wrong",
+        ))
+        layout.addWidget(_field_block("Expected", str(mistake.get("expected_answer") or ""), block, role="expected"))
 
         nav_row = QWidget(block)
         nav_layout = QHBoxLayout(nav_row)
@@ -1302,7 +1309,10 @@ def _stat_block(value_text: str, label_text: str, parent: QWidget) -> QWidget:
     return block
 
 
-def _field_block(caption_text: str, value_text: str, parent: QWidget) -> QWidget:
+def _field_block(
+    caption_text: str, value_text: str, parent: QWidget,
+    *, role: Literal["neutral", "wrong", "expected"] = "neutral",
+) -> QWidget:
     block = QWidget(parent)
     layout = QVBoxLayout(block)
     layout.setContentsMargins(0, 0, 0, 0)
@@ -1315,7 +1325,11 @@ def _field_block(caption_text: str, value_text: str, parent: QWidget) -> QWidget
     layout.addWidget(caption)
 
     value = _WrappingLabel(value_text, block)
-    value.setObjectName("quiz-field-text")
+    value.setObjectName({
+        "neutral": "quiz-field-text",
+        "wrong": "quiz-field-text-wrong",
+        "expected": "quiz-field-text-expected",
+    }[role])
     value.setAlignment(Qt.AlignmentFlag.AlignCenter)
     value.setWordWrap(True)
     layout.addWidget(value)

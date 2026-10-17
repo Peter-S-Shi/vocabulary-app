@@ -869,6 +869,20 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
         color: {neutral.text_secondary};
         font-size: 19px;
     }}
+    QLabel#quiz-field-text-wrong {{
+        background-color: {semantic.quiz_wrong_soft};
+        color: {semantic.quiz_wrong.background};
+        border-radius: {radius}px;
+        padding: 2px 8px;
+        font-size: 19px;
+    }}
+    QLabel#quiz-field-text-expected {{
+        background-color: {accent.soft.background};
+        color: {accent.soft.foreground};
+        border-radius: {radius}px;
+        padding: 2px 8px;
+        font-size: 19px;
+    }}
     QPushButton#quiz-show-answer-button,
     QPushButton#quiz-mcq-submit-button,
     QPushButton#quiz-mcq-next-button,
@@ -1908,6 +1922,27 @@ def build_stylesheet(tokens: ThemeTokens) -> str:
     QLabel#collections-detail-meta {{
         color: {neutral.text_muted};
         font-size: 12px;
+    }}
+    QPushButton#collections-system-pool-random-quiz-button {{
+        background-color: {accent.primary.background};
+        color: {accent.primary.foreground};
+        border: 2px solid transparent;
+        border-radius: {radius}px;
+        padding: 6px 16px;
+        font-size: 13px;
+        font-weight: 600;
+    }}
+    QPushButton#collections-system-pool-random-quiz-button:hover:enabled {{
+        background-color: {accent.hover.background};
+        color: {accent.hover.foreground};
+    }}
+    QPushButton#collections-system-pool-random-quiz-button:focus:enabled {{
+        border: 2px solid {accent.primary.foreground};
+    }}
+    QPushButton#collections-system-pool-random-quiz-button:disabled {{
+        background-color: {neutral.surface_secondary};
+        color: {neutral.text_disabled};
+        border: 2px solid {neutral.border_subtle};
     }}
     QPushButton#collections-open-entries-button {{
         background-color: {accent.primary.background};

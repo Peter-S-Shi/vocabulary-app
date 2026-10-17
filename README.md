@@ -24,9 +24,15 @@ Card-scoped Matching:
 Matching launched from a selected Card uses only that Card's eligible Entries
 and retains stable Card/revision identity for history and scheduling. The
 product owner reported Windows-native Human Acceptance PASS on the M22-B branch.
-This is the post-merge source state; at this branch publication checkpoint, no
-M22-B PR has been opened or merged. These changes have not shipped in an
-installer; v1.1.0 remains the current public release.
+PR #45 passed required CI and merged M22-B into `main`. These changes have
+not shipped in an installer; v1.1.0 remains the current public release.
+
+The post-merge M22-C source state addresses Pool Random Quiz visibility (#38)
+and Quiz answer feedback colors (#41)
+with theme-token contrast across presets and custom appearances. This is the
+intended post-merge source state: at this implementation-branch checkpoint,
+independent audit, PR merge, and Windows-native Human Acceptance are pending.
+No M22-C installer has shipped; v1.1.0 remains the published release.
 
 ## See it
 
