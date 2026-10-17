@@ -29,10 +29,16 @@ not shipped in an installer; v1.1.0 remains the current public release.
 
 The post-merge M22-C source state addresses Pool Random Quiz visibility (#38)
 and Quiz answer feedback colors (#41)
-with theme-token contrast across presets and custom appearances. This is the
-intended post-merge source state: at this implementation-branch checkpoint,
-independent audit, PR merge, and Windows-native Human Acceptance are pending.
-No M22-C installer has shipped; v1.1.0 remains the published release.
+with theme-token contrast across presets and custom appearances. PR #46
+passed required CI, merged M22-C into `main`, and the product owner reported
+Windows-native Human Acceptance PASS. No M22-C installer has shipped;
+v1.1.0 remains the published release.
+
+The post-merge M22-D source state adds current Collection and Card locations
+to Entries detail (#39), with practice pools labeled separately. This section
+is one step ahead of the M22-D implementation branch: remote audit, PR merge,
+and Windows-native Human Acceptance remain pending. These source changes have
+not shipped in an installer.
 
 ## See it
 

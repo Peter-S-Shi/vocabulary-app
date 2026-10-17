@@ -1,6 +1,6 @@
 # Vocabulary App Project Status
 
-Last reviewed: 2026-10-16
+Last reviewed: 2026-10-17
 
 This file is the authoritative evidence-based snapshot of the current project state. Detailed milestone history remains in `ROADMAP.md`, milestone QA/design/packaging documents, and the frozen pre-release snapshot archived at `docs/history/PROJECT_STATUS_PRE_V1_RELEASE_2026-08-19.md`.
 
@@ -63,13 +63,29 @@ color for adjudicated wrong answers and the active theme accent for correct
 and expected answers; ungraded self-graded drafts remain neutral. Existing
 Correct/Wrong grading labels, Matching flow, and learning data are unchanged.
 
-This section records the intended post-merge source state one step ahead of
-this implementation branch. At branch publication, independent remote audit,
-PR merge, and Windows-native Human Acceptance have **not** occurred. Focused
-local tests cover the supported presets and custom themes; offscreen tests do
-not establish native visual acceptance. v1.1.0 remains the current published
-release, and no installer containing M22-C has shipped. M22 as a whole remains
-open.
+PR #46 passed required PR and post-merge `main` CI and merged M22-C into
+`main`. The product owner reported Windows-native Human Acceptance PASS for all
+four M22-C check groups. v1.1.0 remains the current published release; no
+installer containing M22-C has shipped, and M22 as a whole remains open.
+
+## M22-D / Current Entry locations
+
+**Post-merge M22-D source state:** Issue #39 is implemented and merged into
+`main`. The Entries detail panel displays each current ordinary Collection
+and its position-based Card number, including Entries shared by Collections
+with different Card sizes. System practice pools are labeled separately as
+pool memberships. The reusable batched core query reads current membership;
+it does not change stable Card identities, revisions, historical learning
+records, or the Entries table's Collection-name behavior. The detail has a
+clear empty state and updates when Entries is refreshed after Collection
+changes.
+
+This section intentionally describes the post-merge source state one step
+ahead of the M22-D implementation branch. At branch publication, independent
+remote audit, PR merge, and Windows-native Human Acceptance remain pending.
+Focused local tests and architecture checks provide engineering evidence, not
+human visual acceptance. v1.1.0 remains the published release; these source
+changes have not shipped in an installer, and M22 as a whole remains open.
 
 ## M21 / v1.1.0 Closure
 

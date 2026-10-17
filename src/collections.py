@@ -570,34 +570,57 @@ def get_collection_ids_for_entry(entry_id: int) -> list[int]:
     return [int(row["collection_id"]) for row in rows]
 
 
-def get_collection_names_for_entries(entry_ids: list[int]) -> dict[int, list[str]]:
-    """Batched counterpart to ``get_collection_ids_for_entry`` (one query
-    for many entries instead of N+1) -- added for the M17 Feature 4
-    Entries table's Collections column, which needs this for every visible
-    row (M17 Feature 4 prompt § 11: "adding a small reusable core query is
-    acceptable if a canonical Entries scope genuinely requires data that
-    no reusable API currently exposes")."""
+def get_entry_locations_for_entries(entry_ids: list[int]) -> dict[int, list[dict]]:
+    """Return current Collection placement for multiple Entries in one read.
+
+    Ordinary Card numbers use the same position/card_size grouping as
+    ``get_card_groups_for_collection``. System practice pools are membership
+    only; their positional groups do not imply user-Collection Card ownership.
+    """
     unique_ids = sorted({int(entry_id) for entry_id in entry_ids})
     if not unique_ids:
         return {}
 
-    placeholders = ",".join("?" for _ in unique_ids)
+    rows = []
     with get_connection() as connection:
-        rows = connection.execute(
-            f"""
-            SELECT ec.entry_id, c.name
-            FROM entry_collections ec
-            JOIN collections c ON c.id = ec.collection_id
-            WHERE ec.entry_id IN ({placeholders})
-            ORDER BY ec.entry_id ASC, c.name ASC
-            """,
-            unique_ids,
-        ).fetchall()
+        # Keep each IN clause below SQLite's older 999-variable limit.
+        for start in range(0, len(unique_ids), 900):
+            batch = unique_ids[start : start + 900]
+            placeholders = ",".join("?" for _ in batch)
+            rows.extend(
+                connection.execute(
+                    f"""
+                    SELECT ec.entry_id, c.id AS collection_id, c.name AS collection_name,
+                           ec.position, c.card_size, COALESCE(c.is_system, 0) AS is_system
+                    FROM entry_collections ec
+                    JOIN collections c ON c.id = ec.collection_id
+                    WHERE ec.entry_id IN ({placeholders})
+                    ORDER BY ec.entry_id ASC, c.name ASC, c.id ASC
+                    """,
+                    batch,
+                ).fetchall()
+            )
 
-    names_by_entry: dict[int, list[str]] = {entry_id: [] for entry_id in unique_ids}
+    locations_by_entry: dict[int, list[dict]] = {entry_id: [] for entry_id in unique_ids}
     for row in rows:
-        names_by_entry[int(row["entry_id"])].append(str(row["name"]))
-    return names_by_entry
+        is_system = bool(row["is_system"])
+        locations_by_entry[int(row["entry_id"])].append(
+            {
+                "collection_id": int(row["collection_id"]),
+                "collection_name": str(row["collection_name"]),
+                "is_system": is_system,
+                "card_number": None if is_system else ((int(row["position"]) - 1) // int(row["card_size"])) + 1,
+            }
+        )
+    return locations_by_entry
+
+
+def get_collection_names_for_entries(entry_ids: list[int]) -> dict[int, list[str]]:
+    """Return Collection names for each Entry via the batched current-location query."""
+    return {
+        entry_id: [location["collection_name"] for location in locations]
+        for entry_id, locations in get_entry_locations_for_entries(entry_ids).items()
+    }
 
 
 def update_entry_collections(
