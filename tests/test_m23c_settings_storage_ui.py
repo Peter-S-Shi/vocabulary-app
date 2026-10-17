@@ -240,6 +240,43 @@ class SettingsStorageRelocationUITests(unittest.TestCase):
             self.assertNotIn("Your original data remains unchanged", mock_critical.call_args[0][2])
             self.assertIn("Please restart Vocabulary App", mock_critical.call_args[0][2])
 
+    def test_worker_lifecycle_registration_and_shutdown_teardown(self) -> None:
+        """Verify that SettingsController keeps the relocation worker registered
+        throughout its run() execution and until its QThread has fully finished,
+        and that controller.shutdown() waits for worker completion.
+        """
+        import time
+        from PySide6.QtCore import QThread
+
+        controller = SettingsController()
+
+        class SlowWorker(QThread):
+            def __init__(self) -> None:
+                super().__init__()
+                self.completed = False
+
+            def run(self) -> None:
+                time.sleep(0.1)
+                self.completed = True
+
+        worker = SlowWorker()
+        controller.register_relocation_worker(worker)
+        worker.finished.connect(lambda: controller.unregister_relocation_worker(worker))
+
+        self.assertFalse(controller.is_relocating())
+        worker.start()
+        self.assertTrue(controller.is_relocating())
+
+        # Calling shutdown while worker is running waits for worker
+        self.assertTrue(controller.shutdown(wait_ms=1000))
+        self.assertFalse(worker.isRunning())
+        self.assertTrue(worker.completed)
+
+        # Process any pending Qt event loop signals to let finished fire
+        self.app.processEvents()
+        self.assertFalse(controller.is_relocating())
+        self.assertIsNone(controller._active_relocation_worker)
+
 
 if __name__ == "__main__":
     unittest.main()

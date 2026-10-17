@@ -1040,15 +1040,17 @@ class SettingsView(QWidget):
 
         worker = RelocationWorker(self._controller, plan, self)
         self._controller.register_relocation_worker(worker)
+        worker.finished.connect(lambda: self._controller.unregister_relocation_worker(worker))
 
         def on_progress(message: str, fraction: float) -> None:
             progress_dialog.setLabelText(message)
             progress_dialog.setValue(int(fraction * 100))
 
         def on_success(res: object) -> None:
-            self._controller.register_relocation_worker(None)
             progress_dialog.setValue(100)
             progress_dialog.close()
+            # Wait for worker thread run() method to fully exit before proceeding
+            worker.wait(10000)
             # Keep UI disabled to enforce clean exit boundary
             self.setEnabled(False)
             QMessageBox.information(
@@ -1063,8 +1065,9 @@ class SettingsView(QWidget):
                 app.quit()
 
         def on_error(err_msg: str) -> None:
-            self._controller.register_relocation_worker(None)
             progress_dialog.close()
+            # Wait for worker thread run() method to fully exit before proceeding
+            worker.wait(10000)
             if self._controller.is_source_root_unchanged(source_root):
                 self.setEnabled(True)
                 QMessageBox.critical(

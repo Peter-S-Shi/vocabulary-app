@@ -315,6 +315,11 @@ class SettingsController(QObject):
     def register_relocation_worker(self, worker: object | None) -> None:
         self._active_relocation_worker = worker
 
+    def unregister_relocation_worker(self, worker: object | None = None) -> None:
+        """Unregister the active worker if it matches the current worker or if worker is None."""
+        if worker is None or self._active_relocation_worker is worker:
+            self._active_relocation_worker = None
+
     def is_relocating(self) -> bool:
         worker = self._active_relocation_worker
         return bool(worker is not None and hasattr(worker, "isRunning") and worker.isRunning())
@@ -395,6 +400,8 @@ class SettingsController(QObject):
             if hasattr(worker, "wait"):
                 if not worker.wait(max(wait_ms, 10000)):
                     ok = False
+        if worker is not None and (not hasattr(worker, "isRunning") or not worker.isRunning()):
+            self._active_relocation_worker = None
         if self._update_service is not None:
             if not self._update_service.shutdown(wait_ms):
                 ok = False

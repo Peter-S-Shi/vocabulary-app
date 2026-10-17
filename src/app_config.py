@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -91,37 +92,58 @@ def _require_writable_directory(path: Path) -> None:
     _probe_writable_directory(path)
 
 
+def _compute_file_sha256(path: Path) -> str:
+    """Compute the SHA-256 digest of a regular file using streaming reads."""
+    hasher = hashlib.sha256()
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(65536)
+            if not chunk:
+                break
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
 def _summarize_component_tree(path: Path) -> dict[str, object]:
-    """Summarize a directory component (present, file_count, total_bytes) while rejecting links."""
+    """Summarize a directory component with relative file paths and streaming digests while rejecting links."""
     if _is_link(path):
         raise ValueError(f"component '{path.name}' is a link or junction")
     if not path.exists():
-        return {"present": False, "file_count": 0, "total_bytes": 0}
+        return {"present": False, "file_count": 0, "total_bytes": 0, "files": {}}
     if not path.is_dir():
         raise ValueError(f"component '{path.name}' is not a regular directory")
     file_count = 0
     total_bytes = 0
+    files_map: dict[str, dict[str, object]] = {}
     for root, dirs, files in os.walk(path):
         root_path = Path(root)
         for d in dirs:
             dir_path = root_path / d
             if _is_link(dir_path):
                 raise ValueError(f"subdirectory '{dir_path}' is a link or junction")
-        for f in files:
+        for f in sorted(files):
             file_path = root_path / f
             if _is_link(file_path) or not file_path.is_file():
                 raise ValueError(f"file '{file_path}' is not a regular file")
+            rel_name = str(file_path.relative_to(path)).replace("\\", "/")
+            file_size = file_path.stat().st_size
+            file_sha = _compute_file_sha256(file_path)
             file_count += 1
-            total_bytes += file_path.stat().st_size
+            total_bytes += file_size
+            files_map[rel_name] = {
+                "size": file_size,
+                "sha256": file_sha,
+            }
     return {
         "present": True,
         "file_count": file_count,
         "total_bytes": total_bytes,
+        "files": files_map,
     }
 
 
 def _build_component_manifest(root: Path) -> dict[str, object]:
-    """Build a verifiable four-component manifest for a staged or promoted data root."""
+    """Build a verifiable four-component manifest with relative file paths and streaming SHA-256 digests."""
     db_path = root / "vocab.db"
     if _is_link(db_path) or not db_path.is_file():
         raise ValueError("vocab.db is missing or not a regular file")
@@ -136,17 +158,21 @@ def _build_component_manifest(root: Path) -> dict[str, object]:
         if not isinstance(parsed_prefs, dict):
             raise ValueError("preferences.json is not a valid JSON object")
         prefs_size = prefs_path.stat().st_size
+        prefs_sha = _compute_file_sha256(prefs_path)
     else:
         prefs_size = 0
+        prefs_sha = ""
 
     return {
         "database": {
             "present": True,
             "size": db_path.stat().st_size,
+            "sha256": _compute_file_sha256(db_path),
         },
         "preferences": {
             "present": prefs_present,
             "size": prefs_size,
+            "sha256": prefs_sha,
         },
         "backups": _summarize_component_tree(root / "backups"),
         "audio_cache": _summarize_component_tree(root / "audio-cache"),
@@ -159,7 +185,7 @@ def _verify_promoted_target(
     expected_uuid: str,
     expected_components: dict[str, object] | None,
 ) -> dict[str, object]:
-    """Verify full four-component integrity and marker provenance of a promoted target root."""
+    """Verify full four-component integrity (streaming digests and relative files) and marker provenance."""
     if _is_link(pending_root) or not pending_root.is_dir():
         raise ValueError("promoted target folder is missing or not a regular directory")
     _require_writable_directory(pending_root)
@@ -220,6 +246,7 @@ def _verify_promoted_target(
             pass
 
     return marker_data
+
 
 
 def _configured_data_root(default_root: Path) -> Path | None:

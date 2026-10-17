@@ -131,9 +131,12 @@ The implementation enforces all approved Owner and engineering safety invariants
   an exclusive lock.
 - **Durable recovery journal & crash-consistent state transitions:** an independent
   migration-recovery journal (`migration-recovery.json`) in the default OS root
-  records relocation transitions (`SWITCHING` → `COMMITTED`). If a crash occurs
-  after `SWITCHING` is recorded but before atomic target promotion (verified via
-  the unpromoted sibling staging directory and matching `.vocab_app_root_marker.json`),
+  records relocation transitions (`SWITCHING` → `COMMITTED`). Staging verification
+  and crash recovery compare complete four-component manifests with relative POSIX file
+  paths and streaming 64KB `SHA-256` digests for `vocab.db`, `preferences.json`,
+  `backups`, and `audio-cache`. Equal-size file substitutions and corruptions fail closed.
+  If a crash occurs after `SWITCHING` is recorded but before atomic target promotion
+  (verified via the unpromoted sibling staging directory and matching `.vocab_app_root_marker.json`),
   startup idempotently rolls back the journal to the prior committed root and cleans
   up staging. If a crash occurs after target promotion, startup verifies full
   four-component integrity (`vocab.db`, `preferences.json`, `backups`, `audio-cache`)
@@ -145,11 +148,13 @@ The implementation enforces all approved Owner and engineering safety invariants
   non-regular files, and insufficient disk space prior to staging.
 - **Retained rollback baseline:** original data files at the source location
   are preserved intact and never deleted.
-- **Settings → Storage UX:** Settings executes relocation on a dedicated `QThread`
-  worker (`RelocationWorker`) integrated with `SettingsController.shutdown()` and
-  `MainWindow.closeEvent`, keeping the GUI responsive while quiescing UI actions,
-  reporting accurate post-error recovery status, and enforcing an immediate
-  application restart boundary upon completion.
+- **Settings → Storage UX & worker lifecycle:** Settings executes relocation on a
+  dedicated `QThread` worker (`RelocationWorker`) registered with `SettingsController`.
+  Worker unregistration is deferred until the worker thread actually finishes via
+  `worker.finished`, while UI completion/error callbacks and `controller.shutdown()`
+  wait for thread execution to exit cleanly before UI dialogs or application quit,
+  keeping the GUI responsive while quiescing UI actions, reporting accurate post-error
+  recovery status, and enforcing an immediate application restart boundary upon completion.
 
 
 This section intentionally describes the post-merge source state one step ahead

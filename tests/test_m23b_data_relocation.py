@@ -529,18 +529,20 @@ class M23BRelocationEngineTests(unittest.TestCase):
             self.assertEqual(paths.data_root, self.local_root.resolve())
 
     def test_abrupt_crash_after_switching_journal_before_promotion_recovers_cleanly(self) -> None:
-        """If the process terminates abruptly (SIGKILL / power loss, simulated via BaseException)
-        after writing the SWITCHING journal but BEFORE target promotion, startup recovery must
-        detect the unpromoted staging directory, roll back the journal to the prior committed
-        root (or remove it if first relocation), clean up staging, and open the source root idempotently.
+        """Verify simulated synchronous process termination (via BaseException)
+        after writing the SWITCHING journal but BEFORE target promotion.
+
+        Startup recovery must detect the unpromoted staging directory, roll back
+        the journal to the prior committed root (or remove it if first relocation),
+        clean up staging, and open the source root idempotently.
         Also verifies that if neither target nor staging exists (e.g. unplugged promoted drive),
         startup fails closed with DataRootError.
         """
         from unittest.mock import patch
         from src.data_relocation import plan_relocation, execute_relocation
 
-        class SimulatedPowerLoss(BaseException):
-            pass
+        class SimulatedInterruptionError(BaseException):
+            """Simulates abrupt process exit (e.g. power cutoff) in-process without cleanup."""
 
         env_vars = {
             "LOCALAPPDATA": str(self.home / "local"),
@@ -555,8 +557,8 @@ class M23BRelocationEngineTests(unittest.TestCase):
         target_1.parent.mkdir(parents=True, exist_ok=True)
         plan_1 = plan_relocation(target_1, source_root=self.local_root)
 
-        with patch("src.data_relocation._atomic_promote_no_clobber", side_effect=SimulatedPowerLoss("power lost before MoveFileExW")):
-            with self.assertRaises(SimulatedPowerLoss):
+        with patch("src.data_relocation._atomic_promote_no_clobber", side_effect=SimulatedInterruptionError("power lost before MoveFileExW")):
+            with self.assertRaises(SimulatedInterruptionError):
                 execute_relocation(plan_1, default_root=self.local_root)
 
         # Verify exact post-crash state on disk:
@@ -591,8 +593,8 @@ class M23BRelocationEngineTests(unittest.TestCase):
         target_2.parent.mkdir(parents=True, exist_ok=True)
         plan_2 = plan_relocation(target_2, source_root=committed_1)
 
-        with patch("src.data_relocation._atomic_promote_no_clobber", side_effect=SimulatedPowerLoss("power lost on chained relocation")):
-            with self.assertRaises(SimulatedPowerLoss):
+        with patch("src.data_relocation._atomic_promote_no_clobber", side_effect=SimulatedInterruptionError("power lost on chained relocation")):
+            with self.assertRaises(SimulatedInterruptionError):
                 execute_relocation(plan_2, default_root=self.local_root)
 
         self.assertEqual(json.loads(journal_path.read_text(encoding="utf-8"))["status"], "SWITCHING")
@@ -630,17 +632,102 @@ class M23BRelocationEngineTests(unittest.TestCase):
                 app_config.resolve_data_paths()
             self.assertIn("target verification failed", str(ctx.exception))
 
+    def test_real_subprocess_killed_at_switching_boundary_recovers_cleanly(self) -> None:
+        """Exercise genuine OS-level subprocess termination (SIGKILL / proc.kill())
+        immediately after the SWITCHING journal is written to disk, before promotion.
+        Verifies that startup recovery detects the unpromoted state, cleans up the
+        staging folder, rolls back to source root, and leaves the repository clean.
+        """
+        import subprocess
+        from src.data_relocation import plan_relocation
+
+        target = self.home / "drive_d" / "RealSubprocessKilledTarget"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        plan = plan_relocation(target, source_root=self.local_root)
+
+        env = dict(os.environ)
+        env.update({
+            "LOCALAPPDATA": str(self.home / "local"),
+            "VOCAB_APP_DB_PATH": "",
+            "VOCAB_APP_BACKUP_DIR": "",
+            "VOCAB_APP_AUDIO_CACHE_DIR": "",
+            "VOCAB_APP_PREFERENCES_PATH": "",
+        })
+
+        # Python child script that pauses right at _atomic_promote_no_clobber after writing SWITCHING journal
+        child_code = (
+            "import os, sys, time\n"
+            "from pathlib import Path\n"
+            "from unittest.mock import patch\n"
+            "from src import app_config\n"
+            "from src.data_relocation import plan_relocation, execute_relocation\n"
+            "\n"
+            f"source_root = Path(r'{self.local_root}')\n"
+            f"target_dir = Path(r'{target}')\n"
+            "plan = plan_relocation(target_dir, source_root=source_root)\n"
+            "\n"
+            "def pause_before_promote(staging_dir, target_dir):\n"
+            "    sys.stdout.write(f'SWITCHING_FSYNCED:{staging_dir}\\n')\n"
+            "    sys.stdout.flush()\n"
+            "    time.sleep(30)\n"
+            "\n"
+            "with patch('src.data_relocation._atomic_promote_no_clobber', side_effect=pause_before_promote):\n"
+            f"    execute_relocation(plan, default_root=source_root)\n"
+        )
+
+        proc = subprocess.Popen(
+            [sys.executable, "-c", child_code],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+        )
+        try:
+            line = proc.stdout.readline()
+            self.assertTrue(line.startswith("SWITCHING_FSYNCED:"))
+            child_staging_dir = Path(line.strip().split(":", 1)[1])
+
+            # Verify that journal is already in SWITCHING state on disk
+            journal_path = self.local_root / app_config.RECOVERY_JOURNAL_NAME
+            self.assertTrue(journal_path.is_file())
+            journal_data = json.loads(journal_path.read_text(encoding="utf-8"))
+            self.assertEqual(journal_data["status"], "SWITCHING")
+
+            # Hard-kill the child process at the OS boundary
+            proc.kill()
+            proc.wait(timeout=5)
+        finally:
+            if proc.stdout:
+                proc.stdout.close()
+            if proc.stderr:
+                proc.stderr.close()
+
+        # Staging directory exists on disk, target directory was never promoted
+        self.assertTrue(child_staging_dir.is_dir())
+        self.assertFalse(target.exists())
+
+        # Now start application: startup recovery must roll back unpromoted staging and journal
+        with patch.dict(os.environ, env):
+            paths = app_config.resolve_data_paths()
+            self.assertEqual(paths.data_root, self.local_root.resolve())
+            self.assertFalse(journal_path.exists())
+            self.assertFalse(child_staging_dir.exists())
+
+            # Subsequent call is idempotent
+            self.assertEqual(app_config.resolve_data_paths().data_root, self.local_root.resolve())
+
     def test_crash_recovery_forward_rolls_interrupted_switching_state_and_verifies_all_four_components(self) -> None:
         """If a crash occurred after promoting target and writing SWITCHING journal,
         resolve_data_paths() must verify all 4 components (database, backups, audio-cache,
         preferences.json) and marker provenance (source_root, target_root, marker_uuid)
-        before forward-rolling to COMMITTED. Any missing/corrupt component must fail closed.
+        using byte-level SHA-256 digests and relative file paths before forward-rolling to COMMITTED.
+        Any missing, substituted, or tampered component must fail closed.
         """
         from unittest.mock import patch
         from src.data_relocation import plan_relocation, execute_relocation, _atomic_promote_no_clobber
 
-        class SimulatedPostPromotionCrash(BaseException):
-            pass
+        class SimulatedInterruptionError(BaseException):
+            """Simulates abrupt process exit after promotion but before writing pointer."""
 
         target = self.home / "drive_d" / "InterruptedSwitchingTarget"
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -648,10 +735,10 @@ class M23BRelocationEngineTests(unittest.TestCase):
 
         def promote_then_crash(staging_dir: Path, target_dir: Path) -> None:
             _atomic_promote_no_clobber(staging_dir, target_dir)
-            raise SimulatedPostPromotionCrash("crashed right after MoveFileExW before pointer write")
+            raise SimulatedInterruptionError("crashed right after MoveFileExW before pointer write")
 
         with patch("src.data_relocation._atomic_promote_no_clobber", side_effect=promote_then_crash):
-            with self.assertRaises(SimulatedPostPromotionCrash):
+            with self.assertRaises(SimulatedInterruptionError):
                 execute_relocation(plan, default_root=self.local_root)
 
         journal_path = self.local_root / app_config.RECOVERY_JOURNAL_NAME
@@ -668,35 +755,60 @@ class M23BRelocationEngineTests(unittest.TestCase):
             "VOCAB_APP_PREFERENCES_PATH": "",
         }
 
-        # 1. Tamper with audio-cache file -> must fail closed (not forward-roll!)
+        # 1. Equal-size file substitution in audio-cache -> must fail closed (streaming digest mismatch)
         audio_file = target / "audio-cache" / "sample.mp3"
         orig_audio_bytes = audio_file.read_bytes()
-        audio_file.unlink()
+        # Create different content with exact same byte length
+        tampered_audio_bytes = bytes([b ^ 0xFF for b in orig_audio_bytes])
+        self.assertEqual(len(tampered_audio_bytes), len(orig_audio_bytes))
+        audio_file.write_bytes(tampered_audio_bytes)
         with patch.dict(os.environ, env_vars):
             with self.assertRaises(app_config.DataRootError) as ctx:
                 app_config.resolve_data_paths()
             self.assertIn("audio_cache", str(ctx.exception))
         audio_file.write_bytes(orig_audio_bytes)
 
-        # 2. Tamper with backups file -> must fail closed
+        # 2. Equal-size file substitution in backups -> must fail closed
         backup_file = target / "backups" / "backup_1.bak"
         orig_backup_bytes = backup_file.read_bytes()
-        backup_file.write_bytes(b"truncated")
+        tampered_backup_bytes = bytes([b ^ 0xAA for b in orig_backup_bytes])
+        self.assertEqual(len(tampered_backup_bytes), len(orig_backup_bytes))
+        backup_file.write_bytes(tampered_backup_bytes)
         with patch.dict(os.environ, env_vars):
             with self.assertRaises(app_config.DataRootError) as ctx:
                 app_config.resolve_data_paths()
             self.assertIn("backups", str(ctx.exception))
         backup_file.write_bytes(orig_backup_bytes)
 
-        # 3. Tamper with preferences.json -> must fail closed
+        # 3. Equal-size substitution in preferences.json -> must fail closed
         prefs_file = target / "preferences.json"
         orig_prefs_bytes = prefs_file.read_bytes()
-        prefs_file.unlink()
+        # Change "Dark" to "Sync" while preserving exact length
+        tampered_prefs_str = orig_prefs_bytes.decode("utf-8").replace('"Dark"', '"Sync"')
+        tampered_prefs_bytes = tampered_prefs_str.encode("utf-8")
+        self.assertEqual(len(tampered_prefs_bytes), len(orig_prefs_bytes))
+        self.assertNotEqual(tampered_prefs_bytes, orig_prefs_bytes)
+        prefs_file.write_bytes(tampered_prefs_bytes)
         with patch.dict(os.environ, env_vars):
             with self.assertRaises(app_config.DataRootError) as ctx:
                 app_config.resolve_data_paths()
             self.assertIn("preferences", str(ctx.exception))
         prefs_file.write_bytes(orig_prefs_bytes)
+
+        # 4. Equal-size database substitution -> must fail closed
+        db_file = target / "vocab.db"
+        orig_db_bytes = db_file.read_bytes()
+        # Substitute with an equal-size corrupted or different page content
+        tampered_db_bytes = orig_db_bytes[:100] + bytes([b ^ 0x55 for b in orig_db_bytes[100:200]]) + orig_db_bytes[200:]
+        self.assertEqual(len(tampered_db_bytes), len(orig_db_bytes))
+        db_file.write_bytes(tampered_db_bytes)
+        with patch.dict(os.environ, env_vars):
+            with self.assertRaises(app_config.DataRootError) as ctx:
+                app_config.resolve_data_paths()
+            self.assertTrue(
+                "database" in str(ctx.exception) or "quick_check" in str(ctx.exception) or "malformed" in str(ctx.exception)
+            )
+        db_file.write_bytes(orig_db_bytes)
 
         # 4. Tamper with source_root provenance in marker -> must fail closed
         marker_file = target / app_config.ROOT_MARKER_NAME
