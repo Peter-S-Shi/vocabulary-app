@@ -1,11 +1,11 @@
 ﻿from pathlib import Path
 import sqlite3
 
-from src.app_config import get_database_path
+from src.app_config import DataRootError, bind_startup_data_paths, resolve_data_paths
 from src.migrations import backup_before_pending_migration, run_migrations
 
 
-DB_PATH = get_database_path()
+DB_PATH = bind_startup_data_paths().database
 
 
 CREATE_ENTRIES_TABLE_SQL = """
@@ -209,8 +209,25 @@ CREATE_INDEXES_SQL = [
 
 
 def get_connection() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(DB_PATH)
+    paths = resolve_data_paths()
+    if paths.guarded_database:
+        if DB_PATH != paths.database:
+            raise DataRootError(
+                "The selected Vocabulary App data folder changed while the app was open. "
+                "Restart after restoring the original folder; no new database was created."
+            )
+        try:
+            # mode=rw cannot silently create a replacement if the selected
+            # database disappears between path validation and SQLite open.
+            connection = sqlite3.connect(DB_PATH.as_uri() + "?mode=rw", uri=True)
+        except sqlite3.OperationalError as error:
+            raise DataRootError(
+                "The selected Vocabulary App database is unavailable. Reconnect the "
+                "original drive and restart; no new database was created."
+            ) from error
+    else:
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        connection = sqlite3.connect(DB_PATH)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
     return connection

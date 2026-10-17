@@ -12,7 +12,7 @@ Vocabulary App is a local-first Python application with a reusable core, a SQLit
 
 ## Local-First Design
 
-SQLite is the durable source of application state. The default development database is `data/vocab.db`, with optional path resolution provided by `src/app_config.py`.
+SQLite is the durable source of application state. `src/app_config.py` resolves its default per-user database location, explicit environment overrides, and any selected data root before database initialization.
 
 The app does not silently move or replace a database. User-created entries, templates, review history, quiz logs, and learning-pool membership remain local and user-controlled.
 

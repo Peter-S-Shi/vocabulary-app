@@ -1,10 +1,15 @@
 # Local Data Storage
 
-Vocabulary App is local-first. In the development version, its SQLite database is stored by default at:
+Vocabulary App is local-first. The desktop app and current source entry point
+store SQLite data by default under the platform's per-user data directory:
 
 ```text
-<project root>/data/vocab.db
+%LOCALAPPDATA%\vocabulary_app\vocab.db  (Windows)
 ```
+
+Off Windows, the database uses `$XDG_DATA_HOME/vocabulary_app/vocab.db` or
+`~/.local/share/vocabulary_app/vocab.db`. The repository's `data/` folder is a
+legacy placeholder, not the current desktop database destination.
 
 The database contains user-created entries and learning records. It is user data, not source code.
 
@@ -43,7 +48,8 @@ metadata. Unlinking removes only the metadata row.
 
 `data/.gitkeep` is an empty repository placeholder that keeps the folder structure available after cloning.
 
-`data/vocab.db` is the real local database. It is ignored by Git and should never be committed to a public repository.
+Any `data/vocab.db` left by an older checkout is private local data. SQLite
+files are ignored by Git and must never be committed to a public repository.
 
 ## Optional Database Path Override
 
@@ -88,4 +94,36 @@ The packaged desktop app stores durable per-user data outside the installation d
 
 Off Windows, the same default falls back to XDG data-home semantics: `$XDG_DATA_HOME/vocabulary_app` when that variable is set, otherwise `~/.local/share/vocabulary_app`.
 
-`VOCAB_APP_DB_PATH` overrides only the database file path (see "Optional Database Path Override" above); it selects a different database file to open and does not automatically copy, merge, or migrate data between locations. Moving existing data between locations remains an explicit, backup-aware operation the user performs themselves.
+`VOCAB_APP_DB_PATH` overrides only the database file path (see "Optional Database Path Override" above); it selects a different database file to open and does not automatically copy, merge, or migrate data between locations. Do not treat this override as a complete data-folder move. The confirmed, in-app full-data migration is planned for M23-B.
+
+## M23-A selected-root startup foundation (source only)
+
+The unreleased M23-A source accepts a versioned `data-root.json` location
+pointer in the established default data directory. If absent, v1.1.0 paths
+remain unchanged. A valid pointer names an existing absolute folder containing
+an existing, readable and writable `vocab.db` with Vocabulary App metadata;
+the app resolves that folder before opening SQLite. Without component-specific
+overrides, SQLite, backups,
+audio cache and preferences resolve together under the selected folder.
+Missing, malformed, inaccessible or damaged pointer/database state fails
+startup with a recovery message; it does not create a new database or silently
+fall back.
+A running process refuses a pointer switch until restart. The pointer is not a
+user-facing setting, and this milestone does not move files or offer migration
+controls. Do not create or edit it manually to move live data.
+
+The existing four explicit environment overrides each retain precedence over
+their respective component. A partial override still requires a healthy
+selected root for the remaining components. All four overrides together can
+bypass a damaged pointer for advanced recovery only when the overridden
+database already exists and passes validation; this is not an in-app
+migration. Settings continues to identify environment-selected paths.
+
+**M23-B design review:** verified staging must copy and validate the complete
+data set, reject occupied targets, coordinate with running instances, switch
+the pointer atomically only after a safe copy, retain the previous root for
+rollback, and restart before opening the new root. An absent pointer is
+indistinguishable from an installation that never relocated. Before M23-B
+implements switching, the Owner should review a durable committed-state
+marker or equivalent recovery record so accidental pointer removal cannot
+silently reopen old default data. No such migration mechanism is in M23-A.

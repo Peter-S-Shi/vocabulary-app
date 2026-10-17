@@ -2250,11 +2250,28 @@ supplies both current locations and unchanged Entries table Collection names.
 Collection reordering, Card-size changes, membership changes, and deletion
 are reflected on refresh; no schema or learning-history change is involved.
 
-This section intentionally describes the post-merge source state one step
-ahead of the implementation branch. Independent remote audit, PR merge, and
-Windows-native Human Acceptance are pending at branch publication. v1.1.0
-remains the current public release; M22-D has not shipped in an installer,
-and M22 as a whole remains open.
+PR #47 passed required PR and post-merge `main` CI and merged M22-D into
+`main`. The product owner reported Windows-native Human Acceptance PASS,
+recorded in Issue #39.
+v1.1.0 remains the current public release; M22-D has not shipped in an
+installer.
+
+## Milestone 23-A: Selected data-root startup foundation
+
+**Post-merge M23-A source state:** Issue #43's approved unified relocation
+contract has a centralized resolver and versioned bootstrap pointer. Legacy
+paths and explicit environment overrides remain compatible. A configured
+root is validated before SQLite opens; missing or unsafe data stops startup
+with recovery guidance, and an active process rejects pointer changes until
+restart. The source and packaged desktop entry paths share this failure
+handling. No database schema, user files or installer behavior is migrated.
+
+This source statement is one step ahead of the implementation branch;
+independent audit and PR merge are pending. M23-B must provide confirmed
+folder selection, verified full-data staging, atomic pointer switch, restart,
+and rollback. The pointer-removal ambiguity needs Owner review before M23-B;
+see `docs/policies/DATA_STORAGE.md`. v1.1.0 remains the public release;
+M23-A has not shipped in an installer.
 
 ## Maintenance / Next Version
 

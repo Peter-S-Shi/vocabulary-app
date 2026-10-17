@@ -80,12 +80,31 @@ records, or the Entries table's Collection-name behavior. The detail has a
 clear empty state and updates when Entries is refreshed after Collection
 changes.
 
-This section intentionally describes the post-merge source state one step
-ahead of the M22-D implementation branch. At branch publication, independent
-remote audit, PR merge, and Windows-native Human Acceptance remain pending.
-Focused local tests and architecture checks provide engineering evidence, not
-human visual acceptance. v1.1.0 remains the published release; these source
-changes have not shipped in an installer, and M22 as a whole remains open.
+PR #47 passed required PR checks, merged M22-D into `main`, and its post-merge
+`main` CI passed. The product owner reported Windows-native Human Acceptance
+PASS, recorded in Issue #39. Focused local tests and architecture checks
+provide separate engineering evidence. v1.1.0 remains the published release;
+these source changes have not shipped in an installer.
+
+## M23-A / Issue #43 data-root startup safety foundation
+
+**Post-merge M23-A source state:** the approved unified-storage contract now
+has one startup path resolver and a minimal versioned bootstrap pointer at the
+default data location. When no pointer exists, v1.1.0 paths and explicit
+environment-override precedence remain unchanged. A configured root must
+exist with a valid SQLite database before database initialization; damaged or
+unavailable configuration stops startup with a recovery message instead of
+creating a blank database or falling back. SQLite, backups, audio cache and
+preferences resolve together under a valid selected root, and a running
+process rejects a pointer change until restart.
+
+This section describes the intended post-merge source state one step ahead;
+independent remote audit and PR merge are pending at branch publication.
+M23-A does not expose a Settings folder chooser, migrate files, or complete
+Issue #43. M23-B must add verified staging, atomic switch and rollback; the
+missing-pointer ambiguity is recorded for Owner review in
+`docs/policies/DATA_STORAGE.md`. v1.1.0 remains the published release, and
+no installer with M23-A has shipped.
 
 ## M21 / v1.1.0 Closure
 

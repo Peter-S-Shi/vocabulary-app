@@ -38,6 +38,6 @@ def _run_smoke_test() -> int:
 if __name__ == "__main__":
     if "--smoke-test" in sys.argv or os.environ.get("VOCAB_APP_SMOKE_TEST") == "1":
         raise SystemExit(_run_smoke_test())
-    from src.ui_desktop.app import main  # noqa: E402
+    from src.ui_desktop.startup import run_desktop  # noqa: E402
 
-    raise SystemExit(main())
+    raise SystemExit(run_desktop())
