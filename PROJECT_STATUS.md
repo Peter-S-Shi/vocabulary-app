@@ -155,7 +155,14 @@ The implementation enforces all approved Owner and engineering safety invariants
   wait for thread execution to exit cleanly before UI dialogs or application quit,
   keeping the GUI responsive while quiescing UI actions, reporting accurate post-error
   recovery status, and enforcing an immediate application restart boundary upon completion.
-
+- **Integration Preflight & Test Evidence:** All 42 unit and Windows-native end-to-end
+  integration preflight tests (`test_m23a_data_root`, `test_m23b_data_relocation`,
+  `test_m23c_settings_storage_ui`, and `test_m23bc_e2e_integration_preflight`) pass
+  cleanly on Windows. The integration suite validates full 4-component preservation,
+  restart and reopening, chained migrations, occupied destination rejection, disconnected
+  volume fail-closed protections, journal crash recovery across pre/post-promotion boundaries,
+  in-process stale-root write blocking, and Qt window closing during active worker execution.
+  Architecture audit `scripts/audit_architecture.py` reports 0 violations across 98 Python files.
 
 This section intentionally describes the post-merge source state one step ahead
 of this implementation branch. At branch publication, independent remote audit,
