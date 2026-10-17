@@ -19,6 +19,8 @@ BACKUP_DIR_ENV = "VOCAB_APP_BACKUP_DIR"
 AUDIO_CACHE_PATH_ENV = "VOCAB_APP_AUDIO_CACHE_DIR"
 APP_PREFERENCES_PATH_ENV = "VOCAB_APP_PREFERENCES_PATH"
 DATA_ROOT_POINTER_NAME = "data-root.json"
+RECOVERY_JOURNAL_NAME = "migration-recovery.json"
+ROOT_MARKER_NAME = ".vocab_app_root_marker.json"
 _bound_guarded_database: Path | None = None
 
 
@@ -154,11 +156,42 @@ def resolve_data_paths() -> DataPaths:
     default_root = get_default_data_dir()
     complete_override = all(overrides.values())
     pointer = default_root / DATA_ROOT_POINTER_NAME
+    journal_path = default_root / RECOVERY_JOURNAL_NAME
     try:
         pointer_present = pointer.exists() or _is_link(pointer)
+        journal_present = journal_path.exists() or _is_link(journal_path)
     except OSError as error:
         raise _data_root_error(str(error)) from error
+
+    journal_record: dict | None = None
+    if journal_present and not complete_override:
+        try:
+            if _is_link(journal_path) or not journal_path.is_file():
+                raise ValueError("the recovery journal is not a regular file")
+            if journal_path.stat().st_size > 65536:
+                raise ValueError("recovery journal is too large")
+            raw_journal = json.loads(journal_path.read_text(encoding="utf-8"))
+            if not isinstance(raw_journal, dict) or "latest_committed_root" not in raw_journal:
+                raise ValueError("recovery journal has an invalid format")
+            journal_record = raw_journal
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+            raise _data_root_error(f"recovery journal error: {error}") from error
+
+    if not complete_override and journal_record is not None and not pointer_present:
+        latest = journal_record.get("latest_committed_root", "")
+        raise _data_root_error(
+            f"A prior data relocation was committed to '{latest}', but the location pointer "
+            f"'{DATA_ROOT_POINTER_NAME}' is missing or damaged"
+        )
+
     selected_root = None if complete_override else _configured_data_root(default_root)
+    if not complete_override and journal_record is not None and selected_root is not None:
+        journal_target = Path(journal_record["latest_committed_root"]).resolve()
+        if selected_root != journal_target:
+            raise _data_root_error(
+                f"Conflict between {DATA_ROOT_POINTER_NAME} ('{selected_root}') "
+                f"and recovery journal ('{journal_target}')"
+            )
     if _bound_relocated_paths is not None and selected_root != _bound_relocated_paths.data_root:
         raise _data_root_error("the location pointer changed while the app was open")
     root = selected_root or default_root
