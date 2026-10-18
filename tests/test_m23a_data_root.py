@@ -31,18 +31,21 @@ def _create_fictional_app_database(path: Path) -> None:
 
 class M23ADataRootTests(unittest.TestCase):
     def setUp(self) -> None:
+        self._saved_startup = app_config._bound_startup_paths
+        self._saved_relocated = app_config._bound_relocated_paths
+        self._saved_guarded = app_config._bound_guarded_database
         app_config._bound_relocated_paths = None
         app_config._bound_startup_paths = None
         app_config._bound_guarded_database = None
 
     def tearDown(self) -> None:
-        app_config._bound_relocated_paths = None
-        app_config._bound_startup_paths = None
-        app_config._bound_guarded_database = None
+        app_config._bound_startup_paths = self._saved_startup
+        app_config._bound_relocated_paths = self._saved_relocated
+        app_config._bound_guarded_database = self._saved_guarded
 
     def test_legacy_installation_without_pointer_keeps_original_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             local = home / "local"
             with patch.dict(os.environ, {
                 "LOCALAPPDATA": str(local),
@@ -61,7 +64,7 @@ class M23ADataRootTests(unittest.TestCase):
 
     def test_relocated_root_resolves_all_four_components_before_startup(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             default_root = home / "local" / "vocabulary_app"
             relocated = home / "fictional-relocated"
             default_root.mkdir(parents=True)
@@ -84,7 +87,7 @@ class M23ADataRootTests(unittest.TestCase):
 
     def test_missing_selected_drive_stops_native_startup_before_database_creation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             default_root = home / "local" / "vocabulary_app"
             default_root.mkdir(parents=True)
             missing_root = home / "disconnected-fictional-drive"
@@ -121,7 +124,7 @@ class M23ADataRootTests(unittest.TestCase):
 
     def test_corrupt_selected_database_is_rejected_without_replacing_it(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             default_root = home / "local" / "vocabulary_app"
             relocated = home / "fictional-relocated"
             default_root.mkdir(parents=True)
@@ -146,7 +149,7 @@ class M23ADataRootTests(unittest.TestCase):
 
     def test_unrelated_sqlite_with_entries_table_is_not_accepted_as_app_data(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             default_root = home / "local" / "vocabulary_app"
             relocated = home / "unrelated-fictional-sqlite"
             default_root.mkdir(parents=True)
@@ -169,7 +172,7 @@ class M23ADataRootTests(unittest.TestCase):
 
     def test_selected_database_disappearing_after_import_is_not_recreated(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             default_root = home / "local" / "vocabulary_app"
             relocated = home / "fictional-relocated"
             default_root.mkdir(parents=True)
@@ -204,7 +207,7 @@ class M23ADataRootTests(unittest.TestCase):
 
     def test_explicit_overrides_win_per_component_and_full_override_recovers(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             default_root = home / "local" / "vocabulary_app"
             relocated = home / "fictional-relocated"
             default_root.mkdir(parents=True)
@@ -253,7 +256,7 @@ class M23ADataRootTests(unittest.TestCase):
 
     def test_full_override_cannot_bypass_damaged_pointer_into_empty_database(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             default_root = home / "local" / "vocabulary_app"
             default_root.mkdir(parents=True)
             (default_root / "data-root.json").write_text("damaged pointer", encoding="utf-8")
@@ -278,7 +281,7 @@ class M23ADataRootTests(unittest.TestCase):
         )
         for content in invalid_contents:
             with self.subTest(content=content), tempfile.TemporaryDirectory() as temporary:
-                home = Path(temporary)
+                home = Path(temporary).resolve()
                 default_root = home / "local" / "vocabulary_app"
                 default_root.mkdir(parents=True)
                 pointer = default_root / "data-root.json"
@@ -302,7 +305,7 @@ class M23ADataRootTests(unittest.TestCase):
 
     def test_desktop_bootstrap_opens_existing_relocated_data_before_building_ui(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             default_root = home / "local" / "vocabulary_app"
             relocated = home / "fictional-relocated"
             default_root.mkdir(parents=True)
@@ -344,7 +347,7 @@ class M23ADataRootTests(unittest.TestCase):
                 "from src.app_config import get_app_storage_summary; "
                 "a,w,t=build_application([]); "
                 "root=Path(os.environ['EXPECTED_FICTIONAL_ROOT']); "
-                "assert db.DB_PATH==root/'vocab.db'; "
+                "assert db.DB_PATH.resolve() == (root / 'vocab.db').resolve(); "
                 "assert get_app_storage_summary()['path_source']=='relocated data root'; "
                 "w.close()"
             )
@@ -363,7 +366,7 @@ class M23ADataRootTests(unittest.TestCase):
 
     def test_pointer_switch_during_running_process_does_not_redirect_preferences(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             default_root = home / "local" / "vocabulary_app"
             old_root = home / "fictional-old"
             new_root = home / "fictional-new"
@@ -408,7 +411,7 @@ class M23ADataRootTests(unittest.TestCase):
 
     def test_override_change_during_relocated_session_does_not_split_backups(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             default_root = home / "local" / "vocabulary_app"
             relocated = home / "fictional-relocated"
             default_root.mkdir(parents=True)

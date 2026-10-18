@@ -7,7 +7,7 @@ import shutil
 import sqlite3
 import sys
 import tempfile
-from contextlib import closing
+from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -605,6 +605,33 @@ def bind_startup_data_paths() -> DataPaths:
     if paths.guarded_database:
         _bound_guarded_database = paths.database
     return paths
+
+
+def reset_startup_data_paths(paths: DataPaths | None = None) -> None:
+    """Reset or update pinned startup data path bindings for test fixture isolation.
+
+    In production runtime, paths remain pinned for process lifetime.
+    """
+    global _bound_relocated_paths, _bound_guarded_database, _bound_startup_paths
+    _bound_startup_paths = paths
+    _bound_relocated_paths = paths if paths and paths.relocated else None
+    _bound_guarded_database = paths.database if paths and paths.guarded_database else None
+
+
+@contextmanager
+def scoped_data_paths_binding(paths: DataPaths | None = None):
+    """Context manager to isolate data path bindings during test execution."""
+    global _bound_relocated_paths, _bound_guarded_database, _bound_startup_paths
+    prev_startup = _bound_startup_paths
+    prev_relocated = _bound_relocated_paths
+    prev_guarded = _bound_guarded_database
+    reset_startup_data_paths(paths)
+    try:
+        yield
+    finally:
+        _bound_startup_paths = prev_startup
+        _bound_relocated_paths = prev_relocated
+        _bound_guarded_database = prev_guarded
 
 
 def get_project_root() -> Path:

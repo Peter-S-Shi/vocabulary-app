@@ -46,14 +46,17 @@ def _create_fictional_app_database(path: Path, item_count: int = 3) -> None:
 
 class M23BRecoveryJournalResolutionTests(unittest.TestCase):
     def setUp(self) -> None:
+        self._saved_startup = app_config._bound_startup_paths
+        self._saved_relocated = app_config._bound_relocated_paths
+        self._saved_guarded = app_config._bound_guarded_database
         app_config._bound_relocated_paths = None
         app_config._bound_startup_paths = None
         app_config._bound_guarded_database = None
 
     def tearDown(self) -> None:
-        app_config._bound_relocated_paths = None
-        app_config._bound_startup_paths = None
-        app_config._bound_guarded_database = None
+        app_config._bound_startup_paths = self._saved_startup
+        app_config._bound_relocated_paths = self._saved_relocated
+        app_config._bound_guarded_database = self._saved_guarded
 
     def test_missing_pointer_with_durable_recovery_journal_fails_closed(self) -> None:
         """When data-root.json is missing or deleted after a committed relocation,
@@ -61,7 +64,7 @@ class M23BRecoveryJournalResolutionTests(unittest.TestCase):
         with DataRootError, never silently reverting to default or creating a blank DB.
         """
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             default_root = home / "local" / "vocabulary_app"
             target_root = home / "d_drive" / "VocabularyAppData"
             default_root.mkdir(parents=True)
@@ -103,7 +106,7 @@ class M23BRecoveryJournalResolutionTests(unittest.TestCase):
         startup must fail closed rather than guessing which root is authoritative.
         """
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             default_root = home / "local" / "vocabulary_app"
             root_a = home / "drive_d" / "data_a"
             root_b = home / "drive_e" / "data_b"
@@ -140,11 +143,14 @@ class M23BRecoveryJournalResolutionTests(unittest.TestCase):
 
 class M23BRelocationEngineTests(unittest.TestCase):
     def setUp(self) -> None:
+        self._saved_startup = app_config._bound_startup_paths
+        self._saved_relocated = app_config._bound_relocated_paths
+        self._saved_guarded = app_config._bound_guarded_database
         app_config._bound_relocated_paths = None
         app_config._bound_startup_paths = None
         app_config._bound_guarded_database = None
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.home = Path(self.temp_dir.name)
+        self.home = Path(self.temp_dir.name).resolve()
         self.local_root = self.home / "local" / "vocabulary_app"
         self.local_root.mkdir(parents=True)
         _create_fictional_app_database(self.local_root / "vocab.db", item_count=5)
@@ -159,9 +165,9 @@ class M23BRelocationEngineTests(unittest.TestCase):
         (audio / "sample.mp3").write_bytes(b"fictional audio data")
 
     def tearDown(self) -> None:
-        app_config._bound_relocated_paths = None
-        app_config._bound_startup_paths = None
-        app_config._bound_guarded_database = None
+        app_config._bound_startup_paths = self._saved_startup
+        app_config._bound_relocated_paths = self._saved_relocated
+        app_config._bound_guarded_database = self._saved_guarded
         self.temp_dir.cleanup()
 
     def test_plan_relocation_rejects_occupied_target(self) -> None:
@@ -255,11 +261,11 @@ class M23BRelocationEngineTests(unittest.TestCase):
 
         # Journal should now record sequence 2 and history of length 2
         journal_data = json.loads((self.local_root / "migration-recovery.json").read_text(encoding="utf-8"))
-        self.assertEqual(journal_data["latest_committed_root"], str(target_2))
+        self.assertEqual(Path(journal_data["latest_committed_root"]).resolve(), target_2.resolve())
         self.assertEqual(len(journal_data["history"]), 2)
         self.assertEqual(journal_data["history"][1]["sequence"], 2)
-        self.assertEqual(journal_data["history"][1]["source_root"], str(target_1))
-        self.assertEqual(journal_data["history"][1]["target_root"], str(target_2))
+        self.assertEqual(Path(journal_data["history"][1]["source_root"]).resolve(), target_1.resolve())
+        self.assertEqual(Path(journal_data["history"][1]["target_root"]).resolve(), target_2.resolve())
 
         # Both previous locations remain on disk intact
         self.assertTrue((self.local_root / "vocab.db").is_file())
@@ -624,7 +630,7 @@ class M23BRelocationEngineTests(unittest.TestCase):
             self.assertFalse(plan_2.staging_dir.exists())
             journal_after = json.loads(journal_path.read_text(encoding="utf-8"))
             self.assertEqual(journal_after["status"], "COMMITTED")
-            self.assertEqual(journal_after["latest_committed_root"], str(committed_1))
+            self.assertEqual(Path(journal_after["latest_committed_root"]).resolve(), committed_1.resolve())
             self.assertEqual(len(journal_after["history"]), 1)
 
             # Idempotent on subsequent call
@@ -846,12 +852,12 @@ class M23BRelocationEngineTests(unittest.TestCase):
             # Pointer should have been written
             self.assertTrue(pointer_path.exists())
             pointer_data = json.loads(pointer_path.read_text(encoding="utf-8"))
-            self.assertEqual(pointer_data["data_root"], str(target))
+            self.assertEqual(Path(pointer_data["data_root"]).resolve(), target.resolve())
 
             # Journal should have been updated to COMMITTED with full metadata
             journal_data = json.loads(journal_path.read_text(encoding="utf-8"))
             self.assertEqual(journal_data["status"], "COMMITTED")
-            self.assertEqual(journal_data["latest_committed_root"], str(target))
+            self.assertEqual(Path(journal_data["latest_committed_root"]).resolve(), target.resolve())
             self.assertEqual(len(journal_data["history"]), 1)
             self.assertTrue(journal_data["history"][0]["recovered"])
             self.assertEqual(journal_data["history"][0]["schema_version"], "2")

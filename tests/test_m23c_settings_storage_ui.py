@@ -47,13 +47,20 @@ class SettingsStorageRelocationUITests(unittest.TestCase):
         cls.app = _qt_app()
 
     def setUp(self) -> None:
+        self._orig_startup_paths = app_config._bound_startup_paths
+        self._orig_relocated_paths = app_config._bound_relocated_paths
+        self._orig_guarded_database = app_config._bound_guarded_database
+        app_config.reset_startup_data_paths(None)
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.home = Path(self.temp_dir.name)
+        self.home = Path(self.temp_dir.name).resolve()
         self.local_root = self.home / "local" / "vocabulary_app"
         self.local_root.mkdir(parents=True)
         _create_fictional_app_database(self.local_root / "vocab.db")
 
     def tearDown(self) -> None:
+        app_config._bound_startup_paths = self._orig_startup_paths
+        app_config._bound_relocated_paths = self._orig_relocated_paths
+        app_config._bound_guarded_database = self._orig_guarded_database
         self.temp_dir.cleanup()
 
     def test_controller_relocation_availability_reflects_overrides(self) -> None:

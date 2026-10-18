@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from src import app_config
 from src.app_config import (
     APP_SLUG,
     BACKUP_DIR_ENV,
@@ -56,6 +57,10 @@ class _EnvIsolationMixin(unittest.TestCase):
     def setUp(self) -> None:
         super().setUp()
         self._saved_env = {key: os.environ.get(key) for key in _ENV_KEYS}
+        self._saved_startup = app_config._bound_startup_paths
+        self._saved_relocated = app_config._bound_relocated_paths
+        self._saved_guarded = app_config._bound_guarded_database
+        app_config.reset_startup_data_paths(None)
 
     def tearDown(self) -> None:
         for key, value in self._saved_env.items():
@@ -63,6 +68,9 @@ class _EnvIsolationMixin(unittest.TestCase):
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
+        app_config._bound_startup_paths = self._saved_startup
+        app_config._bound_relocated_paths = self._saved_relocated
+        app_config._bound_guarded_database = self._saved_guarded
         super().tearDown()
 
 

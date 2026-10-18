@@ -155,7 +155,7 @@ The implementation enforces all approved Owner and engineering safety invariants
   wait for thread execution to exit cleanly before UI dialogs or application quit,
   keeping the GUI responsive while quiescing UI actions, reporting accurate post-error
   recovery status, and enforcing an immediate application restart boundary upon completion.
-- **Integration Preflight & Test Evidence:** All 42 unit and Windows-native end-to-end
+- **Integration Preflight & Test Evidence:** All unit and Windows-native end-to-end
   integration preflight tests (`test_m23a_data_root`, `test_m23b_data_relocation`,
   `test_m23c_settings_storage_ui`, and `test_m23bc_e2e_integration_preflight`) pass
   cleanly on Windows. The integration suite validates full 4-component preservation,
