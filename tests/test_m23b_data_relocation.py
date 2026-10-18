@@ -45,6 +45,16 @@ def _create_fictional_app_database(path: Path, item_count: int = 3) -> None:
 
 
 class M23BRecoveryJournalResolutionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        app_config._bound_relocated_paths = None
+        app_config._bound_startup_paths = None
+        app_config._bound_guarded_database = None
+
+    def tearDown(self) -> None:
+        app_config._bound_relocated_paths = None
+        app_config._bound_startup_paths = None
+        app_config._bound_guarded_database = None
+
     def test_missing_pointer_with_durable_recovery_journal_fails_closed(self) -> None:
         """When data-root.json is missing or deleted after a committed relocation,
         the presence of migration-recovery.json forces startup to fail closed
@@ -130,6 +140,9 @@ class M23BRecoveryJournalResolutionTests(unittest.TestCase):
 
 class M23BRelocationEngineTests(unittest.TestCase):
     def setUp(self) -> None:
+        app_config._bound_relocated_paths = None
+        app_config._bound_startup_paths = None
+        app_config._bound_guarded_database = None
         self.temp_dir = tempfile.TemporaryDirectory()
         self.home = Path(self.temp_dir.name)
         self.local_root = self.home / "local" / "vocabulary_app"
@@ -146,6 +159,9 @@ class M23BRelocationEngineTests(unittest.TestCase):
         (audio / "sample.mp3").write_bytes(b"fictional audio data")
 
     def tearDown(self) -> None:
+        app_config._bound_relocated_paths = None
+        app_config._bound_startup_paths = None
+        app_config._bound_guarded_database = None
         self.temp_dir.cleanup()
 
     def test_plan_relocation_rejects_occupied_target(self) -> None:

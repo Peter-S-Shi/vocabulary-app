@@ -264,9 +264,34 @@ def compose_card_audio(
     providers: ProviderRegistry,
     asset_store: AudioAssetStore | None = None,
 ) -> CardAudioResult:
+    from src.app_config import DataRootError, get_audio_cache_dir
     from src.data_lock import DataLockError, acquire_data_lock
 
-    store = asset_store or AudioAssetStore()
+    try:
+        current_cache_dir = get_audio_cache_dir().expanduser().resolve()
+    except DataRootError as error:
+        return CardAudioResult(
+            plan.render_key,
+            None,
+            plan.card_id,
+            plan.card_revision_id,
+            False,
+            "data_root_locked",
+            f"Audio cache is unavailable: {error}",
+        )
+
+    store = asset_store or AudioAssetStore(current_cache_dir)
+    if store.root != current_cache_dir:
+        return CardAudioResult(
+            plan.render_key,
+            None,
+            plan.card_id,
+            plan.card_revision_id,
+            False,
+            "data_root_locked",
+            "Audio cache directory changed while the app was open. Restart required.",
+        )
+
     if not plan.ready:
         return CardAudioResult(plan.render_key, None, plan.card_id, plan.card_revision_id, False, "card_plan_not_ready", "Card audio plan has unresolved issues.")
     final_path = store.root / "cards" / plan.render_key[:2] / f"{plan.render_key}.wav"

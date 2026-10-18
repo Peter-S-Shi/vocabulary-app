@@ -42,6 +42,7 @@ class DataPaths:
 
 
 _bound_relocated_paths: DataPaths | None = None
+_bound_startup_paths: DataPaths | None = None
 
 
 def _data_root_error(detail: str) -> DataRootError:
@@ -589,13 +590,16 @@ def resolve_data_paths() -> DataPaths:
     )
     if _bound_relocated_paths is not None and paths != _bound_relocated_paths:
         raise _data_root_error("data paths changed while the app was open")
+    if _bound_startup_paths is not None and paths != _bound_startup_paths:
+        raise _data_root_error("data paths changed while the app was open")
     return paths
 
 
 def bind_startup_data_paths() -> DataPaths:
-    """Pin a relocated root when the database module starts this process."""
-    global _bound_relocated_paths, _bound_guarded_database
+    """Pin the active data paths when the database module starts this process."""
+    global _bound_relocated_paths, _bound_guarded_database, _bound_startup_paths
     paths = resolve_data_paths()
+    _bound_startup_paths = paths
     if paths.relocated:
         _bound_relocated_paths = paths
     if paths.guarded_database:

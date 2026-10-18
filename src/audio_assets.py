@@ -176,9 +176,29 @@ class AudioAssetStore:
     def materialize(
         self, request: AudioAssetRequest, providers: ProviderRegistry
     ) -> AudioAssetResult:
+        from src.app_config import DataRootError
         from src.data_lock import DataLockError, acquire_data_lock
 
         key = request.asset_key
+        try:
+            current_cache_dir = get_audio_cache_dir().expanduser().resolve()
+            if self.root != current_cache_dir:
+                return AudioAssetResult(
+                    key,
+                    None,
+                    False,
+                    "data_root_locked",
+                    "Audio cache directory changed while the app was open. Restart required.",
+                )
+        except DataRootError as error:
+            return AudioAssetResult(
+                key,
+                None,
+                False,
+                "data_root_locked",
+                f"Audio cache is unavailable: {error}",
+            )
+
         final_path = self.asset_path(key)
         with _asset_lock(key):
             try:

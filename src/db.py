@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pathlib import Path
 import sqlite3
 
@@ -221,6 +223,16 @@ class LockedConnection(sqlite3.Connection):
     def _bind_lock_handle(self, handle) -> None:
         self._lock_handle = handle
 
+    def __enter__(self) -> LockedConnection:
+        super().__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        try:
+            super().__exit__(exc_type, exc_val, exc_tb)
+        finally:
+            self.close()
+
     def close(self) -> None:
         try:
             super().close()
@@ -248,12 +260,12 @@ def get_connection() -> sqlite3.Connection:
         ) from error
 
     try:
+        if DB_PATH != paths.database:
+            raise DataRootError(
+                "The selected Vocabulary App data folder changed while the app was open. "
+                "Restart after restoring the original folder; no new database was created."
+            )
         if paths.guarded_database:
-            if DB_PATH != paths.database:
-                raise DataRootError(
-                    "The selected Vocabulary App data folder changed while the app was open. "
-                    "Restart after restoring the original folder; no new database was created."
-                )
             try:
                 # mode=rw cannot silently create a replacement if the selected
                 # database disappears between path validation and SQLite open.

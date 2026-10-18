@@ -123,7 +123,7 @@ The implementation enforces all approved Owner and engineering safety invariants
   and staging WAL truncation to create a coherent database snapshot without raw
   WAL/SHM copying or disruptive source checkpoints.
 - **Cross-process writer quiescence:** an explicit shared vs. exclusive OS file lock
-  (`.vocab_relocation.lock`, using pointer-sized Win64 `OVERLAPPED` with `LockFileEx`)
+  (`.app_data.lock`, using pointer-sized Win64 `OVERLAPPED` with `LockFileEx`)
   guards the data root across processes. Active SQLite connections (`LockedConnection`),
   preference writes, audio-cache materialization/composition (`AudioAssetStore.materialize`
   and `compose_card_audio`), pre-migration backups, and database imports hold shared

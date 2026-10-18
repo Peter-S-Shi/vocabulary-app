@@ -114,6 +114,7 @@ class M23BCE2EIntegrationPreflightTests(unittest.TestCase):
 
         # Clear startup bindings before each test
         app_config._bound_relocated_paths = None
+        app_config._bound_startup_paths = None
         app_config._bound_active_paths = None
         app_config._bound_guarded_database = None
 
@@ -130,6 +131,7 @@ class M23BCE2EIntegrationPreflightTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         app_config._bound_relocated_paths = None
+        app_config._bound_startup_paths = None
         app_config._bound_active_paths = None
         app_config._bound_guarded_database = None
         self.temp_dir.cleanup()
@@ -181,6 +183,7 @@ class M23BCE2EIntegrationPreflightTests(unittest.TestCase):
 
             # Simulate app restart (new process environment)
             app_config._bound_relocated_paths = None
+            app_config._bound_startup_paths = None
             app_config._bound_guarded_database = None
             resolved = resolve_data_paths()
             self.assertEqual(resolved.data_root, target_root)
@@ -217,6 +220,7 @@ class M23BCE2EIntegrationPreflightTests(unittest.TestCase):
 
             # Verify restart resolution to target1
             app_config._bound_relocated_paths = None
+            app_config._bound_startup_paths = None
             app_config._bound_guarded_database = None
             resolved1 = resolve_data_paths()
             self.assertEqual(resolved1.data_root, target1)
@@ -228,6 +232,7 @@ class M23BCE2EIntegrationPreflightTests(unittest.TestCase):
 
             # Verify restart resolution to target2
             app_config._bound_relocated_paths = None
+            app_config._bound_startup_paths = None
             app_config._bound_guarded_database = None
             resolved2 = resolve_data_paths()
             self.assertEqual(resolved2.data_root, target2)
@@ -285,6 +290,7 @@ class M23BCE2EIntegrationPreflightTests(unittest.TestCase):
             shutil.rmtree(target)
 
             app_config._bound_relocated_paths = None
+            app_config._bound_startup_paths = None
             app_config._bound_guarded_database = None
 
             # Startup resolution must fail closed with DataRootError
@@ -335,6 +341,7 @@ class M23BCE2EIntegrationPreflightTests(unittest.TestCase):
 
             # Starting up now should detect unpromoted staging and rollback safely
             app_config._bound_relocated_paths = None
+            app_config._bound_startup_paths = None
             app_config._bound_guarded_database = None
             resolved_a = resolve_data_paths()
             self.assertEqual(resolved_a.data_root, self.local_root)
@@ -369,6 +376,7 @@ class M23BCE2EIntegrationPreflightTests(unittest.TestCase):
 
             # Starting up now should detect promoted target and forward-roll pointer & journal
             app_config._bound_relocated_paths = None
+            app_config._bound_startup_paths = None
             app_config._bound_guarded_database = None
             resolved_b = resolve_data_paths()
             self.assertEqual(resolved_b.data_root, target)
@@ -438,9 +446,86 @@ class M23BCE2EIntegrationPreflightTests(unittest.TestCase):
             with self.assertRaises(DataRootError):
                 save_preferences(Preferences(appearance="Light"))
 
-            # Step 5: Audio asset store materialization must also fail with DataRootError
+            # Step 5: Audio asset store instantiation and materialization must fail closed
             with self.assertRaises(DataRootError):
                 AudioAssetStore()
+            # Preexisting store must also fail closed without writing bytes
+            preexisting_store = AudioAssetStore(source_relocated / "audio-cache")
+            fake_req = AudioAssetRequest("test word", "en", "mock-provider", "mock-voice")
+            res_mat = preexisting_store.materialize(fake_req, ProviderRegistry.unavailable_defaults())
+            self.assertFalse(res_mat.succeeded)
+            self.assertEqual(res_mat.error_code, "data_root_locked")
+
+            # Step 6: Backup writer must also fail closed with DataRootError
+            from src.migrations import backup_before_pending_migration
+            with self.assertRaises(DataRootError):
+                backup_before_pending_migration(MagicMock(), paths.database)
+
+    def test_e2e_scenario6_first_relocation_cutover_from_default_root(self) -> None:
+        """Scenario 6B: First-relocation cutover gap fix:
+        When launching from un-relocated default root (no pointer initially),
+        committing relocation must prevent the running process and preexisting
+        background/cache objects from writing to either the retained source
+        or the newly committed target until a clean restart.
+        """
+        vol1 = self.base / "first_reloc_vol1"
+        vol1.mkdir()
+        target1 = vol1 / "VocabularyAppData"
+
+        with patch.dict(os.environ, self.clean_env):
+            # Process startup from DEFAULT root (no data-root.json pointer exists initially)
+            self.assertFalse((self.local_root / DATA_ROOT_POINTER_NAME).exists())
+            startup_paths = bind_startup_data_paths()
+            self.assertFalse(startup_paths.relocated)
+            self.assertEqual(startup_paths.data_root, self.local_root)
+            db.DB_PATH = startup_paths.database
+
+            # Preexisting objects created during initial startup before relocation
+            preexisting_audio_store = AudioAssetStore()
+            self.assertEqual(preexisting_audio_store.root, self.local_root / "audio-cache")
+
+            # Initial DB connection works normally on default root
+            with closing(db.get_connection()) as conn:
+                conn.execute("INSERT INTO collections (id, name) VALUES (3, 'Default Root Collection')")
+                conn.commit()
+
+            # Record source file mtimes / state
+            src_db_mtime_before = (self.local_root / "vocab.db").stat().st_mtime_ns
+
+            # Execute first relocation from default root to target1
+            plan = plan_relocation(target1, source_root=self.local_root)
+            res = execute_relocation(plan, default_root=self.local_root)
+            self.assertTrue(res.success)
+            self.assertTrue(target1.is_dir())
+            self.assertTrue((self.local_root / DATA_ROOT_POINTER_NAME).is_file())
+
+            # 1. Database writer: subsequent calls to get_connection() MUST fail closed with DataRootError
+            with self.assertRaises(DataRootError) as ctx:
+                db.get_connection()
+            self.assertIn("data paths changed while the app was open", str(ctx.exception).lower())
+
+            # 2. Preferences writer: save_preferences() MUST fail closed with DataRootError
+            with self.assertRaises(DataRootError):
+                save_preferences(Preferences(appearance="Light"))
+
+            # 3. Audio cache writer: new AudioAssetStore() MUST fail closed with DataRootError
+            with self.assertRaises(DataRootError):
+                AudioAssetStore()
+
+            # 4. Audio cache writer: preexisting store materialize() MUST fail closed with data_root_locked
+            fake_req = AudioAssetRequest("test word", "en", "mock-provider", "mock-voice")
+            res_mat = preexisting_audio_store.materialize(fake_req, ProviderRegistry.unavailable_defaults())
+            self.assertFalse(res_mat.succeeded)
+            self.assertEqual(res_mat.error_code, "data_root_locked")
+
+            # 5. Backup writer: backup_before_pending_migration() MUST fail closed with DataRootError
+            from src.migrations import backup_before_pending_migration
+            with self.assertRaises(DataRootError):
+                backup_before_pending_migration(MagicMock(), startup_paths.database)
+
+            # Invariant: zero writes occurred to source database after relocation
+            src_db_mtime_after = (self.local_root / "vocab.db").stat().st_mtime_ns
+            self.assertEqual(src_db_mtime_before, src_db_mtime_after)
 
     def test_e2e_scenario7_ui_closing_during_active_relocation(self) -> None:
         """Scenario 7: MainWindow closeEvent during active relocation waits for

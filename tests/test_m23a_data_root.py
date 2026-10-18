@@ -30,6 +30,16 @@ def _create_fictional_app_database(path: Path) -> None:
 
 
 class M23ADataRootTests(unittest.TestCase):
+    def setUp(self) -> None:
+        app_config._bound_relocated_paths = None
+        app_config._bound_startup_paths = None
+        app_config._bound_guarded_database = None
+
+    def tearDown(self) -> None:
+        app_config._bound_relocated_paths = None
+        app_config._bound_startup_paths = None
+        app_config._bound_guarded_database = None
+
     def test_legacy_installation_without_pointer_keeps_original_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary)
