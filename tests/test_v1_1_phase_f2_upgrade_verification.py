@@ -366,7 +366,7 @@ class UpgradeVerificationHarnessTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             tmp_path = Path(tmp)
             v1_installer = tmp_path / "VocabularyApp-Setup-1.0.0.exe"
-            v1_1_installer = tmp_path / "VocabularyApp-Setup-1.1.0.exe"
+            v1_1_installer = tmp_path / "VocabularyApp-Setup-1.2.0-rc.1.exe"
             data_dir = tmp_path / "user_data"
             install_dir = tmp_path / "programs"
             report_path = tmp_path / "report.json"
@@ -375,14 +375,14 @@ class UpgradeVerificationHarnessTests(unittest.TestCase):
             v1_1_installer.write_bytes(b"v1_1_installer_mock_binary")
 
             v1_meta = {"ProductVersion": "1.0.0", "FileVersion": "1.0.0.0"}
-            v1_1_meta = {"ProductVersion": "1.1.0", "FileVersion": "1.1.0.0"}
+            target_meta = {"ProductVersion": "1.2.0-rc.1", "FileVersion": "1.2.0.0"}
 
             call_count = 0
 
             def mock_get_exe_version(exe_path: Path) -> dict[str, str]:
                 nonlocal call_count
                 call_count += 1
-                return v1_meta if call_count == 1 else v1_1_meta
+                return v1_meta if call_count == 1 else target_meta
 
             v1_reg_mock = [{
                 "hive": "HKCU",
@@ -396,9 +396,9 @@ class UpgradeVerificationHarnessTests(unittest.TestCase):
                 "hive": "HKCU",
                 "key_name": INNO_UNINSTALL_KEY_NAME,
                 "display_name": "Vocabulary App",
-                "display_version": "1.1.0",
+                "display_version": "1.2.0-rc.1",
                 "install_location": str(install_dir),
-                "raw_values": {"DisplayName": "Vocabulary App", "Inno Setup: Setup Version": "1.1.0"},
+                "raw_values": {"DisplayName": "Vocabulary App", "Inno Setup: Setup Version": "1.2.0-rc.1"},
             }]
             reg_call_count = 0
 

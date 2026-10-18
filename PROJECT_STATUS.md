@@ -164,11 +164,20 @@ The implementation enforces all approved Owner and engineering safety invariants
   in-process stale-root write blocking, and Qt window closing during active worker execution.
   Architecture audit `scripts/audit_architecture.py` reports 0 violations across 98 Python files.
 
-This section intentionally describes the post-merge source state one step ahead
-of this implementation branch. At branch publication, independent remote audit,
-PR merge, and Windows-native Human Acceptance are pending. v1.1.0 remains the
-current published release; no installer with M23-B/C has shipped, and Issue #43
-is resolved at the source level.
+**Human Acceptance: PASS.** The Product Owner completed live Windows Human Acceptance
+testing on the active `fix/m23bc-data-relocation` branch across all storage relocation
+scenarios, verifying move integrity, settings feedback, and clean restart boundaries.
+
+## Release Candidate v1.2.0-rc.1 Preparation
+
+Feature scope is frozen for the **v1.2.0** upgrade:
+- Includes merged Milestone 22 (A/B/C/D) learning/UX corrections.
+- Includes merged Milestone 23 (A/B/C) data-root foundation and unified data-folder relocation.
+- Explicitly defers Issue #48 (UI/UX refresh / visual redesign) to a subsequent authorized milestone.
+- Freezes release metadata as **v1.2.0-rc.1** (`APP_VERSION = "1.2.0-rc.1"`, Windows PE `FileVersion = "1.2.0.0"`, `ProductVersion = "1.2.0-rc.1"`).
+- Reconciles upgrade verification harness (`winbuild/verify_upgrade.py` and `tests/test_v1_1_phase_f2_upgrade_verification.py`) to verify baseline v1.1.0 state upgrade to target v1.2.0-rc.1 with complete data preservation, registry update, and zero worktree usage.
+- Updates CI Shard 3 and build packaging workflow (`windows_build.yml`) to cover all M22/M23 test suites and target v1.2.0-rc.1 installer build.
+- Following our one-step-ahead macro-documentation convention, repository documentation describes v1.2.0-rc.1 candidate readiness. v1.1.0 remains the active public release until formal PR review, merge, and publication.
 
 ## M21 / v1.1.0 Closure
 

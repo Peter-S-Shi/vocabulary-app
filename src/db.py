@@ -260,12 +260,12 @@ def get_connection() -> sqlite3.Connection:
         ) from error
 
     try:
-        if DB_PATH != paths.database:
-            raise DataRootError(
-                "The selected Vocabulary App data folder changed while the app was open. "
-                "Restart after restoring the original folder; no new database was created."
-            )
         if paths.guarded_database:
+            if DB_PATH != paths.database:
+                raise DataRootError(
+                    "The selected Vocabulary App data folder changed while the app was open. "
+                    "Restart after restoring the original folder; no new database was created."
+                )
             try:
                 # mode=rw cannot silently create a replacement if the selected
                 # database disappears between path validation and SQLite open.

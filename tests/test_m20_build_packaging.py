@@ -47,7 +47,7 @@ class VersionInfoDriftGuardTests(unittest.TestCase):
         src.app_config.APP_VERSION -- this is the regression this
         function exists to catch before a release ships an installer
         with a stale embedded Windows file-properties version."""
-        self.assertEqual(APP_VERSION, "1.1.0")
+        self.assertEqual(APP_VERSION, "1.2.0-rc.1")
         verify_version_info_matches(APP_VERSION)
 
     def test_mismatched_version_raises(self) -> None:
@@ -58,9 +58,9 @@ class VersionInfoDriftGuardTests(unittest.TestCase):
         valid_text = VERSION_INFO_PATH.read_text(encoding="utf-8")
         corrupted_cases = [
             ("ProductVersion drift", valid_text.replace(f"ProductVersion', u'{APP_VERSION}'", "ProductVersion', u'0.9.0'")),
-            ("FileVersion string drift", valid_text.replace("FileVersion', u'1.1.0.0'", "FileVersion', u'1.0.0.0'")),
-            ("filevers tuple drift", valid_text.replace("filevers=(1, 1, 0, 0)", "filevers=(1, 0, 0, 0)")),
-            ("prodvers tuple drift", valid_text.replace("prodvers=(1, 1, 0, 0)", "prodvers=(1, 0, 0, 0)")),
+            ("FileVersion string drift", valid_text.replace("FileVersion', u'1.2.0.0'", "FileVersion', u'1.0.0.0'")),
+            ("filevers tuple drift", valid_text.replace("filevers=(1, 2, 0, 0)", "filevers=(1, 0, 0, 0)")),
+            ("prodvers tuple drift", valid_text.replace("prodvers=(1, 2, 0, 0)", "prodvers=(1, 0, 0, 0)")),
         ]
         for name, bad_content in corrupted_cases:
             with self.subTest(drift_case=name):

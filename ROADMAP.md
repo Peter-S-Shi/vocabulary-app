@@ -2282,10 +2282,10 @@ and a durable independent migration-recovery journal in the default OS root that
 fails closed if the locator pointer is damaged or deleted. Original data files are
 safely retained as rollback baseline.
 
-This section intentionally describes the post-merge source state one step ahead;
-independent remote audit, PR merge, and Windows-native Human Acceptance are pending.
-v1.1.0 remains the public release; no installer with M23-B/C has shipped, and Issue #43
-is resolved at the source level.
+Windows-native Human Acceptance passed all storage relocation and safety checks.
+Milestones 22 and 23 are complete. Post-v1.1 feature scope is frozen as **v1.2.0-rc.1**
+for the upcoming v1.2.0 release (Issue #48 UI/UX refresh is explicitly deferred).
+v1.1.0 remains the current public release until v1.2.0 is merged and published.
 
 ## Maintenance / Next Version
 
@@ -2301,6 +2301,7 @@ After the current version is complete:
 
 Deferred unless scope is explicitly reopened:
 
+- Issue #48 (UI/UX refresh / visual redesign);
 - bidirectional synchronization between linked files and collections;
 - automatic deletion/reordering/overwrite of existing entries from linked
   source files;
@@ -2332,6 +2333,9 @@ Pre-Desktop Stabilization
 -> v1.0.0 Release
 -> v1.1.0 Increment and Release Verification
 -> v1.1.0 Publication
+-> Milestone 22 Learning & UX Corrections (Merged)
+-> Milestone 23 Unified Data-Folder Relocation (Human Acceptance PASS)
+-> v1.2.0-rc.1 Release Candidate Preparation
 ```
 
 The governing migration principle remains:
