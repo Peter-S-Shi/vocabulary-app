@@ -9,14 +9,14 @@ Your core learning data (entries, Collections, Quiz history) lives in a local SQ
 [![Platform: Windows](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-informational.svg)](#download-windows-desktop-app)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-informational.svg)](requirements.txt)
 
-**v1.1.0 is the current public release, published from verified merged `main`.** The native Windows desktop app (PySide6 + SQLite) is the primary product surface; the earlier Streamlit UI remains as a compatibility/reference surface. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the v1.1 release evidence and the [v1.1.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.1.0) for the currently published installer and checksum.
+**v1.2.0 is complete in the merged source and is the next release to publish from `main`; v1.1.0 remains the current public GitHub Release until that publication step occurs.** The native Windows desktop app (PySide6 + SQLite) is the primary product surface; the earlier Streamlit UI remains as a compatibility/reference surface. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the merge-ready v1.2.0 and v1.1.0 release evidence and the [v1.1.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.1.0) for the currently published installer and checksum.
 
-**Release Candidate v1.2.0-rc.1:**
-The upcoming **v1.2.0** upgrade closes the post-v1.1 development cycle, consolidating:
+**Stable Release v1.2.0 (pre-publication source state):**
+The **v1.2.0** upgrade closes the post-v1.1 development cycle, consolidating:
 - **M22 (A/B/C/D) Learning & UX Fixes:** Unscheduled Card review scheduling (#40), Card Quiz completion history (#42), Card-scoped Matching (#37), Pool Random Quiz visibility (#38), contrast-safe Quiz answer feedback colors (#41), and current Collection/Card locations in Entries detail (#39).
 - **M23 (A/B/C) Unified Data-Folder Relocation:** Safe bootstrap data-root foundation and unified, transactional data-folder relocation via Settings → Storage (#43), enabling users to relocate SQLite database, backups, audio cache, and preferences together to another drive or directory with atomic sibling staging, cross-process writer quiescence locking, durable recovery journal, crash consistency, retained rollback baseline, and clean restart boundaries.
 
-Windows Human Acceptance is complete and confirmed PASS for all M22 and M23 capabilities. Release candidate verification and packaging freeze this upgrade as **v1.2.0-rc.1** (Issue #48 UI/UX refresh is explicitly deferred to a subsequent milestone). v1.1.0 remains the active public release until v1.2.0 is merged and published.
+Windows Human Acceptance is complete and confirmed PASS for all M22 and M23 capabilities, and the signed `v1.2.0-rc.1` installer passed Owner acceptance in the clean Windows 11 VMware test environment. Following Owner direction, `v1.2.0-rc.1` is not published as a separate prerelease; release metadata is finalized directly as **v1.2.0** (Issue #48 UI/UX refresh remains explicitly deferred to a subsequent milestone). v1.1.0 remains the active public release until v1.2.0 is built, verified, and published from merged `main`.
 
 ## See it
 

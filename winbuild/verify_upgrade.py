@@ -10,7 +10,7 @@ Automates and proves:
      - Verified git tag provenance: annotated tag object SHA vs peeled source commit SHA.
      - Isolated harness database path supplied explicitly with --data-dir
      - Genuine schema and domain data (sentinel Collection, Entry, and Preferences)
-  5. Silent overlay upgrade of target v1.2.0-rc.1 installer to the identical AppId/location.
+  5. Silent overlay upgrade of target v1.2.0 installer to the identical AppId/location.
   6. Verification of Inno Uninstall Registry evidence (single registration updated in-place,
      stable AppId, populated raw_values, no duplicate/parallel product entries).
   7. Verification of upgraded executable metadata.
@@ -68,7 +68,7 @@ V1_1_RELEASE_DOWNLOAD_URL = (
     f"{V1_1_RELEASE_TAG}/{V1_1_INSTALLER_NAME}"
 )
 
-# Active baseline for current upgrade verification (v1.1.0 -> v1.2.0-rc.1)
+# Active baseline for current upgrade verification (v1.1.0 -> v1.2.0)
 BASELINE_RELEASE_TAG = V1_1_RELEASE_TAG
 BASELINE_TAG_OBJECT_SHA = V1_1_TAG_OBJECT_SHA
 BASELINE_PEELED_COMMIT_SHA = V1_1_PEELED_COMMIT_SHA
@@ -91,7 +91,7 @@ V1_1_EXPECTED_FILE_VERSION = "1.1.0.0"
 
 TARGET_SCHEMA_VERSION = "21.1.0-review-schedule"
 TARGET_APP_DATA_VERSION = "21.1"
-TARGET_EXPECTED_APP_VERSION = "1.2.0-rc.1"
+TARGET_EXPECTED_APP_VERSION = "1.2.0"
 TARGET_EXPECTED_FILE_VERSION = "1.2.0.0"
 
 # Sentinel test data constants
@@ -481,7 +481,7 @@ def verify_v1_1_overlay_uninstall_registration(
     expected_install_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Backward-compatible helper for verifying v1.1.0 overlay uninstall registration."""
-    # If the target being verified is 1.2.0-rc.1, accept target expected version, else 1.1.0
+    # If the target being verified is 1.2.0, accept target expected version, else 1.1.0
     expected_ver = (
         registrations[0].get("display_version", "")
         if registrations and registrations[0].get("display_version", "").startswith(TARGET_EXPECTED_APP_VERSION)
@@ -1123,8 +1123,8 @@ def main() -> int:
         "--v1-1-installer",
         dest="target_installer",
         type=Path,
-        default=Path("dist/installer/VocabularyApp-Setup-1.2.0-rc.1.exe"),
-        help="Path to built target installer (defaults to 1.2.0-rc.1 installer).",
+        default=Path("dist/installer/VocabularyApp-Setup-1.2.0.exe"),
+        help="Path to built target installer (defaults to 1.2.0 installer).",
     )
     parser.add_argument(
         "--data-dir",

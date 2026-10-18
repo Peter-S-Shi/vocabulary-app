@@ -164,7 +164,7 @@ jobs:
             tests.test_m23bc_e2e_integration_preflight
 
   build-windows:
-    name: Build Windows Installer (v1.2.0-rc.1)
+    name: Build Windows Installer (v1.2.0)
     runs-on: windows-latest
     env:
       PYTHONUTF8: "1"

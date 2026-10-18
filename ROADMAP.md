@@ -104,14 +104,18 @@ target.
 
 ## Current Phase
 
-**Milestones 19 and 20 are complete and v1.0.0 was released. Milestone 21 /
-v1.1.0 implementation, Phase Patch, and Phase F release verification are
-complete, and v1.1.0 is published from verified merged `main` as the current
-public release.**
+**Milestones 19, 20, and 21 are complete, with v1.0.0 and v1.1.0 released.
+Milestones 22 and 23 / Vocabulary App v1.2.0 implementation, Windows-native
+Human Acceptance, and clean-VM Release Candidate acceptance are complete on
+merged `main`. The next lifecycle action is publication of stable v1.2.0 from
+that merged source, subject to separate operator authorization.**
 
-See § Milestone 21 and `PROJECT_STATUS.md` for the release gate, F4B
-publication record, and evidence summary; older milestone sections remain the
-historical record of how the v1.0 baseline was reached.
+This one-step-ahead merge state does not claim that the `v1.2.0` tag or GitHub
+Release already exists; `v1.1.0` remains the current public release until
+publication occurs. See § Milestone 22, § Milestone 23-B/C, and
+`PROJECT_STATUS.md` for the current release gate and evidence summary; older
+milestone sections remain the historical record of how the v1.0 and v1.1
+baselines were reached.
 
 The trustworthy data/business-logic baseline, repository restructure, Import
 and Template Evolution foundation, and Learning Analytics and Insight Core are
@@ -2282,10 +2286,13 @@ and a durable independent migration-recovery journal in the default OS root that
 fails closed if the locator pointer is damaged or deleted. Original data files are
 safely retained as rollback baseline.
 
-Windows-native Human Acceptance passed all storage relocation and safety checks.
-Milestones 22 and 23 are complete. Post-v1.1 feature scope is frozen as **v1.2.0-rc.1**
-for the upcoming v1.2.0 release (Issue #48 UI/UX refresh is explicitly deferred).
-v1.1.0 remains the current public release until v1.2.0 is merged and published.
+Windows-native Human Acceptance passed all storage relocation and safety checks,
+and the signed `v1.2.0-rc.1` installer passed Owner acceptance in the clean
+Windows 11 VMware test environment. Milestones 22 and 23 are complete. Following
+Owner direction to release **v1.2.0** stable directly without publishing
+`v1.2.0-rc.1`, post-v1.1 feature scope is finalized as **v1.2.0** in merged
+source (Issue #48 UI/UX refresh is explicitly deferred). v1.1.0 remains the
+current public release until v1.2.0 is built and published from verified merged `main`.
 
 ## Maintenance / Next Version
 
@@ -2335,7 +2342,8 @@ Pre-Desktop Stabilization
 -> v1.1.0 Publication
 -> Milestone 22 Learning & UX Corrections (Merged)
 -> Milestone 23 Unified Data-Folder Relocation (Human Acceptance PASS)
--> v1.2.0-rc.1 Release Candidate Preparation
+-> v1.2.0-rc.1 Clean-VM Acceptance PASS
+-> v1.2.0 Stable Release Finalization (Pre-Publication)
 ```
 
 The governing migration principle remains:
