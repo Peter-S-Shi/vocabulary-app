@@ -1,18 +1,16 @@
 # Vocabulary App Project Status
 
-Last reviewed: 2026-10-17
+Last reviewed: 2026-10-18
 
 This file is the authoritative evidence-based snapshot of the current project state. Detailed milestone history remains in `ROADMAP.md`, milestone QA/design/packaging documents, and the frozen pre-release snapshot archived at `docs/history/PROJECT_STATUS_PRE_V1_RELEASE_2026-08-19.md`.
 
 ## Current Phase
 
-**Milestone 21 / Vocabulary App v1.1.0 is released. The `v1.1.0` tag and GitHub Release are published from verified merged `main`, and v1.1.0 is now the current public release.**
+**Milestones 22 and 23 / Vocabulary App v1.2.0 implementation, Windows-native Human Acceptance, and clean-VM Release Candidate acceptance are complete on merged `main`. Release metadata is finalized as `1.2.0`, and the next authorized lifecycle step is to build, verify, and publish stable v1.2.0 from verified merged `main`.**
 
-This is intentionally one step ahead of the exact publication mechanics
-(installer build, signing, tag push, and GitHub Release creation) described
-below -- it records the release-state this snapshot commit is authoritative
-for once the `v1.1.0` tag is created pointing at it, the same convention
-`v1.0.0`'s release used.
+This is intentionally one step ahead of the merge-ready PR branch. It does not
+claim that a `v1.2.0` tag or GitHub Release already exists; **v1.1.0 remains the
+current published GitHub Release** until stable v1.2.0 publication is completed.
 
 ## M22-A / Post-v1.1.0 Card workflow correction
 
@@ -168,16 +166,17 @@ The implementation enforces all approved Owner and engineering safety invariants
 testing on the active `fix/m23bc-data-relocation` branch across all storage relocation
 scenarios, verifying move integrity, settings feedback, and clean restart boundaries.
 
-## Release Candidate v1.2.0-rc.1 Preparation
+## Stable Release v1.2.0 Finalization (Pre-Publication)
 
-Feature scope is frozen for the **v1.2.0** upgrade:
-- Includes merged Milestone 22 (A/B/C/D) learning/UX corrections.
-- Includes merged Milestone 23 (A/B/C) data-root foundation and unified data-folder relocation.
+Feature scope and release metadata are finalized for the **v1.2.0** stable upgrade:
+- Consolidates merged Milestone 22 (A/B/C/D) learning/UX corrections (#37, #38, #39, #40, #41, #42).
+- Consolidates merged Milestone 23 (A/B/C) data-root foundation and unified data-folder relocation (#43).
 - Explicitly defers Issue #48 (UI/UX refresh / visual redesign) to a subsequent authorized milestone.
-- Freezes release metadata as **v1.2.0-rc.1** (`APP_VERSION = "1.2.0-rc.1"`, Windows PE `FileVersion = "1.2.0.0"`, `ProductVersion = "1.2.0-rc.1"`).
-- Reconciles upgrade verification harness (`winbuild/verify_upgrade.py` and `tests/test_v1_1_phase_f2_upgrade_verification.py`) to verify baseline v1.1.0 state upgrade to target v1.2.0-rc.1 with complete data preservation, registry update, and zero worktree usage.
-- Updates CI Shard 3 and build packaging workflow (`windows_build.yml`) to cover all M22/M23 test suites and target v1.2.0-rc.1 installer build.
-- Following our one-step-ahead macro-documentation convention, repository documentation describes v1.2.0-rc.1 candidate readiness. v1.1.0 remains the active public release until formal PR review, merge, and publication.
+- **RC Acceptance Record (`v1.2.0-rc.1`):** Built from merged `main` commit `0eb099bf5ebf65b47d471201677a199d3d67f76a` (where all required Release Closure CI shards and the Windows installer/upgrade-proof job succeeded in GitHub Actions run [39135461420](https://github.com/Peter-S-Shi/vocabulary-app/actions/runs/39135461420)), the signed `VocabularyApp-Setup-1.2.0-rc.1.exe` (`SHA-256 3662983f18092033b227b5bed34444648575b105275e8bea0e9e9206945a08dc`) passed Owner acceptance in the isolated clean Windows 11 VMware test environment (restored to its clean baseline snapshot).
+- Following Owner direction after RC acceptance PASS, `v1.2.0-rc.1` is not published as a separate GitHub prerelease; release metadata advances directly from `1.2.0-rc.1` to **`1.2.0`** (`APP_VERSION = "1.2.0"`, Windows PE `FileVersion = "1.2.0.0"`, `ProductVersion = "1.2.0"`), preserving the existing Inno Setup `AppId` and `CN=Peter Shi` self-signed developer publisher identity without reopening product behavior or scope.
+- Synchronizes the upgrade verification harness (`winbuild/verify_upgrade.py` and `tests/test_v1_1_phase_f2_upgrade_verification.py`), packaging version checks (`tests/test_m20_build_packaging.py`), and CI job label (`.github/workflows/windows_build.yml`) to target `1.2.0` (`VocabularyApp-Setup-1.2.0.exe`).
+- **Focused Local Validation:** 75 unit tests across `test_m20_build_packaging`, `test_v1_1_phase_f2_upgrade_verification`, `test_v1_1_phase_e_update_checker`, `test_v1_1_phase_e_update_settings_ui`, and `test_m23a_data_root` pass cleanly on Windows, and `scripts/audit_architecture.py` reports 0 boundary violations or warnings across 98 Python files.
+- Following our one-step-ahead macro-documentation convention, repository documentation describes post-merge, pre-publication `v1.2.0` stable-release readiness. No `v1.2.0` tag or GitHub Release exists yet; `v1.1.0` remains the active public release until PR merge, final signed `1.2.0` installer build/VM smoke verification, and authorized GitHub Release publication.
 
 ## M21 / v1.1.0 Closure
 

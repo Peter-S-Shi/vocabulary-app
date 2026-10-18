@@ -94,11 +94,11 @@ The packaged desktop app stores durable per-user data outside the installation d
 
 Off Windows, the same default falls back to XDG data-home semantics: `$XDG_DATA_HOME/vocabulary_app` when that variable is set, otherwise `~/.local/share/vocabulary_app`.
 
-`VOCAB_APP_DB_PATH` overrides only the database file path (see "Optional Database Path Override" above); it selects a different database file to open and does not automatically copy, merge, or migrate data between locations. Do not treat this override as a complete data-folder move. The confirmed, in-app full-data migration is implemented in M23-B/C (under release candidate v1.2.0-rc.1, while v1.1.0 remains the latest stable public release).
+`VOCAB_APP_DB_PATH` overrides only the database file path (see "Optional Database Path Override" above); it selects a different database file to open and does not automatically copy, merge, or migrate data between locations. Do not treat this override as a complete data-folder move. The confirmed, in-app full-data migration is implemented in M23-B/C (in merged v1.2.0 source, while v1.1.0 remains the latest stable public release until v1.2.0 publication).
 
-## M23-A selected-root startup foundation (v1.2.0-rc.1 source)
+## M23-A selected-root startup foundation (v1.2.0 source)
 
-The accepted M23-A source foundation under v1.2.0-rc.1 accepts a versioned `data-root.json` location
+The accepted M23-A source foundation in v1.2.0 accepts a versioned `data-root.json` location
 pointer in the established default data directory. If absent, default v1.1.0-compatible paths
 remain unchanged. A valid pointer names an existing absolute folder containing
 an existing, readable and writable `vocab.db` with Vocabulary App metadata;

@@ -47,7 +47,7 @@ class VersionInfoDriftGuardTests(unittest.TestCase):
         src.app_config.APP_VERSION -- this is the regression this
         function exists to catch before a release ships an installer
         with a stale embedded Windows file-properties version."""
-        self.assertEqual(APP_VERSION, "1.2.0-rc.1")
+        self.assertEqual(APP_VERSION, "1.2.0")
         verify_version_info_matches(APP_VERSION)
 
     def test_mismatched_version_raises(self) -> None:
