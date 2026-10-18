@@ -1,13 +1,19 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from pathlib import Path
+
+from PySide6.QtCore import Qt, QThread, Signal, Slot
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QColorDialog,
     QComboBox,
+    QFileDialog,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
+    QProgressDialog,
     QPushButton,
     QScrollArea,
     QTabWidget,
@@ -41,6 +47,27 @@ VOICE_BINDING_LANGUAGES: tuple[tuple[str, str], ...] = (
     ("zh-CN", "Mandarin (zh-CN)"),
 )
 NOT_BOUND_VOICE_ID = ""
+
+
+class RelocationWorker(QThread):
+    progress_updated = Signal(str, float)
+    finished_success = Signal(object)
+    finished_error = Signal(str)
+
+    def __init__(self, controller: SettingsController, plan: object, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._controller = controller
+        self._plan = plan
+
+    def run(self) -> None:
+        try:
+            res = self._controller.execute_data_relocation(
+                self._plan,
+                progress_callback=lambda msg, frac: self.progress_updated.emit(msg, frac),
+            )
+            self.finished_success.emit(res)
+        except Exception as error:
+            self.finished_error.emit(str(error))
 
 
 class SettingsView(QWidget):
@@ -400,6 +427,25 @@ class SettingsView(QWidget):
             ("Path source", str(storage["path_source"])),
         ):
             root.addWidget(self._build_info_row(label_text, value))
+
+        # Storage relocation action row
+        move_row = QWidget(body)
+        move_row.setObjectName("settings-storage-action-row")
+        move_layout = QHBoxLayout(move_row)
+        move_layout.setContentsMargins(0, SPACING.sm, 0, SPACING.sm)
+        move_layout.setSpacing(SPACING.md)
+
+        self._storage_move_btn = QPushButton("Move Data Folder...", move_row)
+        self._storage_move_btn.setObjectName("settings-storage-move-button")
+        self._storage_move_btn.clicked.connect(self._on_move_data_folder_clicked)
+        move_layout.addWidget(self._storage_move_btn, 0)
+
+        self._storage_move_note = QLabel(move_row)
+        self._storage_move_note.setObjectName("settings-storage-move-note")
+        self._storage_move_note.setWordWrap(True)
+        move_layout.addWidget(self._storage_move_note, 1)
+
+        root.addWidget(move_row)
 
         root.addStretch(1)
 
@@ -840,6 +886,18 @@ class SettingsView(QWidget):
         # Sync Software Update Section (Phase E)
         self._sync_update_ui()
 
+        # Sync Storage Relocation Controls (M23-C)
+        can_relocate = self._controller.can_relocate_data()
+        self._storage_move_btn.setEnabled(can_relocate)
+        if can_relocate:
+            self._storage_move_note.setText(
+                "Choose a parent folder on another drive or partition to safely move your data."
+            )
+        else:
+            self._storage_move_note.setText(
+                "Cannot move data folder while environment overrides (VOCAB_APP_*) are active."
+            )
+
     def _sync_update_ui(self) -> None:
         result = self._controller.update_result()
         is_checking = self._controller.is_checking_updates()
@@ -911,3 +969,126 @@ class SettingsView(QWidget):
         value = self._quiz_presentation_combo.itemData(index)
         if value is not None:
             self._controller.set_quiz_presentation(value)
+
+    def _on_move_data_folder_clicked(self) -> None:
+        source_root = self._controller.current_data_root()
+        chosen_dir = QFileDialog.getExistingDirectory(
+            self,
+            "Select Parent Folder for New Data Directory",
+            str(Path.home()),
+            QFileDialog.Option.ShowDirsOnly,
+        )
+        if not chosen_dir:
+            return
+
+        chosen_path = Path(chosen_dir).resolve()
+        target_path = chosen_path / "VocabularyAppData"
+
+        confirm_text = (
+            "Vocabulary App will relocate your user data from:\n"
+            f"  {source_root}\n\n"
+            "To:\n"
+            f"  {target_path}\n\n"
+            "The following items will be migrated together:\n"
+            "  • SQLite database (vocab.db)\n"
+            "  • Application backups\n"
+            "  • Audio cache\n"
+            "  • Preferences and theme settings\n\n"
+            "Safety guarantee:\n"
+            "  Your original files will be safely retained at the source location.\n\n"
+            "Notice: The application will close after relocation completes.\n\n"
+            "Do you want to proceed?"
+        )
+        reply = QMessageBox.question(
+            self,
+            "Confirm Data Relocation",
+            confirm_text,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            plan = self._controller.plan_data_relocation(target_path)
+        except Exception as error:
+            QMessageBox.critical(
+                self,
+                "Preflight Validation Failed",
+                f"Data relocation could not be started:\n\n{error}",
+            )
+            return
+
+        if self._controller.is_relocating():
+            return
+
+        # Quiesce user-driven UI mutations while background relocation worker runs
+        self.setEnabled(False)
+
+        progress_dialog = QProgressDialog(
+            "Preparing data relocation...",
+            None,  # No cancel button: relocation is a critical atomic boundary once started
+            0,
+            100,
+            self,
+        )
+        progress_dialog.setWindowTitle("Relocating Data Folder")
+        progress_dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
+        progress_dialog.setMinimumDuration(0)
+        progress_dialog.setValue(5)
+        progress_dialog.show()
+
+        worker = RelocationWorker(self._controller, plan, self)
+        self._controller.register_relocation_worker(worker)
+        worker.finished.connect(lambda: self._controller.unregister_relocation_worker(worker))
+
+        def on_progress(message: str, fraction: float) -> None:
+            progress_dialog.setLabelText(message)
+            progress_dialog.setValue(int(fraction * 100))
+
+        def on_success(res: object) -> None:
+            progress_dialog.setValue(100)
+            progress_dialog.close()
+            # Wait for worker thread run() method to fully exit before proceeding
+            worker.wait(10000)
+            # Keep UI disabled to enforce clean exit boundary
+            self.setEnabled(False)
+            QMessageBox.information(
+                self,
+                "Relocation Successful",
+                "Data relocation completed successfully.\n\n"
+                f"New data location:\n{target_path}\n\n"
+                "Vocabulary App will now exit. Please restart the application to use your new data folder.",
+            )
+            app = QApplication.instance()
+            if app is not None:
+                app.quit()
+
+        def on_error(err_msg: str) -> None:
+            progress_dialog.close()
+            # Wait for worker thread run() method to fully exit before proceeding
+            worker.wait(10000)
+            if self._controller.is_source_root_unchanged(source_root):
+                self.setEnabled(True)
+                QMessageBox.critical(
+                    self,
+                    "Relocation Failed",
+                    f"Data relocation could not be completed:\n\n{err_msg}\n\n"
+                    f"Your original data remains unchanged at:\n{source_root}",
+                )
+            else:
+                self.setEnabled(False)
+                QMessageBox.critical(
+                    self,
+                    "Relocation Interrupted During Switch",
+                    f"Data relocation encountered an error while finalizing the new location:\n\n{err_msg}\n\n"
+                    f"Your original files are still preserved at:\n{source_root}\n\n"
+                    "Please restart Vocabulary App so automatic startup recovery can verify and complete or safely halt the transition.",
+                )
+
+        worker.progress_updated.connect(on_progress)
+        worker.finished_success.connect(on_success)
+        worker.finished_error.connect(on_error)
+        worker.start()
+        self._relocation_worker = worker
+

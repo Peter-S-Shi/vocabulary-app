@@ -1,11 +1,31 @@
 from __future__ import annotations
 
 import copy
+import os
+from typing import Callable
 from pathlib import Path
 from PySide6.QtCore import QObject, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 
-from src.app_config import APP_VERSION, get_app_storage_summary
+from src.app_config import (
+    APP_VERSION,
+    DATABASE_PATH_ENV,
+    BACKUP_DIR_ENV,
+    AUDIO_CACHE_PATH_ENV,
+    APP_PREFERENCES_PATH_ENV,
+    DATA_ROOT_POINTER_NAME,
+    RECOVERY_JOURNAL_NAME,
+    get_app_storage_summary,
+    get_default_data_dir,
+    resolve_data_paths,
+)
+
+from src.data_relocation import (
+    RelocationPlan,
+    RelocationResult,
+    plan_relocation,
+    execute_relocation,
+)
 from src.tts_providers import InstalledVoice, list_installed_voices, list_installed_voices_for_language
 from src.ui_desktop.state.preferences import Preferences, parse_quiz_presentation, save_preferences
 from src.ui_desktop.state.tts_runtime import SOURCE_LABELS, resolve_voice_binding
@@ -52,6 +72,8 @@ class SettingsController(QObject):
         self._staged_custom_theme: CustomThemeConfig = copy.deepcopy(self.preferences.custom_theme)
         self._staged_undo_stack: list[tuple[CustomThemeConfig, str]] = []
         self._committed_undo_stack: list[CustomThemeConfig] = []
+        self._active_relocation_worker: object | None = None
+
 
         if update_service is not None:
             self._update_service: UpdateAwarenessService | None = update_service
@@ -258,6 +280,84 @@ class SettingsController(QObject):
         resolution implementation, no mutation."""
         return get_app_storage_summary()
 
+    def has_storage_override(self) -> bool:
+        """Returns True if any VOCAB_APP_* environment override is set."""
+        for env_var in (
+            DATABASE_PATH_ENV,
+            BACKUP_DIR_ENV,
+            AUDIO_CACHE_PATH_ENV,
+            APP_PREFERENCES_PATH_ENV,
+        ):
+            if os.environ.get(env_var, "").strip():
+                return True
+        return False
+
+    def can_relocate_data(self) -> bool:
+        """Relocation in Settings is disabled when environment overrides are active."""
+        return not self.has_storage_override()
+
+    def current_data_root(self) -> Path:
+        """Returns the currently resolved data root folder."""
+        return resolve_data_paths().data_root
+
+    def plan_data_relocation(self, target_dir: Path) -> RelocationPlan:
+        """Prepares and validates a relocation plan for target_dir."""
+        return plan_relocation(target_dir, source_root=self.current_data_root())
+
+    def execute_data_relocation(
+        self,
+        plan: RelocationPlan,
+        progress_callback: Callable[[str, float], None] | None = None,
+    ) -> RelocationResult:
+        """Executes unified data relocation with consistent snapshots and staging."""
+        return execute_relocation(plan, progress_callback=progress_callback)
+
+    def register_relocation_worker(self, worker: object | None) -> None:
+        self._active_relocation_worker = worker
+
+    def unregister_relocation_worker(self, worker: object | None = None) -> None:
+        """Unregister the active worker if it matches the current worker or if worker is None."""
+        if worker is None or self._active_relocation_worker is worker:
+            self._active_relocation_worker = None
+
+    def is_relocating(self) -> bool:
+        worker = self._active_relocation_worker
+        return bool(worker is not None and hasattr(worker, "isRunning") and worker.isRunning())
+
+    def is_source_root_unchanged(self, expected_source_root: Path) -> bool:
+        """Verify whether the authoritative data root and recovery journal still point to expected_source_root."""
+        import json
+
+        try:
+            expected = Path(expected_source_root).resolve()
+            default_root = get_default_data_dir().resolve()
+            journal_path = default_root / RECOVERY_JOURNAL_NAME
+            pointer_path = default_root / DATA_ROOT_POINTER_NAME
+
+            if journal_path.is_file():
+                raw_j = json.loads(journal_path.read_text(encoding="utf-8"))
+                if not isinstance(raw_j, dict):
+                    return False
+                if raw_j.get("status") != "COMMITTED":
+                    return False
+                committed_str = raw_j.get("latest_committed_root", "")
+                if not committed_str or Path(committed_str).resolve() != expected:
+                    return False
+
+            if pointer_path.is_file():
+                raw_p = json.loads(pointer_path.read_text(encoding="utf-8"))
+                if not isinstance(raw_p, dict):
+                    return False
+                ptr_str = raw_p.get("data_root", "")
+                if not ptr_str or Path(ptr_str).resolve() != expected:
+                    return False
+            elif expected != default_root:
+                return False
+
+            return True
+        except Exception:
+            return False
+
     # -- Software Update (Phase E Level 1 Update Awareness) ------------------
 
     def update_result(self) -> UpdateCheckResult:
@@ -294,6 +394,16 @@ class SettingsController(QObject):
 
     def shutdown(self, wait_ms: int = 2000) -> bool:
         """Gracefully waits for background worker threads during application teardown."""
+        ok = True
+        worker = self._active_relocation_worker
+        if worker is not None and hasattr(worker, "isRunning") and worker.isRunning():
+            if hasattr(worker, "wait"):
+                if not worker.wait(max(wait_ms, 10000)):
+                    ok = False
+        if worker is not None and (not hasattr(worker, "isRunning") or not worker.isRunning()):
+            self._active_relocation_worker = None
         if self._update_service is not None:
-            return self._update_service.shutdown(wait_ms)
-        return True
+            if not self._update_service.shutdown(wait_ms):
+                ok = False
+        return ok
+

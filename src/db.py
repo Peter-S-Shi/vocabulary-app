@@ -1,4 +1,6 @@
-﻿from pathlib import Path
+from __future__ import annotations
+
+from pathlib import Path
 import sqlite3
 
 from src.app_config import DataRootError, bind_startup_data_paths, resolve_data_paths
@@ -208,29 +210,86 @@ CREATE_INDEXES_SQL = [
 ]
 
 
+class LockedConnection(sqlite3.Connection):
+    """An open SQLite connection that holds an active shared cross-process data lock
+    for its entire lifetime, preventing data relocation while any database connection
+    is active.
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._lock_handle = None
+
+    def _bind_lock_handle(self, handle) -> None:
+        self._lock_handle = handle
+
+    def __enter__(self) -> LockedConnection:
+        super().__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        try:
+            super().__exit__(exc_type, exc_val, exc_tb)
+        finally:
+            self.close()
+
+    def close(self) -> None:
+        try:
+            super().close()
+        finally:
+            if self._lock_handle is not None:
+                self._lock_handle.release()
+                self._lock_handle = None
+
+    def __del__(self) -> None:
+        if self._lock_handle is not None:
+            self._lock_handle.release()
+            self._lock_handle = None
+
+
 def get_connection() -> sqlite3.Connection:
     paths = resolve_data_paths()
-    if paths.guarded_database:
-        if DB_PATH != paths.database:
-            raise DataRootError(
-                "The selected Vocabulary App data folder changed while the app was open. "
-                "Restart after restoring the original folder; no new database was created."
-            )
-        try:
-            # mode=rw cannot silently create a replacement if the selected
-            # database disappears between path validation and SQLite open.
-            connection = sqlite3.connect(DB_PATH.as_uri() + "?mode=rw", uri=True)
-        except sqlite3.OperationalError as error:
-            raise DataRootError(
-                "The selected Vocabulary App database is unavailable. Reconnect the "
-                "original drive and restart; no new database was created."
-            ) from error
-    else:
-        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-        connection = sqlite3.connect(DB_PATH)
-    connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA foreign_keys = ON")
-    return connection
+    from src.data_lock import DataLockHandle, DataLockError
+
+    lock_handle = DataLockHandle(paths.data_root, exclusive=False)
+    try:
+        lock_handle.acquire()
+    except DataLockError as error:
+        raise DataRootError(
+            f"The Vocabulary App data folder is locked for relocation: {error}"
+        ) from error
+
+    try:
+        if paths.guarded_database:
+            if DB_PATH != paths.database:
+                raise DataRootError(
+                    "The selected Vocabulary App data folder changed while the app was open. "
+                    "Restart after restoring the original folder; no new database was created."
+                )
+            try:
+                # mode=rw cannot silently create a replacement if the selected
+                # database disappears between path validation and SQLite open.
+                connection = sqlite3.connect(
+                    DB_PATH.as_uri() + "?mode=rw",
+                    uri=True,
+                    factory=LockedConnection,
+                )
+            except sqlite3.OperationalError as error:
+                raise DataRootError(
+                    "The selected Vocabulary App database is unavailable. Reconnect the "
+                    "original drive and restart; no new database was created."
+                ) from error
+        else:
+            DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+            connection = sqlite3.connect(DB_PATH, factory=LockedConnection)
+
+        connection._bind_lock_handle(lock_handle)
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
+        return connection
+    except Exception:
+        lock_handle.release()
+        raise
 
 
 def _get_table_columns(connection: sqlite3.Connection, table_name: str) -> set[str]:

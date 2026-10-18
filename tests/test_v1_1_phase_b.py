@@ -10,7 +10,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication, QCheckBox, QLabel, QProgressBar, QPushButton
 from PySide6.QtGui import QColor
 
-from src import db, learning_workflow, quiz
+from src import app_config, db, learning_workflow, quiz
 from src.app_config import APP_PREFERENCES_PATH_ENV
 from src.collections import (
     CrossCardMoveConfirmationRequired,
@@ -43,9 +43,18 @@ class PhaseBTestCase(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.original_db_path = db.DB_PATH
         self.original_preferences_path = os.environ.get(APP_PREFERENCES_PATH_ENV)
+        self._saved_startup = app_config._bound_startup_paths
+        self._saved_relocated = app_config._bound_relocated_paths
+        self._saved_guarded = app_config._bound_guarded_database
         db.DB_PATH = Path(self.temp_dir.name) / "phase-b.sqlite3"
         os.environ[APP_PREFERENCES_PATH_ENV] = str(Path(self.temp_dir.name) / "preferences.json")
-        db.init_db()
+        try:
+            app_config.reset_startup_data_paths(None)
+            app_config.bind_startup_data_paths()
+            db.init_db()
+        except Exception:
+            self.tearDown()
+            raise
 
     def tearDown(self) -> None:
         db.DB_PATH = self.original_db_path
@@ -53,6 +62,9 @@ class PhaseBTestCase(unittest.TestCase):
             os.environ.pop(APP_PREFERENCES_PATH_ENV, None)
         else:
             os.environ[APP_PREFERENCES_PATH_ENV] = self.original_preferences_path
+        app_config._bound_startup_paths = self._saved_startup
+        app_config._bound_relocated_paths = self._saved_relocated
+        app_config._bound_guarded_database = self._saved_guarded
         self.temp_dir.cleanup()
 
     def _collection_with_entries(self, count: int = 1, *, card_size: int = 8) -> tuple[int, list[int]]:

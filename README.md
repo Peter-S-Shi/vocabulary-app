@@ -11,41 +11,12 @@ Your core learning data (entries, Collections, Quiz history) lives in a local SQ
 
 **v1.1.0 is the current public release, published from verified merged `main`.** The native Windows desktop app (PySide6 + SQLite) is the primary product surface; the earlier Streamlit UI remains as a compatibility/reference surface. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the v1.1 release evidence and the [v1.1.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.1.0) for the currently published installer and checksum.
 
-The post-v1.1.0 M22-A source increment addresses
-[unscheduled Card scheduling](https://github.com/Peter-S-Shi/vocabulary-app/issues/40)
-and [Card Quiz completion history](https://github.com/Peter-S-Shi/vocabulary-app/issues/42).
-In the post-merge source state, these fixes are implemented, independently
-reviewed, Windows-native Human Acceptance PASS, and merged into `main`.
-v1.1.0 remains the published release; its installer does not include these
-fixes. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the milestone status.
+**Release Candidate v1.2.0-rc.1:**
+The upcoming **v1.2.0** upgrade closes the post-v1.1 development cycle, consolidating:
+- **M22 (A/B/C/D) Learning & UX Fixes:** Unscheduled Card review scheduling (#40), Card Quiz completion history (#42), Card-scoped Matching (#37), Pool Random Quiz visibility (#38), contrast-safe Quiz answer feedback colors (#41), and current Collection/Card locations in Entries detail (#39).
+- **M23 (A/B/C) Unified Data-Folder Relocation:** Safe bootstrap data-root foundation and unified, transactional data-folder relocation via Settings → Storage (#43), enabling users to relocate SQLite database, backups, audio cache, and preferences together to another drive or directory with atomic sibling staging, cross-process writer quiescence locking, durable recovery journal, crash consistency, retained rollback baseline, and clean restart boundaries.
 
-The post-merge M22-B source state also includes
-Card-scoped Matching:
-Matching launched from a selected Card uses only that Card's eligible Entries
-and retains stable Card/revision identity for history and scheduling. The
-product owner reported Windows-native Human Acceptance PASS on the M22-B branch.
-PR #45 passed required CI and merged M22-B into `main`. These changes have
-not shipped in an installer; v1.1.0 remains the current public release.
-
-The post-merge M22-C source state addresses Pool Random Quiz visibility (#38)
-and Quiz answer feedback colors (#41)
-with theme-token contrast across presets and custom appearances. PR #46
-passed required CI, merged M22-C into `main`, and the product owner reported
-Windows-native Human Acceptance PASS. No M22-C installer has shipped;
-v1.1.0 remains the published release.
-
-The post-merge M22-D source state adds current Collection and Card locations
-to Entries detail (#39), with practice pools labeled separately. PR #47 merged
-and post-merge `main` CI passed. The product owner reported Windows-native
-Human Acceptance PASS, recorded in Issue #39. These changes have not shipped
-in an installer.
-
-The post-merge M23-A source state prepares Issue #43's safe, unified data-folder
-relocation with a startup pointer and fail-closed resolution for SQLite,
-backups, audio cache and preferences. This statement is one step ahead of
-the M23-A branch: independent audit and PR merge remain pending. Settings
-does not yet move data or offer a folder chooser; M23-B will address verified
-copy, switch and rollback. v1.1.0 remains the published installer.
+Windows Human Acceptance is complete and confirmed PASS for all M22 and M23 capabilities. Release candidate verification and packaging freeze this upgrade as **v1.2.0-rc.1** (Issue #48 UI/UX refresh is explicitly deferred to a subsequent milestone). v1.1.0 remains the active public release until v1.2.0 is merged and published.
 
 ## See it
 

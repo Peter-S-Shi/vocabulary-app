@@ -457,6 +457,12 @@ class MainWindow(QMainWindow):
         # Audio Export voice preflight (Final Human Acceptance Gate
         # corrective): never let the app tear down while it is running.
         self.data_tools_view._audio_preflight_controller.shutdown_voice_preflight()
-        # Phase E update awareness: ensure background update check workers are safely stopped/detached
-        self.settings_controller.shutdown()
+        # Phase E update awareness & M23 data relocation: ensure background workers finish cleanly
+        if self.settings_controller.is_relocating():
+            if not self.settings_controller.shutdown(wait_ms=15000):
+                event.ignore()
+                return
+        else:
+            self.settings_controller.shutdown()
         super().closeEvent(event)
+

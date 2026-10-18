@@ -19,7 +19,7 @@ try:
 except ImportError:  # pragma: no cover - exercised only when PySide6 is absent
     PYSIDE6_AVAILABLE = False
 
-from src import db
+from src import app_config, db
 
 """
 Focused tests for M17 -- Theme Completion & Cross-Screen Validation.
@@ -59,12 +59,20 @@ class _IsolatedPreferencesEnv:
         self.preferences_path = Path(self.temp_dir.name) / "preferences.json"
         self._previous_env = os.environ.get(APP_PREFERENCES_PATH_ENV)
         os.environ[APP_PREFERENCES_PATH_ENV] = str(self.preferences_path)
+        self._saved_startup = app_config._bound_startup_paths
+        self._saved_relocated = app_config._bound_relocated_paths
+        self._saved_guarded = app_config._bound_guarded_database
+        app_config.reset_startup_data_paths(None)
+        app_config.bind_startup_data_paths()
 
     def tearDown(self) -> None:  # noqa: N802 (unittest mixin convention)
         if self._previous_env is None:
             os.environ.pop(APP_PREFERENCES_PATH_ENV, None)
         else:
             os.environ[APP_PREFERENCES_PATH_ENV] = self._previous_env
+        app_config._bound_startup_paths = self._saved_startup
+        app_config._bound_relocated_paths = self._saved_relocated
+        app_config._bound_guarded_database = self._saved_guarded
         self.temp_dir.cleanup()
 
 
@@ -77,11 +85,23 @@ class _SyntheticDatabaseTestCase(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.root = Path(self.temp_dir.name)
         self.original_db_path = db.DB_PATH
+        self._saved_startup = app_config._bound_startup_paths
+        self._saved_relocated = app_config._bound_relocated_paths
+        self._saved_guarded = app_config._bound_guarded_database
         db.DB_PATH = self.root / "m17_theme_completion.sqlite3"
-        db.init_db()
+        try:
+            app_config.reset_startup_data_paths(None)
+            app_config.bind_startup_data_paths()
+            db.init_db()
+        except Exception:
+            self.tearDown()
+            raise
 
     def tearDown(self) -> None:
         db.DB_PATH = self.original_db_path
+        app_config._bound_startup_paths = self._saved_startup
+        app_config._bound_relocated_paths = self._saved_relocated
+        app_config._bound_guarded_database = self._saved_guarded
         self.temp_dir.cleanup()
 
 

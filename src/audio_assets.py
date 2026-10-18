@@ -165,35 +165,73 @@ class AudioAssetStore:
     def __init__(self, root: Path | None = None) -> None:
         self.root = (root or get_audio_cache_dir()).expanduser().resolve()
 
+    def lock_root(self) -> Path:
+        if self.root.name == "audio-cache":
+            return self.root.parent
+        return self.root
+
     def asset_path(self, asset_key: str) -> Path:
         return self.root / "units" / asset_key[:2] / f"{asset_key}.wav"
 
     def materialize(
         self, request: AudioAssetRequest, providers: ProviderRegistry
     ) -> AudioAssetResult:
+        from src.app_config import DataRootError
+        from src.data_lock import DataLockError, acquire_data_lock
+
         key = request.asset_key
+        try:
+            current_cache_dir = get_audio_cache_dir().expanduser().resolve()
+            if self.root != current_cache_dir:
+                return AudioAssetResult(
+                    key,
+                    None,
+                    False,
+                    "data_root_locked",
+                    "Audio cache directory changed while the app was open. Restart required.",
+                )
+        except DataRootError as error:
+            return AudioAssetResult(
+                key,
+                None,
+                False,
+                "data_root_locked",
+                f"Audio cache is unavailable: {error}",
+            )
+
         final_path = self.asset_path(key)
         with _asset_lock(key):
-            if validate_canonical_wav(final_path):
-                return AudioAssetResult(key, final_path, True)
-            final_path.unlink(missing_ok=True)
-            provider = providers.provider_for(request.language)
-            if provider is None:
-                return AudioAssetResult(key, None, False, "provider_unavailable", "Selected provider is not configured.")
-            if provider.spec.provider_id != request.provider_id or provider.spec.voice_id != request.voice_id:
-                return AudioAssetResult(key, None, False, "provider_identity_mismatch", "Provider identity no longer matches the speech plan.")
-            final_path.parent.mkdir(parents=True, exist_ok=True)
-            with tempfile.TemporaryDirectory(prefix="m15-2-unit-", dir=final_path.parent) as temp_dir:
-                raw_path = Path(temp_dir) / "provider.wav"
-                normalized_path = Path(temp_dir) / "normalized.wav"
-                synthesis = provider.synthesize_one(request.text, raw_path)
-                if not synthesis.succeeded:
-                    return AudioAssetResult(key, None, False, synthesis.error_code, synthesis.error_detail)
-                try:
-                    normalize_wav(raw_path, normalized_path)
-                except (OSError, ValueError) as error:
-                    return AudioAssetResult(key, None, False, "audio_normalization_failed", str(error))
-                if not validate_canonical_wav(normalized_path):
-                    return AudioAssetResult(key, None, False, "audio_validation_failed", "Normalized audio is not readable.")
-                os.replace(normalized_path, final_path)
-            return AudioAssetResult(key, final_path, False)
+            try:
+                with acquire_data_lock(self.lock_root(), exclusive=False):
+                    if validate_canonical_wav(final_path):
+                        return AudioAssetResult(key, final_path, True)
+                    final_path.unlink(missing_ok=True)
+                    provider = providers.provider_for(request.language)
+                    if provider is None:
+                        return AudioAssetResult(key, None, False, "provider_unavailable", "Selected provider is not configured.")
+                    if provider.spec.provider_id != request.provider_id or provider.spec.voice_id != request.voice_id:
+                        return AudioAssetResult(key, None, False, "provider_identity_mismatch", "Provider identity no longer matches the speech plan.")
+                    final_path.parent.mkdir(parents=True, exist_ok=True)
+                    with tempfile.TemporaryDirectory(prefix="m15-2-unit-", dir=final_path.parent) as temp_dir:
+                        raw_path = Path(temp_dir) / "provider.wav"
+                        normalized_path = Path(temp_dir) / "normalized.wav"
+                        synthesis = provider.synthesize_one(request.text, raw_path)
+                        if not synthesis.succeeded:
+                            return AudioAssetResult(key, None, False, synthesis.error_code, synthesis.error_detail)
+                        try:
+                            normalize_wav(raw_path, normalized_path)
+                        except (OSError, ValueError) as error:
+                            return AudioAssetResult(key, None, False, "audio_normalization_failed", str(error))
+                        if not validate_canonical_wav(normalized_path):
+                            return AudioAssetResult(key, None, False, "audio_validation_failed", "Normalized audio is not readable.")
+                        os.replace(normalized_path, final_path)
+                    return AudioAssetResult(key, final_path, False)
+            except DataLockError as error:
+                return AudioAssetResult(
+                    key,
+                    None,
+                    False,
+                    "data_root_locked",
+                    f"Audio cache is locked for data relocation: {error}",
+                )
+

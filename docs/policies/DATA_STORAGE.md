@@ -94,12 +94,12 @@ The packaged desktop app stores durable per-user data outside the installation d
 
 Off Windows, the same default falls back to XDG data-home semantics: `$XDG_DATA_HOME/vocabulary_app` when that variable is set, otherwise `~/.local/share/vocabulary_app`.
 
-`VOCAB_APP_DB_PATH` overrides only the database file path (see "Optional Database Path Override" above); it selects a different database file to open and does not automatically copy, merge, or migrate data between locations. Do not treat this override as a complete data-folder move. The confirmed, in-app full-data migration is planned for M23-B.
+`VOCAB_APP_DB_PATH` overrides only the database file path (see "Optional Database Path Override" above); it selects a different database file to open and does not automatically copy, merge, or migrate data between locations. Do not treat this override as a complete data-folder move. The confirmed, in-app full-data migration is implemented in M23-B/C (under release candidate v1.2.0-rc.1, while v1.1.0 remains the latest stable public release).
 
-## M23-A selected-root startup foundation (source only)
+## M23-A selected-root startup foundation (v1.2.0-rc.1 source)
 
-The unreleased M23-A source accepts a versioned `data-root.json` location
-pointer in the established default data directory. If absent, v1.1.0 paths
+The accepted M23-A source foundation under v1.2.0-rc.1 accepts a versioned `data-root.json` location
+pointer in the established default data directory. If absent, default v1.1.0-compatible paths
 remain unchanged. A valid pointer names an existing absolute folder containing
 an existing, readable and writable `vocab.db` with Vocabulary App metadata;
 the app resolves that folder before opening SQLite. Without component-specific
@@ -109,8 +109,8 @@ Missing, malformed, inaccessible or damaged pointer/database state fails
 startup with a recovery message; it does not create a new database or silently
 fall back.
 A running process refuses a pointer switch until restart. The pointer is not a
-user-facing setting, and this milestone does not move files or offer migration
-controls. Do not create or edit it manually to move live data.
+user-facing setting, and does not require manual file edits. Do not create or edit it
+manually to move live data.
 
 The existing four explicit environment overrides each retain precedence over
 their respective component. A partial override still requires a healthy
@@ -119,11 +119,21 @@ bypass a damaged pointer for advanced recovery only when the overridden
 database already exists and passes validation; this is not an in-app
 migration. Settings continues to identify environment-selected paths.
 
-**M23-B design review:** verified staging must copy and validate the complete
-data set, reject occupied targets, coordinate with running instances, switch
-the pointer atomically only after a safe copy, retain the previous root for
-rollback, and restart before opening the new root. An absent pointer is
-indistinguishable from an installation that never relocated. Before M23-B
-implements switching, the Owner should review a durable committed-state
-marker or equivalent recovery record so accidental pointer removal cannot
-silently reopen old default data. No such migration mechanism is in M23-A.
+## M23-B/C unified data relocation and Settings storage workflow
+
+The M23-B/C source implements unified, confirmed data-folder relocation via
+Settings → Storage. Key invariants:
+- **Unified 4-component scope:** SQLite database, backups, audio cache, and
+  preferences relocate together.
+- **Sibling-directory staging & atomic promotion:** staging directory is created
+  under the target parent filesystem (`<parent>/.vocab-stage-<uuid>`) and atomically
+  promoted via `os.replace` to an unoccupied destination folder.
+- **SQLite snapshot consistency:** uses SQLite online backup (`Connection.backup()`)
+  without raw WAL/SHM copying.
+- **Cross-process writer quiescence:** exclusive file lock (`.app_data.lock`) guards
+  the source folder during relocation.
+- **Durable recovery journal:** `migration-recovery.json` in the default OS root
+  records committed migrations. If `data-root.json` is missing while the journal
+  survives, startup fails closed with actionable recovery guidance.
+- **Retained rollback baseline:** source files are preserved intact and never deleted.
+- **Restart boundary:** requires immediate application restart after cutover.

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import shutil
 import sqlite3
 import sys
 import tempfile
-from contextlib import closing
+from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -13,12 +15,14 @@ from pathlib import Path
 
 APP_NAME = "Vocabulary App"
 APP_SLUG = "vocabulary_app"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0-rc.1"
 DATABASE_PATH_ENV = "VOCAB_APP_DB_PATH"
 BACKUP_DIR_ENV = "VOCAB_APP_BACKUP_DIR"
 AUDIO_CACHE_PATH_ENV = "VOCAB_APP_AUDIO_CACHE_DIR"
 APP_PREFERENCES_PATH_ENV = "VOCAB_APP_PREFERENCES_PATH"
 DATA_ROOT_POINTER_NAME = "data-root.json"
+RECOVERY_JOURNAL_NAME = "migration-recovery.json"
+ROOT_MARKER_NAME = ".vocab_app_root_marker.json"
 _bound_guarded_database: Path | None = None
 
 
@@ -38,6 +42,7 @@ class DataPaths:
 
 
 _bound_relocated_paths: DataPaths | None = None
+_bound_startup_paths: DataPaths | None = None
 
 
 def _data_root_error(detail: str) -> DataRootError:
@@ -86,6 +91,163 @@ def _require_writable_directory(path: Path) -> None:
     if not os.access(path, os.R_OK | os.W_OK | os.X_OK):
         raise ValueError(f"{path.name} is inaccessible")
     _probe_writable_directory(path)
+
+
+def _compute_file_sha256(path: Path) -> str:
+    """Compute the SHA-256 digest of a regular file using streaming reads."""
+    hasher = hashlib.sha256()
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(65536)
+            if not chunk:
+                break
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def _summarize_component_tree(path: Path) -> dict[str, object]:
+    """Summarize a directory component with relative file paths and streaming digests while rejecting links."""
+    if _is_link(path):
+        raise ValueError(f"component '{path.name}' is a link or junction")
+    if not path.exists():
+        return {"present": False, "file_count": 0, "total_bytes": 0, "files": {}}
+    if not path.is_dir():
+        raise ValueError(f"component '{path.name}' is not a regular directory")
+    file_count = 0
+    total_bytes = 0
+    files_map: dict[str, dict[str, object]] = {}
+    for root, dirs, files in os.walk(path):
+        root_path = Path(root)
+        for d in dirs:
+            dir_path = root_path / d
+            if _is_link(dir_path):
+                raise ValueError(f"subdirectory '{dir_path}' is a link or junction")
+        for f in sorted(files):
+            file_path = root_path / f
+            if _is_link(file_path) or not file_path.is_file():
+                raise ValueError(f"file '{file_path}' is not a regular file")
+            rel_name = str(file_path.relative_to(path)).replace("\\", "/")
+            file_size = file_path.stat().st_size
+            file_sha = _compute_file_sha256(file_path)
+            file_count += 1
+            total_bytes += file_size
+            files_map[rel_name] = {
+                "size": file_size,
+                "sha256": file_sha,
+            }
+    return {
+        "present": True,
+        "file_count": file_count,
+        "total_bytes": total_bytes,
+        "files": files_map,
+    }
+
+
+def _build_component_manifest(root: Path) -> dict[str, object]:
+    """Build a verifiable four-component manifest with relative file paths and streaming SHA-256 digests."""
+    db_path = root / "vocab.db"
+    if _is_link(db_path) or not db_path.is_file():
+        raise ValueError("vocab.db is missing or not a regular file")
+    prefs_path = root / "preferences.json"
+    if _is_link(prefs_path):
+        raise ValueError("preferences.json is a link")
+    prefs_present = prefs_path.exists()
+    if prefs_present:
+        if not prefs_path.is_file():
+            raise ValueError("preferences.json is not a regular file")
+        parsed_prefs = json.loads(prefs_path.read_text(encoding="utf-8"))
+        if not isinstance(parsed_prefs, dict):
+            raise ValueError("preferences.json is not a valid JSON object")
+        prefs_size = prefs_path.stat().st_size
+        prefs_sha = _compute_file_sha256(prefs_path)
+    else:
+        prefs_size = 0
+        prefs_sha = ""
+
+    return {
+        "database": {
+            "present": True,
+            "size": db_path.stat().st_size,
+            "sha256": _compute_file_sha256(db_path),
+        },
+        "preferences": {
+            "present": prefs_present,
+            "size": prefs_size,
+            "sha256": prefs_sha,
+        },
+        "backups": _summarize_component_tree(root / "backups"),
+        "audio_cache": _summarize_component_tree(root / "audio-cache"),
+    }
+
+
+def _verify_promoted_target(
+    pending_root: Path,
+    expected_source_root: Path,
+    expected_uuid: str,
+    expected_components: dict[str, object] | None,
+) -> dict[str, object]:
+    """Verify full four-component integrity (streaming digests and relative files) and marker provenance."""
+    if _is_link(pending_root) or not pending_root.is_dir():
+        raise ValueError("promoted target folder is missing or not a regular directory")
+    _require_writable_directory(pending_root)
+
+    marker = pending_root / ROOT_MARKER_NAME
+    if _is_link(marker) or not marker.is_file():
+        raise ValueError("root marker is missing or not a regular file")
+    marker_data = json.loads(marker.read_text(encoding="utf-8"))
+    if not isinstance(marker_data, dict):
+        raise ValueError("root marker is not a valid JSON object")
+
+    marker_target_raw = marker_data.get("target_root", "")
+    if (
+        not isinstance(marker_target_raw, str)
+        or not marker_target_raw.strip()
+        or Path(marker_target_raw).resolve() != pending_root
+    ):
+        raise ValueError("root marker target_root does not match pending target")
+
+    marker_source_raw = marker_data.get("source_root", "")
+    if (
+        not isinstance(marker_source_raw, str)
+        or not marker_source_raw.strip()
+        or Path(marker_source_raw).resolve() != expected_source_root
+    ):
+        raise ValueError("root marker source_root does not match journal latest_committed_root")
+
+    if not expected_uuid or marker_data.get("marker_uuid") != expected_uuid:
+        raise ValueError("root marker uuid does not match journal expectation")
+
+    pending_db = pending_root / "vocab.db"
+    if _is_link(pending_db) or not pending_db.is_file():
+        raise ValueError("promoted target has no regular vocab.db")
+    _validate_relocated_database(pending_db)
+
+    marker_components = marker_data.get("components")
+    manifest = expected_components if isinstance(expected_components, dict) else marker_components
+    if not isinstance(manifest, dict):
+        raise ValueError("missing four-component verification manifest for SWITCHING recovery")
+    if isinstance(expected_components, dict) and isinstance(marker_components, dict):
+        if expected_components != marker_components:
+            raise ValueError("journal component manifest does not match target root marker manifest")
+
+    actual_manifest = _build_component_manifest(pending_root)
+    for comp_key in ("database", "preferences", "backups", "audio_cache"):
+        if comp_key not in manifest or actual_manifest.get(comp_key) != manifest.get(comp_key):
+            raise ValueError(
+                f"component '{comp_key}' verification failed during SWITCHING recovery"
+            )
+
+    for dir_name in ("backups", "audio-cache"):
+        child_dir = pending_root / dir_name
+        if child_dir.exists():
+            _require_writable_directory(child_dir)
+    prefs_file = pending_root / "preferences.json"
+    if prefs_file.exists():
+        with prefs_file.open("rb+"):
+            pass
+
+    return marker_data
+
 
 
 def _configured_data_root(default_root: Path) -> Path | None:
@@ -154,11 +316,222 @@ def resolve_data_paths() -> DataPaths:
     default_root = get_default_data_dir()
     complete_override = all(overrides.values())
     pointer = default_root / DATA_ROOT_POINTER_NAME
+    journal_path = default_root / RECOVERY_JOURNAL_NAME
     try:
         pointer_present = pointer.exists() or _is_link(pointer)
+        journal_present = journal_path.exists() or _is_link(journal_path)
     except OSError as error:
         raise _data_root_error(str(error)) from error
+
+    journal_record: dict | None = None
+    if journal_present and not complete_override:
+        try:
+            if _is_link(journal_path) or not journal_path.is_file():
+                raise ValueError("the recovery journal is not a regular file")
+            if journal_path.stat().st_size > 65536:
+                raise ValueError("recovery journal is too large")
+            raw_journal = json.loads(journal_path.read_text(encoding="utf-8"))
+            if not isinstance(raw_journal, dict):
+                raise ValueError("recovery journal has an invalid format")
+            
+            # Crash recovery check: if journal was left in SWITCHING state
+            status = raw_journal.get("status")
+            if status == "SWITCHING":
+                pending_root_str = raw_journal.get("pending_target_root")
+                if not isinstance(pending_root_str, str) or not pending_root_str.strip():
+                    raise ValueError("recovery journal left in SWITCHING state without valid pending_target_root")
+                latest_committed_str = raw_journal.get("latest_committed_root")
+                if not isinstance(latest_committed_str, str) or not latest_committed_str.strip():
+                    raise ValueError("recovery journal left in SWITCHING state without valid latest_committed_root")
+                expected_uuid = raw_journal.get("pending_marker_uuid")
+                if not isinstance(expected_uuid, str) or not expected_uuid.strip():
+                    raise ValueError("recovery journal left in SWITCHING state without valid pending_marker_uuid")
+
+                pending_root = Path(pending_root_str).resolve()
+                expected_source_root = Path(latest_committed_str).resolve()
+                expected_components = raw_journal.get("pending_components")
+
+                if pending_root.exists() or _is_link(pending_root):
+                    # Case 1: Promoted target exists on disk -> verify full 4-component integrity + marker provenance
+                    try:
+                        marker_data = _verify_promoted_target(
+                            pending_root=pending_root,
+                            expected_source_root=expected_source_root,
+                            expected_uuid=expected_uuid,
+                            expected_components=expected_components if isinstance(expected_components, dict) else None,
+                        )
+                    except Exception as verify_err:
+                        raise ValueError(
+                            f"Relocation transition was interrupted during SWITCHING to '{pending_root}', "
+                            f"and target verification failed: {verify_err}"
+                        ) from verify_err
+
+                    # Forward-roll pointer
+                    pointer_data = {"version": 1, "data_root": str(pending_root)}
+                    with tempfile.NamedTemporaryFile("w", dir=default_root, delete=False, encoding="utf-8") as temp_p:
+                        temp_p.write(json.dumps(pointer_data, indent=2))
+                        temp_p.flush()
+                        os.fsync(temp_p.fileno())
+                        temp_p_name = temp_p.name
+                    os.replace(temp_p_name, pointer)
+                    pointer_present = True
+
+                    # Forward-roll journal to COMMITTED and append to history
+                    history = raw_journal.get("history")
+                    if not isinstance(history, list):
+                        history = []
+                    next_seq = (max((item.get("sequence", 0) for item in history), default=0) + 1)
+                    recovered_entry = {
+                        "sequence": next_seq,
+                        "committed_at": marker_data.get("relocated_at", "recovered"),
+                        "source_root": str(expected_source_root),
+                        "target_root": str(pending_root),
+                        "schema_version": marker_data.get(
+                            "schema_version", raw_journal.get("pending_schema_version", "unknown")
+                        ),
+                        "app_data_version": marker_data.get(
+                            "app_data_version", raw_journal.get("pending_app_data_version", "unknown")
+                        ),
+                        "marker_uuid": str(marker_data.get("marker_uuid", expected_uuid)),
+                        "recovered": True,
+                    }
+                    history.append(recovered_entry)
+
+                    raw_journal["status"] = "COMMITTED"
+                    raw_journal["latest_committed_root"] = str(pending_root)
+                    raw_journal["history"] = history
+                    for k in (
+                        "pending_target_root",
+                        "pending_staging_dir",
+                        "pending_marker_uuid",
+                        "pending_schema_version",
+                        "pending_app_data_version",
+                        "pending_components",
+                        "had_prior_journal",
+                    ):
+                        raw_journal.pop(k, None)
+                    with tempfile.NamedTemporaryFile("w", dir=default_root, delete=False, encoding="utf-8") as temp_j:
+                        temp_j.write(json.dumps(raw_journal, indent=2))
+                        temp_j.flush()
+                        os.fsync(temp_j.fileno())
+                        temp_j_name = temp_j.name
+                    os.replace(temp_j_name, journal_path)
+                else:
+                    # Case 2: Promoted target does not exist.
+                    # Distinguish an abrupt crash BEFORE atomic promotion (staging directory still present
+                    # on the target parent volume with matching provenance marker) from an unavailable/unplugged
+                    # promoted destination.
+                    pending_staging_str = raw_journal.get("pending_staging_dir")
+                    unpromoted_staging_verified = False
+                    pending_staging: Path | None = None
+                    if isinstance(pending_staging_str, str) and pending_staging_str.strip():
+                        pending_staging = Path(pending_staging_str).resolve()
+                        stage_marker_file = pending_staging / ROOT_MARKER_NAME
+                        if (
+                            pending_staging.is_dir()
+                            and not _is_link(pending_staging)
+                            and stage_marker_file.is_file()
+                            and not _is_link(stage_marker_file)
+                        ):
+                            try:
+                                stage_marker_data = json.loads(stage_marker_file.read_text(encoding="utf-8"))
+                                if (
+                                    isinstance(stage_marker_data, dict)
+                                    and stage_marker_data.get("marker_uuid") == expected_uuid
+                                    and Path(stage_marker_data.get("target_root", "")).resolve() == pending_root
+                                    and Path(stage_marker_data.get("source_root", "")).resolve() == expected_source_root
+                                ):
+                                    unpromoted_staging_verified = True
+                            except Exception:
+                                unpromoted_staging_verified = False
+
+                    if unpromoted_staging_verified and pending_staging is not None:
+                        # Verify the prior committed source root is still intact before rolling back journal
+                        if _is_link(expected_source_root) or not expected_source_root.is_dir():
+                            raise ValueError("prior source root is unavailable for pre-promotion rollback")
+                        _validate_relocated_database(expected_source_root / "vocab.db")
+
+                        history = raw_journal.get("history")
+                        if not isinstance(history, list):
+                            history = []
+                        had_prior_journal = bool(raw_journal.get("had_prior_journal", bool(history)))
+
+                        if (
+                            not had_prior_journal
+                            and not history
+                            and expected_source_root == default_root.resolve()
+                            and not pointer_present
+                        ):
+                            # First relocation from default root was aborted before promotion: remove journal first
+                            journal_path.unlink(missing_ok=True)
+                            journal_present = False
+                            raw_journal = None
+                        else:
+                            # Restore journal to prior COMMITTED root first
+                            if expected_source_root != default_root.resolve():
+                                pointer_data = {"version": 1, "data_root": str(expected_source_root)}
+                                with tempfile.NamedTemporaryFile("w", dir=default_root, delete=False, encoding="utf-8") as temp_p:
+                                    temp_p.write(json.dumps(pointer_data, indent=2))
+                                    temp_p.flush()
+                                    os.fsync(temp_p.fileno())
+                                    temp_p_name = temp_p.name
+                                os.replace(temp_p_name, pointer)
+                                pointer_present = True
+
+                            raw_journal["status"] = "COMMITTED"
+                            raw_journal["latest_committed_root"] = str(expected_source_root)
+                            raw_journal["history"] = history
+                            for k in (
+                                "pending_target_root",
+                                "pending_staging_dir",
+                                "pending_marker_uuid",
+                                "pending_schema_version",
+                                "pending_app_data_version",
+                                "pending_components",
+                                "had_prior_journal",
+                            ):
+                                raw_journal.pop(k, None)
+                            with tempfile.NamedTemporaryFile("w", dir=default_root, delete=False, encoding="utf-8") as temp_j:
+                                temp_j.write(json.dumps(raw_journal, indent=2))
+                                temp_j.flush()
+                                os.fsync(temp_j.fileno())
+                                temp_j_name = temp_j.name
+                            os.replace(temp_j_name, journal_path)
+
+                        # Remove unpromoted staging directory after journal is durably restored
+                        shutil.rmtree(pending_staging, ignore_errors=True)
+                    else:
+                        raise ValueError(
+                            f"Relocation transition was interrupted during SWITCHING to '{pending_root}', "
+                            "and target verification failed (target missing and no unpromoted staging directory found)"
+                        )
+
+            if raw_journal is not None:
+                if "latest_committed_root" not in raw_journal:
+                    raise ValueError("recovery journal has an invalid format")
+                latest_val = raw_journal["latest_committed_root"]
+                if not isinstance(latest_val, str) or not latest_val.strip():
+                    raise ValueError("recovery journal has an invalid committed root")
+                journal_record = raw_journal
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError, sqlite3.Error) as error:
+            raise _data_root_error(f"recovery journal error: {error}") from error
+
+
+    if not complete_override and journal_record is not None and not pointer_present:
+        latest = journal_record.get("latest_committed_root", "")
+        raise _data_root_error(
+            f"A prior data relocation was committed to '{latest}', but the location pointer "
+            f"'{DATA_ROOT_POINTER_NAME}' is missing or damaged"
+        )
+
     selected_root = None if complete_override else _configured_data_root(default_root)
+    if not complete_override and journal_record is not None and selected_root is not None:
+        journal_target = Path(journal_record["latest_committed_root"]).resolve()
+        if selected_root != journal_target:
+            raise _data_root_error(
+                f"Conflict between {DATA_ROOT_POINTER_NAME} ('{selected_root}') "
+                f"and recovery journal ('{journal_target}')"
+            )
     if _bound_relocated_paths is not None and selected_root != _bound_relocated_paths.data_root:
         raise _data_root_error("the location pointer changed while the app was open")
     root = selected_root or default_root
@@ -217,18 +590,48 @@ def resolve_data_paths() -> DataPaths:
     )
     if _bound_relocated_paths is not None and paths != _bound_relocated_paths:
         raise _data_root_error("data paths changed while the app was open")
+    if _bound_startup_paths is not None and paths != _bound_startup_paths:
+        raise _data_root_error("data paths changed while the app was open")
     return paths
 
 
 def bind_startup_data_paths() -> DataPaths:
-    """Pin a relocated root when the database module starts this process."""
-    global _bound_relocated_paths, _bound_guarded_database
+    """Pin the active data paths when the database module starts this process."""
+    global _bound_relocated_paths, _bound_guarded_database, _bound_startup_paths
     paths = resolve_data_paths()
+    _bound_startup_paths = paths
     if paths.relocated:
         _bound_relocated_paths = paths
     if paths.guarded_database:
         _bound_guarded_database = paths.database
     return paths
+
+
+def reset_startup_data_paths(paths: DataPaths | None = None) -> None:
+    """Reset or update pinned startup data path bindings for test fixture isolation.
+
+    In production runtime, paths remain pinned for process lifetime.
+    """
+    global _bound_relocated_paths, _bound_guarded_database, _bound_startup_paths
+    _bound_startup_paths = paths
+    _bound_relocated_paths = paths if paths and paths.relocated else None
+    _bound_guarded_database = paths.database if paths and paths.guarded_database else None
+
+
+@contextmanager
+def scoped_data_paths_binding(paths: DataPaths | None = None):
+    """Context manager to isolate data path bindings during test execution."""
+    global _bound_relocated_paths, _bound_guarded_database, _bound_startup_paths
+    prev_startup = _bound_startup_paths
+    prev_relocated = _bound_relocated_paths
+    prev_guarded = _bound_guarded_database
+    reset_startup_data_paths(paths)
+    try:
+        yield
+    finally:
+        _bound_startup_paths = prev_startup
+        _bound_relocated_paths = prev_relocated
+        _bound_guarded_database = prev_guarded
 
 
 def get_project_root() -> Path:

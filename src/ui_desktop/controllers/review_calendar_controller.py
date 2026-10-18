@@ -111,8 +111,11 @@ class ReviewCalendarController(QObject):
         return len(self.card_history)
 
     def refresh(self) -> None:
-        end_date = date.today()
-        start_date = end_date - timedelta(days=self.range_days)
+        today = date.today()
+        # Query through tomorrow to include sessions completed today whose UTC timestamp
+        # rolled over to the next UTC day in negative timezone offsets (e.g. UTC-4 / EDT).
+        end_date = today + timedelta(days=1)
+        start_date = today - timedelta(days=self.range_days)
         with get_connection() as connection:
             self.entries = get_card_learning_sessions_between_dates(connection, start_date, end_date)
         self.schedules = list_card_schedules()

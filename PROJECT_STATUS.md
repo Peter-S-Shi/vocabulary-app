@@ -88,8 +88,8 @@ these source changes have not shipped in an installer.
 
 ## M23-A / Issue #43 data-root startup safety foundation
 
-**Post-merge M23-A source state:** the approved unified-storage contract now
-has one startup path resolver and a minimal versioned bootstrap pointer at the
+**Post-merge M23-A source state:** the approved unified-storage contract has
+one startup path resolver and a minimal versioned bootstrap pointer at the
 default data location. When no pointer exists, v1.1.0 paths and explicit
 environment-override precedence remain unchanged. A configured root must
 exist with a valid SQLite database before database initialization; damaged or
@@ -98,13 +98,86 @@ creating a blank database or falling back. SQLite, backups, audio cache and
 preferences resolve together under a valid selected root, and a running
 process rejects a pointer change until restart.
 
-This section describes the intended post-merge source state one step ahead;
-independent remote audit and PR merge are pending at branch publication.
-M23-A does not expose a Settings folder chooser, migrate files, or complete
-Issue #43. M23-B must add verified staging, atomic switch and rollback; the
-missing-pointer ambiguity is recorded for Owner review in
-`docs/policies/DATA_STORAGE.md`. v1.1.0 remains the published release, and
-no installer with M23-A has shipped.
+PR #49 passed required PR checks and merged M23-A into `main`. Native Human
+Acceptance was deferred to the consolidated M23-B/C workflow. v1.1.0 remains the
+published release; no installer with M23-A has shipped.
+
+## M23-B/C / Unified data relocation engine and Settings storage workflow
+
+**Post-merge M23-B/C source state:** Issue #43 is fully implemented and merged
+into `main`. Vocabulary App provides a safe, unified data-relocation engine and
+native Settings → Storage folder chooser workflow allowing users to relocate
+their durable user data (SQLite database, backups, audio cache, and preferences)
+together to another volume or folder (e.g. `D:\VocabularyAppData`).
+
+The implementation enforces all approved Owner and engineering safety invariants:
+- **Sibling-directory staging & atomic no-clobber promotion:** staging directory
+  is created under the target volume's parent filesystem (`<parent>/.vocab-stage-<uuid>`)
+  and atomically promoted via `MoveFileExW` (`MOVEFILE_WRITE_THROUGH` without
+  `MOVEFILE_REPLACE_EXISTING` on Windows) to an absent target folder. Existing
+  occupied targets are strictly rejected without a check-then-replace race, and
+  the target's authoritative provenance and four-component manifest marker
+  (`.vocab_app_root_marker.json`) is written inside the staging directory prior
+  to promotion.
+- **SQLite snapshot consistency:** uses SQLite online backup (`Connection.backup()`)
+  and staging WAL truncation to create a coherent database snapshot without raw
+  WAL/SHM copying or disruptive source checkpoints.
+- **Cross-process writer quiescence:** an explicit shared vs. exclusive OS file lock
+  (`.app_data.lock`, using pointer-sized Win64 `OVERLAPPED` with `LockFileEx`)
+  guards the data root across processes. Active SQLite connections (`LockedConnection`),
+  preference writes, audio-cache materialization/composition (`AudioAssetStore.materialize`
+  and `compose_card_audio`), pre-migration backups, and database imports hold shared
+  locks for their active operation/connection lifetimes, while relocation acquires
+  an exclusive lock.
+- **Durable recovery journal & crash-consistent state transitions:** an independent
+  migration-recovery journal (`migration-recovery.json`) in the default OS root
+  records relocation transitions (`SWITCHING` → `COMMITTED`). Staging verification
+  and crash recovery compare complete four-component manifests with relative POSIX file
+  paths and streaming 64KB `SHA-256` digests for `vocab.db`, `preferences.json`,
+  `backups`, and `audio-cache`. Equal-size file substitutions and corruptions fail closed.
+  If a crash occurs after `SWITCHING` is recorded but before atomic target promotion
+  (verified via the unpromoted sibling staging directory and matching `.vocab_app_root_marker.json`),
+  startup idempotently rolls back the journal to the prior committed root and cleans
+  up staging. If a crash occurs after target promotion, startup verifies full
+  four-component integrity (`vocab.db`, `preferences.json`, `backups`, `audio-cache`)
+  and marker provenance (`source_root`, `target_root`, `marker_uuid`) before
+  forward-rolling `data-root.json` and the journal to `COMMITTED`. Any missing,
+  unavailable, or incomplete promoted target fails closed with `DataRootError`.
+- **Target filesystem preflight & disk space verification:** destination directories
+  and source components are strictly verified against symbolic links/junctions,
+  non-regular files, and insufficient disk space prior to staging.
+- **Retained rollback baseline:** original data files at the source location
+  are preserved intact and never deleted.
+- **Settings → Storage UX & worker lifecycle:** Settings executes relocation on a
+  dedicated `QThread` worker (`RelocationWorker`) registered with `SettingsController`.
+  Worker unregistration is deferred until the worker thread actually finishes via
+  `worker.finished`, while UI completion/error callbacks and `controller.shutdown()`
+  wait for thread execution to exit cleanly before UI dialogs or application quit,
+  keeping the GUI responsive while quiescing UI actions, reporting accurate post-error
+  recovery status, and enforcing an immediate application restart boundary upon completion.
+- **Integration Preflight & Test Evidence:** All unit and Windows-native end-to-end
+  integration preflight tests (`test_m23a_data_root`, `test_m23b_data_relocation`,
+  `test_m23c_settings_storage_ui`, and `test_m23bc_e2e_integration_preflight`) pass
+  cleanly on Windows. The integration suite validates full 4-component preservation,
+  restart and reopening, chained migrations, occupied destination rejection, disconnected
+  volume fail-closed protections, journal crash recovery across pre/post-promotion boundaries,
+  in-process stale-root write blocking, and Qt window closing during active worker execution.
+  Architecture audit `scripts/audit_architecture.py` reports 0 violations across 98 Python files.
+
+**Human Acceptance: PASS.** The Product Owner completed live Windows Human Acceptance
+testing on the active `fix/m23bc-data-relocation` branch across all storage relocation
+scenarios, verifying move integrity, settings feedback, and clean restart boundaries.
+
+## Release Candidate v1.2.0-rc.1 Preparation
+
+Feature scope is frozen for the **v1.2.0** upgrade:
+- Includes merged Milestone 22 (A/B/C/D) learning/UX corrections.
+- Includes merged Milestone 23 (A/B/C) data-root foundation and unified data-folder relocation.
+- Explicitly defers Issue #48 (UI/UX refresh / visual redesign) to a subsequent authorized milestone.
+- Freezes release metadata as **v1.2.0-rc.1** (`APP_VERSION = "1.2.0-rc.1"`, Windows PE `FileVersion = "1.2.0.0"`, `ProductVersion = "1.2.0-rc.1"`).
+- Reconciles upgrade verification harness (`winbuild/verify_upgrade.py` and `tests/test_v1_1_phase_f2_upgrade_verification.py`) to verify baseline v1.1.0 state upgrade to target v1.2.0-rc.1 with complete data preservation, registry update, and zero worktree usage.
+- Updates CI Shard 3 and build packaging workflow (`windows_build.yml`) to cover all M22/M23 test suites and target v1.2.0-rc.1 installer build.
+- Following our one-step-ahead macro-documentation convention, repository documentation describes v1.2.0-rc.1 candidate readiness. v1.1.0 remains the active public release until formal PR review, merge, and publication.
 
 ## M21 / v1.1.0 Closure
 

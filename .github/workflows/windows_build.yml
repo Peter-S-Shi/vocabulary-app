@@ -114,7 +114,7 @@ jobs:
             tests.test_m19_quiz_session_integrity
 
   release-closure-m20-timezone-v1_1:
-    name: Release Closure / Shard 3 - M20 + timezone + v1.1 Phase/Patch/Review Scheduling
+    name: Release Closure / Shard 3 - M20 + timezone + v1.1 + M22 + M23 Suites
     runs-on: windows-latest
     timeout-minutes: 30
     env:
@@ -136,7 +136,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements-desktop.txt -r requirements-build.txt
 
-      - name: Run M20 + timezone + v1.1 Phase/Patch/Review Scheduling modules
+      - name: Run M20 + timezone + v1.1 + M22 + M23 modules
         run: |
           python -m unittest -v `
             tests.test_m20_build_packaging `
@@ -155,10 +155,16 @@ jobs:
             tests.test_v1_1_phase_patch_b4_system_pool_random_quiz `
             tests.test_v1_1_phase_patch_c1_duplicate_definition `
             tests.test_v1_1_phase_patch_c2_native_duplicate_ux `
-            tests.test_v1_1_review_scheduling
+            tests.test_v1_1_review_scheduling `
+            tests.test_m22c_theme_feedback `
+            tests.test_m22d_entry_locations `
+            tests.test_m23a_data_root `
+            tests.test_m23b_data_relocation `
+            tests.test_m23c_settings_storage_ui `
+            tests.test_m23bc_e2e_integration_preflight
 
   build-windows:
-    name: Build Windows Installer (v1.1.0)
+    name: Build Windows Installer (v1.2.0-rc.1)
     runs-on: windows-latest
     env:
       PYTHONUTF8: "1"
@@ -245,7 +251,7 @@ jobs:
           Write-Host "--- SHA256SUMS.txt ---"
           Get-Content $checksums
 
-      - name: Run automated v1.0.0 to v1.1.0 upgrade & data-preservation proof
+      - name: Run automated upgrade & data-preservation proof
         run: |
           $upgrade_data_dir = Join-Path $env:RUNNER_TEMP "vocabulary-app-upgrade-proof"
           python winbuild/verify_upgrade.py --data-dir $upgrade_data_dir
