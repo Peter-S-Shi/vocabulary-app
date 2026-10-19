@@ -1,13 +1,16 @@
 # Desktop Migration Plan
 
+> **Historical Plan / Implemented Outcome:** The Streamlit → native PySide6 desktop migration planned in this document was completed through **Milestones 16–20**. The native Windows desktop application (`src/ui_desktop/`) has shipped in **`v1.0.0`**, **`v1.1.0`**, and **`v1.2.0`** (consolidating M22 learning/UX corrections and M23 unified data-folder relocation), and is the primary product surface. The Streamlit interface (`app.py`, `src/ui_streamlit/`) remains in the repository only as a compatibility and reference surface. The sections below are preserved as the historical planning and milestone-mapping record; see [`PROJECT_STATUS.md`](../../PROJECT_STATUS.md), [`ROADMAP.md`](../../ROADMAP.md), and [`ARCHITECTURE.md`](../../ARCHITECTURE.md) for current operational truth.
+
 ## 1. Migration Principle
 
 > Replace the UI layer, preserve the learning engine.
 
-Vocabulary App is transitioning from its current Streamlit interface toward a
-native desktop application.
+*(Historical planning context, pre-M16):* At the time this migration plan was
+authored, Vocabulary App was transitioning from its original Streamlit
+interface toward a native desktop application.
 
-The migration is not intended to rewrite the product from scratch.
+The migration was designed not to rewrite the product from scratch.
 
 Preserve as much as possible:
 
@@ -28,7 +31,7 @@ Preserve as much as possible:
 - new reusable analytics, linked-source, and audio services created before or
   during migration
 
-Replace or retire after desktop parity:
+Replace or retire as the primary target after desktop parity:
 
 - `app.py`
 - `src/ui_streamlit/`
@@ -65,9 +68,10 @@ Stabilize correctness and data semantics
 -> package and release the desktop product
 ```
 
-The current Streamlit application remains useful as:
+During the pre-M16/M17 transition period, the Streamlit application remained
+useful as:
 
-- the presently runnable interface;
+- the then-runnable baseline interface prior to native desktop workflow completion;
 - a behavioral reference;
 - a temporary compatibility surface;
 - a manual regression aid where appropriate; and

@@ -88,17 +88,19 @@ Stop the app before manually copying `vocab.db`.
 
 ## Packaged Desktop Data Location
 
-The packaged desktop app stores durable per-user data outside the installation directory. On Windows, the default data directory is:
+The packaged desktop app stores durable per-user data outside the installation directory. On Windows, the default data directory (and bootstrap locator directory for `data-root.json` and `migration-recovery.json`) is:
 
 - Windows: `%LOCALAPPDATA%\vocabulary_app\`
 
 Off Windows, the same default falls back to XDG data-home semantics: `$XDG_DATA_HOME/vocabulary_app` when that variable is set, otherwise `~/.local/share/vocabulary_app`.
 
-`VOCAB_APP_DB_PATH` overrides only the database file path (see "Optional Database Path Override" above); it selects a different database file to open and does not automatically copy, merge, or migrate data between locations. Do not treat this override as a complete data-folder move. The confirmed, in-app full-data migration is implemented in M23-B/C (in merged v1.2.0 source, while v1.1.0 remains the latest stable public release until v1.2.0 publication).
+Starting in **v1.2.0**, users can select a unified data folder on another drive or directory via **Settings → Storage** (relocating `vocab.db`, `backups/`, `preferences.json`, and `audio-cache/` together). If a selected data root or its pointer/recovery state is missing, inaccessible, or damaged, startup fails closed with recovery guidance rather than creating a blank database or silently falling back.
 
-## M23-A selected-root startup foundation (v1.2.0 source)
+`VOCAB_APP_DB_PATH` (along with `VOCAB_APP_BACKUP_DIR`, `VOCAB_APP_AUDIO_CACHE_DIR`, and `VOCAB_APP_PREFERENCES_PATH`) overrides only its respective component path (see "Optional Database Path Override" above); it selects a different path to open and does not automatically copy, merge, or migrate data between locations. Do not treat an environment variable override as a complete data-folder move; the confirmed, in-app full-data migration is provided by **Settings → Storage** (M23-B/C, shipped in **v1.2.0**).
 
-The accepted M23-A source foundation in v1.2.0 accepts a versioned `data-root.json` location
+## M23-A selected-root startup foundation (v1.2.0)
+
+The accepted M23-A foundation in v1.2.0 accepts a versioned `data-root.json` location
 pointer in the established default data directory. If absent, default v1.1.0-compatible paths
 remain unchanged. A valid pointer names an existing absolute folder containing
 an existing, readable and writable `vocab.db` with Vocabulary App metadata;
@@ -121,19 +123,45 @@ migration. Settings continues to identify environment-selected paths.
 
 ## M23-B/C unified data relocation and Settings storage workflow
 
-The M23-B/C source implements unified, confirmed data-folder relocation via
-Settings → Storage. Key invariants:
-- **Unified 4-component scope:** SQLite database, backups, audio cache, and
-  preferences relocate together.
-- **Sibling-directory staging & atomic promotion:** staging directory is created
-  under the target parent filesystem (`<parent>/.vocab-stage-<uuid>`) and atomically
-  promoted via `os.replace` to an unoccupied destination folder.
+The M23-B/C implementation (shipped in **v1.2.0**) provides unified, confirmed
+data-folder relocation via **Settings → Storage**. Key invariants verified in
+`src/app_config.py`, `src/data_relocation.py`, and `src/data_lock.py`:
+- **Unified 4-component scope:** SQLite database (`vocab.db`), backups
+  (`backups/`), audio cache (`audio-cache/`), and preferences (`preferences.json`)
+  relocate together.
+- **Sibling-directory staging & atomic no-clobber promotion:** a sibling staging
+  directory is created under the target parent filesystem (`<parent>/.vocab-stage-<uuid>`)
+  and pre-populated with the root provenance + four-component manifest marker
+  (`.vocab_app_root_marker.json`). On Windows, final directory promotion uses
+  **`MoveFileExW` with `MOVEFILE_WRITE_THROUGH` and without `MOVEFILE_REPLACE_EXISTING`**
+  (`src/data_relocation.py:_atomic_promote_no_clobber`) to promote the prepared
+  staging directory to an **absent** destination folder; occupied destinations
+  fail closed without a check-then-replace race. (`os.replace` is used for
+  atomic temp-file updates to `migration-recovery.json` and `data-root.json`,
+  not as the Windows directory promotion mechanism.)
 - **SQLite snapshot consistency:** uses SQLite online backup (`Connection.backup()`)
-  without raw WAL/SHM copying.
-- **Cross-process writer quiescence:** exclusive file lock (`.app_data.lock`) guards
-  the source folder during relocation.
-- **Durable recovery journal:** `migration-recovery.json` in the default OS root
-  records committed migrations. If `data-root.json` is missing while the journal
-  survives, startup fails closed with actionable recovery guidance.
+  and staging WAL truncation (`PRAGMA wal_checkpoint(TRUNCATE)`) without raw
+  WAL/SHM copying.
+- **Cross-process writer quiescence:** cross-process OS file locking
+  (`.app_data.lock`, implemented in `src/data_lock.py` using pointer-sized Win64
+  `OVERLAPPED` with `LockFileEx` on Windows and `flock` off Windows) coordinates
+  all active writers and connections. Active SQLite connections
+  (`LockedConnection` in `src/db.py`), preference writes, audio-cache
+  materialization/composition (`AudioAssetStore.materialize` and
+  `compose_card_audio`), pre-migration backups, and database imports hold
+  **shared** locks for their active connection/operation lifetimes, while
+  relocation (`src/data_relocation.py`) acquires an **exclusive** lock.
+- **Durable recovery journal & four-component SHA-256 manifest verification:**
+  `migration-recovery.json` in the default OS root (`src/app_config.py`,
+  `src/data_relocation.py`) records `SWITCHING → COMMITTED` transitions alongside
+  `.vocab_app_root_marker.json` provenance (`source_root`, `target_root`,
+  `marker_uuid`) and four-component streaming 64KB SHA-256 manifests (`vocab.db`,
+  `preferences.json`, `backups/`, `audio-cache/`). This enables safe idempotent
+  rollback if interrupted before target promotion, or verified forward recovery
+  to `COMMITTED` if interrupted after promotion. Any missing, damaged, or
+  mismatched committed pointer (`data-root.json`), recovery journal, or target
+  folder fails closed (`DataRootError`) at startup with actionable recovery
+  guidance.
 - **Retained rollback baseline:** source files are preserved intact and never deleted.
-- **Restart boundary:** requires immediate application restart after cutover.
+- **Restart boundary:** requires an immediate application restart after cutover,
+  and blocks writes to the stale pre-cutover root inside the running process.
