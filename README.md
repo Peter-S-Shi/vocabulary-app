@@ -55,7 +55,7 @@ Vocabulary App is built around your own entries: you create or import your own E
 
 Reusable learning and data logic lives in framework-independent core modules under `src/`, on top of a local SQLite database. Two UI layers consume that same framework-independent core: a Streamlit compatibility UI (`app.py`, `src/ui_streamlit/`) and the native PySide6 desktop UI (`src/ui_desktop/`), the primary product surface. Application binaries and durable user data are installed to separate locations, and schema upgrades create a safety backup before migrating.
 
-Schema changes are additive-only: the additive, backup-aware schema and app-metadata migration chain preserves existing user data across product milestones, including the M23 data-root work, without a destructive rewrite. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full boundary rules.
+Schema changes are additive-only: the additive, backup-aware schema and app-metadata migration chain preserves existing user data across schema-changing milestones without a destructive rewrite, while M23's unified data-folder relocation is a separate storage-location and crash-recovery mechanism rather than a schema migration. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full boundary rules.
 
 ## Engineering evidence
 
@@ -68,7 +68,7 @@ Schema changes are additive-only: the additive, backup-aware schema and app-meta
 
 ## Download (Windows desktop app)
 
-Download `VocabularyApp-Setup-1.2.0.exe` from the [v1.2.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.2.0), verify it if you like against the SHA-256 published in `SHA256SUMS.txt` on that release (`97a6781f8b54f63f35a6302f9a5a54fa9a981260794e876f5b76c5fc1299d428`), then run it and launch **Vocabulary App** from the Start Menu. Upgrading in place from `v1.0.0` or `v1.1.0` preserves your existing data; see [PROJECT_STATUS.md](PROJECT_STATUS.md) for the upgrade contract and prior release records.
+Download `VocabularyApp-Setup-1.2.0.exe` from the [v1.2.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.2.0), verify it if you like against the SHA-256 published in `SHA256SUMS.txt` on that release (`97a6781f8b54f63f35a6302f9a5a54fa9a981260794e876f5b76c5fc1299d428`), then run it and launch **Vocabulary App** from the Start Menu. Verified in-place overlay upgrade paths preserve your existing data (historical `v1.0.0 → v1.1.0` in M21 and `v1.1.0 → v1.2.0` in v1.2.0); see [PROJECT_STATUS.md](PROJECT_STATUS.md) for the upgrade contract and prior release records.
 
 The installer is per-user and requires no admin rights. The certificate is a **self-signed developer certificate**, not a publicly trusted one — Windows SmartScreen may show an "unrecognized app" warning on first run; choose "More info" → "Run anyway" if you trust the source. See [M20 Code Signing Setup](docs/packaging/M20_CODE_SIGNING_SETUP.md) for the full rationale.
 
