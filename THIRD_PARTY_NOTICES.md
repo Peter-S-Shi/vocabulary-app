@@ -1,16 +1,19 @@
 # Third-Party Notices
 
-This file describes the third-party runtime components actually bundled in
+This file records the third-party runtime components baseline established for
 the Vocabulary App v1.0 Windows distribution (the PyInstaller `--onedir`
-build packaged by the Inno Setup installer). It is reconciled against the
+build packaged by the Inno Setup installer), reconciled against the
 frozen release decisions in `docs/packaging/M20_RELEASE_CONTRACT.md` §§ 2.3,
-2.5 and must be re-checked against the actual frozen build output
-(`pip list` inside the build environment, plus PyInstaller's collected-module
-report) before each release.
+2.5. Subsequent `v1.1.0` and `v1.2.0` releases use the same desktop build
+dependency specification (`requirements-desktop.txt` and `requirements-build.txt`)
+and the same no-bundled-TTS architecture; however, this baseline document is not
+a substitute for the build-specific `pip list` and PyInstaller collected-module
+check described in `## Packaging gate` below.
 
 ## Speech / text-to-speech: no bundled third-party TTS
 
-Vocabulary App v1.0 does not bundle, download, install, or redistribute any
+Vocabulary App (v1.0 baseline and subsequent v1.1/v1.2 desktop releases) does
+not bundle, download, install, or redistribute any
 third-party TTS runtime, model, or voice package. Speech playback uses the
 **Local Windows Speech Provider** capability: it calls the Windows-provided
 speech synthesis API (WinRT `SpeechSynthesizer` / SAPI5, per
@@ -21,8 +24,8 @@ possessed, bundled, or redistributed by this project.
 
 Kokoro, sherpa-onnx, and Piper voices were evaluated as TTS runtimes during
 earlier development (see `docs/policies/TTS_LICENSE_AND_ATTRIBUTION.md` for
-that historical record) but are **not distributed in v1.0** and carry no
-live redistribution obligation for this release.
+that historical record) but are **not distributed** and carry no
+live redistribution obligation for the packaged desktop application.
 
 ## Bundled Python runtime libraries
 

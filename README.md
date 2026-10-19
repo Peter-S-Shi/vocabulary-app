@@ -9,14 +9,14 @@ Your core learning data (entries, Collections, Quiz history) lives in a local SQ
 [![Platform: Windows](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-informational.svg)](#download-windows-desktop-app)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-informational.svg)](requirements.txt)
 
-**v1.2.0 is complete in the merged source and is the next release to publish from `main`; v1.1.0 remains the current public GitHub Release until that publication step occurs.** The native Windows desktop app (PySide6 + SQLite) is the primary product surface; the earlier Streamlit UI remains as a compatibility/reference surface. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the merge-ready v1.2.0 and v1.1.0 release evidence and the [v1.1.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.1.0) for the currently published installer and checksum.
+**v1.2.0 is the current published stable release.** The native Windows desktop app (PySide6 + SQLite) is the primary product surface; the earlier Streamlit UI remains as a compatibility/reference surface. See [PROJECT_STATUS.md](PROJECT_STATUS.md) for the v1.2.0, v1.1.0, and v1.0.0 release evidence and the [v1.2.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.2.0) for the current signed installer (`VocabularyApp-Setup-1.2.0.exe`) and checksum.
 
-**Stable Release v1.2.0 (pre-publication source state):**
+**Stable Release v1.2.0:**
 The **v1.2.0** upgrade closes the post-v1.1 development cycle, consolidating:
 - **M22 (A/B/C/D) Learning & UX Fixes:** Unscheduled Card review scheduling (#40), Card Quiz completion history (#42), Card-scoped Matching (#37), Pool Random Quiz visibility (#38), contrast-safe Quiz answer feedback colors (#41), and current Collection/Card locations in Entries detail (#39).
 - **M23 (A/B/C) Unified Data-Folder Relocation:** Safe bootstrap data-root foundation and unified, transactional data-folder relocation via Settings → Storage (#43), enabling users to relocate SQLite database, backups, audio cache, and preferences together to another drive or directory with atomic sibling staging, cross-process writer quiescence locking, durable recovery journal, crash consistency, retained rollback baseline, and clean restart boundaries.
 
-Windows Human Acceptance is complete and confirmed PASS for all M22 and M23 capabilities, and the signed `v1.2.0-rc.1` installer passed Owner acceptance in the clean Windows 11 VMware test environment. Following Owner direction, `v1.2.0-rc.1` is not published as a separate prerelease; release metadata is finalized directly as **v1.2.0** (Issue #48 UI/UX refresh remains explicitly deferred to a subsequent milestone). v1.1.0 remains the active public release until v1.2.0 is built, verified, and published from merged `main`.
+Windows Human Acceptance passed for all M22 and M23 capabilities, the signed `v1.2.0-rc.1` candidate (`main@0eb099bf5ebf65b47d471201677a199d3d67f76a`) passed clean Windows 11 VMware acceptance, and the final signed `VocabularyApp-Setup-1.2.0.exe` built from `main@d6af0a684db403a4167bea6edf65f8db99523d1a` passed clean Windows 11 VMware `v1.1.0 → v1.2.0` overlay upgrade acceptance before publication (with `v1.2.0-rc.1` not published as a separate prerelease and Issue #48 UI/UX refresh explicitly deferred to a subsequent milestone).
 
 ## See it
 
@@ -55,20 +55,20 @@ Vocabulary App is built around your own entries: you create or import your own E
 
 Reusable learning and data logic lives in framework-independent core modules under `src/`, on top of a local SQLite database. Two UI layers consume that same framework-independent core: a Streamlit compatibility UI (`app.py`, `src/ui_streamlit/`) and the native PySide6 desktop UI (`src/ui_desktop/`), the primary product surface. Application binaries and durable user data are installed to separate locations, and schema upgrades create a safety backup before migrating.
 
-Schema changes are additive-only: an explicit schema/app-metadata version chain has carried real user data through 21 development milestones without a destructive rewrite. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full boundary rules.
+Schema changes are additive-only: the additive, backup-aware schema and app-metadata migration chain preserves existing user data across product milestones, including the M23 data-root work, without a destructive rewrite. See [ARCHITECTURE.md](ARCHITECTURE.md) for the full boundary rules.
 
 ## Engineering evidence
 
 - **Enforced architecture boundary** — `scripts/audit_architecture.py` scans `app.py` and `src/` and fails if UI-framework imports (Streamlit or PySide6) leak into core modules, or if either UI layer imports the other.
-- **Hosted release gates** — GitHub Actions runs three parallel Release Closure regression shards as an independent release gate (the original single timeout-bounded `unittest discover` job could not complete within the CI time limit and remains available only as a manual `workflow_dispatch` job), then builds the Windows installer and proves a real isolated v1.0.0 → v1.1.0 overlay upgrade with data preservation.
-- **Additive migration chain** — schema/app-metadata versioning designed to preserve legacy Review history, Quiz logs, and Card revisions across every milestone rather than resetting user data.
+- **Hosted release gates** — GitHub Actions runs three parallel Release Closure regression shards as an independent release gate (the original single timeout-bounded `unittest discover` job could not complete within the CI time limit and remains available only as a manual `workflow_dispatch` job), then builds the Windows installer and runs automated isolated overlay-upgrade verification with data preservation (originally established for `v1.0.0 → v1.1.0` in M21, extended with M22/M23 suites and `v1.1.0 → v1.2.0` upgrade verification for `v1.2.0-rc.1` at `main@0eb099bf5ebf65b47d471201677a199d3d67f76a` in Actions run `39135461420` and final `v1.2.0` at `main@d6af0a684db403a4167bea6edf65f8db99523d1a` in Actions run `39138073680`, followed by clean Windows 11 VMware Owner acceptance PASS).
+- **Additive migration chain** — schema/app-metadata versioning designed to preserve legacy Review history, Quiz logs, and Card revisions across product milestones rather than resetting user data.
 - **Import/export safety** — a transaction-safe Validate → Preview → Confirm pipeline for CSV/XLSX import, read-only exports, and a restore-preview flow that never silently overwrites the active database; existing-database import uses explicit copy-with-backup semantics and never moves or edits the source file.
 - **Deliberate no-bundled-TTS decision** — Card Audio Export renders audio using compatible speech voices already installed on Windows, instead of shipping or redistributing a third-party voice model — trading convenience for lower licensing risk (see [Third-Party Notices](THIRD_PARTY_NOTICES.md)).
-- **Windows packaging pipeline** — PyInstaller `--onedir` + Inno Setup, Authenticode-signed with a self-signed developer certificate; v1.1 builds include provenance checks, packaged-launch smoke coverage, and isolated upgrade verification (see [PROJECT_STATUS.md](PROJECT_STATUS.md)).
+- **Windows packaging pipeline** — PyInstaller `--onedir` + Inno Setup, Authenticode-signed with a self-signed developer certificate (`CN=Peter Shi`); release builds across `v1.0.0`, `v1.1.0`, `v1.2.0-rc.1`, and `v1.2.0` include clean-source provenance checks, packaged-launch smoke coverage, and isolated upgrade verification (see [PROJECT_STATUS.md](PROJECT_STATUS.md)).
 
 ## Download (Windows desktop app)
 
-Download `VocabularyApp-Setup-1.1.0.exe` from the [v1.1.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.1.0), verify it if you like against the SHA-256 published as `SHA256SUMS.txt` on that release, then run it and launch **Vocabulary App** from the Start Menu. Upgrading from v1.0.0 preserves your existing data; see [PROJECT_STATUS.md](PROJECT_STATUS.md) for the upgrade contract.
+Download `VocabularyApp-Setup-1.2.0.exe` from the [v1.2.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.2.0), verify it if you like against the SHA-256 published in `SHA256SUMS.txt` on that release (`97a6781f8b54f63f35a6302f9a5a54fa9a981260794e876f5b76c5fc1299d428`), then run it and launch **Vocabulary App** from the Start Menu. Upgrading in place from `v1.0.0` or `v1.1.0` preserves your existing data; see [PROJECT_STATUS.md](PROJECT_STATUS.md) for the upgrade contract and prior release records.
 
 The installer is per-user and requires no admin rights. The certificate is a **self-signed developer certificate**, not a publicly trusted one — Windows SmartScreen may show an "unrecognized app" warning on first run; choose "More info" → "Run anyway" if you trust the source. See [M20 Code Signing Setup](docs/packaging/M20_CODE_SIGNING_SETUP.md) for the full rationale.
 
@@ -126,7 +126,7 @@ These are current, deliberate product boundaries — see [Content Policy](docs/p
 
 ## Local data and privacy
 
-Your core learning data (entries, Collections, Quiz history) lives in a local SQLite database, never uploaded anywhere. It's separate from your preferences, backups, and the optional audio cache, which are their own local files alongside it. This is the same whether you run the packaged Windows build or from source: the default durable data root is a per-user app-data location, not the project checkout. On Windows that's:
+Your core learning data (entries, Collections, Quiz history) lives in a local SQLite database, never uploaded anywhere. It's separate from your preferences, backups, and the optional audio cache, which are their own local files alongside it. This is the same whether you run the packaged Windows build or from source: the default durable data root is a per-user app-data location, not the project checkout. On Windows, the default paths are:
 
 ```text
 %LOCALAPPDATA%\vocabulary_app\vocab.db
@@ -135,14 +135,14 @@ Your core learning data (entries, Collections, Quiz history) lives in a local SQ
 %LOCALAPPDATA%\vocabulary_app\audio-cache\
 ```
 
-Off Windows it falls back to XDG data-home semantics (`$XDG_DATA_HOME` or `~/.local/share/vocabulary_app`). Application binaries are installed separately from this data root, and uninstalling preserves it by default — destructive removal requires an explicit opt-in. Schema upgrades create a safety backup before migrating, and importing an existing database uses copy-with-backup semantics; the source file is never moved or edited in place. `VOCAB_APP_DB_PATH` is an explicit database-path override for advanced or development use.
+Off Windows it falls back to XDG data-home semantics (`$XDG_DATA_HOME` or `~/.local/share/vocabulary_app`). Starting in **v1.2.0**, **Settings → Storage** can relocate the SQLite database, backups, preferences, and audio cache together to another local drive or directory, preserving the original source files intact as a rollback baseline, requiring an application restart after cutover, and failing closed with recovery guidance (without creating a blank database) if a selected data root or its recovery journal/pointer is missing or damaged. Application binaries are installed separately from the data root, and uninstalling preserves user data by default — destructive removal requires an explicit opt-in. Schema upgrades create a safety backup before migrating, and importing an existing database uses copy-with-backup semantics; the source file is never moved or edited in place. `VOCAB_APP_DB_PATH` is a developer/advanced single-component database-path override (distinct from unified Settings → Storage relocation).
 
 See [Data Storage](docs/policies/DATA_STORAGE.md) and [Data Safety](docs/policies/DATA_SAFETY.md) for the full behavior.
 
 ## Known limitations
 
 - The release is signed with a self-signed Authenticode certificate (the same `CN=Peter Shi` identity since v1.0), not a publicly trusted one; SmartScreen reputation isn't guaranteed and a warning may appear on first run.
-- Full pristine clean-machine VM verification was deferred; v1.0 acceptance used a fresh local standard Windows account instead (see [PROJECT_STATUS.md](PROJECT_STATUS.md)).
+- For the historical `v1.0.0` release, full pristine clean-machine VM verification was deferred in favor of a fresh local standard Windows account; for `v1.2.0`, both the signed `v1.2.0-rc.1` candidate and the final signed `1.2.0` stable installer passed clean Windows 11 VMware acceptance (`Clean Windows 11 Baseline` snapshot, including `v1.1.0 → v1.2.0` overlay upgrade and data preservation; see [PROJECT_STATUS.md](PROJECT_STATUS.md)).
 - Windows 10/11 x64 only.
 - Card Audio Export depends on compatible speech voices already installed on the user's Windows system.
 - No automatic updater; update awareness only reports a newer release and opens its page. Upgrades still use a new installer while preserving user data and creating a migration safety backup.
@@ -152,7 +152,7 @@ See [Data Storage](docs/policies/DATA_STORAGE.md) and [Data Safety](docs/policie
 - [docs/README.md](docs/README.md) — full documentation map
 - [ARCHITECTURE.md](ARCHITECTURE.md) — layer boundaries and core module responsibilities
 - [DESIGN.md](DESIGN.md) — frozen desktop UI design system
-- [ROADMAP.md](ROADMAP.md) / [PROJECT_STATUS.md](PROJECT_STATUS.md) — full milestone history and the current release-evidence record (v1.0.0 shipped through M20; v1.1.0 shipped through M21)
+- [ROADMAP.md](ROADMAP.md) / [PROJECT_STATUS.md](PROJECT_STATUS.md) — full milestone history and the current release-evidence record (v1.0.0 shipped through M20; v1.1.0 shipped through M21; v1.2.0 shipped through M22 and M23)
 - [CONTRIBUTING.md](CONTRIBUTING.md) — project principles and architecture rules for contributors
 
 ## Common Errors

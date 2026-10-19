@@ -1,20 +1,20 @@
 # Architecture
 
-Vocabulary App is a local-first Python application with a reusable core, a SQLite persistence layer, and a temporary Streamlit UI.
+Vocabulary App is a local-first Python application with a framework-independent core, a SQLite persistence layer, a native PySide6 desktop UI (`src/ui_desktop/`) as the primary product surface, and a retained Streamlit compatibility/reference UI (`app.py`, `src/ui_streamlit/`).
 
 ## Layers
 
 | Layer | Allowed Responsibilities | Forbidden Responsibilities |
 |---|---|---|
-| Core modules | SQL, validation, business rules, reusable query helpers, import/export and backup operations | Streamlit widgets, `session_state`, page rendering |
-| Streamlit UI | Widgets, layout, page flow, user input collection, transient navigation and focus state | Direct SQL when avoidable, schema creation, durable business rules |
-| App shell | Page configuration, initialization, sidebar navigation, page routing | Learning algorithms, SQL, collection ordering, parsing |
+| Core modules (`src/*.py`) | SQL, validation, business rules, reusable query helpers, import/export, backup, and unified data-root/relocation/locking operations | PySide6 or `src.ui_desktop` imports, Streamlit widgets or `session_state`, UI page rendering |
+| Native Desktop UI — Primary (`src/ui_desktop/`) | Qt main window, workspace views/widgets, Qt table/list models, controllers owning transient view/workflow state, background `QThread` workers, and theme/token styling | Direct SQL, schema creation, durable business rules, Streamlit or `src.ui_streamlit` imports |
+| Streamlit Compatibility UI (`app.py`, `src/ui_streamlit/`) | Compatibility widgets, layout, page flow, user input collection, transient `session_state` navigation and focus state | Direct SQL when avoidable, schema creation, durable business rules, PySide6 or `src.ui_desktop` imports |
 
 ## Local-First Design
 
-SQLite is the durable source of application state. `src/app_config.py` resolves its default per-user database location, explicit environment overrides, and any selected data root before database initialization.
+SQLite is the durable source of application state. `src/app_config.py` resolves its default per-user database location, explicit environment overrides, and any selected data root (`data-root.json` and `migration-recovery.json`) before database initialization.
 
-The app does not silently move or replace a database. User-created entries, templates, review history, quiz logs, and learning-pool membership remain local and user-controlled.
+The app does not silently move or replace a database. User-created entries, templates, review history, quiz logs, and learning-pool membership remain local and user-controlled. Confirmed unified data-folder relocation is user-initiated from **Settings → Storage**, preserves the original source files intact as a rollback baseline, requires an application restart after cutover, and fails closed if a selected data root or recovery state is missing or damaged.
 
 ## User-Owned Content
 
@@ -27,7 +27,7 @@ Streamlit imports are allowed only in:
 - `app.py`
 - `src/ui_streamlit/*.py`
 
-Reusable modules under `src/` must not import Streamlit. They expose plain Python functions and return plain data structures so a future desktop UI can reuse them.
+Reusable modules under `src/` must not import Streamlit. They expose plain Python functions and return plain data structures so both the native PySide6 desktop UI and the Streamlit compatibility UI reuse them without duplication.
 
 Streamlit `session_state` is UI state. Durable state and duplicate-action protection belong in core modules and SQLite.
 
@@ -43,15 +43,17 @@ verification (see `tests/test_m16_1_architecture_spike.py`).
 
 Reusable modules under `src/` must not import PySide6 or `src.ui_desktop`, the
 same way they must not import Streamlit or `src.ui_streamlit`. The Streamlit
-UI and the desktop UI are two independent presentation layers during
-migration; `src/ui_streamlit/*.py` should not import PySide6 or
-`src.ui_desktop`, and `src/ui_desktop/*.py` should not import Streamlit or
+compatibility UI and the native desktop UI are two independent presentation
+layers; `src/ui_streamlit/*.py` must not import PySide6 or
+`src.ui_desktop`, and `src/ui_desktop/*.py` must not import Streamlit or
 `src.ui_streamlit`. `scripts/audit_architecture.py` enforces both directions.
 
 ## Core Module Responsibilities
 
-- `src/app_config.py`: application identity and local path resolution
-- `src/db.py`: connections, schema initialization, and additive compatibility updates
+- `src/app_config.py`: application identity, default/override path resolution, versioned `data-root.json` selected-root resolution, four-component streaming SHA-256 manifest verification, and `migration-recovery.json` (`SWITCHING → COMMITTED`) startup reconciliation (failing closed via `DataRootError` without creating a blank database when a selected root or recovery state is missing or damaged)
+- `src/data_lock.py`: cross-process OS file locking (`.app_data.lock`, using pointer-sized Win64 `OVERLAPPED` with `LockFileEx` on Windows and `flock` off Windows), providing shared locks for active SQLite connections (`LockedConnection`), preference writes, audio-cache materialization/composition, backups, and imports, and an exclusive quiescence lock during data-folder relocation
+- `src/data_relocation.py`: confirmed, transactional four-component data-folder relocation (`vocab.db` via online `Connection.backup()`, `backups/`, `audio-cache/`, and `preferences.json`) using sibling staging (`<parent>/.vocab-stage-<uuid>`), `.vocab_app_root_marker.json` provenance + SHA-256 manifest checks, atomic no-clobber promotion (`MoveFileExW` with `MOVEFILE_WRITE_THROUGH` and without `MOVEFILE_REPLACE_EXISTING` on Windows), atomic `os.replace` temp-file updates for `migration-recovery.json` and `data-root.json`, retained source rollback baseline, and mandatory restart boundary
+- `src/db.py`: connections (including shared-lock-guarded `LockedConnection` on guarded roots), schema initialization, and additive compatibility updates
 - `src/migrations.py`: schema/app metadata, feature flags, and additive migration registry
 - `src/entries.py`: entry CRUD, search, filters, and batch operations
 - `src/entry_templates.py`: templates, fields, and template values
@@ -83,15 +85,21 @@ migration; `src/ui_streamlit/*.py` should not import PySide6 or
 
 ## UI Module Responsibilities
 
-`src/ui_streamlit/` owns:
+`src/ui_desktop/` (primary native desktop UI) owns:
 
-- page rendering and widget layout
-- transient forms and selection state
-- sidebar/page focus hints
+- native Qt application bootstrap (`__main__.py`), `MainWindow` shell, and workspace routing
+- workspace views (`views/`), custom widgets (`widgets/`), and Qt table/list models (`qt_models/`)
+- controllers (`controllers/`) owning transient workspace/session state and background `QThread` worker orchestration (such as `SettingsController` and `RelocationWorker` for **Settings → Storage** data-folder relocation)
+- theme tokens, QSS generation, and OS appearance tracking (`theming/`)
+
+`src/ui_streamlit/` (retained compatibility/reference UI) owns:
+
+- Streamlit page rendering and widget layout
+- transient forms and `session_state` selection/focus hints
 - upload and download controls
 - user-facing messages
 
-UI modules call core functions rather than duplicating durable rules.
+Both UI layers call core functions rather than duplicating durable rules.
 
 ## Database Ownership
 
@@ -154,7 +162,7 @@ SQLite Quiz evidence
 -> src/analytics.py Evidence Profiles / Coverage / Personal Baseline
 -> src/insights.py Findings / priority / actions / Learning Brief
 -> Entry Health compatibility projection
--> current Streamlit or future desktop UI
+-> native desktop UI (primary) or Streamlit compatibility UI
 ```
 
 Entry-level interpretation is authoritative in M14. Legacy public Entry Health
@@ -168,26 +176,29 @@ date, pool mutation, or parallel analytics database. Deleted Entries remain
 outside current actionable analytics while their preserved Quiz and Card
 revision history remains available to historical views.
 
-## Future Desktop Migration
+## Implemented Desktop Architecture / Historical Migration Decision
 
-The desktop migration preserves the SQLite schema and core modules, then
-replaces `app.py` and `src/ui_streamlit/` with `src/ui_desktop/`.
+The desktop migration (completed through M16–M20) preserved the SQLite schema
+and reusable core modules while establishing `src/ui_desktop/` as the primary
+native Windows product surface alongside the retained `app.py` and
+`src/ui_streamlit/` compatibility UI.
 
 M16.1 selected **PySide6** as the desktop framework and froze the
 controller/view-state/core boundary. The full decision, evidence, package
 structure, state taxonomy, concurrency model, and theme/token implementation
 boundary are recorded in
 [M16.1 Desktop Architecture Contract](docs/design/M16_1_DESKTOP_ARCHITECTURE_CONTRACT.md);
-this section only summarizes the durable rule.
+this section summarizes the durable rule.
 
-The desktop layer calls the same core functions Streamlit already calls —
-plain Python arguments in, plain data structures out — and introduces
-desktop-specific adapters (`Qt` table/list models, controllers owning
-transient state) only where Streamlit currently handles uploads, downloads,
-navigation, or transient widget state. A thin `src/ui_desktop/services/`
-orchestration layer is added only when a real desktop workflow demonstrates a
-genuine multi-step/transactional need beyond a direct controller-to-core
-call; it is not created for architectural symmetry.
+The native desktop layer (`src/ui_desktop/`) calls the same core functions the
+Streamlit compatibility layer calls — plain Python arguments in, plain data
+structures out — and uses desktop-specific adapters (`Qt` table/list models,
+controllers owning transient state, and dedicated `QThread` workers where
+needed) where Streamlit handles uploads, downloads, navigation, or transient
+widget state. A thin `src/ui_desktop/services/` orchestration layer is added
+only when a real desktop workflow demonstrates a genuine multi-step or
+transactional need beyond a direct controller-to-core call; it is not created
+for architectural symmetry.
 
 ## Contributor Guardrails
 

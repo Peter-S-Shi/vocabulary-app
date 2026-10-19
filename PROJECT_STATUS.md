@@ -6,15 +6,13 @@ This file is the authoritative evidence-based snapshot of the current project st
 
 ## Current Phase
 
-**Milestones 22 and 23 / Vocabulary App v1.2.0 implementation, Windows-native Human Acceptance, and clean-VM Release Candidate acceptance are complete on merged `main`. Release metadata is finalized as `1.2.0`, and the next authorized lifecycle step is to build, verify, and publish stable v1.2.0 from verified merged `main`.**
+**Milestones 22 and 23 / Vocabulary App v1.2.0 implementation, Windows-native Human Acceptance, clean-VM Release Candidate (`v1.2.0-rc.1`) acceptance, final signed `v1.2.0` clean-VM overlay acceptance, and GitHub Release publication are complete. Vocabulary App `v1.2.0` is the current published stable release.**
 
-This is intentionally one step ahead of the merge-ready PR branch. It does not
-claim that a `v1.2.0` tag or GitHub Release already exists; **v1.1.0 remains the
-current published GitHub Release** until stable v1.2.0 publication is completed.
+PR #51 merged the finalized `1.2.0` release metadata into `main` at `d6af0a684db403a4167bea6edf65f8db99523d1a`. The annotated `v1.2.0` tag (`e12ab99ad2ecafa1beb7563fb54d1541665e5380`) points to that exact commit, and the signed `VocabularyApp-Setup-1.2.0.exe` (`SHA-256 97a6781f8b54f63f35a6302f9a5a54fa9a981260794e876f5b76c5fc1299d428`) is published on the [v1.2.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.2.0).
 
 ## M22-A / Post-v1.1.0 Card workflow correction
 
-This source snapshot implements the bounded M22-A fixes for
+This source increment implements the bounded M22-A fixes for
 [Issue #40](https://github.com/Peter-S-Shi/vocabulary-app/issues/40) and
 [Issue #42](https://github.com/Peter-S-Shi/vocabulary-app/issues/42).
 Review Calendar exposes active unscheduled Cards through a separate current-Card
@@ -27,15 +25,15 @@ existing correct/total counts, with zero-item records marked unavailable.
 M22-A changes presentation/controller behavior only; the Quiz, scheduling,
 persistence, revision, and migration contracts remain unchanged.
 
-**Post-merge M22-A state:** #40 and #42 are implemented, independently reviewed,
-Windows-native Human Acceptance has passed all six checks, and the changes are
-merged into `main`. v1.1.0 remains the current published release, and its
-installer does not include these fixes. M22 as a whole is not closed, and no
-new version has shipped.
+**Historical post-merge M22-A snapshot:** #40 and #42 were implemented, independently
+reviewed, passed all six Windows-native Human Acceptance checks, and merged into
+`main` via PR #44. At that interim subphase merge, `v1.1.0` remained the published
+release (its installer does not include M22 fixes) and M22 as a whole was still in
+progress; M22 (A/B/C/D) has since completed and shipped in `v1.2.0`.
 
 ## M22-B / Card-originated Matching correction
 
-**Post-merge M22-B source state:** Issue #37
+**Historical post-merge M22-B snapshot:** Issue #37
 is implemented and merged into `main`. A Quiz launched from a selected Card
 keeps that Card's stable identity; plain Matching draws only its eligible
 Entries with distinct meanings and records the actual Card revision on the
@@ -46,13 +44,13 @@ Independent Collection and system-pool Quizzes remain separate.
 The completed Card Matching session uses the M22-A Card history and next-review
 scheduling paths without synthetic completion evidence. Local targeted tests
 and the architecture audit cover this source change. The product owner reported
-Windows-native Human Acceptance PASS on the M22-B branch. PR #45 passed
-required CI and merged M22-B into `main`. No public release or installer
-contains M22-B; v1.1.0 remains the published version.
+Windows-native Human Acceptance PASS on the then-active M22-B branch, and PR #45 passed
+required CI and merged M22-B into `main`. At that interim subphase merge, `v1.1.0`
+remained the published version; M22-B later shipped in `v1.2.0`.
 
 ## M22-C / Theme visibility and Quiz feedback
 
-**Post-merge M22-C source state:** Issue #38
+**Historical post-merge M22-C snapshot:** Issue #38
 and Issue #41
 are implemented and merged into `main`. The Starred and Proficient Pool Random
 Quiz buttons have explicit theme-token colors for normal, hover, disabled,
@@ -63,12 +61,13 @@ Correct/Wrong grading labels, Matching flow, and learning data are unchanged.
 
 PR #46 passed required PR and post-merge `main` CI and merged M22-C into
 `main`. The product owner reported Windows-native Human Acceptance PASS for all
-four M22-C check groups. v1.1.0 remains the current published release; no
-installer containing M22-C has shipped, and M22 as a whole remains open.
+four M22-C check groups. At that interim subphase merge, `v1.1.0` remained the
+published release and M22 as a whole remained open pending M22-D; M22 (A/B/C/D)
+subsequently closed and shipped in `v1.2.0`.
 
 ## M22-D / Current Entry locations
 
-**Post-merge M22-D source state:** Issue #39 is implemented and merged into
+**Historical post-merge M22-D snapshot:** Issue #39 is implemented and merged into
 `main`. The Entries detail panel displays each current ordinary Collection
 and its position-based Card number, including Entries shared by Collections
 with different Card sizes. System practice pools are labeled separately as
@@ -81,12 +80,12 @@ changes.
 PR #47 passed required PR checks, merged M22-D into `main`, and its post-merge
 `main` CI passed. The product owner reported Windows-native Human Acceptance
 PASS, recorded in Issue #39. Focused local tests and architecture checks
-provide separate engineering evidence. v1.1.0 remains the published release;
-these source changes have not shipped in an installer.
+provide separate engineering evidence. Completing M22-D closed the M22 learning/UX
+scope on `main` prior to M23 and the `v1.2.0` release.
 
 ## M23-A / Issue #43 data-root startup safety foundation
 
-**Post-merge M23-A source state:** the approved unified-storage contract has
+**Historical post-merge M23-A snapshot:** the approved unified-storage contract has
 one startup path resolver and a minimal versioned bootstrap pointer at the
 default data location. When no pointer exists, v1.1.0 paths and explicit
 environment-override precedence remain unchanged. A configured root must
@@ -97,8 +96,8 @@ preferences resolve together under a valid selected root, and a running
 process rejects a pointer change until restart.
 
 PR #49 passed required PR checks and merged M23-A into `main`. Native Human
-Acceptance was deferred to the consolidated M23-B/C workflow. v1.1.0 remains the
-published release; no installer with M23-A has shipped.
+Acceptance was deferred to the consolidated M23-B/C workflow, which subsequently
+passed and shipped in `v1.2.0`.
 
 ## M23-B/C / Unified data relocation engine and Settings storage workflow
 
@@ -163,20 +162,20 @@ The implementation enforces all approved Owner and engineering safety invariants
   Architecture audit `scripts/audit_architecture.py` reports 0 violations across 98 Python files.
 
 **Human Acceptance: PASS.** The Product Owner completed live Windows Human Acceptance
-testing on the active `fix/m23bc-data-relocation` branch across all storage relocation
-scenarios, verifying move integrity, settings feedback, and clean restart boundaries.
+testing on the then-active `fix/m23bc-data-relocation` branch (merged into `main` via
+PR #50) across all storage relocation scenarios, verifying move integrity, settings
+feedback, and clean restart boundaries.
 
-## Stable Release v1.2.0 Finalization (Pre-Publication)
+## M22–M23 / Vocabulary App v1.2.0 Closure and Publication
 
-Feature scope and release metadata are finalized for the **v1.2.0** stable upgrade:
+Feature scope, release verification, and public release publication are complete for **v1.2.0**:
 - Consolidates merged Milestone 22 (A/B/C/D) learning/UX corrections (#37, #38, #39, #40, #41, #42).
 - Consolidates merged Milestone 23 (A/B/C) data-root foundation and unified data-folder relocation (#43).
 - Explicitly defers Issue #48 (UI/UX refresh / visual redesign) to a subsequent authorized milestone.
-- **RC Acceptance Record (`v1.2.0-rc.1`):** Built from merged `main` commit `0eb099bf5ebf65b47d471201677a199d3d67f76a` (where all required Release Closure CI shards and the Windows installer/upgrade-proof job succeeded in GitHub Actions run [39135461420](https://github.com/Peter-S-Shi/vocabulary-app/actions/runs/39135461420)), the signed `VocabularyApp-Setup-1.2.0-rc.1.exe` (`SHA-256 3662983f18092033b227b5bed34444648575b105275e8bea0e9e9206945a08dc`) passed Owner acceptance in the isolated clean Windows 11 VMware test environment (restored to its clean baseline snapshot).
-- Following Owner direction after RC acceptance PASS, `v1.2.0-rc.1` is not published as a separate GitHub prerelease; release metadata advances directly from `1.2.0-rc.1` to **`1.2.0`** (`APP_VERSION = "1.2.0"`, Windows PE `FileVersion = "1.2.0.0"`, `ProductVersion = "1.2.0"`), preserving the existing Inno Setup `AppId` and `CN=Peter Shi` self-signed developer publisher identity without reopening product behavior or scope.
-- Synchronizes the upgrade verification harness (`winbuild/verify_upgrade.py` and `tests/test_v1_1_phase_f2_upgrade_verification.py`), packaging version checks (`tests/test_m20_build_packaging.py`), and CI job label (`.github/workflows/windows_build.yml`) to target `1.2.0` (`VocabularyApp-Setup-1.2.0.exe`).
-- **Focused Local Validation:** 75 unit tests across `test_m20_build_packaging`, `test_v1_1_phase_f2_upgrade_verification`, `test_v1_1_phase_e_update_checker`, `test_v1_1_phase_e_update_settings_ui`, and `test_m23a_data_root` pass cleanly on Windows, and `scripts/audit_architecture.py` reports 0 boundary violations or warnings across 98 Python files.
-- Following our one-step-ahead macro-documentation convention, repository documentation describes post-merge, pre-publication `v1.2.0` stable-release readiness. No `v1.2.0` tag or GitHub Release exists yet; `v1.1.0` remains the active public release until PR merge, final signed `1.2.0` installer build/VM smoke verification, and authorized GitHub Release publication.
+- **Historical RC Acceptance Record (`v1.2.0-rc.1`):** Built from merged `main` commit `0eb099bf5ebf65b47d471201677a199d3d67f76a` (where all required Release Closure CI shards and the Windows installer/upgrade-proof job succeeded in GitHub Actions run [39135461420](https://github.com/Peter-S-Shi/vocabulary-app/actions/runs/39135461420)), the signed `VocabularyApp-Setup-1.2.0-rc.1.exe` (`SHA-256 3662983f18092033b227b5bed34444648575b105275e8bea0e9e9206945a08dc`) passed Owner acceptance in the isolated clean Windows 11 VMware test environment (`Clean Windows 11 Baseline` snapshot).
+- **Direct Stable Finalization (PR #51):** Following Owner direction after RC acceptance PASS, `v1.2.0-rc.1` was not published as a separate GitHub prerelease; PR #51 advanced release metadata directly from `1.2.0-rc.1` to **`1.2.0`** (`APP_VERSION = "1.2.0"`, Windows PE `FileVersion = "1.2.0.0"`, `ProductVersion = "1.2.0"`), synchronized the upgrade verification harness (`winbuild/verify_upgrade.py` and `tests/test_v1_1_phase_f2_upgrade_verification.py`), packaging version checks (`tests/test_m20_build_packaging.py`), and CI job label (`.github/workflows/windows_build.yml`), and merged into `main` at `d6af0a684db403a4167bea6edf65f8db99523d1a`.
+- **Hosted Release-Closure CI & Final Signed Build Verification:** GitHub Actions runs [39137882334](https://github.com/Peter-S-Shi/vocabulary-app/actions/runs/39137882334) (PR #51) and [39138073680](https://github.com/Peter-S-Shi/vocabulary-app/actions/runs/39138073680) (`main@d6af0a684db403a4167bea6edf65f8db99523d1a`) passed all three Release Closure shards plus the Windows installer build, packaged-launch smoke test, and automated isolated `v1.1.0 → v1.2.0` overlay upgrade verification.
+- **Final Stable Clean-VM Acceptance & Publication (`v1.2.0`):** Built and signed from clean `main` commit `d6af0a684db403a4167bea6edf65f8db99523d1a`, `VocabularyApp-Setup-1.2.0.exe` (`35,303,256` bytes, `SHA-256 97a6781f8b54f63f35a6302f9a5a54fa9a981260794e876f5b76c5fc1299d428`, signed with the established `CN=Peter Shi` developer certificate, thumbprint `3E812E6E86C40158C531222D026EA53D70775103`) passed clean Windows 11 VMware `v1.1.0 → v1.2.0` overlay upgrade Human Acceptance (verifying single uninstall registration, pre-/post-upgrade SHA-256 data preservation across all four components, sentinel records, and `Settings → Storage` readiness) and was published under annotated tag `v1.2.0` (`e12ab99ad2ecafa1beb7563fb54d1541665e5380`) on the [v1.2.0 GitHub Release](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.2.0).
 
 ## M21 / v1.1.0 Closure
 
@@ -218,27 +217,39 @@ Release is published from it, per the F4B publication record below.
 
 ## Released Baseline
 
-**Vocabulary App v1.1.0 is the current released version.**
+**Vocabulary App v1.2.0 is the current published stable release.**
 
-Milestone 21 — Phase F Release Verification is **Complete**. F4A release-closure CI evidence (three parallel Release Closure shards plus the Windows installer/upgrade-proof job) is green on merged `main`; PR #36 merged M21 to `main`; this release-state commit was tagged `v1.1.0`; the canonical Windows installer was built and signed from that tagged source; and the GitHub Release was published.
+Milestones 22 and 23 are **Complete**. All three parallel Release Closure shards plus the Windows installer/upgrade-proof job succeeded on merged `main` (`d6af0a684db403a4167bea6edf65f8db99523d1a`); that exact commit was tagged `v1.2.0`; the canonical Windows installer (`VocabularyApp-Setup-1.2.0.exe`) was built, signed, and verified against clean Windows 11 VMware `v1.1.0 → v1.2.0` overlay acceptance; and the public GitHub Release was published.
 
-## Current Release
+## Current Release — v1.2.0
+
+- **Version:** `1.2.0`
+- **Tag:** `v1.2.0` (`e12ab99ad2ecafa1beb7563fb54d1541665e5380`)
+- **Release source / merged `main` SHA:** `d6af0a684db403a4167bea6edf65f8db99523d1a`
+- **Merged PRs:** #44 (`M22-A`), #45 (`M22-B`), #46 (`M22-C`), #47 (`M22-D`), #49 (`M23-A`), #50 (`M23-B/C`), #51 (`Stable Release v1.2.0 Finalization`)
+- **Canonical installer:** `VocabularyApp-Setup-1.2.0.exe` (`35,303,256` bytes)
+- **Canonical installer SHA-256:** `97a6781f8b54f63f35a6302f9a5a54fa9a981260794e876f5b76c5fc1299d428` (published in `SHA256SUMS.txt` on the `v1.2.0` GitHub Release)
+- **Distribution:** [GitHub Release `v1.2.0`](https://github.com/Peter-S-Shi/vocabulary-app/releases/tag/v1.2.0) (Latest)
+- **Platform:** Windows 10/11 x64
+- **License:** MIT
+
+The canonical `v1.2.0` release build was produced from a clean checkout whose `HEAD` exactly matched the tagged `v1.2.0` source SHA (`d6af0a684db403a4167bea6edf65f8db99523d1a`), with `dist/build_manifest.json` reporting `source_dirty: false` and `app_version: "1.2.0"`. Both the installer SHA-256 and Authenticode signature (`CN=Peter Shi`, thumbprint `3E812E6E86C40158C531222D026EA53D70775103`) were independently re-verified against the published GitHub Release download.
+
+## Previous Release: v1.1.0 (Historical Baseline)
 
 - **Version:** `1.1.0`
 - **Tag:** `v1.1.0`
-- **Release source:** the merged `main` commit the `v1.1.0` tag points at (this release-state commit)
+- **Release source:** the merged `main` commit the `v1.1.0` tag points at (`6bc492082cb2db8e19fdbf6c8530468edb4edf02`)
 - **Merged PR:** #36 — `M21: Vocabulary App v1.1.0 — Phase F Release Verification`
 - **Canonical installer:** `VocabularyApp-Setup-1.1.0.exe`
-- **Canonical installer SHA-256:** see `SHA256SUMS.txt` published with the `v1.1.0` GitHub Release
+- **Canonical installer SHA-256:** `8ae6bcf615ed180788119384e0c38b8d64590b6dbcce2b542e113b4fca3ecf89` (published in `SHA256SUMS.txt` with the `v1.1.0` GitHub Release)
 - **Distribution:** GitHub Releases
 - **Platform:** Windows 10/11 x64
 - **License:** MIT
 
-The canonical release build was produced from a clean checkout whose `HEAD` exactly matched the tagged `v1.1.0` source SHA. `dist/build_manifest.json` reports `source_dirty: false` and `app_version: "1.1.0"` against that SHA.
+The canonical `v1.1.0` release build was produced from a clean checkout whose `HEAD` exactly matched the tagged `v1.1.0` source SHA. `dist/build_manifest.json` reported `source_dirty: false` and `app_version: "1.1.0"` against that SHA. The installer SHA-256 was computed by the release build pipeline and independently re-verified with Windows `certutil`; both values matched, and both are published in `SHA256SUMS.txt` on the `v1.1.0` GitHub Release.
 
-The installer SHA-256 was computed by the release build pipeline and independently re-verified with Windows `certutil`; both values matched, and both are published in `SHA256SUMS.txt` on the `v1.1.0` GitHub Release.
-
-## Previous Release: v1.0.0
+## Previous Release: v1.0.0 (Historical Baseline)
 
 - **Version:** `1.0.0`
 - **Tag:** `v1.0.0`
@@ -247,13 +258,13 @@ The installer SHA-256 was computed by the release build pipeline and independent
 - **Canonical installer:** `VocabularyApp-Setup-1.0.0.exe`
 - **Canonical installer SHA-256:** `108095e3ce7d256bc610c33f427a9ee2fee4956cb69dde3bf0e105413865b297`
 
-The remaining M20 evidence below (RC acceptance, engineering evidence, signing model, product state, data contract, known limitations) describes the v1.0.0 release process specifically and is preserved as the historical record of how that baseline was reached; where v1.1.0 reuses the same signing identity and data-location contract, that reuse is noted rather than restated in full.
+The remaining M20 evidence below (RC acceptance, engineering evidence, signing model, product state, data contract, known limitations) describes the v1.0.0 release baseline specifically and is preserved as the historical record of how that baseline was reached; where v1.1.0 and v1.2.0 reuse or extend the signing identity and data-location contract, that evolution is noted explicitly.
 
-## Human RC Acceptance Record
+## Historical M20 / v1.0.0 Human RC Acceptance Record
 
 **Human RC: PASS (2026-08-19).**
 
-The authoritative Human RC decision was granted against exact RC SHA:
+The authoritative v1.0.0 Human RC decision was granted against exact RC SHA:
 
 `89263a4f0f477fe5455ed22bedffd1968218bb1e`
 
@@ -264,9 +275,9 @@ and its RC artifact:
 
 That historical RC acceptance record is intentionally preserved. After PASS, the already-frozen release scheme advanced release metadata only from `1.0.0-rc.1` to `1.0.0`; no product behavior or scope was reopened. Targeted version/build/signature/install/launch/uninstall verification was then completed before merge and publication.
 
-## M20 Engineering Evidence
+## Historical M20 Engineering Evidence (v1.0.0 Baseline)
 
-At the Human-RC-accepted RC source:
+At the Human-RC-accepted v1.0.0 RC source:
 
 - Full repository regression: **911 tests, 0 failures, 0 errors** (`unittest discover`, 1450.7s).
 - Architecture audit: clean (90 Python files, 0 violations).
@@ -286,9 +297,9 @@ v1.0.0 uses a **self-signed Authenticode developer certificate** with Subject/Pu
 
 This certificate is **not publicly trusted**. Independent `Get-AuthenticodeSignature` verification reported the expected untrusted-root status (`UnknownError`) for both the onedir executable and installer. This is not represented as SmartScreen reputation or public identity trust, and SmartScreen warnings may still occur.
 
-Publicly trusted code signing is deferred to a possible future broader public/commercial/Microsoft Store distribution effort and is not part of the completed v1.0 Portfolio release contract.
+Publicly trusted code signing is deferred to a possible future broader public/commercial/Microsoft Store distribution effort and is not part of the completed Portfolio release contract.
 
-v1.1.0 reuses this same `CN=Peter Shi` self-signed developer identity for `VocabularyApp-Setup-1.1.0.exe`; the trust model above (not publicly trusted, SmartScreen warnings may still occur) applies unchanged to v1.1.0.
+v1.1.0 (`VocabularyApp-Setup-1.1.0.exe`), `v1.2.0-rc.1` (`VocabularyApp-Setup-1.2.0-rc.1.exe`), and v1.2.0 (`VocabularyApp-Setup-1.2.0.exe`) reuse this same `CN=Peter Shi` self-signed developer identity (`Thumbprint 3E812E6E86C40158C531222D026EA53D70775103`); the trust model above (not publicly trusted, SmartScreen warnings may still occur) applies unchanged.
 
 ## Product State
 
@@ -299,7 +310,7 @@ The PySide6 native desktop application is the primary product surface. It includ
 - Collections and Card organization
 - Review and Quiz workflows
 - Review Calendar / Card History
-- Settings and Data Tools
+- Settings and Data Tools (including unified Settings → Storage data-folder relocation in v1.2.0)
 - CSV/XLSX import/export
 - Template Definition CSV workflows
 - Backup / Restore Preview
@@ -315,30 +326,32 @@ The release remains local-first: no account, telemetry, cloud sync, or mandatory
 
 - Install model: per-user, no administrative install mode required.
 - Installed binaries: under the user's Local AppData Programs area.
-- Durable data root: `%LOCALAPPDATA%\vocabulary_app\`.
+- Default durable data root: `%LOCALAPPDATA%\vocabulary_app\` (also serves as the bootstrap locator directory for `data-root.json` and `migration-recovery.json`).
 - Default database: `%LOCALAPPDATA%\vocabulary_app\vocab.db`.
-- Backups: `%LOCALAPPDATA%\vocabulary_app\backups\`.
-- Existing database: explicit user-selected copy-with-backup; never silently moved or migrated in place from the source file.
-- Upgrade: no automatic updater in v1.0 or v1.1 (v1.1 adds a manual/background release-availability check that reports available GitHub releases without downloading or installing them); a newer installer overlays application binaries while preserving durable user data and creating migration safety backups. The real isolated v1.0.0 → v1.1.0 overlay upgrade proof is part of the F4A release-closure evidence above.
+- Default backups: `%LOCALAPPDATA%\vocabulary_app\backups\`.
+- Unified data-folder relocation (v1.2.0+): Settings → Storage can relocate SQLite database, backups, preferences, and audio cache together to a user-selected folder with sibling staging, atomic no-clobber promotion, cross-process locking, a durable recovery journal, retained source rollback baseline, and fail-closed startup validation.
+- Existing database import: explicit user-selected copy-with-backup; never silently moved or migrated in place from the source file.
+- Upgrade: no automatic updater in v1.0, v1.1, or v1.2 (v1.1+ includes a manual/background release-availability check that reports available GitHub releases without downloading or installing them); a newer installer overlays application binaries while preserving durable user data and creating migration safety backups. Real isolated `v1.0.0 → v1.1.0` and `v1.1.0 → v1.2.0` overlay upgrade proofs are part of the M21 and M23/v1.2.0 release-closure evidence above.
 - Uninstall: preserves user data by default; destructive deletion requires explicit opt-in.
 
 ## Known Limitations / Deferred Work
 
-These are recorded limitations, not M20 blockers:
+These are recorded limitations:
 
-- Full pristine clean-machine VM verification was deferred for v1.0; distribution acceptance used a fresh local standard Windows account plus real install/migration/uninstall evidence.
-- Publicly trusted code signing / SmartScreen reputation was deferred; v1.0 uses the self-signed developer certificate described above.
-- Windows 10/11 x64 is the only packaged v1.0 platform.
+- For historical v1.0.0, full pristine clean-machine VM verification was deferred (distribution acceptance used a fresh local standard Windows account plus real install/migration/uninstall evidence); for v1.2.0, both the signed `v1.2.0-rc.1` candidate and final signed `1.2.0` stable installer passed clean Windows 11 VMware acceptance (`Clean Windows 11 Baseline` snapshot).
+- Publicly trusted code signing / SmartScreen reputation remains deferred; v1.0.0, v1.1.0, and v1.2.0 use the self-signed developer certificate described above.
+- Windows 10/11 x64 is the only packaged desktop platform.
 - Audio capability depends on compatible speech voices already installed on the user's Windows system; the app does not silently download or redistribute third-party voice models/runtimes.
-- v1.0 has no automatic updater.
+- No automatic updater; release update checks are notification-only.
+- Issue #48 (UI/UX refresh / visual redesign) remains explicitly deferred to a separately authorized future milestone.
 
 ## Lifecycle Closure
 
-The v1.0 and v1.1 lifecycles are both complete:
+The v1.0, v1.1, and v1.2 lifecycles are complete and released:
 
-`M11 → M12 → M13 → M14 → M15 → M16 → M17 → M18 → M19 → M20 → v1.0.0 Released → M21 → v1.1.0 Released`
+`M11 → M12 → M13 → M14 → M15 → M16 → M17 → M18 → M19 → M20 → v1.0.0 Released → M21 → v1.1.0 Released → M22 → M23 → v1.2.0 Released`
 
-Neither M20 nor M21 should be reopened for ordinary future development. Any post-v1.1 work should begin from a new explicitly defined milestone/version decision.
+Completed release milestones (M20, M21, M22, M23) are closed and should not be reopened for ordinary future development. Any post-v1.2 work should begin from a new explicitly defined milestone/version decision.
 
 ## Historical Audit Trail
 

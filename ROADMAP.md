@@ -11,9 +11,9 @@ history before Git was initialized, see `docs/history/PRE_GIT_HISTORY.md`.
 Vocabulary App is a local-first, user-owned vocabulary learning workflow
 system.
 
-The product is transitioning from its current Python + Streamlit + SQLite
-application toward a native desktop application while preserving the existing
-learning engine and user data.
+The product's primary user surface is the native Windows desktop application
+(Python + PySide6 + SQLite), built on the shared learning engine and user-data
+layer originally established with the retained Streamlit compatibility/reference UI.
 
 The active product scope includes:
 
@@ -28,16 +28,16 @@ The active product scope includes:
 - linked local-file append sources for collections;
 - backup generation and restore preview;
 - card-oriented local audio export; and
-- migration of the user interface from Streamlit to a native desktop
-  application.
+- completed native desktop delivery (M16–M20), unified data-folder relocation
+  (M23), and ongoing desktop maintenance and safe product evolution.
 
 Permanent product constraints:
 
 - user-created content and the local SQLite database are protected assets;
 - existing user databases must remain compatible through additive,
   versioned, and backup-aware migrations;
-- reusable business logic should remain independent of Streamlit and future
-  desktop UI frameworks;
+- reusable business logic should remain independent of Streamlit and the
+  native PySide6 desktop UI framework;
 - imports require validation, preview, confirmation, and controlled writes;
 - linked local files are append sources, not authoritative bidirectional
   mirrors;
@@ -76,46 +76,42 @@ Milestones 1-10 are completed historical development and productization work:
 Completion of Milestones 1-10 established a substantial Streamlit-based
 product baseline. It did not constitute final product completion.
 
-## Lifecycle Revision
+## Historical Lifecycle Revision (Post-M10 Decision)
 
-The previous lifecycle assumed that the Streamlit application would first pass
-Feature Freeze, Product Hardening, and Release Candidate delivery before a
-desktop migration began.
+After Milestone 10, the original assumption that the Streamlit application
+would first pass Feature Freeze, Product Hardening, and Release Candidate
+delivery before a desktop migration began was superseded.
 
-That assumption is superseded.
+Full-product manual QA and real-world use at that stage identified:
 
-Subsequent full-product manual QA and real-world use identified:
-
-- correctness and data-semantic issues that must be stabilized before further
+- correctness and data-semantic issues that had to be stabilized before further
   product growth;
-- three substantial product capabilities that now belong in the active product
-  direction;
-- repository-structure debt that should be corrected before another large
-  development cycle; and
+- three substantial product capabilities (Import/Template Evolution, Learning
+  Analytics, and Audio Foundation) added in M13–M15;
+- repository-structure debt corrected in M12; and
 - a product decision to retire Streamlit as the long-term user-interface
-  target and complete the current product generation as a native desktop
-  application.
+  target and complete the product generation as a native PySide6 desktop
+  application (completed through M16–M20).
 
-The project therefore reopens scope before Feature Freeze.
-
-The Streamlit application remains a valuable compatibility and reference
-baseline during migration, but it is no longer the intended Release Candidate
-target.
+That historical revision reopened scope before the M19 desktop Feature Freeze.
+The Streamlit application was retained as a compatibility and reference
+baseline rather than the Release Candidate target.
 
 ## Current Phase
 
-**Milestones 19, 20, and 21 are complete, with v1.0.0 and v1.1.0 released.
-Milestones 22 and 23 / Vocabulary App v1.2.0 implementation, Windows-native
-Human Acceptance, and clean-VM Release Candidate acceptance are complete on
-merged `main`. The next lifecycle action is publication of stable v1.2.0 from
-that merged source, subject to separate operator authorization.**
+**Milestones 19, 20, 21, 22, and 23 are complete, with `v1.0.0`, `v1.1.0`, and
+`v1.2.0` released.** Milestones 22 and 23 / Vocabulary App `v1.2.0`
+implementation, Windows-native Human Acceptance, clean-VM `v1.2.0-rc.1`
+acceptance (`main@0eb099bf5ebf65b47d471201677a199d3d67f76a`), final stable
+metadata merge (PR #51, `main@d6af0a684db403a4167bea6edf65f8db99523d1a`),
+clean-VM `v1.1.0 → v1.2.0` overlay upgrade acceptance, and public GitHub
+Release publication under the `v1.2.0` tag (`VocabularyApp-Setup-1.2.0.exe`,
+`SHA-256 97a6781f8b54f63f35a6302f9a5a54fa9a981260794e876f5b76c5fc1299d428`)
+are complete.
 
-This one-step-ahead merge state does not claim that the `v1.2.0` tag or GitHub
-Release already exists; `v1.1.0` remains the current public release until
-publication occurs. See § Milestone 22, § Milestone 23-B/C, and
-`PROJECT_STATUS.md` for the current release gate and evidence summary; older
-milestone sections remain the historical record of how the v1.0 and v1.1
-baselines were reached.
+See § Milestone 22, § Milestone 23-B/C, and `PROJECT_STATUS.md` for the
+complete `v1.2.0` release evidence; older milestone sections remain the
+historical record of how the `v1.0.0` and `v1.1.0` baselines were reached.
 
 The trustworthy data/business-logic baseline, repository restructure, Import
 and Template Evolution foundation, and Learning Analytics and Insight Core are
@@ -2145,9 +2141,10 @@ Record the exact verified remote commit associated with the release.
 
 ## Milestone 21: Vocabulary App v1.1.0
 
-**Status: Released. Implementation and release verification completed on
-merged `main`, and v1.1.0 is published from that source as the current
-public GitHub Release under the `v1.1.0` tag.**
+**Status: Released (Historical Baseline). Implementation and release
+verification completed on merged `main`, and v1.1.0 was published from that
+source (`6bc492082cb2db8e19fdbf6c8530468edb4edf02`) under the `v1.1.0` tag;
+subsequently succeeded by `v1.2.0`.**
 
 M21 is the bounded post-v1.0 product increment:
 
@@ -2185,11 +2182,12 @@ M21 is the bounded post-v1.0 product increment:
 
 ---
 
-## Current Version Complete
+## v1.0 / v1.1 Completed Release Baselines (Historical)
 
-The v1.0.0 product generation is complete and released. The v1.1.0 increment
-has completed implementation, release verification, and publication from
-verified merged `main`; v1.1.0 is the new current public release.
+At the close of Milestone 21, both the `v1.0.0` product generation and the
+`v1.1.0` increment were complete and published from verified merged `main`.
+Subsequent post-v1.1 work was completed in Milestones 22 and 23 and shipped in
+`v1.2.0`.
 
 ## Milestone 22-A: Card workflow correction after v1.1.0
 
@@ -2204,15 +2202,15 @@ M22-A is the bounded source increment for
   and Accuracy derived from existing correct/total counts;
 - Collection-scoped Quizzes do not show Card attempt history.
 
-**Post-merge M22-A state:** #40 and #42 are implemented, independently reviewed,
-Windows-native Human Acceptance has passed all six checks, and the changes are
-merged into `main`. Other M22 investigations and product decisions are outside
-M22-A. v1.1.0 remains the current public release; no installer containing
-these fixes has shipped.
+**Historical post-merge M22-A snapshot:** #40 and #42 were implemented,
+independently reviewed, passed all six Windows-native Human Acceptance checks,
+and merged into `main` via PR #44. At that interim subphase merge, `v1.1.0`
+remained the published release and no installer containing M22-A had yet
+shipped; M22 (A/B/C/D) subsequently completed and shipped in `v1.2.0`.
 
 ## Milestone 22-B: Card-originated Matching after M22-A
 
-**Post-merge M22-B source state:** Issue #37
+**Historical post-merge M22-B snapshot:** Issue #37
 is implemented and merged into `main` under the approved Owner Decision.
 Selected-Card Quiz launches retain Card identity. Plain Matching generates
 only from that Card's eligible Entries with distinct meanings, bounds the
@@ -2222,14 +2220,15 @@ Card/revision identity into M22-A history and scheduling. Independent
 Collection and system-pool Quiz paths remain available.
 
 Targeted local regression and architecture checks cover implementation;
-the product owner reported Windows-native Human Acceptance PASS on the M22-B
-branch. PR #45 passed required CI and merged M22-B into `main`. This source
-milestone has not shipped in an installer. v1.1.0 remains the current public
-release, and M22 as a whole remains open.
+the product owner reported Windows-native Human Acceptance PASS on the
+then-active M22-B branch, and PR #45 passed required CI and merged M22-B into
+`main`. At that interim subphase merge, `v1.1.0` remained the published release
+and M22 as a whole was still open; M22 (A/B/C/D) subsequently closed and
+shipped in `v1.2.0`.
 
 ## Milestone 22-C: Theme visibility and Quiz answer feedback
 
-**Post-merge M22-C source state:** Issue #38
+**Historical post-merge M22-C snapshot:** Issue #38
 and Issue #41
 are implemented and merged into `main`. Starred and Proficient Pool Random
 Quiz buttons use explicit, theme-token foreground/background pairs with hover,
@@ -2240,12 +2239,13 @@ Matching, and persistence contracts remain intact.
 
 PR #46 passed required PR and post-merge `main` CI and merged M22-C into
 `main`. The product owner reported Windows-native Human Acceptance PASS for all
-four M22-C check groups. v1.1.0 remains the current public release; M22-C has
-not shipped in an installer, and M22 as a whole remains open.
+four M22-C check groups. At that interim subphase merge, `v1.1.0` remained the
+published release and M22 as a whole remained open pending M22-D; M22 (A/B/C/D)
+subsequently closed and shipped in `v1.2.0`.
 
 ## Milestone 22-D: Current Entry locations
 
-**Post-merge M22-D source state:** Issue #39 is implemented and merged into
+**Historical post-merge M22-D snapshot:** Issue #39 is implemented and merged into
 `main`. Entries detail shows every current ordinary Collection and its Card
 number, calculated from current membership position and that Collection's
 Card size. System practice pools are explicitly shown as pool memberships,
@@ -2256,13 +2256,12 @@ are reflected on refresh; no schema or learning-history change is involved.
 
 PR #47 passed required PR and post-merge `main` CI and merged M22-D into
 `main`. The product owner reported Windows-native Human Acceptance PASS,
-recorded in Issue #39.
-v1.1.0 remains the current public release; M22-D has not shipped in an
-installer.
+recorded in Issue #39, completing the M22 learning/UX scope prior to M23 and
+the `v1.2.0` release.
 
 ## Milestone 23-A: Selected data-root startup foundation
 
-**Post-merge M23-A source state:** Issue #43's approved unified relocation
+**Historical post-merge M23-A snapshot:** Issue #43's approved unified relocation
 contract has a centralized resolver and versioned bootstrap pointer. Legacy
 paths and explicit environment overrides remain compatible. A configured
 root is validated before SQLite opens; missing or unsafe data stops startup
@@ -2271,28 +2270,34 @@ restart. The source and packaged desktop entry paths share this failure
 handling. No database schema, user files or installer behavior is migrated.
 
 PR #49 passed required CI and merged M23-A into `main`. Native acceptance was
-deferred to the combined M23-B/C delivery. v1.1.0 remains the public release;
-M23-A has not shipped in an installer.
+deferred to the combined M23-B/C delivery, which subsequently passed and
+shipped in `v1.2.0`.
 
-## Milestone 23-B/C: Unified data relocation and Settings storage workflow
+## Milestone 23-B/C: Unified data relocation, Settings storage workflow, and v1.2.0 Release
 
-**Post-merge M23-B/C source state:** Issue #43 is fully implemented and merged into
+**Status: Released in `v1.2.0`.** Issue #43 is fully implemented and merged into
 `main`. Users can safely relocate their durable user data (SQLite database, backups,
 audio cache, and preferences) together via Settings → Storage to another drive or
 folder. The implementation enforces sibling-directory staging under the target parent
-filesystem, atomic target promotion to an absent directory, SQLite snapshot consistency
-via online backup without raw WAL copying, cross-process writer quiescence locking,
-and a durable independent migration-recovery journal in the default OS root that
-fails closed if the locator pointer is damaged or deleted. Original data files are
-safely retained as rollback baseline.
+filesystem, atomic no-clobber target promotion (`MoveFileExW` with `MOVEFILE_WRITE_THROUGH`
+and without `MOVEFILE_REPLACE_EXISTING` on Windows) to an absent directory, SQLite snapshot
+consistency via online backup without raw WAL copying, cross-process shared/exclusive
+writer quiescence locking, and a durable independent migration-recovery journal
+(`migration-recovery.json`, recording `SWITCHING → COMMITTED` transitions and
+four-component SHA-256 manifests) in the default OS root that fails closed if the
+locator pointer or target is damaged or missing. Original data files are safely
+retained as a rollback baseline.
 
-Windows-native Human Acceptance passed all storage relocation and safety checks,
-and the signed `v1.2.0-rc.1` installer passed Owner acceptance in the clean
-Windows 11 VMware test environment. Milestones 22 and 23 are complete. Following
-Owner direction to release **v1.2.0** stable directly without publishing
-`v1.2.0-rc.1`, post-v1.1 feature scope is finalized as **v1.2.0** in merged
-source (Issue #48 UI/UX refresh is explicitly deferred). v1.1.0 remains the
-current public release until v1.2.0 is built and published from verified merged `main`.
+Windows-native Human Acceptance passed all storage relocation and safety checks on the
+then-active `fix/m23bc-data-relocation` branch (merged via PR #50), and the signed
+`v1.2.0-rc.1` installer (`main@0eb099bf5ebf65b47d471201677a199d3d67f76a`, Actions run
+`39135461420`) passed Owner acceptance in the clean Windows 11 VMware test environment.
+Following Owner direction to release **v1.2.0** stable directly without publishing
+`v1.2.0-rc.1`, PR #51 finalized release metadata as **v1.2.0** on `main`
+(`d6af0a684db403a4167bea6edf65f8db99523d1a`, Issue #48 UI/UX refresh explicitly deferred).
+The final signed `VocabularyApp-Setup-1.2.0.exe` (`SHA-256 97a6781f8b54f63f35a6302f9a5a54fa9a981260794e876f5b76c5fc1299d428`)
+passed clean Windows 11 VMware `v1.1.0 → v1.2.0` overlay upgrade acceptance and is
+published as the current stable GitHub Release under the `v1.2.0` tag.
 
 ## Maintenance / Next Version
 
@@ -2343,7 +2348,8 @@ Pre-Desktop Stabilization
 -> Milestone 22 Learning & UX Corrections (Merged)
 -> Milestone 23 Unified Data-Folder Relocation (Human Acceptance PASS)
 -> v1.2.0-rc.1 Clean-VM Acceptance PASS
--> v1.2.0 Stable Release Finalization (Pre-Publication)
+-> v1.2.0 Stable Release Finalization (PR #51 Merged)
+-> v1.2.0 Clean-VM Overlay Acceptance PASS & Publication
 ```
 
 The governing migration principle remains:
